@@ -1,4 +1,4 @@
-﻿import { createInertiaApp, router } from '@inertiajs/react';
+import { createInertiaApp, router } from '@inertiajs/react';
 import { resolvePageComponent } from 'laravel-vite-plugin/inertia-helpers';
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
@@ -28,6 +28,7 @@ const menuByPathPrefix = [
     ['/marketing/purchase-requirement', 'Marketing:Purchase Requirement (PR)'],
     ['/marketing/delivery-order-add', 'Marketing:Delivery Order Add (DOA)'],
     ['/marketing/delivery-order', 'Marketing:Delivery Order (DO)'],
+    ['/marketing/performance', 'Marketing:Performance'],
     ['/pembelian/delivery-order-cost', 'Pembelian:Delivery Order Cost (APB)'],
     ['/pembelian/purchase-order', 'Pembelian:Purchase Order'],
     ['/pembelian/invoice-masuk', 'Pembelian:Invoice Masuk'],

@@ -625,19 +625,44 @@ class PurchaseOrderInController
         }
 
         $now = now();
-        if ($dateFilter === 'today') {
-            $query->whereDate('p.created_at', $now->toDateString());
-        } elseif ($dateFilter === 'this_week') {
-            $query->whereBetween('p.created_at', [$now->copy()->startOfWeek(), $now->copy()->endOfWeek()]);
-        } elseif ($dateFilter === 'this_month') {
-            $query->whereYear('p.created_at', $now->year)->whereMonth('p.created_at', $now->month);
-        } elseif ($dateFilter === 'this_year') {
-            $query->whereYear('p.created_at', $now->year);
-        } elseif ($dateFilter === 'range') {
-            if ($startDate !== '' && $endDate !== '') {
-                $query->whereDate('p.created_at', '>=', $startDate)->whereDate('p.created_at', '<=', $endDate);
-            } else {
-                $query->whereRaw('1 = 0');
+        if ($statusFilter === 'realized_do') {
+            $doDateExpression = "str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y')";
+            $query->join('tb_kddo as kdo', function ($join) {
+                $join->whereRaw('lower(trim(kdo.ref_po)) = lower(trim(CONVERT(p.no_poin USING latin1)))');
+            })
+            ->whereRaw("trim(coalesce(kdo.no_do, '')) <> ''")
+            ->distinct();
+
+            if ($dateFilter === 'today') {
+                $query->whereRaw("{$doDateExpression} between ? and ?", [$now->copy()->toDateString(), $now->copy()->toDateString()]);
+            } elseif ($dateFilter === 'this_week') {
+                $query->whereRaw("{$doDateExpression} between ? and ?", [$now->copy()->startOfWeek()->toDateString(), $now->copy()->endOfWeek()->toDateString()]);
+            } elseif ($dateFilter === 'this_month') {
+                $query->whereRaw("{$doDateExpression} between ? and ?", [$now->copy()->startOfMonth()->toDateString(), $now->copy()->endOfMonth()->toDateString()]);
+            } elseif ($dateFilter === 'this_year') {
+                $query->whereRaw("{$doDateExpression} between ? and ?", [$now->copy()->startOfYear()->toDateString(), $now->copy()->endOfYear()->toDateString()]);
+            } elseif ($dateFilter === 'range') {
+                if ($startDate !== '' && $endDate !== '') {
+                    $query->whereRaw("date({$doDateExpression}) between ? and ?", [$startDate, $endDate]);
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
+            }
+        } else {
+            if ($dateFilter === 'today') {
+                $query->whereDate('p.created_at', $now->toDateString());
+            } elseif ($dateFilter === 'this_week') {
+                $query->whereBetween('p.created_at', [$now->copy()->startOfWeek(), $now->copy()->endOfWeek()]);
+            } elseif ($dateFilter === 'this_month') {
+                $query->whereYear('p.created_at', $now->year)->whereMonth('p.created_at', $now->month);
+            } elseif ($dateFilter === 'this_year') {
+                $query->whereYear('p.created_at', $now->year);
+            } elseif ($dateFilter === 'range') {
+                if ($startDate !== '' && $endDate !== '') {
+                    $query->whereDate('p.created_at', '>=', $startDate)->whereDate('p.created_at', '<=', $endDate);
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
             }
         }
 
@@ -816,6 +841,7 @@ class PurchaseOrderInController
             }
 
             $detailStats = DB::table('tb_detailpoin')
+                ->where('kode_poin', 'like', $prefix . '.POIN-%')
                 ->select('kode_poin')
                 ->selectRaw('count(*) as total_items')
                 ->selectRaw("sum(case when coalesce(cast(nullif(trim(sisa_qtypr), '') as decimal(18,4)), cast(nullif(trim(qty), '') as decimal(18,4)), 0) <> coalesce(cast(nullif(trim(qty), '') as decimal(18,4)), 0) then 1 else 0 end) as changed_count")
@@ -839,11 +865,11 @@ class PurchaseOrderInController
             $prStats = DB::table('tb_poin as pr_p')->where('pr_p.kode_poin', 'like', $prefix . '.POIN-%')
                 ->join('tb_detailpoin as dp', 'dp.kode_poin', '=', 'pr_p.kode_poin')
                 ->join('tb_detailpr as dpr', function ($join) {
-                    $join->on('dpr.ref_po', '=', 'dp.no_poin');
-                    $join->on('dpr.kd_material', '=', 'dp.kd_material');
+                    $join->on('dpr.ref_po', '=', DB::raw('CONVERT(dp.no_poin USING latin1)'));
+                    $join->on('dpr.kd_material', '=', DB::raw('CONVERT(dp.kd_material USING latin1)'));
                 })
                 ->selectRaw('pr_p.no_poin as ref_po')
-                ->selectRaw("max(coalesce(date(dpr.date), str_to_date(dpr.date, '%Y-%m-%d'), str_to_date(dpr.date, '%Y/%m/%d'), str_to_date(dpr.date, '%d.%m.%Y'), str_to_date(dpr.date, '%d/%m/%Y'), str_to_date(dpr.date, '%d-%m-%Y'))) as last_pr_date")
+                ->selectRaw("max(case when dpr.date like '__.__.____' then str_to_date(dpr.date, '%d.%m.%Y') else str_to_date(dpr.date, '%Y-%m-%d') end) as last_pr_date")
                 ->groupBy('pr_p.no_poin');
 
             $now = now();
@@ -918,77 +944,76 @@ class PurchaseOrderInController
                 }
 
                 if ($summaryScope === 'realized' || $summaryScope === 'realized_pr' || $summaryScope === 'realized_do') {
-                    $doCountsQuery = DB::table('tb_kddo as kdo')
-                        ->join('tb_poin as p', function ($join) use ($prefix) {
-                            $join->where('p.kode_poin', 'like', $prefix . '.POIN-%');
-                            $join->whereRaw('lower(trim(kdo.ref_po)) = lower(trim(p.no_poin))');
-                        })
-                        ->joinSub($detailStats, 'do_ds', function ($join) {
-                            $join->on('do_ds.kode_poin', '=', 'p.kode_poin');
-                        })
-                        ->whereRaw("trim(coalesce(kdo.ref_po, '')) <> ''")
-                        ->whereRaw("trim(coalesce(kdo.no_do, '')) <> ''")
-                        ->whereRaw('coalesce(do_ds.total_items, 0) > 0')
-                        ->whereRaw('coalesce(do_ds.do_unrealized_items, 0) = 0');
-                        
-                    if ($dateFilter === 'today') {
-                        $doCountsQuery->whereRaw("str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y') between ? and ?", [$startToday, $endToday]);
-                    } elseif ($dateFilter === 'this_week') {
-                        $doCountsQuery->whereRaw("str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y') between ? and ?", [$startWeek, $endWeek]);
-                    } elseif ($dateFilter === 'this_month') {
-                        $doCountsQuery->whereRaw("str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y') between ? and ?", [$startMonth, $endMonth]);
-                    } elseif ($dateFilter === 'this_year') {
-                        $doCountsQuery->whereRaw("str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y') between ? and ?", [$startYear, $endYear]);
-                    } elseif ($dateFilter === 'range' && $startDate !== '' && $endDate !== '') {
-                        $doCountsQuery->whereRaw("date(str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y')) between ? and ?", [$startDate, $endDate]);
-                    }
-                    
-                    $doCounts = $doCountsQuery->selectRaw('count(distinct lower(trim(kdo.no_do))) as realized_do')->first();
-
-                    $rowQuery = DB::table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
-                        ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
-                        ->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
-                        ->whereRaw("coalesce(ds.total_items, 0) > 0")
-                        ->whereRaw("coalesce(ds.unrealized_items, 0) = 0")
-                        ->whereNotNull('prs.last_pr_date');
-
-                    if ($dateFilter === 'today') {
-                        $rowQuery->whereBetween('prs.last_pr_date', [$startToday, $endToday]);
-                    } elseif ($dateFilter === 'this_week') {
-                        $rowQuery->whereBetween('prs.last_pr_date', [$startWeek, $endWeek]);
-                    } elseif ($dateFilter === 'this_month') {
-                        $rowQuery->whereBetween('prs.last_pr_date', [$startMonth, $endMonth]);
-                    } elseif ($dateFilter === 'this_year') {
-                        $rowQuery->whereBetween('prs.last_pr_date', [$startYear, $endYear]);
-                    } elseif ($dateFilter === 'range' && $startDate !== '' && $endDate !== '') {
-                        $rowQuery->whereDate('prs.last_pr_date', '>=', $startDate)->whereDate('prs.last_pr_date', '<=', $endDate);
-                    }
-                    
-                    $row = $rowQuery->selectRaw("count(*) as realized_pr")->first();
-
                     $summary = [];
-                    if ($summaryScope === 'realized' || $summaryScope === 'realized_pr') {
-                        $summary['realized_pr'] = (int) ($row->realized_pr ?? 0);
-                    }
+
                     if ($summaryScope === 'realized' || $summaryScope === 'realized_do') {
+                        $doCountsQuery = DB::table('tb_kddo as kdo')
+                            ->join('tb_poin as p', function ($join) use ($prefix) {
+                                $join->where('p.kode_poin', 'like', $prefix . '.POIN-%');
+                                $join->whereRaw('lower(trim(kdo.ref_po)) = lower(trim(CONVERT(p.no_poin USING latin1)))');
+                            })
+                            ->joinSub($detailStats, 'do_ds', function ($join) {
+                                $join->on('do_ds.kode_poin', '=', 'p.kode_poin');
+                            })
+                            ->whereRaw("trim(coalesce(kdo.ref_po, '')) <> ''")
+                            ->whereRaw("trim(coalesce(kdo.no_do, '')) <> ''")
+                            ->whereRaw('coalesce(do_ds.total_items, 0) > 0')
+                            ->whereRaw('coalesce(do_ds.do_unrealized_items, 0) = 0');
+                            
+                        if ($dateFilter === 'today') {
+                            $doCountsQuery->whereRaw("str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y') between ? and ?", [$startToday, $endToday]);
+                        } elseif ($dateFilter === 'this_week') {
+                            $doCountsQuery->whereRaw("str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y') between ? and ?", [$startWeek, $endWeek]);
+                        } elseif ($dateFilter === 'this_month') {
+                            $doCountsQuery->whereRaw("str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y') between ? and ?", [$startMonth, $endMonth]);
+                        } elseif ($dateFilter === 'this_year') {
+                            $doCountsQuery->whereRaw("str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y') between ? and ?", [$startYear, $endYear]);
+                        } elseif ($dateFilter === 'range' && $startDate !== '' && $endDate !== '') {
+                            $doCountsQuery->whereRaw("date(str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y')) between ? and ?", [$startDate, $endDate]);
+                        }
+                        
+                        $doCounts = $doCountsQuery->selectRaw('count(distinct lower(trim(kdo.no_do))) as realized_do')->first();
                         $summary['realized_do'] = (int) ($doCounts->realized_do ?? 0);
+                    }
+
+                    if ($summaryScope === 'realized' || $summaryScope === 'realized_pr') {
+                        $rowQuery = DB::table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
+                            ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
+                            ->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
+                            ->whereRaw("coalesce(ds.total_items, 0) > 0")
+                            ->whereRaw("coalesce(ds.unrealized_items, 0) = 0")
+                            ->whereNotNull('prs.last_pr_date');
+
+                        if ($dateFilter === 'today') {
+                            $rowQuery->whereBetween('prs.last_pr_date', [$startToday, $endToday]);
+                        } elseif ($dateFilter === 'this_week') {
+                            $rowQuery->whereBetween('prs.last_pr_date', [$startWeek, $endWeek]);
+                        } elseif ($dateFilter === 'this_month') {
+                            $rowQuery->whereBetween('prs.last_pr_date', [$startMonth, $endMonth]);
+                        } elseif ($dateFilter === 'this_year') {
+                            $rowQuery->whereBetween('prs.last_pr_date', [$startYear, $endYear]);
+                        } elseif ($dateFilter === 'range' && $startDate !== '' && $endDate !== '') {
+                            $rowQuery->whereDate('prs.last_pr_date', '>=', $startDate)->whereDate('prs.last_pr_date', '<=', $endDate);
+                        }
+                        
+                        $row = $rowQuery->selectRaw("count(*) as realized_pr")->first();
+                        $summary['realized_pr'] = (int) ($row->realized_pr ?? 0);
                     }
 
                     return ['summary' => $summary];
                 }
             }
 
-            // Status tabel ditentukan dari sisa qty pada tb_detailpoin. Jangan
-            // membaca tb_do/tb_kddo di jalur ini karena tabel index harus ringan.
+            // Status tabel ditentukan dari sisa qty pada tb_detailpoin.
             $needsDoDate = false;
             $needsPrDate = $statusFilter === 'realized_pr';
 
-            if (false && $statusFilter === 'realized_do') {
+            if ($statusFilter === 'realized_do') {
                 $doDateExpression = "str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y')";
                 $query = DB::table('tb_kddo as kdo')
                     ->join('tb_poin as p', function ($join) use ($prefix) {
-                            $join->where('p.kode_poin', 'like', $prefix . '.POIN-%');
-                        $join->whereRaw('lower(trim(kdo.ref_po)) = lower(trim(p.no_poin))');
+                        $join->where('p.kode_poin', 'like', $prefix . '.POIN-%');
+                        $join->whereRaw('lower(trim(kdo.ref_po)) = lower(trim(CONVERT(p.no_poin USING latin1)))');
                     })
                     ->joinSub($detailStats, 'ds', function ($join) {
                         $join->on('ds.kode_poin', '=', 'p.kode_poin');
@@ -1028,19 +1053,36 @@ class PurchaseOrderInController
                     }
                 }
 
-                $total = DB::query()->fromSub(clone $query, 'realized_do_rows')->count();
-                $rows = $perPage === null
-                    ? (clone $query)->orderByDesc('last_do_date')->orderByDesc('no_do')->get()
-                    : (clone $query)->orderByDesc('last_do_date')->orderByDesc('no_do')->forPage($page, $perPage)->get();
+                $applyDeadlineFilter($query);
+
+                $total = ($rowsOnly && $isPartial) ? null : DB::query()->fromSub(clone $query, 'realized_do_rows')->count();
+                $rows = ($paginationOnly && $isPartial)
+                    ? collect()
+                    : ($perPage === null
+                        ? (clone $query)->orderByDesc('last_do_date')->orderByDesc('no_do')->get()
+                        : (clone $query)->orderByDesc('last_do_date')->orderByDesc('no_do')->forPage($page, $perPage)->get());
+
+                $pagination = [
+                    'total' => $total,
+                    'page' => $page,
+                    'per_page' => $perPage === null ? 'all' : $perPage,
+                    'total_pages' => $perPage === null ? 1 : max(1, (int) ceil(($total ?? 0) / $perPage)),
+                ];
+
+                if ($isPartial) {
+                    $response = [];
+                    if (!$paginationOnly) {
+                        $response['purchaseOrderIns'] = $rows;
+                    }
+                    if (!$rowsOnly) {
+                        $response['pagination'] = $pagination;
+                    }
+                    return $response;
+                }
 
                 return [
                     'purchaseOrderIns' => $rows,
-                    'pagination' => [
-                        'total' => $total,
-                        'page' => $page,
-                        'per_page' => $perPage === null ? 'all' : $perPage,
-                        'total_pages' => $perPage === null ? 1 : max(1, (int) ceil($total / $perPage)),
-                    ],
+                    'pagination' => $pagination,
                 ];
             }
 

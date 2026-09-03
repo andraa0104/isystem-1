@@ -22,6 +22,10 @@ export const menuSections = [
         title: 'Marketing',
         icon: WeightIcon,
         items: [
+            {
+                title: 'Performance',
+                href: '/marketing/performance',
+            },
             { title: 'Quotation', href: '/marketing/quotation' },
             {
                 title: 'Purchase Order In (PO In)',

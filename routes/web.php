@@ -13,6 +13,7 @@ use App\Http\Controllers\Marketing\AIPredictionController;
 use App\Http\Controllers\Marketing\PurchaseOrderInController;
 use App\Http\Controllers\Marketing\DeliveryOrderController;
 use App\Http\Controllers\Marketing\DeliveryOrderAddController;
+use App\Http\Controllers\Marketing\PerformanceController;
 use App\Http\Controllers\Marketing\DeliveryOrderCostController;
 use App\Http\Controllers\Marketing\BiayaKirimPembelianController;
 use App\Http\Controllers\Marketing\BiayaKirimPenjualanController;
@@ -444,6 +445,13 @@ Route::delete('marketing/delivery-order-add/{noDob}', [DeliveryOrderAddControlle
     ->name('marketing.delivery-order-add.destroy');
 Route::get('marketing/delivery-order-add/{noDob}/print', [DeliveryOrderAddController::class, 'print'])
     ->name('marketing.delivery-order-add.print');
+
+Route::get('marketing/performance', [PerformanceController::class, 'index'])
+    ->name('marketing.performance.index');
+Route::get('marketing/performance/data', [PerformanceController::class, 'data'])
+    ->name('marketing.performance.data');
+Route::get('marketing/performance/export', [PerformanceController::class, 'export'])
+    ->name('marketing.performance.export');
 
 Route::get('pembelian/delivery-order-cost', [DeliveryOrderCostController::class, 'index'])
     ->name('pembelian.delivery-order-cost.index');

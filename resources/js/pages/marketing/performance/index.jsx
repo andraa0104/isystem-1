@@ -1,0 +1,1847 @@
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import AppLayout from '@/layouts/app-layout';
+import { Head, router } from '@inertiajs/react';
+import {
+    ArrowDownRight,
+    ArrowUpDown,
+    ArrowUpRight,
+    Award,
+    Banknote,
+    BarChart3,
+    Calendar,
+    ChevronLeft,
+    ChevronRight,
+    FileText,
+    Filter,
+    HelpCircle,
+    Loader2,
+    Minus,
+    RefreshCw,
+    Search,
+    TrendingDown,
+    TrendingUp,
+    Users,
+} from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import Swal from 'sweetalert2';
+
+const breadcrumbs = [
+    { title: 'Dashboard', href: '/dashboard' },
+    { title: 'Marketing', href: '/marketing/performance' },
+    { title: 'Performance', href: '/marketing/performance' },
+];
+
+const formatRupiah = (value) =>
+    `Rp ${new Intl.NumberFormat('id-ID').format(Math.round(Number(value || 0)))}`;
+
+const formatNumber = (value) =>
+    new Intl.NumberFormat('id-ID').format(Math.round(Number(value || 0)));
+
+const formatPercent = (value) => {
+    const num = Number(value || 0);
+    return `${num > 0 ? '+' : ''}${num.toFixed(2)}%`;
+};
+
+const formatCompactRupiah = (value) => {
+    const num = Number(value || 0);
+    if (num >= 1_000_000_000) {
+        return (num / 1_000_000_000).toFixed(1).replace(/\.0$/, '') + ' M';
+    }
+    if (num >= 1_000_000) {
+        return (num / 1_000_000).toFixed(1).replace(/\.0$/, '') + ' jt';
+    }
+    if (num >= 1_000) {
+        return (num / 1_000).toFixed(0) + ' rb';
+    }
+    if (num === 0) return 'Rp 0';
+    return String(num);
+};
+
+const monthOptions = [
+    { value: 1, label: 'Januari' },
+    { value: 2, label: 'Februari' },
+    { value: 3, label: 'Maret' },
+    { value: 4, label: 'April' },
+    { value: 5, label: 'Mei' },
+    { value: 6, label: 'Juni' },
+    { value: 7, label: 'Juli' },
+    { value: 8, label: 'Agustus' },
+    { value: 9, label: 'September' },
+    { value: 10, label: 'Oktober' },
+    { value: 11, label: 'November' },
+    { value: 12, label: 'Desember' },
+];
+
+const quarterOptions = [
+    { value: 1, label: 'Triwulan 1 (Jan - Mar)' },
+    { value: 2, label: 'Triwulan 2 (Apr - Jun)' },
+    { value: 3, label: 'Triwulan 3 (Jul - Sep)' },
+    { value: 4, label: 'Triwulan 4 (Okt - Des)' },
+];
+
+const semesterOptions = [
+    { value: 1, label: 'Semester 1 (Jan - Jun)' },
+    { value: 2, label: 'Semester 2 (Jul - Des)' },
+];
+
+export default function PerformanceIndex({
+    initialFilters = {},
+    availableYears = [2026, 2025, 2024],
+    customersList = [],
+}) {
+    // Filter states
+    const [year, setYear] = useState(initialFilters.year || 2026);
+    const [periodType, setPeriodType] = useState(
+        initialFilters.period_type || 'monthly',
+    );
+    const [month, setMonth] = useState(initialFilters.month || 8);
+    const [quarter, setQuarter] = useState(initialFilters.quarter || 3);
+    const [semester, setSemester] = useState(initialFilters.semester || 2);
+    const [customer, setCustomer] = useState(initialFilters.customer || 'all');
+
+    // Data states
+    const [loading, setLoading] = useState(true);
+    const [data, setData] = useState(null);
+
+    // Table states
+    const [searchCustomer, setSearchCustomer] = useState('');
+    const [statusFilter, setStatusFilter] = useState('all');
+    const [sortField, setSortField] = useState('rank');
+    const [sortDirection, setSortDirection] = useState('asc');
+    const [currentPage, setCurrentPage] = useState(1);
+    const [perPage, setPerPage] = useState(5);
+
+    // Hovered chart item for interactive tooltip
+    const [hoveredChartItem, setHoveredChartItem] = useState(null);
+
+    // Top 5 lowest mode: 'nominal' (volume terkecil) | 'drop' (penurunan terbesar)
+    const [lowestMode, setLowestMode] = useState('nominal');
+
+    // Fetch Performance Data
+    const fetchData = async (overrideFilters = null) => {
+        setLoading(true);
+        try {
+            const params = new URLSearchParams({
+                year: String(overrideFilters?.year ?? year),
+                period_type: overrideFilters?.period_type ?? periodType,
+                month: String(overrideFilters?.month ?? month),
+                quarter: String(overrideFilters?.quarter ?? quarter),
+                semester: String(overrideFilters?.semester ?? semester),
+                customer: overrideFilters?.customer ?? customer,
+            });
+
+            const res = await fetch(
+                `/marketing/performance/data?${params.toString()}`,
+                {
+                    headers: { Accept: 'application/json' },
+                },
+            );
+
+            if (!res.ok) {
+                throw new Error('Gagal memuat data performa.');
+            }
+
+            const json = await res.json();
+            setData(json);
+            setCurrentPage(1);
+        } catch (error) {
+            console.error('Error loading performance data:', error);
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal Memuat Data',
+                text:
+                    error.message ||
+                    'Terjadi kesalahan saat memuat data KPI Marketing.',
+            });
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // Initial load
+    useEffect(() => {
+        fetchData();
+    }, []);
+
+    // Handle click on chart bar to quickly switch active period
+    const handleBarClick = (item) => {
+        if (!item?.key) return;
+        if (periodType === 'monthly') {
+            setMonth(Number(item.key));
+            fetchData({ month: Number(item.key) });
+        } else if (periodType === 'quarterly') {
+            setQuarter(Number(item.key));
+            fetchData({ quarter: Number(item.key) });
+        } else if (periodType === 'semester') {
+            setSemester(Number(item.key));
+            fetchData({ semester: Number(item.key) });
+        } else if (periodType === 'yearly') {
+            setYear(Number(item.key));
+            fetchData({ year: Number(item.key) });
+        }
+    };
+
+    // Handle filter submit
+    const handleApplyFilter = (e) => {
+        if (e) e.preventDefault();
+        fetchData();
+    };
+
+    // Handle filter reset
+    const handleResetFilter = () => {
+        setYear(2026);
+        setPeriodType('monthly');
+        setMonth(8);
+        setQuarter(3);
+        setSemester(2);
+        setCustomer('all');
+        fetchData({
+            year: 2026,
+            period_type: 'monthly',
+            month: 8,
+            quarter: 3,
+            semester: 2,
+            customer: 'all',
+        });
+    };
+
+    // Handle export PDF
+    const handleExportPdf = () => {
+        const params = new URLSearchParams({
+            year: String(year),
+            period_type: periodType,
+            month: String(month),
+            quarter: String(quarter),
+            semester: String(semester),
+            customer,
+            format: 'pdf',
+        });
+        window.open(
+            `/marketing/performance/export?${params.toString()}`,
+            '_blank',
+        );
+    };
+
+    // Filter & Sort Customer Table Data
+    const filteredCustomers = useMemo(() => {
+        if (!data?.allCustomers) return [];
+
+        let list = [...data.allCustomers];
+
+        // Search
+        if (searchCustomer.trim()) {
+            const q = searchCustomer.toLowerCase().trim();
+            list = list.filter(
+                (c) =>
+                    c.nm_cs.toLowerCase().includes(q) ||
+                    c.kd_cs.toLowerCase().includes(q),
+            );
+        }
+
+        // Status Filter
+        if (statusFilter !== 'all') {
+            list = list.filter((c) => c.status === statusFilter);
+        }
+
+        // Sort
+        list.sort((a, b) => {
+            let valA = a[sortField];
+            let valB = b[sortField];
+
+            if (typeof valA === 'string') {
+                valA = valA.toLowerCase();
+                valB = valB.toLowerCase();
+            }
+
+            if (valA < valB) return sortDirection === 'asc' ? -1 : 1;
+            if (valA > valB) return sortDirection === 'asc' ? 1 : -1;
+            return 0;
+        });
+
+        return list;
+    }, [data, searchCustomer, statusFilter, sortField, sortDirection]);
+
+    // Paginated Customer Data
+    const paginatedCustomers = useMemo(() => {
+        if (perPage === 'all') return filteredCustomers;
+        const start = (currentPage - 1) * perPage;
+        return filteredCustomers.slice(start, start + perPage);
+    }, [filteredCustomers, currentPage, perPage]);
+
+    const totalPages =
+        perPage === 'all'
+            ? 1
+            : Math.max(1, Math.ceil(filteredCustomers.length / perPage));
+
+    const handleSort = (field) => {
+        if (sortField === field) {
+            setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+        } else {
+            setSortField(field);
+            setSortDirection('desc');
+        }
+    };
+
+    // Status Badge Helper
+    const renderStatusBadge = (status) => {
+        switch (status) {
+            case 'Sangat Baik':
+                return (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                        <ArrowUpRight className="h-3 w-3" /> Sangat Baik
+                    </span>
+                );
+            case 'Baik':
+                return (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/20 bg-blue-500/10 px-2.5 py-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400">
+                        <ArrowUpRight className="h-3 w-3" /> Baik
+                    </span>
+                );
+            case 'Stabil':
+                return (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
+                        <Minus className="h-3 w-3" /> Stabil
+                    </span>
+                );
+            case 'Menurun':
+                return (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/20 bg-rose-500/10 px-2.5 py-0.5 text-xs font-semibold text-rose-600 dark:text-rose-400">
+                        <ArrowDownRight className="h-3 w-3" /> Menurun
+                    </span>
+                );
+            case 'Tidak Ada Transaksi':
+            default:
+                return (
+                    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/60 px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+                        Tidak Ada Transaksi
+                    </span>
+                );
+        }
+    };
+
+    // Max chart value for relative bar heights
+    const maxChartValue = useMemo(() => {
+        if (!data?.chartData?.items?.length) return 1;
+        const max = Math.max(
+            ...data.chartData.items.map((i) => Number(i.sales || 0)),
+        );
+        return max > 0 ? max : 1;
+    }, [data]);
+
+    return (
+        <AppLayout breadcrumbs={breadcrumbs}>
+            <Head title="Marketing Performance - KPI Penjualan" />
+
+            <div className="space-y-6 p-4 sm:p-6 lg:p-8">
+                {/* Header & Action Buttons */}
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <h1 className="text-2xl font-bold tracking-tight text-foreground sm:text-3xl">
+                            Marketing Performance
+                        </h1>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                            Key Performance Indicator (KPI) penjualan seluruh
+                            customer berdasarkan faktur penjualan valid.
+                        </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={handleExportPdf}
+                            disabled={loading}
+                            className="h-9 gap-1.5 border-sidebar-border/70 text-xs shadow-xs sm:text-sm"
+                        >
+                            <FileText className="h-4 w-4 text-rose-600" />
+                            <span>Export PDF</span>
+                        </Button>
+
+                        <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => fetchData()}
+                            disabled={loading}
+                            className="h-9 w-9 border border-sidebar-border/70"
+                            title="Refresh Data"
+                        >
+                            <RefreshCw
+                                className={`h-4 w-4 ${loading ? 'animate-spin' : ''}`}
+                            />
+                        </Button>
+                    </div>
+                </div>
+
+                {/* 1. Filter Section */}
+                <div className="rounded-2xl border border-sidebar-border/70 bg-card p-5 shadow-xs">
+                    <form onSubmit={handleApplyFilter} className="space-y-4">
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-5">
+                            {/* Tahun */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-semibold text-muted-foreground">
+                                    Tahun
+                                </label>
+                                <select
+                                    value={year}
+                                    onChange={(e) =>
+                                        setYear(Number(e.target.value))
+                                    }
+                                    className="h-9.5 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm text-foreground shadow-xs focus:border-primary focus:outline-hidden"
+                                >
+                                    {availableYears.map((y) => (
+                                        <option key={y} value={y}>
+                                            Tahun {y}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Jenis Periode */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-semibold text-muted-foreground">
+                                    Jenis Periode
+                                </label>
+                                <select
+                                    value={periodType}
+                                    onChange={(e) =>
+                                        setPeriodType(e.target.value)
+                                    }
+                                    className="h-9.5 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm text-foreground shadow-xs focus:border-primary focus:outline-hidden"
+                                >
+                                    <option value="monthly">Bulanan</option>
+                                    <option value="quarterly">Triwulan</option>
+                                    <option value="semester">Semester</option>
+                                    <option value="yearly">Tahunan</option>
+                                </select>
+                            </div>
+
+                            {/* Sub-filter dinamis */}
+                            {periodType === 'monthly' && (
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-semibold text-muted-foreground">
+                                        Pilih Bulan
+                                    </label>
+                                    <select
+                                        value={month}
+                                        onChange={(e) =>
+                                            setMonth(Number(e.target.value))
+                                        }
+                                        className="h-9.5 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm text-foreground shadow-xs focus:border-primary focus:outline-hidden"
+                                    >
+                                        {monthOptions.map((m) => (
+                                            <option
+                                                key={m.value}
+                                                value={m.value}
+                                            >
+                                                {m.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            {periodType === 'quarterly' && (
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-semibold text-muted-foreground">
+                                        Pilih Triwulan
+                                    </label>
+                                    <select
+                                        value={quarter}
+                                        onChange={(e) =>
+                                            setQuarter(Number(e.target.value))
+                                        }
+                                        className="h-9.5 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm text-foreground shadow-xs focus:border-primary focus:outline-hidden"
+                                    >
+                                        {quarterOptions.map((q) => (
+                                            <option
+                                                key={q.value}
+                                                value={q.value}
+                                            >
+                                                {q.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            {periodType === 'semester' && (
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-semibold text-muted-foreground">
+                                        Pilih Semester
+                                    </label>
+                                    <select
+                                        value={semester}
+                                        onChange={(e) =>
+                                            setSemester(Number(e.target.value))
+                                        }
+                                        className="h-9.5 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm text-foreground shadow-xs focus:border-primary focus:outline-hidden"
+                                    >
+                                        {semesterOptions.map((s) => (
+                                            <option
+                                                key={s.value}
+                                                value={s.value}
+                                            >
+                                                {s.label}
+                                            </option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
+
+                            {periodType === 'yearly' && (
+                                <div className="space-y-1.5">
+                                    <label className="text-xs font-semibold text-muted-foreground">
+                                        Periode
+                                    </label>
+                                    <div className="flex h-9.5 items-center rounded-lg border border-sidebar-border/70 bg-muted/40 px-3 text-sm text-muted-foreground">
+                                        Sepanjang Tahun {year}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Customer Filter */}
+                            <div className="space-y-1.5">
+                                <label className="text-xs font-semibold text-muted-foreground">
+                                    Customer
+                                </label>
+                                <select
+                                    value={customer}
+                                    onChange={(e) =>
+                                        setCustomer(e.target.value)
+                                    }
+                                    className="h-9.5 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm text-foreground shadow-xs focus:border-primary focus:outline-hidden"
+                                >
+                                    <option value="all">
+                                        Semua Customer (Semua Transaksi)
+                                    </option>
+                                    {customersList.map((c) => (
+                                        <option key={c.kd_cs} value={c.kd_cs}>
+                                            {c.nm_cs}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            {/* Tombol Action */}
+                            <div className="flex items-end gap-2">
+                                <Button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="h-9.5 flex-1 gap-1.5 rounded-lg text-xs font-medium sm:text-sm"
+                                >
+                                    <Filter className="h-4 w-4" />
+                                    <span>Terapkan Filter</span>
+                                </Button>
+
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    onClick={handleResetFilter}
+                                    disabled={loading}
+                                    className="h-9.5 border-sidebar-border/70 px-3 text-xs sm:text-sm"
+                                    title="Reset ke Default"
+                                >
+                                    Reset
+                                </Button>
+                            </div>
+                        </div>
+
+                        {/* Banner Periode Aktif */}
+                        {data?.periodInfo && (
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-t border-sidebar-border/50 pt-3 text-xs text-muted-foreground">
+                                <div className="flex items-center gap-2">
+                                    <Calendar className="h-4 w-4 text-primary" />
+                                    <span>
+                                        Periode Berjalan:{' '}
+                                        <strong className="text-foreground">
+                                            {data.periodInfo.currentLabel}
+                                        </strong>
+                                    </span>
+                                    <span className="text-muted-foreground/50">
+                                        •
+                                    </span>
+                                    <span>
+                                        Periode Pembanding:{' '}
+                                        <strong className="text-foreground">
+                                            {data.periodInfo.previousLabel}
+                                        </strong>
+                                    </span>
+                                </div>
+                                {customer !== 'all' && (
+                                    <span className="rounded-md bg-primary/10 px-2 py-0.5 font-medium text-primary">
+                                        Filter Customer Aktif
+                                    </span>
+                                )}
+                            </div>
+                        )}
+                    </form>
+                </div>
+
+                {/* Loading State */}
+                {loading && !data && (
+                    <div className="flex h-64 items-center justify-center rounded-2xl border border-sidebar-border/70 bg-card">
+                        <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                            <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                            <p className="text-sm font-medium">
+                                Memuat data KPI penjualan...
+                            </p>
+                        </div>
+                    </div>
+                )}
+
+                {data && (
+                    <>
+                        {/* 2. KPI Cards (6 Kartu) */}
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                            {/* Card 1: Total Penjualan */}
+                            <div className="relative overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card p-5 shadow-xs transition-all hover:shadow-md">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-muted-foreground">
+                                        Total Penjualan
+                                    </span>
+                                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                                        <Banknote className="h-5 w-5" />
+                                    </div>
+                                </div>
+                                <div className="mt-3">
+                                    <div className="text-lg font-bold tracking-tight text-foreground sm:text-xl">
+                                        {formatRupiah(data.kpi.total_sales)}
+                                    </div>
+                                    <div className="mt-1 flex items-center gap-1.5 text-xs">
+                                        <span
+                                            className={`inline-flex items-center font-semibold ${
+                                                data.kpi.growth_percent >= 0
+                                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                                    : 'text-rose-600 dark:text-rose-400'
+                                            }`}
+                                        >
+                                            {data.kpi.growth_percent >= 0 ? (
+                                                <TrendingUp className="mr-0.5 h-3.5 w-3.5" />
+                                            ) : (
+                                                <TrendingDown className="mr-0.5 h-3.5 w-3.5" />
+                                            )}
+                                            {formatPercent(
+                                                data.kpi.growth_percent,
+                                            )}
+                                        </span>
+                                        <span className="truncate text-muted-foreground">
+                                            vs periode lalu
+                                        </span>
+                                    </div>
+                                    <div className="mt-2.5 border-t border-sidebar-border/50 pt-2 text-xs">
+                                        <span className="text-muted-foreground">Periode lalu: </span>
+                                        <strong className="font-semibold text-foreground">
+                                            {formatRupiah(data.kpi.prev_total_sales)}
+                                        </strong>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Card 2: Customer Transaksi */}
+                            <div className="relative overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card p-5 shadow-xs transition-all hover:shadow-md">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-muted-foreground">
+                                        Customer Transaksi
+                                    </span>
+                                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
+                                        <Users className="h-5 w-5" />
+                                    </div>
+                                </div>
+                                <div className="mt-3">
+                                    <div className="text-lg font-bold tracking-tight text-foreground sm:text-xl">
+                                        {formatNumber(data.kpi.total_customers)}{' '}
+                                        <span className="text-xs font-normal text-muted-foreground">
+                                            Customer
+                                        </span>
+                                    </div>
+                                    <div className="mt-1 text-xs text-muted-foreground">
+                                        {data.kpi.prev_total_customers} customer
+                                        periode lalu
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Card 3: Rata-rata / Customer */}
+                            <div className="relative overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card p-5 shadow-xs transition-all hover:shadow-md">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-muted-foreground">
+                                        Rata-rata / Customer
+                                    </span>
+                                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
+                                        <BarChart3 className="h-5 w-5" />
+                                    </div>
+                                </div>
+                                <div className="mt-3">
+                                    <div className="text-lg font-bold tracking-tight text-foreground sm:text-xl">
+                                        {formatRupiah(
+                                            data.kpi.avg_sales_per_customer,
+                                        )}
+                                    </div>
+                                    <div className="mt-1 text-xs text-muted-foreground">
+                                        Per customer aktif
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Card 4: Pertumbuhan Penjualan */}
+                            <div className="relative overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card p-5 shadow-xs transition-all hover:shadow-md">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-muted-foreground">
+                                        Pertumbuhan
+                                    </span>
+                                    <div
+                                        className={`flex h-9 w-9 items-center justify-center rounded-xl ${
+                                            data.kpi.growth_percent >= 0
+                                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                                                : 'bg-rose-500/10 text-rose-600 dark:text-rose-400'
+                                        }`}
+                                    >
+                                        {data.kpi.growth_percent >= 0 ? (
+                                            <TrendingUp className="h-5 w-5" />
+                                        ) : (
+                                            <TrendingDown className="h-5 w-5" />
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="mt-3">
+                                    <div
+                                        className={`text-lg font-bold tracking-tight sm:text-xl ${
+                                            data.kpi.growth_percent >= 0
+                                                ? 'text-emerald-600 dark:text-emerald-400'
+                                                : 'text-rose-600 dark:text-rose-400'
+                                        }`}
+                                    >
+                                        {formatPercent(data.kpi.growth_percent)}
+                                    </div>
+                                    <div className="mt-1 truncate text-xs text-muted-foreground">
+                                        {data.kpi.growth_nominal >= 0
+                                            ? '+'
+                                            : ''}
+                                        {formatRupiah(data.kpi.growth_nominal)}
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Card 5: Total Invoice */}
+                            <div className="relative overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card p-5 shadow-xs transition-all hover:shadow-md">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-muted-foreground">
+                                        Total Invoice
+                                    </span>
+                                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-cyan-500/10 text-cyan-600 dark:text-cyan-400">
+                                        <FileText className="h-5 w-5" />
+                                    </div>
+                                </div>
+                                <div className="mt-3">
+                                    <div className="text-lg font-bold tracking-tight text-foreground sm:text-xl">
+                                        {formatNumber(data.kpi.total_invoices)}{' '}
+                                        <span className="text-xs font-normal text-muted-foreground">
+                                            Faktur
+                                        </span>
+                                    </div>
+                                    <div className="mt-1 text-xs text-muted-foreground">
+                                        {data.kpi.prev_total_invoices} invoice
+                                        periode lalu
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Card 6: Customer Tertinggi */}
+                            <div className="relative overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card p-5 shadow-xs transition-all hover:shadow-md">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-xs font-semibold text-muted-foreground">
+                                        Customer Tertinggi
+                                    </span>
+                                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                                        <Award className="h-5 w-5" />
+                                    </div>
+                                </div>
+                                <div className="mt-3">
+                                    <div
+                                        className="truncate text-sm font-bold tracking-tight text-foreground"
+                                        title={
+                                            data.kpi.top_customer?.name || '-'
+                                        }
+                                    >
+                                        {data.kpi.top_customer?.name || '-'}
+                                    </div>
+                                    <div className="mt-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+                                        {data.kpi.top_customer
+                                            ? formatRupiah(
+                                                  data.kpi.top_customer.sales,
+                                              )
+                                            : 'Rp 0'}
+                                        {data.kpi.top_customer && (
+                                            <span className="ml-1 text-[11px] font-normal text-muted-foreground">
+                                                (
+                                                {data.kpi.top_customer.contribution.toFixed(
+                                                    1,
+                                                )}
+                                                %)
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 3. Grafik Perkembangan Penjualan */}
+                        <div className="rounded-2xl border border-sidebar-border/70 bg-card p-5 shadow-xs">
+                            <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <h2 className="text-base font-bold text-foreground sm:text-lg">
+                                        {data.chartData?.title ||
+                                            'Grafik Perkembangan Penjualan'}
+                                    </h2>
+                                    <p className="text-xs text-muted-foreground">
+                                        Perbandingan total penjualan seluruh periode (faktur terbit valid).
+                                    </p>
+                                </div>
+
+                                {/* Legend: jelas membedakan periode terpilih vs periode lain */}
+                                <div className="flex flex-wrap items-center gap-4 text-xs">
+                                    <div className="flex items-center gap-2">
+                                        <span className="h-3.5 w-3.5 rounded-xs bg-emerald-500 shadow-sm ring-2 ring-emerald-300 dark:ring-emerald-400" />
+                                        <span className="font-bold text-foreground">
+                                            Periode Terpilih ({data.periodInfo?.currentLabel || 'Aktif'})
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="h-3.5 w-3.5 rounded-xs bg-blue-500 dark:bg-blue-600 shadow-sm" />
+                                        <span className="font-medium text-muted-foreground">
+                                            Periode Lainnya
+                                        </span>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className="h-1.5 w-3.5 rounded-full bg-slate-300 dark:bg-slate-700" />
+                                        <span className="text-muted-foreground">
+                                            Rp 0 (Tanpa Transaksi)
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* SVG Vector Bar Chart Area */}
+                            <div className="relative mt-6 w-full overflow-x-auto">
+                                <div className="min-w-[720px]">
+                                    <svg
+                                        viewBox="0 0 920 290"
+                                        className="h-auto w-full select-none"
+                                        style={{ minHeight: '270px' }}
+                                    >
+                                        <defs>
+                                            {/* Emerald Gradient for Active Period */}
+                                            <linearGradient
+                                                id="activeBarGrad"
+                                                x1="0"
+                                                y1="0"
+                                                x2="0"
+                                                y2="1"
+                                            >
+                                                <stop
+                                                    offset="0%"
+                                                    stopColor="#10b981"
+                                                />
+                                                <stop
+                                                    offset="100%"
+                                                    stopColor="#047857"
+                                                />
+                                            </linearGradient>
+
+                                            {/* Blue Gradient for Other Periods */}
+                                            <linearGradient
+                                                id="otherBarGrad"
+                                                x1="0"
+                                                y1="0"
+                                                x2="0"
+                                                y2="1"
+                                            >
+                                                <stop
+                                                    offset="0%"
+                                                    stopColor="#3b82f6"
+                                                />
+                                                <stop
+                                                    offset="100%"
+                                                    stopColor="#1d4ed8"
+                                                />
+                                            </linearGradient>
+
+                                            {/* Glow and Shadow Filters */}
+                                            <filter
+                                                id="activeGlow"
+                                                x="-20%"
+                                                y="-20%"
+                                                width="140%"
+                                                height="140%"
+                                            >
+                                                <feDropShadow
+                                                    dx="0"
+                                                    dy="4"
+                                                    stdDeviation="4"
+                                                    floodColor="#10b981"
+                                                    floodOpacity="0.4"
+                                                />
+                                            </filter>
+                                        </defs>
+
+                                        {/* 5 Horizontal Reference Grid Lines */}
+                                        <line
+                                            x1="75"
+                                            y1="35"
+                                            x2="900"
+                                            y2="35"
+                                            stroke="currentColor"
+                                            strokeDasharray="4 4"
+                                            strokeOpacity="0.2"
+                                        />
+                                        <line
+                                            x1="75"
+                                            y1="81"
+                                            x2="900"
+                                            y2="81"
+                                            stroke="currentColor"
+                                            strokeDasharray="4 4"
+                                            strokeOpacity="0.15"
+                                        />
+                                        <line
+                                            x1="75"
+                                            y1="127"
+                                            x2="900"
+                                            y2="127"
+                                            stroke="currentColor"
+                                            strokeDasharray="4 4"
+                                            strokeOpacity="0.15"
+                                        />
+                                        <line
+                                            x1="75"
+                                            y1="173"
+                                            x2="900"
+                                            y2="173"
+                                            stroke="currentColor"
+                                            strokeDasharray="4 4"
+                                            strokeOpacity="0.15"
+                                        />
+                                        <line
+                                            x1="75"
+                                            y1="220"
+                                            x2="900"
+                                            y2="220"
+                                            stroke="currentColor"
+                                            strokeWidth="1.5"
+                                            strokeOpacity="0.4"
+                                        />
+
+                                        {/* Y-Axis Value Labels */}
+                                        <text
+                                            x="65"
+                                            y="39"
+                                            textAnchor="end"
+                                            fontSize="11"
+                                            fontFamily="monospace"
+                                            fill="currentColor"
+                                            opacity="0.75"
+                                        >
+                                            {formatCompactRupiah(maxChartValue)}
+                                        </text>
+                                        <text
+                                            x="65"
+                                            y="85"
+                                            textAnchor="end"
+                                            fontSize="11"
+                                            fontFamily="monospace"
+                                            fill="currentColor"
+                                            opacity="0.75"
+                                        >
+                                            {formatCompactRupiah(
+                                                maxChartValue * 0.75,
+                                            )}
+                                        </text>
+                                        <text
+                                            x="65"
+                                            y="131"
+                                            textAnchor="end"
+                                            fontSize="11"
+                                            fontFamily="monospace"
+                                            fill="currentColor"
+                                            opacity="0.75"
+                                        >
+                                            {formatCompactRupiah(
+                                                maxChartValue * 0.5,
+                                            )}
+                                        </text>
+                                        <text
+                                            x="65"
+                                            y="177"
+                                            textAnchor="end"
+                                            fontSize="11"
+                                            fontFamily="monospace"
+                                            fill="currentColor"
+                                            opacity="0.75"
+                                        >
+                                            {formatCompactRupiah(
+                                                maxChartValue * 0.25,
+                                            )}
+                                        </text>
+                                        <text
+                                            x="65"
+                                            y="224"
+                                            textAnchor="end"
+                                            fontSize="11"
+                                            fontFamily="monospace"
+                                            fill="currentColor"
+                                            opacity="0.75"
+                                        >
+                                            Rp 0
+                                        </text>
+
+                                        {/* Bars and Period Labels */}
+                                        {data.chartData?.items?.map(
+                                            (item, index) => {
+                                                const n =
+                                                    data.chartData.items.length;
+                                                const chartLeft = 85;
+                                                const chartRight = 890;
+                                                const chartWidth =
+                                                    chartRight - chartLeft;
+                                                const step = chartWidth / n;
+                                                const barWidth = Math.min(
+                                                    54,
+                                                    Math.max(
+                                                        26,
+                                                        step * 0.52,
+                                                    ),
+                                                );
+                                                const x =
+                                                    chartLeft +
+                                                    index * step +
+                                                    (step - barWidth) / 2;
+
+                                                const chartTop = 35;
+                                                const chartBottom = 220;
+                                                const chartHeight =
+                                                    chartBottom - chartTop; // 185px
+
+                                                const value = Number(
+                                                    item.sales || 0,
+                                                );
+                                                const barH =
+                                                    maxChartValue > 0
+                                                        ? (value /
+                                                              maxChartValue) *
+                                                          chartHeight
+                                                        : 0;
+                                                const displayH =
+                                                    value > 0
+                                                        ? Math.max(barH, 6)
+                                                        : 0;
+                                                const y = chartBottom - displayH;
+
+                                                const isHighlighted =
+                                                    item.is_active;
+
+                                                return (
+                                                    <g
+                                                        key={item.key}
+                                                        className="group cursor-pointer"
+                                                        onClick={() =>
+                                                            handleBarClick(item)
+                                                        }
+                                                        onMouseEnter={() =>
+                                                            setHoveredChartItem(
+                                                                item,
+                                                            )
+                                                        }
+                                                        onMouseLeave={() =>
+                                                            setHoveredChartItem(
+                                                                null,
+                                                            )
+                                                        }
+                                                    >
+                                                        {/* Invisible clickable trigger area covering full column */}
+                                                        <rect
+                                                            x={
+                                                                chartLeft +
+                                                                index * step
+                                                            }
+                                                            y="15"
+                                                            width={step}
+                                                            height="260"
+                                                            fill="transparent"
+                                                        />
+
+                                                        {/* Hover column background highlight */}
+                                                        <rect
+                                                            x={
+                                                                chartLeft +
+                                                                index * step +
+                                                                2
+                                                            }
+                                                            y="25"
+                                                            width={step - 4}
+                                                            height="200"
+                                                            rx="6"
+                                                            fill="currentColor"
+                                                            opacity={
+                                                                hoveredChartItem?.key ===
+                                                                item.key
+                                                                    ? '0.08'
+                                                                    : '0'
+                                                            }
+                                                            className="transition-opacity duration-200"
+                                                        />
+
+                                                        {/* Top Value Label */}
+                                                        {value > 0 && (
+                                                            <text
+                                                                x={
+                                                                    x +
+                                                                    barWidth / 2
+                                                                }
+                                                                y={Math.max(
+                                                                    y - 8,
+                                                                    26,
+                                                                )}
+                                                                textAnchor="middle"
+                                                                fontSize="11"
+                                                                fontWeight="bold"
+                                                                fill={
+                                                                    isHighlighted
+                                                                        ? '#10b981'
+                                                                        : 'currentColor'
+                                                                }
+                                                                opacity={
+                                                                    isHighlighted
+                                                                        ? 1
+                                                                        : 0.85
+                                                                }
+                                                                className="tabular-nums"
+                                                            >
+                                                                {formatCompactRupiah(
+                                                                    value,
+                                                                )}
+                                                            </text>
+                                                        )}
+
+                                                        {/* The Bar */}
+                                                        {value > 0 ? (
+                                                            <rect
+                                                                x={x}
+                                                                y={y}
+                                                                width={barWidth}
+                                                                height={displayH}
+                                                                rx="5"
+                                                                fill={
+                                                                    isHighlighted
+                                                                        ? 'url(#activeBarGrad)'
+                                                                        : 'url(#otherBarGrad)'
+                                                                }
+                                                                filter={
+                                                                    isHighlighted
+                                                                        ? 'url(#activeGlow)'
+                                                                        : undefined
+                                                                }
+                                                                stroke={
+                                                                    isHighlighted
+                                                                        ? '#34d399'
+                                                                        : '#60a5fa'
+                                                                }
+                                                                strokeWidth={
+                                                                    isHighlighted
+                                                                        ? '1.5'
+                                                                        : '0.5'
+                                                                }
+                                                                className="transition-all duration-300 hover:brightness-110"
+                                                            />
+                                                        ) : (
+                                                            /* Zero Sales Baseline Tick */
+                                                            <rect
+                                                                x={x}
+                                                                y={
+                                                                    chartBottom -
+                                                                    1.5
+                                                                }
+                                                                width={barWidth}
+                                                                height="3"
+                                                                rx="1.5"
+                                                                fill="currentColor"
+                                                                opacity="0.25"
+                                                            />
+                                                        )}
+
+                                                        {/* Bottom Label Badge or Text */}
+                                                        {isHighlighted ? (
+                                                            <g>
+                                                                <rect
+                                                                    x={
+                                                                        x +
+                                                                        barWidth /
+                                                                            2 -
+                                                                        Math.max(
+                                                                            barWidth /
+                                                                                2 +
+                                                                                4,
+                                                                            18,
+                                                                        )
+                                                                    }
+                                                                    y={
+                                                                        chartBottom +
+                                                                        10
+                                                                    }
+                                                                    width={Math.max(
+                                                                        barWidth +
+                                                                            8,
+                                                                        36,
+                                                                    )}
+                                                                    height="24"
+                                                                    rx="6"
+                                                                    fill="#10b981"
+                                                                />
+                                                                <text
+                                                                    x={
+                                                                        x +
+                                                                        barWidth /
+                                                                            2
+                                                                    }
+                                                                    y={
+                                                                        chartBottom +
+                                                                        26
+                                                                    }
+                                                                    textAnchor="middle"
+                                                                    fontSize="12"
+                                                                    fontWeight="bold"
+                                                                    fill="#ffffff"
+                                                                >
+                                                                    {item.label}
+                                                                </text>
+                                                            </g>
+                                                        ) : (
+                                                            <text
+                                                                x={
+                                                                    x +
+                                                                    barWidth / 2
+                                                                }
+                                                                y={
+                                                                    chartBottom +
+                                                                    26
+                                                                }
+                                                                textAnchor="middle"
+                                                                fontSize="12"
+                                                                fontWeight="500"
+                                                                fill="currentColor"
+                                                                opacity="0.65"
+                                                                className="transition-all group-hover:font-bold group-hover:opacity-100"
+                                                            >
+                                                                {item.label}
+                                                            </text>
+                                                        )}
+                                                    </g>
+                                                );
+                                            },
+                                        )}
+                                    </svg>
+                                </div>
+                            </div>
+
+                            {/* Chart Summary Footer */}
+                            <div className="mt-4 flex flex-wrap items-center justify-between rounded-xl bg-muted/30 px-4 py-2.5 text-xs text-foreground">
+                                <div>
+                                    {hoveredChartItem ? (
+                                        <span className="font-semibold text-foreground">
+                                            Sorot:{' '}
+                                            <strong className="text-primary">
+                                                {hoveredChartItem.full_label}
+                                            </strong>{' '}
+                                            —{' '}
+                                            <span className={hoveredChartItem.is_active ? 'text-emerald-500 font-bold' : 'text-blue-500 font-bold'}>
+                                                {formatRupiah(hoveredChartItem.sales)}
+                                            </span>{' '}
+                                            ({hoveredChartItem.invoices} Faktur)
+                                        </span>
+                                    ) : (
+                                        <span className="text-muted-foreground">
+                                            Arahkan kursor ke batang untuk melihat detail, atau <strong>klik pada batang</strong> untuk langsung memfilter ke periode tersebut.
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="text-[11px] text-muted-foreground">
+                                    Penjualan Tertinggi: <strong className="text-foreground">{formatRupiah(maxChartValue)}</strong>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 4. Top 5 Penjualan Customer — Perbandingan Antar Periode & Aksi Marketing */}
+                        <div className="space-y-4">
+                            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <h2 className="text-base font-bold text-foreground sm:text-lg">
+                                        Analisis Customer — Perbandingan Antar Periode
+                                    </h2>
+                                    <p className="text-xs text-muted-foreground">
+                                        Perbandingan langsung penjualan periode terpilih ({data.periodInfo?.currentLabel}) dengan periode sebelumnya ({data.periodInfo?.previousLabel}) pada masing-masing customer.
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
+                                {/* CARD 1: TOP 5 PENJUALAN TERTINGGI (PERTAHANKAN) */}
+                                <div className="rounded-2xl border border-sidebar-border/70 bg-card p-5 shadow-xs">
+                                    <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <h3 className="flex items-center gap-2 text-base font-bold text-foreground">
+                                                <Award className="h-5 w-5 text-amber-500" />
+                                                Top 5 Penjualan Tertinggi
+                                            </h3>
+                                            <p className="text-xs text-muted-foreground">
+                                                Customer kontribusi terbesar — prioritaskan retensi &amp; repeat order.
+                                            </p>
+                                        </div>
+                                        <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-400">
+                                            🛡️ Target: Pertahankan
+                                        </span>
+                                    </div>
+
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-sm">
+                                            <thead className="border-b border-sidebar-border/70 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                                <tr>
+                                                    <th className="pb-2.5 text-center">#</th>
+                                                    <th className="pb-2.5">Customer</th>
+                                                    <th className="pb-2.5 text-right">
+                                                        {data.periodInfo?.currentLabel || 'Periode Ini'}
+                                                    </th>
+                                                    <th className="pb-2.5 text-right">
+                                                        {data.periodInfo?.previousLabel || 'Periode Lalu'}
+                                                    </th>
+                                                    <th className="pb-2.5 text-right">Selisih &amp; Tren</th>
+                                                    <th className="pb-2.5 text-center">Aksi Tim</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-sidebar-border/50 text-xs sm:text-sm">
+                                                {!data.topCustomers || data.topCustomers.length === 0 ? (
+                                                    <tr>
+                                                        <td colSpan={6} className="py-6 text-center text-muted-foreground">
+                                                            Tidak ada data transaksi pada periode ini.
+                                                        </td>
+                                                    </tr>
+                                                ) : (
+                                                    data.topCustomers.map((c) => {
+                                                        const diff = Number(c.diff_sales ?? (c.curr_sales - c.prev_sales));
+                                                        const isUp = diff >= 0;
+
+                                                        return (
+                                                            <tr key={c.kd_cs} className="hover:bg-muted/40">
+                                                                <td className="py-3 text-center font-bold">
+                                                                    {c.rank === 1 ? (
+                                                                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-500 text-xs font-bold text-white shadow-xs">1</span>
+                                                                    ) : c.rank === 2 ? (
+                                                                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-400 text-xs font-bold text-white shadow-xs">2</span>
+                                                                    ) : c.rank === 3 ? (
+                                                                        <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-amber-700 text-xs font-bold text-white shadow-xs">3</span>
+                                                                    ) : (
+                                                                        c.rank
+                                                                    )}
+                                                                </td>
+                                                                <td className="py-3 font-medium text-foreground">
+                                                                    <div className="font-semibold">{c.nm_cs}</div>
+                                                                    <div className="text-[11px] text-muted-foreground">{c.kd_cs}</div>
+                                                                </td>
+                                                                <td className="py-3 text-right font-bold text-foreground">
+                                                                    {formatRupiah(c.curr_sales)}
+                                                                </td>
+                                                                <td className="py-3 text-right font-medium text-muted-foreground">
+                                                                    {c.prev_sales > 0 ? formatRupiah(c.prev_sales) : 'Rp 0'}
+                                                                </td>
+                                                                <td className="py-3 text-right">
+                                                                    <div className="flex flex-col items-end">
+                                                                        <span
+                                                                            className={`inline-flex items-center gap-0.5 font-bold ${
+                                                                                isUp
+                                                                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                                                                    : 'text-rose-600 dark:text-rose-400'
+                                                                            }`}
+                                                                        >
+                                                                            {isUp ? (
+                                                                                <ArrowUpRight className="h-3.5 w-3.5" />
+                                                                            ) : (
+                                                                                <ArrowDownRight className="h-3.5 w-3.5" />
+                                                                            )}
+                                                                            {isUp ? '+' : '-'}{formatCompactRupiah(Math.abs(diff))}
+                                                                        </span>
+                                                                        <span className="text-[10px] text-muted-foreground">
+                                                                            {formatPercent(c.growth)}
+                                                                        </span>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="py-3 text-center">
+                                                                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                                                                        Pertahankan
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })
+                                                )}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {/* Marketing Advice Footer */}
+                                    <div className="mt-3 flex items-center gap-2 rounded-xl border border-emerald-500/20 bg-emerald-500/5 px-3 py-2 text-xs text-emerald-800 dark:text-emerald-300">
+                                        <Award className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+                                        <span>
+                                            <strong>Strategi Marketing:</strong> Customer kunci di atas menghasilkan omset tertinggi. Jaga komunikasi berkala, berikan pelayanan prioritas, dan kunci kontrak repeat order.
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* CARD 2: TOP 5 PENJUALAN TERENDAH (PERBANYAK PENAWARAN) */}
+                                <div className="rounded-2xl border border-sidebar-border/70 bg-card p-5 shadow-xs">
+                                    <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                                        <div>
+                                            <h3 className="flex items-center gap-2 text-base font-bold text-foreground">
+                                                <TrendingDown className="h-5 w-5 text-amber-500" />
+                                                Top 5 Penjualan Terendah
+                                            </h3>
+                                            <p className="text-xs text-muted-foreground">
+                                                Customer dengan penjualan minim — peluang untuk diperbanyak penawarannya.
+                                            </p>
+                                        </div>
+
+                                        {/* Toggle View: Nominal Terkecil vs Penurunan Terbesar */}
+                                        <div className="inline-flex rounded-lg border border-sidebar-border/70 bg-muted/40 p-0.5 text-xs">
+                                            <button
+                                                type="button"
+                                                onClick={() => setLowestMode('nominal')}
+                                                className={`rounded-md px-2.5 py-1 font-medium transition-all ${
+                                                    lowestMode === 'nominal'
+                                                        ? 'bg-card text-foreground shadow-xs font-semibold'
+                                                        : 'text-muted-foreground hover:text-foreground'
+                                                }`}
+                                                title="Customer dengan volume pembelian terkecil (> Rp 0)"
+                                            >
+                                                Nominal Terkecil
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => setLowestMode('drop')}
+                                                className={`rounded-md px-2.5 py-1 font-medium transition-all ${
+                                                    lowestMode === 'drop'
+                                                        ? 'bg-card text-foreground shadow-xs font-semibold'
+                                                        : 'text-muted-foreground hover:text-foreground'
+                                                }`}
+                                                title="Customer yang mengalami penurunan omset terbesar dibanding periode lalu"
+                                            >
+                                                Penurunan Terbesar
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-sm">
+                                            <thead className="border-b border-sidebar-border/70 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                                                <tr>
+                                                    <th className="pb-2.5 text-center">#</th>
+                                                    <th className="pb-2.5">Customer</th>
+                                                    <th className="pb-2.5 text-right">
+                                                        {data.periodInfo?.currentLabel || 'Periode Ini'}
+                                                    </th>
+                                                    <th className="pb-2.5 text-right">
+                                                        {data.periodInfo?.previousLabel || 'Periode Lalu'}
+                                                    </th>
+                                                    <th className="pb-2.5 text-right">Selisih &amp; Tren</th>
+                                                    <th className="pb-2.5 text-center">Aksi Tim</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-sidebar-border/50 text-xs sm:text-sm">
+                                                {(() => {
+                                                    const activeLowestList =
+                                                        lowestMode === 'nominal'
+                                                            ? data.lowestCustomers
+                                                            : (data.decliningCustomers || data.lowestCustomers);
+
+                                                    if (!activeLowestList || activeLowestList.length === 0) {
+                                                        return (
+                                                            <tr>
+                                                                <td colSpan={6} className="py-6 text-center text-muted-foreground">
+                                                                    Tidak ada data transaksi pada kategori ini.
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    }
+
+                                                    return activeLowestList.map((c) => {
+                                                        const diff = Number(c.diff_sales ?? (c.curr_sales - c.prev_sales));
+                                                        const isUp = diff >= 0;
+
+                                                        return (
+                                                            <tr key={c.kd_cs} className="hover:bg-muted/40">
+                                                                <td className="py-3 text-center font-bold text-muted-foreground">
+                                                                    {c.rank}
+                                                                </td>
+                                                                <td className="py-3 font-medium text-foreground">
+                                                                    <div className="font-semibold">{c.nm_cs}</div>
+                                                                    <div className="text-[11px] text-muted-foreground">{c.kd_cs}</div>
+                                                                </td>
+                                                                <td className="py-3 text-right font-bold text-foreground">
+                                                                    {formatRupiah(c.curr_sales)}
+                                                                </td>
+                                                                <td className="py-3 text-right font-medium text-muted-foreground">
+                                                                    {c.prev_sales > 0 ? formatRupiah(c.prev_sales) : 'Rp 0'}
+                                                                </td>
+                                                                <td className="py-3 text-right">
+                                                                    <div className="flex flex-col items-end">
+                                                                        <span
+                                                                            className={`inline-flex items-center gap-0.5 font-bold ${
+                                                                                isUp
+                                                                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                                                                    : 'text-rose-600 dark:text-rose-400'
+                                                                            }`}
+                                                                        >
+                                                                            {isUp ? (
+                                                                                <ArrowUpRight className="h-3.5 w-3.5" />
+                                                                            ) : (
+                                                                                <ArrowDownRight className="h-3.5 w-3.5" />
+                                                                            )}
+                                                                            {isUp ? '+' : '-'}{formatCompactRupiah(Math.abs(diff))}
+                                                                        </span>
+                                                                        <span className="text-[10px] text-muted-foreground">
+                                                                            {formatPercent(c.growth)}
+                                                                        </span>
+                                                                    </div>
+                                                                </td>
+                                                                <td className="py-3 text-center">
+                                                                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-300">
+                                                                        Perbanyak Penawaran
+                                                                    </span>
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    });
+                                                })()}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    {/* Marketing Advice Footer */}
+                                    <div className="mt-3 flex items-center gap-2 rounded-xl border border-amber-500/20 bg-amber-500/5 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                                        <HelpCircle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                                        <span>
+                                            <strong>Strategi Marketing:</strong> Customer dalam daftar ini memiliki potensi pembelian yang belum optimal. Segera hubungi purchasing mereka dan perbanyak penawaran katalog/diskon volume.
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* 5. Tabel Seluruh Customer */}
+                        <div className="rounded-2xl border border-sidebar-border/70 bg-card p-5 shadow-xs">
+                            <div className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                <div>
+                                    <h3 className="text-base font-bold text-foreground sm:text-lg">
+                                        Tabel Seluruh Customer
+                                    </h3>
+                                    <p className="text-xs text-muted-foreground">
+                                        Performa penjualan seluruh customer
+                                        pada periode berjalan dibanding periode
+                                        sebelumnya.
+                                    </p>
+                                </div>
+
+                                {/* Search & Status Filter */}
+                                <div className="flex flex-wrap items-center gap-2">
+                                    <div className="relative w-full sm:w-64">
+                                        <Search className="absolute top-2.5 left-3 h-4 w-4 text-muted-foreground" />
+                                        <Input
+                                            type="text"
+                                            placeholder="Cari customer / kode..."
+                                            value={searchCustomer}
+                                            onChange={(e) => {
+                                                setSearchCustomer(
+                                                    e.target.value,
+                                                );
+                                                setCurrentPage(1);
+                                            }}
+                                            className="h-9 pl-9 text-xs sm:text-sm"
+                                        />
+                                    </div>
+
+                                    <select
+                                        value={statusFilter}
+                                        onChange={(e) => {
+                                            setStatusFilter(e.target.value);
+                                            setCurrentPage(1);
+                                        }}
+                                        className="h-9 rounded-md border border-sidebar-border/70 bg-background px-3 text-xs text-foreground shadow-xs sm:text-sm"
+                                    >
+                                        <option value="all">
+                                            Semua Status
+                                        </option>
+                                        <option value="Sangat Baik">
+                                            Sangat Baik
+                                        </option>
+                                        <option value="Baik">Baik</option>
+                                        <option value="Stabil">Stabil</option>
+                                        <option value="Menurun">Menurun</option>
+                                        <option value="Tidak Ada Transaksi">
+                                            Tidak Ada Transaksi
+                                        </option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* Table */}
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-left text-sm">
+                                    <thead className="border-b border-sidebar-border/70 text-xs font-semibold text-muted-foreground">
+                                        <tr>
+                                            <th
+                                                className="cursor-pointer pb-3 text-center hover:text-foreground"
+                                                onClick={() =>
+                                                    handleSort('rank')
+                                                }
+                                            >
+                                                <div className="flex items-center justify-center gap-1">
+                                                    Rank{' '}
+                                                    <ArrowUpDown className="h-3 w-3" />
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="cursor-pointer pb-3 hover:text-foreground"
+                                                onClick={() =>
+                                                    handleSort('nm_cs')
+                                                }
+                                            >
+                                                <div className="flex items-center gap-1">
+                                                    Nama Customer{' '}
+                                                    <ArrowUpDown className="h-3 w-3" />
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="cursor-pointer pb-3 text-right hover:text-foreground"
+                                                onClick={() =>
+                                                    handleSort('curr_sales')
+                                                }
+                                            >
+                                                <div className="flex items-center justify-end gap-1">
+                                                    Penjualan ({data.periodInfo?.currentLabel || 'Berjalan'}){' '}
+                                                    <ArrowUpDown className="h-3 w-3" />
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="cursor-pointer pb-3 text-right hover:text-foreground"
+                                                onClick={() =>
+                                                    handleSort('prev_sales')
+                                                }
+                                            >
+                                                <div className="flex items-center justify-end gap-1">
+                                                    Penjualan ({data.periodInfo?.previousLabel || 'Sebelumnya'}){' '}
+                                                    <ArrowUpDown className="h-3 w-3" />
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="cursor-pointer pb-3 text-right hover:text-foreground"
+                                                onClick={() =>
+                                                    handleSort('growth')
+                                                }
+                                            >
+                                                <div className="flex items-center justify-end gap-1">
+                                                    Pertumbuhan{' '}
+                                                    <ArrowUpDown className="h-3 w-3" />
+                                                </div>
+                                            </th>
+                                            <th
+                                                className="cursor-pointer pb-3 text-center hover:text-foreground"
+                                                onClick={() =>
+                                                    handleSort('curr_invoices')
+                                                }
+                                            >
+                                                <div className="flex items-center justify-center gap-1">
+                                                    Invoice{' '}
+                                                    <ArrowUpDown className="h-3 w-3" />
+                                                </div>
+                                            </th>
+                                            <th className="pb-3 text-center">
+                                                Status Performa
+                                            </th>
+                                            <th className="pb-3 text-center">
+                                                Rekomendasi Aksi
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-sidebar-border/50 text-xs sm:text-sm">
+                                        {paginatedCustomers.length === 0 ? (
+                                            <tr>
+                                                <td
+                                                    colSpan={8}
+                                                    className="py-8 text-center text-muted-foreground"
+                                                >
+                                                    Tidak ada customer yang
+                                                    sesuai kriteria filter.
+                                                </td>
+                                            </tr>
+                                        ) : (
+                                            paginatedCustomers.map((c) => (
+                                                <tr
+                                                    key={c.kd_cs}
+                                                    className="hover:bg-muted/40"
+                                                >
+                                                    <td className="py-3 text-center font-bold text-muted-foreground">
+                                                        {c.curr_sales > 0
+                                                            ? c.rank
+                                                            : '-'}
+                                                    </td>
+                                                    <td className="py-3 font-medium text-foreground">
+                                                        <div className="font-semibold">
+                                                            {c.nm_cs}
+                                                        </div>
+                                                        <div className="text-[11px] text-muted-foreground">
+                                                            {c.kd_cs}
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-3 text-right font-bold text-foreground">
+                                                        {formatRupiah(
+                                                            c.curr_sales,
+                                                        )}
+                                                    </td>
+                                                    <td className="py-3 text-right text-muted-foreground">
+                                                        {formatRupiah(
+                                                            c.prev_sales,
+                                                        )}
+                                                    </td>
+                                                    <td className="py-3 text-right">
+                                                        <span
+                                                            className={`font-semibold ${
+                                                                c.growth >= 0
+                                                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                                                    : 'text-rose-600 dark:text-rose-400'
+                                                                }`}
+                                                        >
+                                                            {formatPercent(
+                                                                c.growth,
+                                                            )}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 text-center text-muted-foreground">
+                                                        {c.curr_invoices}
+                                                    </td>
+                                                    <td className="py-3 text-center">
+                                                        {renderStatusBadge(
+                                                            c.status,
+                                                        )}
+                                                    </td>
+                                                    <td className="py-3 text-center">
+                                                        {c.curr_sales >= 50000000 || c.status === 'Sangat Baik' ? (
+                                                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
+                                                                🛡️ Pertahankan
+                                                            </span>
+                                                        ) : c.curr_sales > 0 && (c.growth < 0 || c.curr_sales < 10000000) ? (
+                                                            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-300">
+                                                                📈 Perbanyak Penawaran
+                                                            </span>
+                                                        ) : c.curr_sales === 0 && c.prev_sales > 0 ? (
+                                                            <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/10 px-2.5 py-0.5 text-[11px] font-bold text-rose-700 dark:text-rose-300">
+                                                                🔄 Re-Aktivasi
+                                                            </span>
+                                                        ) : (
+                                                            <span className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                                                                Pantau
+                                                            </span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            ))
+                                        )}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Pagination & Count Footer */}
+                            <div className="mt-4 flex flex-col items-center justify-between gap-3 border-t border-sidebar-border/50 pt-4 text-xs sm:flex-row sm:text-sm">
+                                <div className="text-muted-foreground">
+                                    Menampilkan{' '}
+                                    <strong className="text-foreground">
+                                        {filteredCustomers.length > 0
+                                            ? perPage === 'all'
+                                                ? 1
+                                                : (currentPage - 1) * perPage +
+                                                  1
+                                            : 0}
+                                    </strong>{' '}
+                                    sampai{' '}
+                                    <strong className="text-foreground">
+                                        {perPage === 'all'
+                                            ? filteredCustomers.length
+                                            : Math.min(
+                                                  currentPage * perPage,
+                                                  filteredCustomers.length,
+                                              )}
+                                    </strong>{' '}
+                                    dari{' '}
+                                    <strong className="text-foreground">
+                                        {filteredCustomers.length}
+                                    </strong>{' '}
+                                    customer
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <select
+                                        value={perPage}
+                                        onChange={(e) => {
+                                            setPerPage(
+                                                e.target.value === 'all'
+                                                    ? 'all'
+                                                    : Number(e.target.value),
+                                            );
+                                            setCurrentPage(1);
+                                        }}
+                                        className="h-8 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs text-foreground shadow-xs"
+                                    >
+                                        <option value={5}>5 baris</option>
+                                        <option value={10}>10 baris</option>
+                                        <option value={15}>15 baris</option>
+                                        <option value={25}>25 baris</option>
+                                        <option value={50}>50 baris</option>
+                                        <option value="all">Semua</option>
+                                    </select>
+
+                                    {perPage !== 'all' && totalPages > 1 && (
+                                        <div className="flex items-center gap-1">
+                                            <Button
+                                                variant="outline"
+                                                size="icon"
+                                                className="h-8 w-8"
+                                                disabled={currentPage <= 1}
+                                                onClick={() =>
+                                                    setCurrentPage((p) => p - 1)
+                                                }
+                                            >
+                                                <ChevronLeft className="h-4 w-4" />
+                                            </Button>
+                                            <span className="px-2 text-xs font-medium">
+                                                {currentPage} / {totalPages}
+                                            </span>
+                                            <Button
+                                                variant="outline"
+                                                size="icon"
+                                                className="h-8 w-8"
+                                                disabled={
+                                                    currentPage >= totalPages
+                                                }
+                                                onClick={() =>
+                                                    setCurrentPage((p) => p + 1)
+                                                }
+                                            >
+                                                <ChevronRight className="h-4 w-4" />
+                                            </Button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </div>
+                    </>
+                )}
+            </div>
+        </AppLayout>
+    );
+}

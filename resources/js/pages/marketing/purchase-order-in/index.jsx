@@ -570,7 +570,16 @@ export default function PurchaseOrderInIndex({
     };
 
     const fetchPoInSummaryScope = async (scope, dateFilterVal = 'all') => {
-        setSummaryLoading((prev) => ({ ...prev, [scope]: true }));
+        if (scope === 'realized') {
+            setSummaryLoading((prev) => ({
+                ...prev,
+                realized_pr: true,
+                realized_do: true,
+            }));
+        } else {
+            setSummaryLoading((prev) => ({ ...prev, [scope]: true }));
+        }
+
         try {
             const queryParams = new URLSearchParams({
                 search: '',
@@ -594,7 +603,15 @@ export default function PurchaseOrderInIndex({
         } catch (error) {
             console.error(`Error fetching PO In ${scope} summary:`, error);
         } finally {
-            setSummaryLoading((prev) => ({ ...prev, [scope]: false }));
+            if (scope === 'realized') {
+                setSummaryLoading((prev) => ({
+                    ...prev,
+                    realized_pr: false,
+                    realized_do: false,
+                }));
+            } else {
+                setSummaryLoading((prev) => ({ ...prev, [scope]: false }));
+            }
         }
     };
 
@@ -604,12 +621,11 @@ export default function PurchaseOrderInIndex({
             'outstanding_do',
             'sisa_pr',
             'sisa_do',
-            'realized_pr',
-            'realized_do',
+            'realized',
             'total',
         ];
         scopesToFetch.forEach((scope) => {
-            if (scope === 'realized_pr' || scope === 'realized_do') {
+            if (scope === 'realized' || scope === 'realized_pr' || scope === 'realized_do') {
                 // Actually `realizedPeriod` is accessible in this react component scope
                 fetchPoInSummaryScope(scope, realizedPeriod);
             } else {
@@ -712,7 +728,7 @@ export default function PurchaseOrderInIndex({
             return;
         }
 
-        fetchPoInSummary(['realized_pr', 'realized_do']);
+        fetchPoInSummary(['realized']);
         // fetchModalData takes care of the actual rows separately because it reacts to realizedPeriod changes
     }, [realizedPeriod]);
 
@@ -897,7 +913,12 @@ export default function PurchaseOrderInIndex({
         let filtered = !term
             ? modalItems
             : modalItems.filter((item) =>
-                  [item.kode_poin, item.no_poin, item.customer_name].some(
+                  [
+                      item.kode_poin,
+                      item.no_poin,
+                      item.customer_name,
+                      item.no_do,
+                  ].some(
                       (value) =>
                           String(value ?? '')
                               .toLowerCase()
