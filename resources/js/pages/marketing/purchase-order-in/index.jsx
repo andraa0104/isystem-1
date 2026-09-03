@@ -918,6 +918,7 @@ export default function PurchaseOrderInIndex({
                       item.no_poin,
                       item.customer_name,
                       item.no_do,
+                      item.no_pr,
                   ].some(
                       (value) =>
                           String(value ?? '')
@@ -3159,7 +3160,10 @@ export default function PurchaseOrderInIndex({
                                                 {activeModal === 'realized' &&
                                                 activeModalTab === 'do'
                                                     ? item.no_do
-                                                    : item.kode_poin}
+                                                    : activeModal === 'realized' &&
+                                                        activeModalTab === 'pr'
+                                                      ? item.no_pr || item.kode_poin
+                                                      : item.kode_poin}
                                             </td>
                                             <td className="px-2 py-2 font-semibold whitespace-nowrap">
                                                 {item.no_poin}
