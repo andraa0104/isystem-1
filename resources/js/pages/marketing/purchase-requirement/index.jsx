@@ -464,11 +464,18 @@ export default function PurchaseRequirementIndex({
 
                 // JIKA STATUS TEREALISASI, AMBIL LANGSUNG DARI ENDPOINT MILIK CARD!
                 if (currentStatus === 'realized') {
-                    const params = new URLSearchParams({ period: newPeriod });
+                    const params = new URLSearchParams({
+                        period: newPeriod,
+                        _t: String(Date.now()),
+                    });
                     const response = await fetch(
                         `/marketing/purchase-requirement/realized?${params.toString()}`,
                         {
-                            headers: { Accept: 'application/json' },
+                            headers: {
+                                Accept: 'application/json',
+                                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                            },
+                            cache: 'no-store',
                         },
                     );
                     const data = await response.json();
@@ -1128,9 +1135,16 @@ export default function PurchaseRequirementIndex({
         setRealizedLoading(true);
         setRealizedError('');
 
-        const params = new URLSearchParams({ period: targetPeriod });
+        const params = new URLSearchParams({
+            period: targetPeriod,
+            _t: String(Date.now()),
+        });
         fetch(`/marketing/purchase-requirement/realized?${params.toString()}`, {
-            headers: { Accept: 'application/json' },
+            headers: {
+                Accept: 'application/json',
+                'Cache-Control': 'no-cache, no-store, must-revalidate',
+            },
+            cache: 'no-store',
         })
             .then((response) => {
                 if (!response.ok) throw new Error('Request failed');
@@ -2802,10 +2816,7 @@ export default function PurchaseRequirementIndex({
                                                     {item.no_pr}
                                                 </td>
                                                 <td className="w-1 px-2 py-2 whitespace-nowrap">
-                                                    {getValue(item, [
-                                                        'date',
-                                                        'tgl',
-                                                    ])}
+                                                    {item.date || item.pr_date || '-'}
                                                 </td>
                                                 <td className="w-full min-w-0 px-2 py-2 whitespace-nowrap">
                                                     <div className="min-w-0">

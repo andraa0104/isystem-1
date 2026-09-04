@@ -542,7 +542,8 @@ class PurchaseRequirementController
             ->whereColumn('detail.realized_items', '=', 'detail.total_items')
             ->select(
                 'pr.no_pr',
-                'pr.date',
+                'pr.date as date',
+                'pr.date as pr_date',
                 'po.latest_po_date',
                 'pr.for_customer',
                 'pr.ref_po',
@@ -576,11 +577,15 @@ class PurchaseRequirementController
         $realizedTotal = $purchaseRequirements->sum('total_price_sum');
 
         $purchaseRequirements->transform(function ($item) {
-            if ($item->date) {
+            $rawDate = trim((string) ($item->date ?? ''));
+            if ($rawDate !== '') {
                 try {
-                    $item->date = \Carbon\Carbon::parse($item->date)->format('d.m.Y');
-                } catch (\Throwable $e) {}
+                    $item->date = \Carbon\Carbon::parse($rawDate)->format('d.m.Y');
+                } catch (\Throwable $e) {
+                    $item->date = $rawDate;
+                }
             }
+            $item->pr_date = $item->date;
             return $item;
         });
 
@@ -589,7 +594,10 @@ class PurchaseRequirementController
             'realizedTotal' => (float) $realizedTotal,
         ];
 
-        return response()->json($data);
+        return response()->json($data)
+            ->header('Cache-Control', 'no-cache, no-store, must-revalidate')
+            ->header('Pragma', 'no-cache')
+            ->header('Expires', '0');
     }
 
     public function create()
