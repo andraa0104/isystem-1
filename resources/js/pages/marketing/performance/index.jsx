@@ -1,8 +1,10 @@
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import AppLayout from '@/layouts/app-layout';
-import { Head, router } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import {
+    AlertCircle,
+    AlertTriangle,
     ArrowDownRight,
     ArrowUpDown,
     ArrowUpRight,
@@ -10,8 +12,14 @@ import {
     Banknote,
     BarChart3,
     Calendar,
+    Check,
+    CheckCircle2,
+    ChevronDown,
     ChevronLeft,
     ChevronRight,
+    ChevronUp,
+    Copy,
+    ExternalLink,
     FileText,
     Filter,
     HelpCircle,
@@ -19,9 +27,13 @@ import {
     Minus,
     RefreshCw,
     Search,
+    ShieldAlert,
+    Sparkles,
+    Target,
     TrendingDown,
     TrendingUp,
     Users,
+    Zap,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
@@ -118,6 +130,116 @@ export default function PerformanceIndex({
     // Top 5 lowest mode: 'nominal' (volume terkecil) | 'drop' (penurunan terbesar)
     const [lowestMode, setLowestMode] = useState('nominal');
 
+    // AI Analysis states
+    const [aiLoading, setAiLoading] = useState(false);
+    const [aiData, setAiData] = useState(null);
+    const [aiEngine, setAiEngine] = useState('');
+    const [aiIsFallback, setAiIsFallback] = useState(false);
+    const [aiNotice, setAiNotice] = useState('');
+    const [aiError, setAiError] = useState(null);
+    const [aiCopied, setAiCopied] = useState(false);
+    const [aiCollapsed, setAiCollapsed] = useState(false);
+
+    // Fetch AI Analysis automatically
+    const fetchAiAnalysis = async (overrideFilters = null, force = false) => {
+        setAiLoading(true);
+        setAiError(null);
+        try {
+            const currentYear = overrideFilters?.year ?? year;
+            const currentPeriodType = overrideFilters?.period_type ?? periodType;
+            const currentMonth = overrideFilters?.month ?? month;
+            const currentQuarter = overrideFilters?.quarter ?? quarter;
+            const currentSemester = overrideFilters?.semester ?? semester;
+            const currentCustomer = overrideFilters?.customer ?? customer;
+
+            // Safely read CSRF token
+            let csrfToken =
+                document
+                    .querySelector('meta[name="csrf-token"]')
+                    ?.getAttribute('content') || '';
+            if (!csrfToken) {
+                const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+                if (match) csrfToken = decodeURIComponent(match[1]);
+            }
+
+            const res = await fetch('/marketing/performance/ai-analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    Accept: 'application/json',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-XSRF-TOKEN': csrfToken,
+                },
+                body: JSON.stringify({
+                    year: currentYear,
+                    period_type: currentPeriodType,
+                    month: currentMonth,
+                    quarter: currentQuarter,
+                    semester: currentSemester,
+                    customer: currentCustomer,
+                    force,
+                }),
+            });
+
+            if (!res.ok) {
+                throw new Error(`Gagal memuat analisis AI (Kode: ${res.status}).`);
+            }
+
+            const json = await res.json();
+            if (json.success && json.data) {
+                setAiData(json.data);
+                setAiEngine(json.engine || 'qwen2.5:3b (Ollama)');
+                setAiIsFallback(Boolean(json.is_fallback));
+                setAiNotice(json.notice || '');
+            } else {
+                throw new Error(json.notice || 'Gagal memproses data analisis.');
+            }
+        } catch (err) {
+            console.error('AI Analysis Error:', err);
+            setAiError(err.message || 'Gagal memuat analisis AI.');
+        } finally {
+            setAiLoading(false);
+        }
+    };
+
+    // Handle copy AI Report to Clipboard formatted for WhatsApp / Email
+    const handleCopyAiAnalysis = () => {
+        if (!aiData) return;
+        const periodLabel = data?.periodInfo?.currentLabel || 'Periode Berjalan';
+        const lines = [
+            `*LAPORAN ANALISIS STRATEGIS KPI PENJUALAN*`,
+            `Periode: ${periodLabel}`,
+            `AI Engine: ${aiEngine}`,
+            `Skor Kesehatan KPI: ${aiData.health_score}/100 [${aiData.status_label}]`,
+            ``,
+            `*1. RINGKASAN EKSEKUTIF:*`,
+            aiData.executive_summary,
+            ``,
+            `*2. ANALISIS KONSENTRASI RISIKO (PARETO):*`,
+            `• Kontribusi Top 5: ${aiData.pareto_risk_analysis?.top5_share_percent}% (Tingkat Risiko: ${aiData.pareto_risk_analysis?.risk_level})`,
+            `• Evaluasi: ${aiData.pareto_risk_analysis?.evaluation}`,
+            ``,
+            `*3. SOROTAN KRITIS & HAL YANG WAJIB DIPERBAIKI:*`,
+            ...(aiData.critical_areas_to_fix || []).map(
+                (c, i) =>
+                    `${i + 1}. [${c.issue}] Akun: ${c.customer_affected} (${c.nominal_impact})\n   - Akar Masalah: ${c.root_cause}\n   - Tindakan Perbaikan: ${c.action_to_fix}`,
+            ),
+            ``,
+            `*4. REKOMENDASI TAKTIS TIM SALES & MARKETING:*`,
+            ...(aiData.tactical_recommendations || []).map(
+                (r, i) =>
+                    `${i + 1}. ${r.category} [${r.focus}]:\n   ${r.action}`,
+            ),
+            ``,
+            `*5. QUICK WINS (AKSI PRIORITAS 7 HARI):*`,
+            ...(aiData.quick_wins || []).map((q, i) => `[ ] ${q}`),
+        ];
+
+        navigator.clipboard.writeText(lines.join('\n'));
+        setAiCopied(true);
+        setTimeout(() => setAiCopied(false), 2500);
+    };
+
     // Fetch Performance Data
     const fetchData = async (overrideFilters = null) => {
         setLoading(true);
@@ -145,6 +267,9 @@ export default function PerformanceIndex({
             const json = await res.json();
             setData(json);
             setCurrentPage(1);
+
+            // Trigger AI analysis automatically in parallel
+            fetchAiAnalysis(overrideFilters);
         } catch (error) {
             console.error('Error loading performance data:', error);
             Swal.fire({
@@ -786,6 +911,399 @@ export default function PerformanceIndex({
                             </div>
                         </div>
 
+                        {/* 2.5 AI Strategic Insights & Recommendations Widget */}
+                        <div className="overflow-hidden rounded-2xl border border-sidebar-border/80 bg-card shadow-xs transition-all">
+                            {/* Header */}
+                            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sidebar-border/60 bg-gradient-to-r from-primary/5 via-background to-transparent px-5 py-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/15 text-primary shadow-xs ring-1 ring-primary/20">
+                                        <Sparkles className="h-5 w-5 animate-pulse" />
+                                    </div>
+                                    <div>
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <h2 className="text-base font-bold text-foreground sm:text-lg">
+                                                AI Strategic Insights & Recommendations
+                                            </h2>
+                                            {aiEngine && (
+                                                <span
+                                                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                                        aiIsFallback
+                                                            ? 'border border-amber-500/20 bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                                                            : 'border border-emerald-500/20 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
+                                                    }`}
+                                                    title={
+                                                        aiIsFallback
+                                                            ? 'Di VPS production, engine ini otomatis beralih ke model qwen2.5-3b via Ollama'
+                                                            : 'Didukung langsung oleh model Qwen 2.5 (3B) di Ollama VPS'
+                                                    }
+                                                >
+                                                    <span
+                                                        className={`h-1.5 w-1.5 rounded-full ${
+                                                            aiIsFallback
+                                                                ? 'bg-amber-500'
+                                                                : 'animate-ping bg-emerald-500'
+                                                        }`}
+                                                    />
+                                                    {aiEngine}
+                                                </span>
+                                            )}
+                                            <span className="hidden rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground sm:inline-block">
+                                                Otomatis Dimuat
+                                            </span>
+                                        </div>
+                                        <p className="mt-0.5 text-xs text-muted-foreground">
+                                            Analisis komprehensif otomatis untuk KPI penjualan, deteksi risiko customer drop, dan arahan aksi taktis tim sales.
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    {aiData && (
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={handleCopyAiAnalysis}
+                                            className="h-8.5 gap-1.5 border-sidebar-border/70 text-xs shadow-xs"
+                                            title="Salin analisis lengkap ke clipboard untuk dibagikan ke WhatsApp / Email"
+                                        >
+                                            {aiCopied ? (
+                                                <>
+                                                    <Check className="h-3.5 w-3.5 text-emerald-600" />
+                                                    <span className="font-semibold text-emerald-600">
+                                                        Tersalin!
+                                                    </span>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <Copy className="h-3.5 w-3.5" />
+                                                    <span>Salin Laporan</span>
+                                                </>
+                                            )}
+                                        </Button>
+                                    )}
+
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => fetchAiAnalysis(null, true)}
+                                        disabled={aiLoading}
+                                        className="h-8.5 gap-1.5 border-sidebar-border/70 text-xs shadow-xs"
+                                        title="Jalankan ulang analisis AI dengan data terbaru (Bypass Cache)"
+                                    >
+                                        <RefreshCw
+                                            className={`h-3.5 w-3.5 ${aiLoading ? 'animate-spin' : ''}`}
+                                        />
+                                        <span className="hidden sm:inline">
+                                            Analisis Ulang
+                                        </span>
+                                    </Button>
+
+                                    <Button
+                                        variant="ghost"
+                                        size="icon"
+                                        onClick={() => setAiCollapsed(!aiCollapsed)}
+                                        className="h-8.5 w-8.5 border border-sidebar-border/50 text-muted-foreground hover:text-foreground"
+                                        title={aiCollapsed ? 'Buka Panel AI' : 'Ciutkan Panel AI'}
+                                    >
+                                        {aiCollapsed ? (
+                                            <ChevronDown className="h-4 w-4" />
+                                        ) : (
+                                            <ChevronUp className="h-4 w-4" />
+                                        )}
+                                    </Button>
+                                </div>
+                            </div>
+
+                            {/* Body */}
+                            {!aiCollapsed && (
+                                <div className="p-5">
+                                    {/* Loading Skeleton */}
+                                    {aiLoading && !aiData && (
+                                        <div className="space-y-4 py-2">
+                                            <div className="flex items-center gap-3">
+                                                <Loader2 className="h-5 w-5 animate-spin text-primary" />
+                                                <span className="text-xs font-medium text-muted-foreground">
+                                                    AI sedang membaca seluruh data KPI, menghitung risiko pareto, dan merumuskan rekomendasi taktis...
+                                                </span>
+                                            </div>
+                                            <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+                                                <div className="h-32 animate-pulse rounded-xl bg-muted/60" />
+                                                <div className="h-32 animate-pulse rounded-xl bg-muted/60 lg:col-span-3" />
+                                            </div>
+                                            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                                                <div className="h-28 animate-pulse rounded-xl bg-muted/40" />
+                                                <div className="h-28 animate-pulse rounded-xl bg-muted/40" />
+                                                <div className="h-28 animate-pulse rounded-xl bg-muted/40" />
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Error Message */}
+                                    {aiError && !aiLoading && (
+                                        <div className="flex items-center justify-between rounded-xl border border-rose-500/20 bg-rose-500/10 p-4 text-xs text-rose-700 dark:text-rose-300">
+                                            <div className="flex items-center gap-2">
+                                                <AlertCircle className="h-4 w-4 shrink-0 text-rose-600" />
+                                                <span>{aiError}</span>
+                                            </div>
+                                            <Button
+                                                size="sm"
+                                                variant="outline"
+                                                onClick={() => fetchAiAnalysis(null, true)}
+                                                className="h-7 border-rose-500/30 text-xs text-rose-700 dark:text-rose-300"
+                                            >
+                                                Coba Lagi
+                                            </Button>
+                                        </div>
+                                    )}
+
+                                    {/* Content Display */}
+                                    {aiData && (
+                                        <div className="space-y-5">
+                                            {/* Notice if local fallback */}
+                                            {aiIsFallback && (
+                                                <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3.5 py-2 text-xs text-amber-700 dark:text-amber-300">
+                                                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                                                    <span>
+                                                        <strong>Catatan Lingkungan:</strong> Model Qwen 2.5 (3B) aktif di VPS Production. Di lokal saat ini modul berjalan dengan Intelligent Heuristic Engine. Saat dideploy ke VPS Production, modul otomatis terhubung ke engine Qwen 2.5 (3B) Ollama.
+                                                    </span>
+                                                </div>
+                                            )}
+
+                                            {/* 1. Health Score & Executive Summary */}
+                                            <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+                                                {/* Health Score Box */}
+                                                <div className="flex flex-col justify-between rounded-xl border border-sidebar-border/80 bg-gradient-to-br from-card to-background p-4.5 shadow-xs">
+                                                    <div className="flex items-center justify-between">
+                                                        <span className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                                                            Skor Kesehatan KPI
+                                                        </span>
+                                                        <span
+                                                            className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                                                                aiData.health_score >= 80
+                                                                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                                                                    : aiData.health_score >= 65
+                                                                    ? 'bg-blue-500/15 text-blue-700 dark:text-blue-300'
+                                                                    : aiData.health_score >= 50
+                                                                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                                                                    : 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
+                                                            }`}
+                                                        >
+                                                            {aiData.status_label || 'Evaluasi'}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="my-3 flex items-baseline gap-2">
+                                                        <span
+                                                            className={`text-4xl font-extrabold tracking-tight ${
+                                                                aiData.health_score >= 80
+                                                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                                                    : aiData.health_score >= 65
+                                                                    ? 'text-blue-600 dark:text-blue-400'
+                                                                    : aiData.health_score >= 50
+                                                                    ? 'text-amber-600 dark:text-amber-400'
+                                                                    : 'text-rose-600 dark:text-rose-400'
+                                                            }`}
+                                                        >
+                                                            {aiData.health_score}
+                                                        </span>
+                                                        <span className="text-sm font-semibold text-muted-foreground">
+                                                            / 100
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Pareto Mini Bar */}
+                                                    <div className="space-y-1.5 border-t border-sidebar-border/50 pt-2.5 text-xs text-muted-foreground">
+                                                        <div className="flex items-center justify-between">
+                                                            <span>Konsentrasi Top 5:</span>
+                                                            <strong className="text-foreground">
+                                                                {aiData.pareto_risk_analysis?.top5_share_percent ?? 0}%
+                                                            </strong>
+                                                        </div>
+                                                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                                                            <div
+                                                                className={`h-full rounded-full transition-all ${
+                                                                    (aiData.pareto_risk_analysis?.top5_share_percent ?? 0) > 70
+                                                                        ? 'bg-rose-500'
+                                                                        : (aiData.pareto_risk_analysis?.top5_share_percent ?? 0) > 50
+                                                                        ? 'bg-amber-500'
+                                                                        : 'bg-emerald-500'
+                                                                }`}
+                                                                style={{
+                                                                    width: `${Math.min(
+                                                                        100,
+                                                                        aiData.pareto_risk_analysis?.top5_share_percent ?? 0,
+                                                                    )}%`,
+                                                                }}
+                                                            />
+                                                        </div>
+                                                        <div className="flex items-center justify-between text-[11px]">
+                                                            <span>Tingkat Risiko:</span>
+                                                            <span
+                                                                className={`font-semibold ${
+                                                                    aiData.pareto_risk_analysis?.risk_level === 'Tinggi'
+                                                                        ? 'text-rose-600 dark:text-rose-400'
+                                                                        : aiData.pareto_risk_analysis?.risk_level === 'Sedang'
+                                                                        ? 'text-amber-600 dark:text-amber-400'
+                                                                        : 'text-emerald-600 dark:text-emerald-400'
+                                                                }`}
+                                                            >
+                                                                {aiData.pareto_risk_analysis?.risk_level || 'Normal'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Executive Summary Box */}
+                                                <div className="flex flex-col justify-between rounded-xl border border-sidebar-border/80 bg-card p-5 shadow-xs lg:col-span-3">
+                                                    <div className="flex items-center justify-between border-b border-sidebar-border/50 pb-2">
+                                                        <div className="flex items-center gap-2">
+                                                            <BarChart3 className="h-4 w-4 text-primary" />
+                                                            <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                                                Ringkasan Eksekutif (Executive Summary)
+                                                            </h3>
+                                                        </div>
+                                                        <span className="text-[11px] text-muted-foreground">
+                                                            Analisis Komparatif Periode
+                                                        </span>
+                                                    </div>
+                                                    <div className="my-2.5 text-sm leading-relaxed text-foreground/90">
+                                                        <p>{aiData.executive_summary}</p>
+                                                    </div>
+                                                    {aiData.pareto_risk_analysis?.evaluation && (
+                                                        <div className="rounded-lg border border-sidebar-border/50 bg-muted/50 p-2.5 text-xs text-muted-foreground">
+                                                            <strong className="text-foreground">
+                                                                Analisis Pareto:{' '}
+                                                            </strong>
+                                                            {aiData.pareto_risk_analysis.evaluation}
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                            {/* 2. Sorotan Kritis & Hal yang Harus Diperbaiki */}
+                                            {aiData.critical_areas_to_fix && aiData.critical_areas_to_fix.length > 0 && (
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400">
+                                                            <ShieldAlert className="h-3.5 w-3.5" />
+                                                        </div>
+                                                        <h3 className="text-sm font-bold tracking-tight text-foreground">
+                                                            Sorotan Kritis & Hal yang Harus Diperbaiki
+                                                        </h3>
+                                                        <span className="rounded-full bg-rose-500/10 px-2 py-0.2 text-[11px] font-semibold text-rose-600 dark:text-rose-400">
+                                                            {aiData.critical_areas_to_fix.length} Perhatian
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                                        {aiData.critical_areas_to_fix.map((item, idx) => (
+                                                            <div
+                                                                key={idx}
+                                                                className="relative flex flex-col justify-between rounded-xl border border-rose-500/20 bg-rose-500/[0.03] p-4 transition-all hover:border-rose-500/40 hover:shadow-xs"
+                                                            >
+                                                                <div>
+                                                                    <div className="flex items-start justify-between gap-2">
+                                                                        <h4 className="text-xs font-bold text-rose-700 dark:text-rose-300">
+                                                                            {item.issue}
+                                                                        </h4>
+                                                                        <span className="shrink-0 rounded-md bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-rose-600 dark:text-rose-400">
+                                                                            {item.customer_affected}
+                                                                        </span>
+                                                                    </div>
+                                                                    <div className="mt-1 text-xs font-semibold text-foreground">
+                                                                        {item.nominal_impact}
+                                                                    </div>
+                                                                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                                                                        <strong className="text-foreground/80">
+                                                                            Akar Masalah:{' '}
+                                                                        </strong>
+                                                                        {item.root_cause}
+                                                                    </p>
+                                                                </div>
+                                                                <div className="mt-3 rounded-lg border border-sidebar-border/60 bg-card/80 p-2.5 text-xs text-foreground/90">
+                                                                    <div className="mb-1 flex items-center gap-1 font-semibold text-primary">
+                                                                        <Zap className="h-3 w-3" />
+                                                                        <span>Tindakan Perbaikan:</span>
+                                                                    </div>
+                                                                    <p className="text-[11px] leading-relaxed text-muted-foreground">
+                                                                        {item.action_to_fix}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* 3. Rekomendasi Taktis Tim Marketing & Sales */}
+                                            {aiData.tactical_recommendations && aiData.tactical_recommendations.length > 0 && (
+                                                <div className="space-y-3">
+                                                    <div className="flex items-center gap-2">
+                                                        <div className="flex h-6 w-6 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                                            <Target className="h-3.5 w-3.5" />
+                                                        </div>
+                                                        <h3 className="text-sm font-bold tracking-tight text-foreground">
+                                                            Rekomendasi Taktis Tim Marketing & Sales
+                                                        </h3>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                                        {aiData.tactical_recommendations.map((rec, idx) => (
+                                                            <div
+                                                                key={idx}
+                                                                className="flex flex-col justify-between rounded-xl border border-sidebar-border/80 bg-card p-4 transition-all hover:border-primary/40 hover:shadow-xs"
+                                                            >
+                                                                <div>
+                                                                    <div className="flex items-center justify-between">
+                                                                        <span className="text-xs font-bold text-foreground">
+                                                                            {rec.category}
+                                                                        </span>
+                                                                        <span className="rounded-md bg-primary/10 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                                                                            {rec.focus}
+                                                                        </span>
+                                                                    </div>
+                                                                    <p className="mt-2.5 text-xs leading-relaxed text-muted-foreground">
+                                                                        {rec.action}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {/* 4. Quick Wins Checklist */}
+                                            {aiData.quick_wins && aiData.quick_wins.length > 0 && (
+                                                <div className="rounded-xl border border-sidebar-border/80 bg-muted/30 p-4">
+                                                    <div className="mb-2.5 flex items-center gap-2">
+                                                        <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                                        <h4 className="text-xs font-bold uppercase tracking-wider text-foreground">
+                                                            Quick Wins (Aksi Prioritas 7 Hari ke Depan)
+                                                        </h4>
+                                                    </div>
+                                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                                        {aiData.quick_wins.map((qw, idx) => (
+                                                            <div
+                                                                key={idx}
+                                                                className="flex items-start gap-2 rounded-lg border border-sidebar-border/60 bg-card p-2.5 text-xs text-foreground/90 shadow-2xs"
+                                                            >
+                                                                <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-[10px] font-bold text-emerald-600">
+                                                                    {idx + 1}
+                                                                </span>
+                                                                <span className="text-[11px] leading-relaxed text-muted-foreground">
+                                                                    {qw}
+                                                                </span>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
                         {/* 3. Grafik Perkembangan Penjualan */}
                         <div className="rounded-2xl border border-sidebar-border/70 bg-card p-5 shadow-xs">
                             <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -1343,8 +1861,17 @@ export default function PerformanceIndex({
                                                                     )}
                                                                 </td>
                                                                 <td className="py-3 font-medium text-foreground">
-                                                                    <div className="font-semibold">{c.nm_cs}</div>
-                                                                    <div className="text-[11px] text-muted-foreground">{c.kd_cs}</div>
+                                                                    <Link
+                                                                        href={`/marketing/performance/customer/${encodeURIComponent(c.kd_cs)}?period_type=${periodType}&year=${year}&month=${month}&quarter=${quarter}&semester=${semester}`}
+                                                                        className="group inline-flex flex-col text-left hover:text-primary transition-colors"
+                                                                        title="Klik untuk membuka Detail KPI & Analisis AI Akun Ini"
+                                                                    >
+                                                                        <span className="font-semibold group-hover:underline flex items-center gap-1">
+                                                                            {c.nm_cs}
+                                                                            <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary" />
+                                                                        </span>
+                                                                        <span className="text-[11px] text-muted-foreground">{c.kd_cs}</span>
+                                                                    </Link>
                                                                 </td>
                                                                 <td className="py-3 text-right font-bold text-foreground">
                                                                     {formatRupiah(c.curr_sales)}
@@ -1480,8 +2007,17 @@ export default function PerformanceIndex({
                                                                     {c.rank}
                                                                 </td>
                                                                 <td className="py-3 font-medium text-foreground">
-                                                                    <div className="font-semibold">{c.nm_cs}</div>
-                                                                    <div className="text-[11px] text-muted-foreground">{c.kd_cs}</div>
+                                                                    <Link
+                                                                        href={`/marketing/performance/customer/${encodeURIComponent(c.kd_cs)}?period_type=${periodType}&year=${year}&month=${month}&quarter=${quarter}&semester=${semester}`}
+                                                                        className="group inline-flex flex-col text-left hover:text-primary transition-colors"
+                                                                        title="Klik untuk membuka Detail KPI & Analisis AI Akun Ini"
+                                                                    >
+                                                                        <span className="font-semibold group-hover:underline flex items-center gap-1">
+                                                                            {c.nm_cs}
+                                                                            <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary" />
+                                                                        </span>
+                                                                        <span className="text-[11px] text-muted-foreground">{c.kd_cs}</span>
+                                                                    </Link>
                                                                 </td>
                                                                 <td className="py-3 text-right font-bold text-foreground">
                                                                     {formatRupiah(c.curr_sales)}
@@ -1692,12 +2228,19 @@ export default function PerformanceIndex({
                                                             : '-'}
                                                     </td>
                                                     <td className="py-3 font-medium text-foreground">
-                                                        <div className="font-semibold">
-                                                            {c.nm_cs}
-                                                        </div>
-                                                        <div className="text-[11px] text-muted-foreground">
-                                                            {c.kd_cs}
-                                                        </div>
+                                                        <Link
+                                                            href={`/marketing/performance/customer/${encodeURIComponent(c.kd_cs)}?period_type=${periodType}&year=${year}&month=${month}&quarter=${quarter}&semester=${semester}`}
+                                                            className="group inline-flex flex-col text-left hover:text-primary transition-colors"
+                                                            title="Klik untuk membuka Detail KPI & Analisis AI Akun Ini"
+                                                        >
+                                                            <span className="font-semibold group-hover:underline flex items-center gap-1">
+                                                                {c.nm_cs}
+                                                                <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity text-primary" />
+                                                            </span>
+                                                            <span className="text-[11px] text-muted-foreground">
+                                                                {c.kd_cs}
+                                                            </span>
+                                                        </Link>
                                                     </td>
                                                     <td className="py-3 text-right font-bold text-foreground">
                                                         {formatRupiah(

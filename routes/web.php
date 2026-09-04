@@ -452,6 +452,15 @@ Route::get('marketing/performance/data', [PerformanceController::class, 'data'])
     ->name('marketing.performance.data');
 Route::get('marketing/performance/export', [PerformanceController::class, 'export'])
     ->name('marketing.performance.export');
+Route::post('marketing/performance/ai-analyze', [PerformanceController::class, 'aiAnalyze'])
+    ->name('marketing.performance.ai-analyze');
+
+Route::get('marketing/performance/customer/{customer}', [PerformanceController::class, 'customerDetail'])
+    ->name('marketing.performance.customer.detail');
+Route::get('marketing/performance/customer/{customer}/data', [PerformanceController::class, 'customerData'])
+    ->name('marketing.performance.customer.data');
+Route::post('marketing/performance/customer/{customer}/ai-analyze', [PerformanceController::class, 'customerAiAnalyze'])
+    ->name('marketing.performance.customer.ai-analyze');
 
 Route::get('pembelian/delivery-order-cost', [DeliveryOrderCostController::class, 'index'])
     ->name('pembelian.delivery-order-cost.index');

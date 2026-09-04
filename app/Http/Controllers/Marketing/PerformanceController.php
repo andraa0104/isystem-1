@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Marketing;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Carbon\Carbon;
 
@@ -36,6 +39,239 @@ class PerformanceController
         $data = $this->calculatePerformanceData($filters);
 
         return response()->json($data);
+    }
+
+    /**
+     * Return AI-powered strategic analysis for KPI and sales recommendations.
+     */
+    public function aiAnalyze(Request $request)
+    {
+        $filters = $this->extractFilters($request);
+        $force = $request->boolean('force', false);
+        
+        $cacheKey = 'marketing_kpi_ai_' . md5(json_encode($filters) . '_' . date('YmdH'));
+
+        if (!$force) {
+            try {
+                if (Cache::has($cacheKey)) {
+                    $cached = Cache::get($cacheKey);
+                    return response()->json([
+                        'success' => true,
+                        'cached' => true,
+                        'engine' => $cached['engine'] ?? 'qwen2.5:3b (Ollama)',
+                        'is_fallback' => $cached['is_fallback'] ?? false,
+                        'data' => $cached['analysis'] ?? $cached,
+                    ]);
+                }
+            } catch (\Throwable) {
+                // If database cache table doesn't exist, try file cache
+                try {
+                    if (Cache::store('file')->has($cacheKey)) {
+                        $cached = Cache::store('file')->get($cacheKey);
+                        return response()->json([
+                            'success' => true,
+                            'cached' => true,
+                            'engine' => $cached['engine'] ?? 'qwen2.5:3b (Ollama)',
+                            'is_fallback' => $cached['is_fallback'] ?? false,
+                            'data' => $cached['analysis'] ?? $cached,
+                        ]);
+                    }
+                } catch (\Throwable) {
+                    // Ignore cache read failures
+                }
+            }
+        }
+
+        $perfData = $this->calculatePerformanceData($filters);
+        $summary = $this->buildKpiSummaryForPrompt($perfData, $filters);
+
+        // Try calling Ollama AI model (qwen2.5:3b)
+        $aiResult = $this->callOllama($summary);
+
+        if ($aiResult && !empty($aiResult['data'])) {
+            $payload = [
+                'engine' => $aiResult['engine'] ?? 'qwen2.5:3b (Ollama)',
+                'is_fallback' => false,
+                'analysis' => $aiResult['data'],
+            ];
+
+            try {
+                Cache::put($cacheKey, $payload, now()->addHour());
+            } catch (\Throwable) {
+                try {
+                    Cache::store('file')->put($cacheKey, $payload, now()->addHour());
+                } catch (\Throwable) {
+                    // Ignore cache write failures
+                }
+            }
+
+            return response()->json([
+                'success' => true,
+                'cached' => false,
+                'engine' => $payload['engine'],
+                'is_fallback' => false,
+                'data' => $aiResult['data'],
+            ]);
+        }
+
+        // Graceful fallback to rule-based analytical engine
+        $fallbackData = $this->generateHeuristicAnalysis($summary);
+        $fallbackPayload = [
+            'engine' => 'Heuristic Analytical Engine (Ollama Standby)',
+            'is_fallback' => true,
+            'notice' => $aiResult['error'] ?? 'Ollama AI engine belum terhubung di server.',
+            'analysis' => $fallbackData,
+        ];
+
+        try {
+            Cache::put($cacheKey, $fallbackPayload, now()->addMinutes(10));
+        } catch (\Throwable) {
+            try {
+                Cache::store('file')->put($cacheKey, $fallbackPayload, now()->addMinutes(10));
+            } catch (\Throwable) {
+                // Ignore cache write failures
+            }
+        }
+
+        return response()->json([
+            'success' => true,
+            'cached' => false,
+            'engine' => $fallbackPayload['engine'],
+            'is_fallback' => true,
+            'notice' => $fallbackPayload['notice'],
+            'data' => $fallbackData,
+        ]);
+    }
+
+    /**
+     * Render Customer KPI Detail page.
+     */
+    public function customerDetail(Request $request, string $customer)
+    {
+        $customerInfo = DB::table('tb_fakturpenjualan')
+            ->where('kd_cs', $customer)
+            ->select('kd_cs', 'nm_cs')
+            ->first();
+
+        if (!$customerInfo) {
+            $customerInfo = (object) [
+                'kd_cs' => $customer,
+                'nm_cs' => $customer,
+            ];
+        }
+
+        $filters = $this->extractCustomerFilters($request);
+        $availableYears = $this->getAvailableYears();
+
+        return Inertia::render('marketing/performance/customer', [
+            'customer' => $customerInfo,
+            'initialFilters' => $filters,
+            'availableYears' => $availableYears,
+        ]);
+    }
+
+    /**
+     * Return JSON data for Customer KPI detail: summary, chart, top materials, and invoice history.
+     */
+    public function customerData(Request $request, string $customer)
+    {
+        $filters = $this->extractCustomerFilters($request);
+        $data = $this->calculateCustomerPerformance($customer, $filters);
+
+        return response()->json($data);
+    }
+
+    /**
+     * Return AI-powered strategic analysis specifically for this customer account.
+     */
+    public function customerAiAnalyze(Request $request, string $customer)
+    {
+        $filters = $this->extractCustomerFilters($request);
+        $force = $request->boolean('force', false);
+
+        $cacheKey = 'marketing_cust_kpi_ai_' . md5($customer . '_' . json_encode($filters) . '_' . date('YmdH'));
+
+        if (!$force) {
+            try {
+                if (Cache::has($cacheKey)) {
+                    $cached = Cache::get($cacheKey);
+                    return response()->json([
+                        'success' => true,
+                        'cached' => true,
+                        'engine' => $cached['engine'] ?? 'qwen2.5:3b (Ollama)',
+                        'is_fallback' => $cached['is_fallback'] ?? false,
+                        'data' => $cached['analysis'] ?? $cached,
+                    ]);
+                }
+            } catch (\Throwable) {
+                try {
+                    if (Cache::store('file')->has($cacheKey)) {
+                        $cached = Cache::store('file')->get($cacheKey);
+                        return response()->json([
+                            'success' => true,
+                            'cached' => true,
+                            'engine' => $cached['engine'] ?? 'qwen2.5:3b (Ollama)',
+                            'is_fallback' => $cached['is_fallback'] ?? false,
+                            'data' => $cached['analysis'] ?? $cached,
+                        ]);
+                    }
+                } catch (\Throwable) {}
+            }
+        }
+
+        $perfData = $this->calculateCustomerPerformance($customer, $filters);
+        $summary = $this->buildCustomerAiSummary($perfData, $filters);
+
+        $aiResult = $this->callOllamaForCustomer($summary);
+
+        if ($aiResult && !empty($aiResult['data'])) {
+            $payload = [
+                'engine' => $aiResult['engine'] ?? 'qwen2.5:3b (Ollama)',
+                'is_fallback' => false,
+                'analysis' => $aiResult['data'],
+            ];
+
+            try {
+                Cache::put($cacheKey, $payload, now()->addHour());
+            } catch (\Throwable) {
+                try {
+                    Cache::store('file')->put($cacheKey, $payload, now()->addHour());
+                } catch (\Throwable) {}
+            }
+
+            return response()->json([
+                'success' => true,
+                'cached' => false,
+                'engine' => $payload['engine'],
+                'is_fallback' => false,
+                'data' => $aiResult['data'],
+            ]);
+        }
+
+        $fallbackData = $this->generateCustomerHeuristicAnalysis($summary);
+        $fallbackPayload = [
+            'engine' => 'Heuristic Analytical Engine (Ollama Standby)',
+            'is_fallback' => true,
+            'notice' => $aiResult['error'] ?? 'Ollama AI engine belum terhubung di server.',
+            'analysis' => $fallbackData,
+        ];
+
+        try {
+            Cache::put($cacheKey, $fallbackPayload, now()->addMinutes(10));
+        } catch (\Throwable) {
+            try {
+                Cache::store('file')->put($cacheKey, $fallbackPayload, now()->addMinutes(10));
+            } catch (\Throwable) {}
+        }
+
+        return response()->json([
+            'success' => true,
+            'cached' => false,
+            'engine' => $fallbackPayload['engine'],
+            'is_fallback' => true,
+            'notice' => $fallbackPayload['notice'],
+            'data' => $fallbackData,
+        ]);
     }
 
     /**
@@ -479,6 +715,42 @@ class PerformanceController
         // 3. Chart Data Generation
         $chartData = $this->generateChartData($year, $periodType, $month, $quarter, $semester, $customerFilter);
 
+        // 4. Top 10 Ordered Materials from tb_do joined on tb_fakturpenjualan.no_do = tb_do.no_do
+        $dateExprWithTable = "CASE WHEN f.tgl_doc LIKE '__.__.____' THEN STR_TO_DATE(f.tgl_doc, '%d.%m.%Y') ELSE STR_TO_DATE(f.tgl_doc, '%Y-%m-%d') END";
+        $topMaterialsQuery = DB::table('tb_fakturpenjualan as f')
+            ->join('tb_do as d', 'f.no_do', '=', 'd.no_do')
+            ->whereRaw("coalesce(f.ttl_price, 0) > 0")
+            ->whereRaw("{$dateExprWithTable} between ? and ?", [$currStart, $currEnd])
+            ->whereNotNull('d.mat')
+            ->whereRaw("trim(d.mat) <> ''");
+
+        if ($customerFilter !== 'all' && $customerFilter !== '') {
+            $topMaterialsQuery->where('f.kd_cs', $customerFilter);
+        }
+
+        $topMaterials = $topMaterialsQuery
+            ->select('d.kd_mat', 'd.mat as material', 'd.unit')
+            ->selectRaw("sum(d.qty) as total_qty")
+            ->selectRaw("sum(d.total) as total_val")
+            ->selectRaw("count(distinct f.no_fakturpenjualan) as freq")
+            ->selectRaw("avg(d.harga) as avg_price")
+            ->groupBy('d.kd_mat', 'd.mat', 'd.unit')
+            ->orderByDesc('total_val')
+            ->limit(10)
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'kd_mat' => $row->kd_mat,
+                    'material' => $row->material,
+                    'unit' => $row->unit,
+                    'total_qty' => (float) $row->total_qty,
+                    'total_val' => (float) $row->total_val,
+                    'freq' => (int) $row->freq,
+                    'avg_price' => (float) $row->avg_price,
+                ];
+            })
+            ->toArray();
+
         return [
             'periodInfo' => $periodInfo,
             'kpi' => [
@@ -494,6 +766,7 @@ class PerformanceController
                 'top_customer' => $topCustomer,
             ],
             'chartData' => $chartData,
+            'topMaterials' => $topMaterials,
             'topCustomers' => array_values($topCustomers),
             'lowestCustomers' => array_values($lowestCustomers),
             'decliningCustomers' => array_values($decliningCustomers),
@@ -774,4 +1047,1137 @@ class PerformanceController
             'items' => $items,
         ];
     }
+
+    /**
+     * Build aggregated numerical KPI summary for LLM prompt.
+     */
+    private function buildKpiSummaryForPrompt(array $data, array $filters): array
+    {
+        $periodInfo = $data['periodInfo'] ?? [];
+        $kpi = $data['kpi'] ?? [];
+        $top5 = $data['topCustomers'] ?? [];
+        $declining = $data['decliningCustomers'] ?? [];
+        $all = $data['allCustomers'] ?? [];
+
+        $totalSales = (float) ($kpi['total_sales'] ?? 0);
+        $prevSales = (float) ($kpi['prev_total_sales'] ?? 0);
+        $growthPct = (float) ($kpi['growth_percent'] ?? 0);
+        $growthNom = (float) ($kpi['growth_nominal'] ?? 0);
+
+        // Pareto calculation
+        $top5Sales = array_sum(array_column($top5, 'curr_sales'));
+        $paretoPct = $totalSales > 0 ? round(($top5Sales / $totalSales) * 100, 1) : 0.0;
+
+        // Customer dynamics
+        $newCount = 0;
+        $churnCount = 0;
+        $growingCount = 0;
+        $droppingCount = 0;
+
+        foreach ($all as $c) {
+            $cs = (float) ($c['curr_sales'] ?? 0);
+            $ps = (float) ($c['prev_sales'] ?? 0);
+            if ($ps <= 0 && $cs > 0) $newCount++;
+            elseif ($ps > 0 && $cs <= 0) $churnCount++;
+            elseif ($cs > $ps && $cs > 0) $growingCount++;
+            elseif ($cs < $ps && $cs > 0) $droppingCount++;
+        }
+
+        // Top 5 text
+        $top5Lines = [];
+        foreach ($top5 as $t) {
+            $salesFormatted = number_format($t['curr_sales'], 0, ',', '.');
+            $contrib = round($t['contribution'] ?? 0, 1);
+            $top5Lines[] = "- {$t['nm_cs']}: Rp {$salesFormatted} (Kontribusi: {$contrib}%, {$t['curr_invoices']} invoice)";
+        }
+
+        // Declining text
+        $decliningLines = [];
+        foreach ($declining as $d) {
+            $prevFormatted = number_format($d['prev_sales'], 0, ',', '.');
+            $currFormatted = number_format($d['curr_sales'], 0, ',', '.');
+            $diffFormatted = number_format(abs($d['diff_sales']), 0, ',', '.');
+            $pct = round($d['growth'], 1);
+            $decliningLines[] = "- {$d['nm_cs']}: Turun Rp {$diffFormatted} ({$pct}%) dari Rp {$prevFormatted} menjadi Rp {$currFormatted}";
+        }
+
+        // Top materials lines
+        $topMaterials = $data['topMaterials'] ?? [];
+        $topMatLines = [];
+        foreach ($topMaterials as $m) {
+            $valFmt = number_format($m['total_val'], 0, ',', '.');
+            $qtyFmt = number_format($m['total_qty'], 0, ',', '.');
+            $topMatLines[] = "- {$m['material']} ({$m['kd_mat']}): {$qtyFmt} {$m['unit']} senilai Rp {$valFmt} ({$m['freq']}x DO)";
+        }
+
+        return [
+            'period_current' => $periodInfo['currentLabel'] ?? 'Periode Ini',
+            'period_previous' => $periodInfo['previousLabel'] ?? 'Periode Lalu',
+            'total_sales' => $totalSales,
+            'total_sales_formatted' => number_format($totalSales, 0, ',', '.'),
+            'prev_total_sales' => $prevSales,
+            'prev_total_sales_formatted' => number_format($prevSales, 0, ',', '.'),
+            'growth_percent' => $growthPct,
+            'growth_percent_formatted' => ($growthPct > 0 ? '+' : '') . round($growthPct, 2) . '%',
+            'growth_nominal' => $growthNom,
+            'growth_nominal_formatted' => number_format($growthNom, 0, ',', '.'),
+            'total_customers' => (int) ($kpi['total_customers'] ?? 0),
+            'prev_total_customers' => (int) ($kpi['prev_total_customers'] ?? 0),
+            'new_customers' => $newCount,
+            'churned_customers' => $churnCount,
+            'growing_customers' => $growingCount,
+            'dropping_customers' => $droppingCount,
+            'avg_sales_per_customer' => (float) ($kpi['avg_sales_per_customer'] ?? 0),
+            'avg_sales_per_customer_formatted' => number_format((float) ($kpi['avg_sales_per_customer'] ?? 0), 0, ',', '.'),
+            'total_invoices' => (int) ($kpi['total_invoices'] ?? 0),
+            'prev_total_invoices' => (int) ($kpi['prev_total_invoices'] ?? 0),
+            'pareto_top5_percent' => $paretoPct,
+            'top5_items' => $top5,
+            'top5_text' => !empty($top5Lines) ? implode("\n", $top5Lines) : "- Tidak ada data customer transaksi",
+            'declining_items' => $declining,
+            'declining_text' => !empty($decliningLines) ? implode("\n", $decliningLines) : "- Tidak ada customer dengan penurunan signifikan",
+            'top_materials' => $topMaterials,
+            'top_materials_text' => !empty($topMatLines) ? implode("\n", $topMatLines) : "- Tidak ada data DO material pada periode ini",
+        ];
+    }
+
+    /**
+     * Call Ollama Chat API with Qwen 2.5 3B model.
+     */
+    private function callOllama(array $summary): ?array
+    {
+        $baseUrl = rtrim(config('services.ollama.base_url', 'http://127.0.0.1:11434'), '/');
+        $model = config('services.ollama.model', 'qwen2.5:3b');
+        $timeout = (int) config('services.ollama.timeout', 90);
+
+        $systemPrompt = <<<PROMPT
+Anda adalah Chief Commercial Officer (CCO) & Senior Sales Performance Analyst B2B.
+Tugas Anda: Menganalisis laporan KPI Penjualan secara objektif, tajam, dan berbasis data numerik riil.
+
+Format Output:
+- WAJIB berupa JSON valid MURNI tanpa teks pengantar, tanpa penutup, tanpa format markdown ```json.
+- Bahasa: Bahasa Indonesia bisnis profesional, padat, dan solutif.
+
+Struktur JSON:
+{
+  "health_score": <angka integer 0-100>,
+  "status_label": <"Sangat Baik" | "Baik" | "Waspada" | "Kritis">,
+  "executive_summary": "<1-2 paragraf ringkasan eksekutif menyeluruh mengulas pencapaian penjualan periode ini vs periode lalu dan pendorong kinerjanya>",
+  "pareto_risk_analysis": {
+    "top5_share_percent": <float persentase>,
+    "risk_level": <"Tinggi" | "Sedang" | "Rendah">,
+    "evaluation": "<evaluasi ketergantungan omset pada top 5 customer dan mitigasinya>"
+  },
+  "critical_areas_to_fix": [
+    {
+      "issue": "<judul anomali/permasalahan>",
+      "customer_affected": "<nama customer atau 'Umum'>",
+      "nominal_impact": "<dampak nominal penurunan>",
+      "root_cause": "<analisis kemungkinan penyebab>",
+      "action_to_fix": "<tindakan korektif spesifik yang wajib dilakukan tim marketing>"
+    }
+  ],
+  "tactical_recommendations": [
+    {
+      "category": "<Customer VIP / Top Performers | Customer Menurun / At-Risk | Penetrasi & Upselling>",
+      "focus": "<fokus utama>",
+      "action": "<langkah taktis spesifik tim sales>"
+    }
+  ],
+  "quick_wins": [
+    "<aksi taktis 1 yang harus tuntas dalam 7 hari ke depan>",
+    "<aksi taktis 2 yang harus tuntas dalam 7 hari ke depan>",
+    "<aksi taktis 3 yang harus tuntas dalam 7 hari ke depan>"
+  ]
 }
+PROMPT;
+
+        $userPrompt = <<<USER_PROMPT
+Berikut adalah data kinerja penjualan perusahaan:
+- Periode Berjalan: {$summary['period_current']}
+- Periode Pembanding: {$summary['period_previous']}
+- Total Penjualan Berjalan: Rp {$summary['total_sales_formatted']}
+- Total Penjualan Sebelumnya: Rp {$summary['prev_total_sales_formatted']}
+- Pertumbuhan Penjualan: {$summary['growth_percent_formatted']} (Nominal: Rp {$summary['growth_nominal_formatted']})
+- Jumlah Customer Aktif: {$summary['total_customers']} (Sebelumnya: {$summary['prev_total_customers']})
+- Customer Baru: {$summary['new_customers']}, Customer Churn/Macet: {$summary['churned_customers']}
+- Rata-rata Penjualan / Customer: Rp {$summary['avg_sales_per_customer_formatted']}
+- Total Invoice: {$summary['total_invoices']} (Sebelumnya: {$summary['prev_total_invoices']})
+- Pangsa Top 5 Customer: {$summary['pareto_top5_percent']}% dari total omset
+
+Top 5 Customer Terbesar:
+{$summary['top5_text']}
+
+Top 5 Penurunan Omset Terbesar (Drop Sales):
+{$summary['declining_text']}
+
+Top Material / Barang Paling Banyak Dipesan (Berdasarkan Surat Jalan DO):
+{$summary['top_materials_text']}
+
+Buat analisis KPI lengkap dan strategi produk penawaran sesuai instruksi JSON di atas.
+USER_PROMPT;
+
+        try {
+            // Quick connect timeout (2.5s) to detect immediately if Ollama is not reachable on local
+            $res = Http::connectTimeout(2.5)
+                ->timeout($timeout)
+                ->post("{$baseUrl}/api/chat", [
+                    'model' => $model,
+                    'messages' => [
+                        ['role' => 'system', 'content' => $systemPrompt],
+                        ['role' => 'user', 'content' => $userPrompt],
+                    ],
+                    'stream' => false,
+                    'format' => 'json',
+                    'options' => [
+                        'temperature' => 0.2,
+                    ],
+                ]);
+
+            if (!$res->successful()) {
+                Log::warning('Ollama API error response', ['status' => $res->status(), 'body' => $res->body()]);
+                return ['error' => 'Ollama API error: status ' . $res->status()];
+            }
+
+            $body = $res->json();
+            $content = $body['message']['content'] ?? '';
+
+            // Clean content if wrapped in markdown code blocks
+            $cleaned = preg_replace('/^```(?:json)?\s*/i', '', trim($content));
+            $cleaned = preg_replace('/\s*```$/', '', $cleaned);
+
+            $parsed = json_decode($cleaned, true);
+            if (is_array($parsed) && isset($parsed['health_score'])) {
+                return [
+                    'engine' => "{$model} (Ollama Production)",
+                    'data' => $parsed,
+                ];
+            }
+
+            // If JSON was embedded inside text, try regex extraction
+            if (preg_match('/\{[\s\S]*\}/', $cleaned, $match)) {
+                $matchedJson = json_decode($match[0], true);
+                if (is_array($matchedJson) && isset($matchedJson['health_score'])) {
+                    return [
+                        'engine' => "{$model} (Ollama Production)",
+                        'data' => $matchedJson,
+                    ];
+                }
+            }
+
+            Log::warning('Ollama returned non-JSON output', ['raw' => $content]);
+            return ['error' => 'Gagal membaca format JSON dari Ollama'];
+        } catch (\Throwable $e) {
+            Log::info('Ollama offline or unreachable on this host: ' . $e->getMessage());
+            return ['error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Fallback heuristic intelligence engine if Ollama is unreachable.
+     */
+    private function generateHeuristicAnalysis(array $summary): array
+    {
+        $growth = $summary['growth_percent'];
+        $pareto = $summary['pareto_top5_percent'];
+        $totalSalesFmt = $summary['total_sales_formatted'];
+        $currPeriod = $summary['period_current'];
+        $prevPeriod = $summary['period_previous'];
+        $churn = $summary['churned_customers'];
+        $newCust = $summary['new_customers'];
+
+        // Compute health score
+        $score = 70;
+        if ($growth >= 20) $score += 20;
+        elseif ($growth >= 5) $score += 10;
+        elseif ($growth < -15) $score -= 25;
+        elseif ($growth < 0) $score -= 15;
+
+        if ($pareto > 75) $score -= 10;
+        elseif ($pareto < 50) $score += 5;
+
+        if ($churn > $newCust) $score -= 5;
+        $score = max(20, min(98, $score));
+
+        $statusLabel = $score >= 80 ? 'Sangat Baik' : ($score >= 65 ? 'Baik' : ($score >= 50 ? 'Waspada' : 'Kritis'));
+
+        $trendWord = $growth >= 0 
+            ? "mengalami pertumbuhan positif sebesar {$summary['growth_percent_formatted']}" 
+            : "mengalami kontraksi sebesar {$summary['growth_percent_formatted']}";
+        $nominalWord = $summary['growth_nominal'] >= 0 
+            ? "peningkatan nominal sebesar Rp " . $summary['growth_nominal_formatted'] 
+            : "penurunan nominal sebesar Rp " . number_format(abs($summary['growth_nominal']), 0, ',', '.');
+
+        $paretoRisk = $pareto > 70 ? 'Tinggi' : ($pareto > 50 ? 'Sedang' : 'Rendah');
+        $paretoDesc = $pareto > 70
+            ? "Tingkat ketergantungan pendapatan tergolong tinggi ({$pareto}% omset disumbang oleh Top 5 customer). Perusahaan rentan terhadap volatilitas jika salah satu customer utama mengurangi pesanan."
+            : "Distribusi penjualan relatif berimbang dengan kontribusi Top 5 sebesar {$pareto}%. Risiko konsentrasi pelanggan berada dalam batas wajar.";
+
+        // Critical fixes based on real data
+        $critical = [];
+        $decliningList = $summary['declining_items'] ?? [];
+        if (!empty($decliningList)) {
+            $worst = $decliningList[0];
+            $diffFmt = number_format(abs($worst['diff_sales']), 0, ',', '.');
+            $critical[] = [
+                'issue' => "Penurunan Omset Signifikan",
+                'customer_affected' => $worst['nm_cs'] ?? 'Customer Utama',
+                'nominal_impact' => "Turun Rp {$diffFmt} (" . round($worst['growth'] ?? 0, 1) . "%)",
+                'root_cause' => "Frekuensi invoice berkurang atau penundaan PO proyek dari periode sebelumnya.",
+                'action_to_fix' => "Jadwalkan kunjungan komersial segera dengan Account Executive, audit kebutuhan restock customer, dan tawarkan paket harga khusus.",
+            ];
+        }
+
+        if ($churn > 0) {
+            $critical[] = [
+                'issue' => "Customer Inaktif / Risiko Churn",
+                'customer_affected' => "{$churn} Customer Tidak Bertransaksi",
+                'nominal_impact' => "Kehilangan peluang repeat order reguler",
+                'root_cause' => "Pernah bertransaksi di {$prevPeriod} namun belum ada order masuk di {$currPeriod}.",
+                'action_to_fix' => "Lakukan kampanye re-engagement via tim sales dan telemarketing untuk mengonfirmasi status restock barang.",
+            ];
+        }
+
+        if ($pareto > 65) {
+            $critical[] = [
+                'issue' => "Konsentrasi Risiko Pendapatan",
+                'customer_affected' => "Top 5 Pelanggan Inti",
+                'nominal_impact' => "Mencakup {$pareto}% dari total omset perusahaan",
+                'root_cause' => "Portofolio penjualan masih terkonsentrasi kuat pada segmen pembeli besar.",
+                'action_to_fix' => "Akselerasi akuisisi customer tier-2 dan aktifkan penawaran baru ke customer skala menengah untuk pemerataan omset.",
+            ];
+        }
+
+        $tactical = [
+            [
+                'category' => 'Customer VIP / Top Performers',
+                'focus' => 'Retensi & Proteksi Akun Kunci',
+                'action' => 'Berikan prioritas alokasi barang, percepat lead time pengiriman, dan amankan blanket order jangka menengah.',
+            ],
+            [
+                'category' => 'Customer Menurun / At-Risk',
+                'focus' => 'Penyelamatan Omset & Re-engagement',
+                'action' => 'Identifikasi keluhan atau kendala harga pada customer yang mengalami penurunan, lakukan negosiasi ulang skema pembayaran/diskon.',
+            ],
+            [
+                'category' => 'Penetrasi & Upselling',
+                'focus' => 'Peningkatan Nilai Order & Frekuensi',
+                'action' => 'Tawarkan produk komplementer (cross-selling) ke customer aktif dengan nilai invoice di bawah rata-rata.',
+            ],
+        ];
+
+        $quickWins = [
+            "Segera kontak customer dengan drop penjualan terbesar ({$summary['declining_text']}) dalam 48 jam ke depan.",
+            "Follow-up penawaran ke {$churn} akun customer yang belum melakukan repeat order di {$currPeriod}.",
+            "Lakukan evaluasi kepuasan layanan dengan perwakilan Top 3 pelanggan utama untuk mengamankan pesanan bulan depan.",
+        ];
+
+        return [
+            'health_score' => $score,
+            'status_label' => $statusLabel,
+            'executive_summary' => "Pada periode {$currPeriod}, total realisasi penjualan mencapai Rp {$totalSalesFmt}. Kinerja penjualan {$trendWord} dengan {$nominalWord} dibandingkan {$prevPeriod}. Tercatat sebanyak {$summary['total_customers']} customer aktif bertransaksi dengan porsi kontribusi Top 5 pelanggan sebesar {$pareto}%.",
+            'pareto_risk_analysis' => [
+                'top5_share_percent' => $pareto,
+                'risk_level' => $paretoRisk,
+                'evaluation' => $paretoDesc,
+            ],
+            'critical_areas_to_fix' => $critical,
+            'tactical_recommendations' => $tactical,
+            'quick_wins' => $quickWins,
+        ];
+    }
+
+    /**
+     * Extract sanitized filters for Customer KPI page.
+     */
+    private function extractCustomerFilters(Request $request): array
+    {
+        $periodType = $request->query('period_type', 'monthly');
+        if (!in_array($periodType, ['weekly', 'monthly', 'quarterly', 'semester', 'yearly', 'year_range'], true)) {
+            $periodType = 'monthly';
+        }
+
+        $year = (int) $request->query('year', 2026);
+        if ($year < 2000 || $year > 2100) $year = 2026;
+
+        $month = (int) $request->query('month', 8);
+        if ($month < 1 || $month > 12) $month = 8;
+
+        $week = (int) $request->query('week', 1);
+        if ($week < 1 || $week > 5) $week = 1;
+
+        $quarter = (int) $request->query('quarter', 3);
+        if ($quarter < 1 || $quarter > 4) $quarter = 3;
+
+        $semester = (int) $request->query('semester', 2);
+        if ($semester < 1 || $semester > 2) $semester = 2;
+
+        $startYear = (int) $request->query('start_year', max(2020, $year - 4));
+        $endYear = (int) $request->query('end_year', $year);
+        if ($startYear > $endYear) {
+            $temp = $startYear;
+            $startYear = $endYear;
+            $endYear = $temp;
+        }
+
+        return [
+            'period_type' => $periodType,
+            'year' => $year,
+            'month' => $month,
+            'week' => $week,
+            'quarter' => $quarter,
+            'semester' => $semester,
+            'start_year' => $startYear,
+            'end_year' => $endYear,
+        ];
+    }
+
+    /**
+     * Calculate comprehensive performance data for a single customer.
+     */
+    private function calculateCustomerPerformance(string $kdCs, array $filters): array
+    {
+        $periodType = $filters['period_type'];
+        $year = $filters['year'];
+        $month = $filters['month'];
+        $week = $filters['week'];
+        $quarter = $filters['quarter'];
+        $semester = $filters['semester'];
+        $startYear = $filters['start_year'];
+        $endYear = $filters['end_year'];
+
+        $monthNames = [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
+            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
+            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+        ];
+
+        $dayNames = [
+            'Mon' => 'Senin', 'Tue' => 'Selasa', 'Wed' => 'Rabu',
+            'Thu' => 'Kamis', 'Fri' => 'Jumat', 'Sat' => 'Sabtu', 'Sun' => 'Minggu',
+        ];
+
+        // 1. Resolve date ranges and chart buckets
+        $chartItems = [];
+        $chartTitle = '';
+        $chartSubtitle = '';
+
+        if ($periodType === 'weekly') {
+            // Weekly: 7 days
+            $startDay = ($week - 1) * 7 + 1;
+            $currStart = sprintf('%04d-%02d-%02d', $year, $month, $startDay);
+            $currEnd = date('Y-m-d', strtotime("$currStart +6 days"));
+
+            $prevStart = date('Y-m-d', strtotime("$currStart -7 days"));
+            $prevEnd = date('Y-m-d', strtotime("$currEnd -7 days"));
+
+            $currentLabel = "Minggu $week " . ($monthNames[$month] ?? "") . " $year (" . date('d/m', strtotime($currStart)) . " - " . date('d/m', strtotime($currEnd)) . ")";
+            $previousLabel = "7 Hari Sebelumnya (" . date('d/m', strtotime($prevStart)) . " - " . date('d/m', strtotime($prevEnd)) . ")";
+            $chartTitle = "Grafik Penjualan Harian (Minggu $week)";
+            $chartSubtitle = "Rincian realisasi harian 7 hari transaksi";
+
+            // Query daily sales for 7 days
+            $dailyRows = DB::table('tb_fakturpenjualan')
+                ->where('kd_cs', $kdCs)
+                ->whereRaw("{$this->dateExpr} between ? and ?", [$currStart, $currEnd])
+                ->whereRaw("coalesce(ttl_price, 0) > 0")
+                ->selectRaw("{$this->dateExpr} as doc_date")
+                ->selectRaw("sum(ttl_price) as day_sales")
+                ->selectRaw("count(distinct no_fakturpenjualan) as day_invs")
+                ->groupBy('doc_date')
+                ->get()
+                ->keyBy('doc_date');
+
+            for ($d = 0; $d < 7; $d++) {
+                $curDate = date('Y-m-d', strtotime("$currStart +$d days"));
+                $dEn = date('D', strtotime($curDate));
+                $dId = $dayNames[$dEn] ?? $dEn;
+                $row = $dailyRows->get($curDate);
+
+                $chartItems[] = [
+                    'key' => $curDate,
+                    'label' => "$dId " . date('d/m', strtotime($curDate)),
+                    'full_label' => "$dId, " . date('d F Y', strtotime($curDate)),
+                    'sales' => (float) ($row->day_sales ?? 0),
+                    'invoices' => (int) ($row->day_invs ?? 0),
+                    'is_active' => false,
+                ];
+            }
+        } elseif ($periodType === 'monthly') {
+            // Monthly: 4-5 weeks
+            $daysInMonth = (int) date('t', strtotime("$year-$month-01"));
+            $currStart = sprintf('%04d-%02d-01', $year, $month);
+            $currEnd = sprintf('%04d-%02d-%02d', $year, $month, $daysInMonth);
+
+            if ($month === 1) {
+                $prevYear = $year - 1;
+                $prevMonth = 12;
+            } else {
+                $prevYear = $year;
+                $prevMonth = $month - 1;
+            }
+            $prevDays = (int) date('t', strtotime("$prevYear-$prevMonth-01"));
+            $prevStart = sprintf('%04d-%02d-01', $prevYear, $prevMonth);
+            $prevEnd = sprintf('%04d-%02d-%02d', $prevYear, $prevMonth, $prevDays);
+
+            $currentLabel = ($monthNames[$month] ?? "Bulan $month") . " $year";
+            $previousLabel = ($monthNames[$prevMonth] ?? "Bulan $prevMonth") . " $prevYear";
+            $chartTitle = "Grafik Penjualan Mingguan ($currentLabel)";
+            $chartSubtitle = "Rincian realisasi per minggu dalam bulan terpilih";
+
+            // Define weekly buckets
+            $weekBuckets = [
+                1 => [1, 7],
+                2 => [8, 14],
+                3 => [15, 21],
+                4 => [22, 28],
+            ];
+            if ($daysInMonth > 28) {
+                $weekBuckets[5] = [29, $daysInMonth];
+            }
+
+            foreach ($weekBuckets as $wNum => $range) {
+                $wStartStr = sprintf('%04d-%02d-%02d', $year, $month, $range[0]);
+                $wEndStr = sprintf('%04d-%02d-%02d', $year, $month, $range[1]);
+
+                $wRow = DB::table('tb_fakturpenjualan')
+                    ->where('kd_cs', $kdCs)
+                    ->whereRaw("{$this->dateExpr} between ? and ?", [$wStartStr, $wEndStr])
+                    ->whereRaw("coalesce(ttl_price, 0) > 0")
+                    ->selectRaw("sum(ttl_price) as w_sales")
+                    ->selectRaw("count(distinct no_fakturpenjualan) as w_invs")
+                    ->first();
+
+                $chartItems[] = [
+                    'key' => $wNum,
+                    'label' => "Minggu $wNum",
+                    'full_label' => "Minggu $wNum (" . sprintf('%02d - %02d %s', $range[0], $range[1], substr($monthNames[$month], 0, 3)) . ")",
+                    'sales' => (float) ($wRow->w_sales ?? 0),
+                    'invoices' => (int) ($wRow->w_invs ?? 0),
+                    'is_active' => false,
+                ];
+            }
+        } elseif ($periodType === 'quarterly') {
+            // Quarterly: 3 months
+            $startMonth = ($quarter - 1) * 3 + 1;
+            $endMonth = $startMonth + 2;
+            $endMonthDays = (int) date('t', strtotime("$year-$endMonth-01"));
+
+            $currStart = sprintf('%04d-%02d-01', $year, $startMonth);
+            $currEnd = sprintf('%04d-%02d-%02d', $year, $endMonth, $endMonthDays);
+
+            if ($quarter === 1) {
+                $prevYear = $year - 1;
+                $prevQuarter = 4;
+            } else {
+                $prevYear = $year;
+                $prevQuarter = $quarter - 1;
+            }
+            $pStartM = ($prevQuarter - 1) * 3 + 1;
+            $pEndM = $pStartM + 2;
+            $pEndDays = (int) date('t', strtotime("$prevYear-$pEndM-01"));
+            $prevStart = sprintf('%04d-%02d-01', $prevYear, $pStartM);
+            $prevEnd = sprintf('%04d-%02d-%02d', $prevYear, $pEndM, $pEndDays);
+
+            $currentLabel = "Triwulan $quarter ($monthNames[$startMonth] - $monthNames[$endMonth] $year)";
+            $previousLabel = "Triwulan $prevQuarter $prevYear";
+            $chartTitle = "Grafik Penjualan Bulanan (Triwulan $quarter $year)";
+            $chartSubtitle = "Rincian realisasi 3 bulan dalam triwulan terpilih";
+
+            for ($m = $startMonth; $m <= $endMonth; $m++) {
+                $mDays = (int) date('t', strtotime("$year-$m-01"));
+                $mStart = sprintf('%04d-%02d-01', $year, $m);
+                $mEnd = sprintf('%04d-%02d-%02d', $year, $m, $mDays);
+
+                $mRow = DB::table('tb_fakturpenjualan')
+                    ->where('kd_cs', $kdCs)
+                    ->whereRaw("{$this->dateExpr} between ? and ?", [$mStart, $mEnd])
+                    ->whereRaw("coalesce(ttl_price, 0) > 0")
+                    ->selectRaw("sum(ttl_price) as m_sales")
+                    ->selectRaw("count(distinct no_fakturpenjualan) as m_invs")
+                    ->first();
+
+                $chartItems[] = [
+                    'key' => $m,
+                    'label' => $monthNames[$m] ?? "Bulan $m",
+                    'full_label' => ($monthNames[$m] ?? "Bulan $m") . " $year",
+                    'sales' => (float) ($mRow->m_sales ?? 0),
+                    'invoices' => (int) ($mRow->m_invs ?? 0),
+                    'is_active' => false,
+                ];
+            }
+        } elseif ($periodType === 'semester') {
+            // Semester: 6 months
+            $startMonth = ($semester === 1) ? 1 : 7;
+            $endMonth = ($semester === 1) ? 6 : 12;
+            $endDays = (int) date('t', strtotime("$year-$endMonth-01"));
+
+            $currStart = sprintf('%04d-%02d-01', $year, $startMonth);
+            $currEnd = sprintf('%04d-%02d-%02d', $year, $endMonth, $endDays);
+
+            if ($semester === 1) {
+                $prevYear = $year - 1;
+                $prevSem = 2;
+                $pStart = 7;
+                $pEnd = 12;
+            } else {
+                $prevYear = $year;
+                $prevSem = 1;
+                $pStart = 1;
+                $pEnd = 6;
+            }
+            $pEndDays = (int) date('t', strtotime("$prevYear-$pEnd-01"));
+            $prevStart = sprintf('%04d-%02d-01', $prevYear, $pStart);
+            $prevEnd = sprintf('%04d-%02d-%02d', $prevYear, $pEnd, $pEndDays);
+
+            $currentLabel = "Semester $semester ($monthNames[$startMonth] - $monthNames[$endMonth] $year)";
+            $previousLabel = "Semester $prevSem $prevYear";
+            $chartTitle = "Grafik Penjualan Bulanan (Semester $semester $year)";
+            $chartSubtitle = "Rincian realisasi 6 bulan dalam semester terpilih";
+
+            for ($m = $startMonth; $m <= $endMonth; $m++) {
+                $mDays = (int) date('t', strtotime("$year-$m-01"));
+                $mStart = sprintf('%04d-%02d-01', $year, $m);
+                $mEnd = sprintf('%04d-%02d-%02d', $year, $m, $mDays);
+
+                $mRow = DB::table('tb_fakturpenjualan')
+                    ->where('kd_cs', $kdCs)
+                    ->whereRaw("{$this->dateExpr} between ? and ?", [$mStart, $mEnd])
+                    ->whereRaw("coalesce(ttl_price, 0) > 0")
+                    ->selectRaw("sum(ttl_price) as m_sales")
+                    ->selectRaw("count(distinct no_fakturpenjualan) as m_invs")
+                    ->first();
+
+                $chartItems[] = [
+                    'key' => $m,
+                    'label' => substr($monthNames[$m] ?? "B$m", 0, 3),
+                    'full_label' => ($monthNames[$m] ?? "Bulan $m") . " $year",
+                    'sales' => (float) ($mRow->m_sales ?? 0),
+                    'invoices' => (int) ($mRow->m_invs ?? 0),
+                    'is_active' => false,
+                ];
+            }
+        } elseif ($periodType === 'yearly') {
+            // Yearly: 12 months
+            $currStart = sprintf('%04d-01-01', $year);
+            $currEnd = sprintf('%04d-12-31', $year);
+
+            $prevYear = $year - 1;
+            $prevStart = sprintf('%04d-01-01', $prevYear);
+            $prevEnd = sprintf('%04d-12-31', $prevYear);
+
+            $currentLabel = "Tahun $year (12 Bulan)";
+            $previousLabel = "Tahun $prevYear";
+            $chartTitle = "Grafik Penjualan 12 Bulan (Tahun $year)";
+            $chartSubtitle = "Rincian realisasi per bulan sepanjang tahun $year";
+
+            $yearRows = DB::table('tb_fakturpenjualan')
+                ->where('kd_cs', $kdCs)
+                ->whereRaw("YEAR({$this->dateExpr}) = ?", [$year])
+                ->whereRaw("coalesce(ttl_price, 0) > 0")
+                ->selectRaw("MONTH({$this->dateExpr}) as doc_month")
+                ->selectRaw("sum(ttl_price) as m_sales")
+                ->selectRaw("count(distinct no_fakturpenjualan) as m_invs")
+                ->groupBy('doc_month')
+                ->get()
+                ->keyBy('doc_month');
+
+            for ($m = 1; $m <= 12; $m++) {
+                $row = $yearRows->get($m);
+                $chartItems[] = [
+                    'key' => $m,
+                    'label' => substr($monthNames[$m], 0, 3),
+                    'full_label' => "$monthNames[$m] $year",
+                    'sales' => (float) ($row->m_sales ?? 0),
+                    'invoices' => (int) ($row->m_invs ?? 0),
+                    'is_active' => false,
+                ];
+            }
+        } else {
+            // year_range: Range tahun
+            $currStart = sprintf('%04d-01-01', $startYear);
+            $currEnd = sprintf('%04d-12-31', $endYear);
+
+            $yearSpan = $endYear - $startYear + 1;
+            $prevEndYear = $startYear - 1;
+            $prevStartYear = max(2000, $prevEndYear - $yearSpan + 1);
+            $prevStart = sprintf('%04d-01-01', $prevStartYear);
+            $prevEnd = sprintf('%04d-12-31', $prevEndYear);
+
+            $currentLabel = "Rentang Tahun $startYear - $endYear";
+            $previousLabel = "Rentang Sebelumnya ($prevStartYear - $prevEndYear)";
+            $chartTitle = "Grafik Penjualan Tahunan ($startYear - $endYear)";
+            $chartSubtitle = "Perbandingan realisasi tahun ke tahun sesuai rentang terpilih";
+
+            $rangeRows = DB::table('tb_fakturpenjualan')
+                ->where('kd_cs', $kdCs)
+                ->whereRaw("YEAR({$this->dateExpr}) between ? and ?", [$startYear, $endYear])
+                ->whereRaw("coalesce(ttl_price, 0) > 0")
+                ->selectRaw("YEAR({$this->dateExpr}) as doc_year")
+                ->selectRaw("sum(ttl_price) as y_sales")
+                ->selectRaw("count(distinct no_fakturpenjualan) as y_invs")
+                ->groupBy('doc_year')
+                ->get()
+                ->keyBy('doc_year');
+
+            for ($y = $startYear; $y <= $endYear; $y++) {
+                $row = $rangeRows->get($y);
+                $chartItems[] = [
+                    'key' => $y,
+                    'label' => (string) $y,
+                    'full_label' => "Tahun $y",
+                    'sales' => (float) ($row->y_sales ?? 0),
+                    'invoices' => (int) ($row->y_invs ?? 0),
+                    'is_active' => ($y === $endYear),
+                ];
+            }
+        }
+
+        // 2. Query KPI Totals for this customer
+        $currStats = DB::table('tb_fakturpenjualan')
+            ->where('kd_cs', $kdCs)
+            ->whereRaw("{$this->dateExpr} between ? and ?", [$currStart, $currEnd])
+            ->whereRaw("coalesce(ttl_price, 0) > 0")
+            ->selectRaw("sum(ttl_price) as total_sales")
+            ->selectRaw("count(distinct no_fakturpenjualan) as total_invoices")
+            ->first();
+
+        $prevStats = DB::table('tb_fakturpenjualan')
+            ->where('kd_cs', $kdCs)
+            ->whereRaw("{$this->dateExpr} between ? and ?", [$prevStart, $prevEnd])
+            ->whereRaw("coalesce(ttl_price, 0) > 0")
+            ->selectRaw("sum(ttl_price) as total_sales")
+            ->selectRaw("count(distinct no_fakturpenjualan) as total_invoices")
+            ->first();
+
+        $totalSales = (float) ($currStats->total_sales ?? 0);
+        $totalInvoices = (int) ($currStats->total_invoices ?? 0);
+        $prevTotalSales = (float) ($prevStats->total_sales ?? 0);
+        $prevTotalInvoices = (int) ($prevStats->total_invoices ?? 0);
+
+        $growthPercent = $prevTotalSales > 0
+            ? (($totalSales - $prevTotalSales) / $prevTotalSales) * 100
+            : ($totalSales > 0 ? 100.0 : 0.0);
+
+        $growthNominal = $totalSales - $prevTotalSales;
+        $avgOrderValue = $totalInvoices > 0 ? $totalSales / $totalInvoices : 0.0;
+
+        // Max single invoice
+        $maxInvoiceRow = DB::table('tb_fakturpenjualan')
+            ->where('kd_cs', $kdCs)
+            ->whereRaw("{$this->dateExpr} between ? and ?", [$currStart, $currEnd])
+            ->whereRaw("coalesce(ttl_price, 0) > 0")
+            ->selectRaw("sum(ttl_price) as inv_total")
+            ->groupBy('no_fakturpenjualan')
+            ->orderByDesc('inv_total')
+            ->first();
+        $maxOrderValue = (float) ($maxInvoiceRow->inv_total ?? 0);
+
+        // Overall company sales in current period
+        $companyTotalSales = (float) DB::table('tb_fakturpenjualan')
+            ->whereNotNull('no_fakturpenjualan')
+            ->whereRaw("trim(no_fakturpenjualan) <> ''")
+            ->whereRaw("coalesce(ttl_price, 0) > 0")
+            ->whereRaw("{$this->dateExpr} between ? and ?", [$currStart, $currEnd])
+            ->sum('ttl_price');
+
+        $companyShare = $companyTotalSales > 0 ? ($totalSales / $companyTotalSales) * 100 : 0.0;
+
+        // Customer Status
+        if ($totalSales <= 0) {
+            $status = 'Tidak Ada Transaksi';
+        } elseif ($prevTotalSales <= 0) {
+            $status = 'Sangat Baik (Akun Baru)';
+        } elseif ($growthPercent > 20) {
+            $status = 'Sangat Baik';
+        } elseif ($growthPercent >= 5) {
+            $status = 'Baik';
+        } elseif ($growthPercent >= -5) {
+            $status = 'Stabil';
+        } else {
+            $status = 'Menurun';
+        }
+
+        // 3. Top 10 Purchased Products/Materials from tb_do joined on f.no_do = d.no_do
+        $dateExprWithTable = "CASE WHEN f.tgl_doc LIKE '__.__.____' THEN STR_TO_DATE(f.tgl_doc, '%d.%m.%Y') ELSE STR_TO_DATE(f.tgl_doc, '%Y-%m-%d') END";
+        $topMaterialsQuery = DB::table('tb_fakturpenjualan as f')
+            ->join('tb_do as d', 'f.no_do', '=', 'd.no_do')
+            ->where('f.kd_cs', $kdCs)
+            ->whereRaw("{$dateExprWithTable} between ? and ?", [$currStart, $currEnd])
+            ->whereNotNull('d.mat')
+            ->whereRaw("trim(d.mat) <> ''")
+            ->select('d.kd_mat', 'd.mat as material', 'd.unit')
+            ->selectRaw("sum(d.qty) as total_qty")
+            ->selectRaw("sum(d.total) as total_val")
+            ->selectRaw("count(distinct f.no_fakturpenjualan) as freq")
+            ->selectRaw("avg(d.harga) as avg_price")
+            ->selectRaw("max({$dateExprWithTable}) as last_date")
+            ->groupBy('d.kd_mat', 'd.mat', 'd.unit')
+            ->orderByDesc('total_val')
+            ->limit(10)
+            ->get();
+
+        $isAllTimeMaterials = false;
+        if ($topMaterialsQuery->isEmpty()) {
+            // Fallback to all-time materials from tb_do so sales team sees historical profile
+            $topMaterialsQuery = DB::table('tb_fakturpenjualan as f')
+                ->join('tb_do as d', 'f.no_do', '=', 'd.no_do')
+                ->where('f.kd_cs', $kdCs)
+                ->whereNotNull('d.mat')
+                ->whereRaw("trim(d.mat) <> ''")
+                ->select('d.kd_mat', 'd.mat as material', 'd.unit')
+                ->selectRaw("sum(d.qty) as total_qty")
+                ->selectRaw("sum(d.total) as total_val")
+                ->selectRaw("count(distinct f.no_fakturpenjualan) as freq")
+                ->selectRaw("avg(d.harga) as avg_price")
+                ->selectRaw("max({$dateExprWithTable}) as last_date")
+                ->groupBy('d.kd_mat', 'd.mat', 'd.unit')
+                ->orderByDesc('total_val')
+                ->limit(10)
+                ->get();
+            $isAllTimeMaterials = true;
+        }
+
+        $topMaterials = $topMaterialsQuery->map(function ($row) {
+            return [
+                'kd_mat' => $row->kd_mat,
+                'material' => $row->material,
+                'unit' => $row->unit,
+                'total_qty' => (float) $row->total_qty,
+                'total_val' => (float) $row->total_val,
+                'freq' => (int) $row->freq,
+                'avg_price' => (float) $row->avg_price,
+                'last_date' => $row->last_date,
+            ];
+        })->toArray();
+
+        // 4. Invoices List for this period
+        $invoices = DB::table('tb_fakturpenjualan')
+            ->where('kd_cs', $kdCs)
+            ->whereRaw("{$this->dateExpr} between ? and ?", [$currStart, $currEnd])
+            ->whereRaw("coalesce(ttl_price, 0) > 0")
+            ->select('no_fakturpenjualan', 'no_fakturpajak', 'ref_po')
+            ->selectRaw("min(tgl_doc) as tgl_doc")
+            ->selectRaw("sum(ttl_price) as total_amount")
+            ->selectRaw("count(distinct kd_mat) as item_count")
+            ->groupBy('no_fakturpenjualan', 'no_fakturpajak', 'ref_po')
+            ->orderByRaw("min({$this->dateExpr}) desc")
+            ->limit(50)
+            ->get()
+            ->map(function ($row) {
+                return [
+                    'no_fakturpenjualan' => $row->no_fakturpenjualan,
+                    'no_fakturpajak' => $row->no_fakturpajak,
+                    'ref_po' => $row->ref_po,
+                    'tgl_doc' => $row->tgl_doc,
+                    'total_amount' => (float) $row->total_amount,
+                    'item_count' => (int) $row->item_count,
+                ];
+            })
+            ->toArray();
+
+        // Customer info
+        $custRow = DB::table('tb_fakturpenjualan')
+            ->where('kd_cs', $kdCs)
+            ->select('kd_cs', 'nm_cs')
+            ->first();
+
+        return [
+            'customer' => [
+                'kd_cs' => $kdCs,
+                'nm_cs' => $custRow->nm_cs ?? $kdCs,
+            ],
+            'periodInfo' => [
+                'period_type' => $periodType,
+                'currentLabel' => $currentLabel,
+                'previousLabel' => $previousLabel,
+                'currStart' => $currStart,
+                'currEnd' => $currEnd,
+                'prevStart' => $prevStart,
+                'prevEnd' => $prevEnd,
+            ],
+            'kpi' => [
+                'total_sales' => $totalSales,
+                'prev_total_sales' => $prevTotalSales,
+                'growth_percent' => $growthPercent,
+                'growth_nominal' => $growthNominal,
+                'total_invoices' => $totalInvoices,
+                'prev_total_invoices' => $prevTotalInvoices,
+                'avg_order_value' => $avgOrderValue,
+                'max_order_value' => $maxOrderValue,
+                'company_total_sales' => $companyTotalSales,
+                'company_share_percent' => $companyShare,
+                'status' => $status,
+            ],
+            'chartData' => [
+                'title' => $chartTitle,
+                'subtitle' => $chartSubtitle,
+                'items' => $chartItems,
+            ],
+            'topMaterials' => $topMaterials,
+            'isAllTimeMaterials' => $isAllTimeMaterials,
+            'recentInvoices' => $invoices,
+        ];
+    }
+
+    /**
+     * Build summary data for customer-specific AI prompt.
+     */
+    private function buildCustomerAiSummary(array $data, array $filters): array
+    {
+        $cust = $data['customer'] ?? [];
+        $kpi = $data['kpi'] ?? [];
+        $period = $data['periodInfo'] ?? [];
+        $topMat = $data['topMaterials'] ?? [];
+        $invs = $data['recentInvoices'] ?? [];
+
+        $matLines = [];
+        foreach ($topMat as $m) {
+            $valFmt = number_format($m['total_val'], 0, ',', '.');
+            $qtyFmt = number_format($m['total_qty'], 0, ',', '.');
+            $matLines[] = "- {$m['material']} ({$m['kd_mat']}): {$qtyFmt} {$m['unit']} senilai Rp {$valFmt} ({$m['freq']}x order)";
+        }
+
+        return [
+            'kd_cs' => $cust['kd_cs'] ?? '',
+            'nm_cs' => $cust['nm_cs'] ?? '',
+            'period_label' => $period['currentLabel'] ?? '',
+            'prev_period_label' => $period['previousLabel'] ?? '',
+            'total_sales_fmt' => number_format($kpi['total_sales'] ?? 0, 0, ',', '.'),
+            'prev_total_sales_fmt' => number_format($kpi['prev_total_sales'] ?? 0, 0, ',', '.'),
+            'growth_percent' => (float) ($kpi['growth_percent'] ?? 0),
+            'growth_percent_fmt' => (($kpi['growth_percent'] ?? 0) > 0 ? '+' : '') . round($kpi['growth_percent'] ?? 0, 2) . '%',
+            'growth_nominal_fmt' => number_format($kpi['growth_nominal'] ?? 0, 0, ',', '.'),
+            'total_invoices' => (int) ($kpi['total_invoices'] ?? 0),
+            'prev_total_invoices' => (int) ($kpi['prev_total_invoices'] ?? 0),
+            'avg_order_value_fmt' => number_format($kpi['avg_order_value'] ?? 0, 0, ',', '.'),
+            'max_order_value_fmt' => number_format($kpi['max_order_value'] ?? 0, 0, ',', '.'),
+            'company_share_percent' => round($kpi['company_share_percent'] ?? 0, 2),
+            'status' => $kpi['status'] ?? 'Stabil',
+            'top_materials_text' => !empty($matLines) ? implode("\n", $matLines) : "- Belum ada riwayat produk pada periode ini",
+            'top_materials' => $topMat,
+            'recent_invoices_count' => count($invs),
+        ];
+    }
+
+    /**
+     * Call Ollama for Customer-specific account analysis.
+     */
+    private function callOllamaForCustomer(array $summary): ?array
+    {
+        $baseUrl = rtrim(config('services.ollama.base_url', 'http://127.0.0.1:11434'), '/');
+        $model = config('services.ollama.model', 'qwen2.5:3b');
+        $timeout = (int) config('services.ollama.timeout', 90);
+
+        $systemPrompt = <<<PROMPT
+Anda adalah Senior Key Account Commercial Manager & B2B Sales Intelligence Analyst.
+Tugas Anda: Menganalisis profil transaksi dan KPI satu akun pelanggan (Key Account) ini secara tajam untuk membantu tim marketing & sales meningkatkan omset, frekuensi penawaran, cross-selling, dan loyalitas customer.
+
+Format Output:
+- WAJIB berupa JSON valid MURNI tanpa teks pembuka, penutup, atau markdown backticks.
+- Bahasa: Bahasa Indonesia bisnis profesional, taktis, dan aplikatif.
+
+Struktur JSON WAJIB:
+{
+  "account_health_score": <angka integer 0-100>,
+  "loyalty_status": <"VIP / Sangat Loyal" | "Aktif Reguler" | "At-Risk / Menurun" | "Dormant / Pasif">,
+  "executive_summary": "<1-2 paragraf ringkasan eksekutif komprehensif mengulas performa pembelian akun ini dan potensi komersialnya>",
+  "buying_habits": {
+    "pattern": "<deskripsi pola belanja, misal: rutin mingguan, periodik awal bulan, atau fluktuatif>",
+    "favorite_categories": "<analisis produk atau kategori utama yang menjadi tumpuan belanja>",
+    "order_characteristics": "<analisis ukuran order (AOV) dan frekuensi faktur>"
+  },
+  "risk_and_drop_alerts": [
+    {
+      "alert": "<judul isu risiko atau anomali, misal: Penurunan repeat order produk X>",
+      "impact": "<dampak nominal atau volume>",
+      "mitigation": "<tindakan mitigasi dan pencegahan segera>"
+    }
+  ],
+  "sales_growth_opportunities": [
+    {
+      "category": "<Cross-Selling / Produk Komplementer | Upselling Volume | Paket Penawaran>",
+      "suggested_product": "<rekomendasi produk atau barang yang cocok ditawarkan>",
+      "rationale": "<alasan mengapa customer ini butuh produk tersebut berdasarkan riwayat belanja>",
+      "pitching_strategy": "<strategi penawaran harga, diskon kuantiti, atau termin pembayaran>"
+    }
+  ],
+  "quick_wins": [
+    "<aksi taktis sales 1 dalam 7 hari ke depan untuk akun ini>",
+    "<aksi taktis sales 2 dalam 7 hari ke depan untuk akun ini>",
+    "<aksi taktis sales 3 dalam 7 hari ke depan untuk akun ini>"
+  ]
+}
+PROMPT;
+
+        $userPrompt = <<<USER_PROMPT
+Profil Pembelian Customer:
+- Nama Customer: {$summary['nm_cs']} ({$summary['kd_cs']})
+- Periode Evaluasi: {$summary['period_label']}
+- Periode Pembanding: {$summary['prev_period_label']}
+- Realisasi Pembelian: Rp {$summary['total_sales_fmt']} (Sebelumnya: Rp {$summary['prev_total_sales_fmt']})
+- Pertumbuhan: {$summary['growth_percent_fmt']} (Nominal: Rp {$summary['growth_nominal_fmt']})
+- Jumlah Faktur: {$summary['total_invoices']} (Sebelumnya: {$summary['prev_total_invoices']})
+- Rata-rata Nilai Order (AOV): Rp {$summary['avg_order_value_fmt']}
+- Nilai Faktur Tertinggi: Rp {$summary['max_order_value_fmt']}
+- Kontribusi terhadap Total Omset Perusahaan: {$summary['company_share_percent']}%
+- Status Akun: {$summary['status']}
+
+Produk / Material yang Paling Banyak Dibeli:
+{$summary['top_materials_text']}
+
+Buat analisis profil akun customer, rekomendasi penawaran produk, dan strategi sales lengkap sesuai format JSON.
+USER_PROMPT;
+
+        try {
+            $res = Http::connectTimeout(2.5)
+                ->timeout($timeout)
+                ->post("{$baseUrl}/api/chat", [
+                    'model' => $model,
+                    'messages' => [
+                        ['role' => 'system', 'content' => $systemPrompt],
+                        ['role' => 'user', 'content' => $userPrompt],
+                    ],
+                    'stream' => false,
+                    'format' => 'json',
+                    'options' => [
+                        'temperature' => 0.2,
+                    ],
+                ]);
+
+            if (!$res->successful()) {
+                Log::warning('Ollama API customer analysis error', ['status' => $res->status(), 'body' => $res->body()]);
+                return ['error' => 'Ollama API error: status ' . $res->status()];
+            }
+
+            $body = $res->json();
+            $content = $body['message']['content'] ?? '';
+
+            $cleaned = preg_replace('/^```(?:json)?\s*/i', '', trim($content));
+            $cleaned = preg_replace('/\s*```$/', '', $cleaned);
+
+            $parsed = json_decode($cleaned, true);
+            if (is_array($parsed) && isset($parsed['account_health_score'])) {
+                return [
+                    'engine' => "{$model} (Ollama Production)",
+                    'data' => $parsed,
+                ];
+            }
+
+            if (preg_match('/\{[\s\S]*\}/', $cleaned, $match)) {
+                $matchedJson = json_decode($match[0], true);
+                if (is_array($matchedJson) && isset($matchedJson['account_health_score'])) {
+                    return [
+                        'engine' => "{$model} (Ollama Production)",
+                        'data' => $matchedJson,
+                    ];
+                }
+            }
+
+            return ['error' => 'Gagal membaca format JSON dari Ollama'];
+        } catch (\Throwable $e) {
+            Log::info('Ollama offline for customer analysis: ' . $e->getMessage());
+            return ['error' => $e->getMessage()];
+        }
+    }
+
+    /**
+     * Fallback heuristic intelligence engine for single customer.
+     */
+    private function generateCustomerHeuristicAnalysis(array $summary): array
+    {
+        $growth = $summary['growth_percent'];
+        $invCount = $summary['total_invoices'];
+        $share = $summary['company_share_percent'];
+        $nmCs = $summary['nm_cs'];
+        $period = $summary['period_label'];
+        $prevPeriod = $summary['prev_period_label'];
+        $salesFmt = $summary['total_sales_fmt'];
+        $topMat = $summary['top_materials'] ?? [];
+
+        // Account health score
+        $score = 70;
+        if ($growth >= 20) $score += 20;
+        elseif ($growth >= 5) $score += 10;
+        elseif ($growth < -20) $score -= 25;
+        elseif ($growth < 0) $score -= 15;
+
+        if ($invCount >= 10) $score += 10;
+        elseif ($invCount >= 3) $score += 5;
+        elseif ($invCount === 0) $score = 25;
+
+        if ($share >= 5.0) $score += 5; // Key VIP account
+        $score = max(20, min(98, $score));
+
+        $loyaltyStatus = $score >= 80 
+            ? 'VIP / Sangat Loyal' 
+            : ($score >= 65 ? 'Aktif Reguler' : ($score >= 45 ? 'At-Risk / Menurun' : 'Dormant / Pasif'));
+
+        $trendWord = $growth >= 0 
+            ? "tumbuh positif sebesar {$summary['growth_percent_fmt']}" 
+            : "mengalami kontraksi sebesar {$summary['growth_percent_fmt']}";
+
+        $topItemName = !empty($topMat) ? $topMat[0]['material'] : 'produk reguler';
+
+        $riskAlerts = [];
+        if ($growth < 0 && $summary['total_sales_fmt'] !== '0') {
+            $riskAlerts[] = [
+                'alert' => 'Penurunan Volume Pembelian',
+                'impact' => "Turun nominal Rp {$summary['growth_nominal_fmt']} dibandingkan {$prevPeriod}",
+                'mitigation' => "Segera hubungi tim purchasing {$nmCs} untuk mengecek kebutuhan proyek berjalan dan periksa apakah ada kendala harga/katalog.",
+            ];
+        }
+
+        if ($invCount === 0) {
+            $riskAlerts[] = [
+                'alert' => 'Tidak Ada Transaksi di Periode Ini',
+                'impact' => 'Potensi churn atau peralihan pesanan ke supplier kompetitor',
+                'mitigation' => 'Lakukan re-engagement call dalam 24 jam dengan menawarkan promo restock dan katalog item terbaru.',
+            ];
+        }
+
+        if (count($topMat) <= 2 && count($topMat) > 0) {
+            $riskAlerts[] = [
+                'alert' => 'Keragaman Produk Rendah',
+                'impact' => 'Customer hanya membeli 1-2 jenis material utama, rentan hilang jika proyek terkait usai',
+                'mitigation' => 'Perkenalkan katalog produk komplementer untuk memperluas basket size belanja customer.',
+            ];
+        }
+
+        $opportunities = [
+            [
+                'category' => 'Cross-Selling & Ekspansi Portofolio',
+                'suggested_product' => "Produk Komplementer untuk {$topItemName}",
+                'rationale' => "Akun ini memiliki frekuensi belanja rutin untuk {$topItemName}. Menawarkan produk pendukung akan meningkatkan nilai faktur per transaksi.",
+                'pitching_strategy' => 'Kirimkan sampel dan penawaran bundling harga spesial untuk pembelian paket gabungan.',
+            ],
+            [
+                'category' => 'Upselling Volume (Blanket Order)',
+                'suggested_product' => "Pembelian Skala Lebih Besar untuk {$topItemName}",
+                'rationale' => "Dengan rata-rata nilai order Rp {$summary['avg_order_value_fmt']}, kontrak pemesanan berkala (blanket PO) akan mengunci volume penjualan jangka panjang.",
+                'pitching_strategy' => 'Tawarkan diskon volume bertingkat (tier pricing) dengan komitmen pengambilan barang dalam 3-6 bulan.',
+            ],
+        ];
+
+        $quickWins = [
+            "Jadwalkan kontak dengan PIC Purchasing {$nmCs} untuk mengonfirmasi rencana kebutuhan order bulan depan.",
+            "Kirimkan penawaran katalog resmi untuk item pelengkap yang belum pernah dipesan oleh {$nmCs}.",
+            "Tinjau status jatuh tempo dan riwayat pembayaran faktur terakhir guna memastikan kelancaran limit kredit penjualan.",
+        ];
+
+        return [
+            'account_health_score' => $score,
+            'loyalty_status' => $loyaltyStatus,
+            'executive_summary' => "Pada periode {$period}, akun {$nmCs} mencatatkan total realisasi pembelian sebesar Rp {$salesFmt} ({$trendWord} dibanding {$prevPeriod}) dengan total {$invCount} invoice. Akun ini menyumbang {$share}% terhadap total omset perusahaan, dengan produk tumpuan utama berupa {$topItemName}.",
+            'buying_habits' => [
+                'pattern' => $invCount >= 5 ? 'Frekuensi transaksi sangat aktif dan rutin' : ($invCount > 0 ? 'Pola belanja berkala sesuai kebutuhan PO proyek' : 'Akun pasif pada periode berjalan'),
+                'favorite_categories' => "Didominasi oleh pembelian {$topItemName} dengan kontribusi dominan terhadap total belanja akun.",
+                'order_characteristics' => "Rata-rata nilai order per faktur (AOV) sebesar Rp {$summary['avg_order_value_fmt']} dengan pembelian terbesar mencapai Rp {$summary['max_order_value_fmt']}.",
+            ],
+            'risk_and_drop_alerts' => $riskAlerts,
+            'sales_growth_opportunities' => $opportunities,
+            'quick_wins' => $quickWins,
+        ];
+    }
+}
+
