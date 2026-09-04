@@ -166,8 +166,8 @@ class PerformanceController
      */
     public function aiAnalyze(Request $request)
     {
-        @set_time_limit(120);
-        @ini_set('max_execution_time', '120');
+        @set_time_limit(180);
+        @ini_set('max_execution_time', '180');
 
         $filters = $this->extractFilters($request);
         $force = $request->boolean('force', false);
@@ -181,7 +181,7 @@ class PerformanceController
                     return response()->json([
                         'success' => true,
                         'cached' => true,
-                        'engine' => $cached['engine'] ?? 'qwen2.5:3b (Ollama)',
+                        'engine' => $cached['engine'] ?? (config('services.ollama.model', 'qwen2.5:7b') . ' (Ollama)'),
                         'is_fallback' => $cached['is_fallback'] ?? false,
                         'data' => $cached['analysis'] ?? $cached,
                     ]);
@@ -194,7 +194,7 @@ class PerformanceController
                         return response()->json([
                             'success' => true,
                             'cached' => true,
-                            'engine' => $cached['engine'] ?? 'qwen2.5:3b (Ollama)',
+                            'engine' => $cached['engine'] ?? (config('services.ollama.model', 'qwen2.5:7b') . ' (Ollama)'),
                             'is_fallback' => $cached['is_fallback'] ?? false,
                             'data' => $cached['analysis'] ?? $cached,
                         ]);
@@ -210,12 +210,12 @@ class PerformanceController
         });
         $summary = $this->buildKpiSummaryForPrompt($perfData, $filters);
 
-        // Try calling Ollama AI model (qwen2.5:3b)
+        // Try calling Ollama AI model (qwen2.5:7b)
         $aiResult = $this->callOllama($summary);
 
         if ($aiResult && !empty($aiResult['data'])) {
             $payload = [
-                'engine' => $aiResult['engine'] ?? 'qwen2.5:3b (Ollama)',
+                'engine' => $aiResult['engine'] ?? (config('services.ollama.model', 'qwen2.5:7b') . ' (Ollama)'),
                 'is_fallback' => false,
                 'analysis' => $aiResult['data'],
             ];
@@ -315,8 +315,8 @@ class PerformanceController
      */
     public function customerAiAnalyze(Request $request, string $customer)
     {
-        @set_time_limit(120);
-        @ini_set('max_execution_time', '120');
+        @set_time_limit(180);
+        @ini_set('max_execution_time', '180');
 
         $filters = $this->extractCustomerFilters($request);
         $force = $request->boolean('force', false);
@@ -330,7 +330,7 @@ class PerformanceController
                     return response()->json([
                         'success' => true,
                         'cached' => true,
-                        'engine' => $cached['engine'] ?? 'qwen2.5:3b (Ollama)',
+                        'engine' => $cached['engine'] ?? (config('services.ollama.model', 'qwen2.5:7b') . ' (Ollama)'),
                         'is_fallback' => $cached['is_fallback'] ?? false,
                         'data' => $cached['analysis'] ?? $cached,
                     ]);
@@ -342,7 +342,7 @@ class PerformanceController
                         return response()->json([
                             'success' => true,
                             'cached' => true,
-                            'engine' => $cached['engine'] ?? 'qwen2.5:3b (Ollama)',
+                            'engine' => $cached['engine'] ?? (config('services.ollama.model', 'qwen2.5:7b') . ' (Ollama)'),
                             'is_fallback' => $cached['is_fallback'] ?? false,
                             'data' => $cached['analysis'] ?? $cached,
                         ]);
@@ -360,7 +360,7 @@ class PerformanceController
 
         if ($aiResult && !empty($aiResult['data'])) {
             $payload = [
-                'engine' => $aiResult['engine'] ?? 'qwen2.5:3b (Ollama)',
+                'engine' => $aiResult['engine'] ?? (config('services.ollama.model', 'qwen2.5:7b') . ' (Ollama)'),
                 'is_fallback' => false,
                 'analysis' => $aiResult['data'],
             ];
@@ -1369,15 +1369,14 @@ class PerformanceController
     }
 
     /**
-     * Call Ollama Chat API with Qwen 2.5 3B model.
+     * Call Ollama Chat API with Qwen 2.5 7B model.
      */
     private function callOllama(array $summary): ?array
     {
         $baseUrl = rtrim(config('services.ollama.base_url', 'http://127.0.0.1:11434'), '/');
-        $model = config('services.ollama.model', 'qwen2.5:3b');
-        // Cap timeout to 35s so PHP catches slow responses and falls back before Nginx 60s gateway timeout
-        $configuredTimeout = (int) config('services.ollama.timeout', 35);
-        $timeout = ($configuredTimeout > 0 && $configuredTimeout <= 45) ? $configuredTimeout : 35;
+        $model = config('services.ollama.model', 'qwen2.5:7b');
+        $configuredTimeout = (int) config('services.ollama.timeout', 90);
+        $timeout = $configuredTimeout > 0 ? $configuredTimeout : 90;
 
         $systemPrompt = <<<PROMPT
 Anda adalah Chief Commercial Officer (CCO) & Senior Sales Performance Analyst B2B.
@@ -2200,10 +2199,9 @@ USER_PROMPT;
     private function callOllamaForCustomer(array $summary): ?array
     {
         $baseUrl = rtrim(config('services.ollama.base_url', 'http://127.0.0.1:11434'), '/');
-        $model = config('services.ollama.model', 'qwen2.5:3b');
-        // Cap timeout to 35s so PHP catches slow responses and falls back before Nginx 60s gateway timeout
-        $configuredTimeout = (int) config('services.ollama.timeout', 35);
-        $timeout = ($configuredTimeout > 0 && $configuredTimeout <= 45) ? $configuredTimeout : 35;
+        $model = config('services.ollama.model', 'qwen2.5:7b');
+        $configuredTimeout = (int) config('services.ollama.timeout', 90);
+        $timeout = $configuredTimeout > 0 ? $configuredTimeout : 90;
 
         $systemPrompt = <<<PROMPT
 Anda adalah Senior Key Account Commercial Manager & B2B Sales Intelligence Analyst.
