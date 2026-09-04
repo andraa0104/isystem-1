@@ -12,7 +12,125 @@ use Carbon\Carbon;
 
 class PerformanceController
 {
-    private string $dateExpr = "CASE WHEN tgl_doc LIKE '__.__.____' THEN STR_TO_DATE(tgl_doc, '%d.%m.%Y') ELSE STR_TO_DATE(tgl_doc, '%Y-%m-%d') END";
+    private ?\Illuminate\Database\ConnectionInterface $activeConnection = null;
+    private ?bool $isClickhouse = null;
+
+    /**
+     * Resolve database connection:
+     * - Uses ClickHouse by default if available and operational.
+     * - Seamlessly falls back to MySQL if ClickHouse is not configured, unreachable, or throws error.
+     * - Can be overridden manually via query param ?driver=mysql or ?source=mysql, or PERFORMANCE_DB_DRIVER=mysql in .env.
+     */
+    private function getDbConnection(): \Illuminate\Database\ConnectionInterface
+    {
+        if ($this->activeConnection !== null) {
+            return $this->activeConnection;
+        }
+
+        $requestedDriver = strtolower((string) request()->query('driver', request()->query('source', env('PERFORMANCE_DB_DRIVER', 'clickhouse'))));
+        if ($requestedDriver === 'mysql') {
+            $this->activeConnection = DB::connection();
+            $this->isClickhouse = false;
+            return $this->activeConnection;
+        }
+
+        try {
+            $connection = DB::connection('clickhouse');
+            if ($connection && $connection->getConfig('driver') === 'clickhouse') {
+                $connection->select('SELECT 1');
+                $this->activeConnection = $connection;
+                $this->isClickhouse = true;
+                return $this->activeConnection;
+            }
+        } catch (\Throwable $e) {
+            Log::info("PerformanceController: ClickHouse connection unavailable, falling back to MySQL: " . $e->getMessage());
+        }
+
+        $this->activeConnection = DB::connection();
+        $this->isClickhouse = false;
+        return $this->activeConnection;
+    }
+
+    private function isClickhouse(): bool
+    {
+        if ($this->isClickhouse === null) {
+            $this->getDbConnection();
+        }
+        return (bool) $this->isClickhouse;
+    }
+
+    /**
+     * Execute database callback with automatic failover to MySQL if ClickHouse throws any exception.
+     */
+    private function safeQuery(callable $callback)
+    {
+        try {
+            return $callback();
+        } catch (\Throwable $e) {
+            if ($this->isClickhouse()) {
+                Log::warning("PerformanceController ClickHouse query failed, falling back to MySQL: " . $e->getMessage());
+                $this->activeConnection = DB::connection();
+                $this->isClickhouse = false;
+                return $callback();
+            }
+            throw $e;
+        }
+    }
+
+    /**
+     * SQL expression to parse date column.
+     */
+    private function sqlDateExpr(string $col = 'tgl_doc'): string
+    {
+        if ($this->isClickhouse()) {
+            return "toDateOrNull(parseDateTimeBestEffortOrNull(toString({$col})))";
+        }
+        return "CASE WHEN {$col} LIKE '__.__.____' THEN STR_TO_DATE({$col}, '%d.%m.%Y') ELSE STR_TO_DATE({$col}, '%Y-%m-%d') END";
+    }
+
+    /**
+     * SQL expression to format date as 'YYYY-MM-DD' string.
+     */
+    private function sqlDateFormat(string $col = 'tgl_doc', string $format = '%Y-%m-%d'): string
+    {
+        if ($this->isClickhouse()) {
+            return "formatDateTime(parseDateTimeBestEffortOrNull(toString({$col})), '{$format}')";
+        }
+        return "DATE_FORMAT({$this->sqlDateExpr($col)}, '{$format}')";
+    }
+
+    /**
+     * SQL expression for Year (e.g. 2025).
+     */
+    private function sqlYear(string $col = 'tgl_doc'): string
+    {
+        if ($this->isClickhouse()) {
+            return "toYear({$this->sqlDateExpr($col)})";
+        }
+        return "YEAR({$this->sqlDateExpr($col)})";
+    }
+
+    /**
+     * SQL expression for Month (1 - 12).
+     */
+    private function sqlMonth(string $col = 'tgl_doc'): string
+    {
+        if ($this->isClickhouse()) {
+            return "toMonth({$this->sqlDateExpr($col)})";
+        }
+        return "MONTH({$this->sqlDateExpr($col)})";
+    }
+
+    /**
+     * SQL expression for Quarter (1 - 4).
+     */
+    private function sqlQuarter(string $col = 'tgl_doc'): string
+    {
+        if ($this->isClickhouse()) {
+            return "toQuarter({$this->sqlDateExpr($col)})";
+        }
+        return "QUARTER({$this->sqlDateExpr($col)})";
+    }
 
     /**
      * Render the main Marketing Performance page.
@@ -36,7 +154,9 @@ class PerformanceController
     public function data(Request $request)
     {
         $filters = $this->extractFilters($request);
-        $data = $this->calculatePerformanceData($filters);
+        $data = $this->safeQuery(function () use ($filters) {
+            return $this->calculatePerformanceData($filters);
+        });
 
         return response()->json($data);
     }
@@ -85,7 +205,9 @@ class PerformanceController
             }
         }
 
-        $perfData = $this->calculatePerformanceData($filters);
+        $perfData = $this->safeQuery(function () use ($filters) {
+            return $this->calculatePerformanceData($filters);
+        });
         $summary = $this->buildKpiSummaryForPrompt($perfData, $filters);
 
         // Try calling Ollama AI model (qwen2.5:3b)
@@ -151,10 +273,12 @@ class PerformanceController
      */
     public function customerDetail(Request $request, string $customer)
     {
-        $customerInfo = DB::table('tb_fakturpenjualan')
-            ->where('kd_cs', $customer)
-            ->select('kd_cs', 'nm_cs')
-            ->first();
+        $customerInfo = $this->safeQuery(function () use ($customer) {
+            return $this->getDbConnection()->table('tb_fakturpenjualan')
+                ->where('kd_cs', $customer)
+                ->select('kd_cs', 'nm_cs')
+                ->first();
+        });
 
         if (!$customerInfo) {
             $customerInfo = (object) [
@@ -179,7 +303,9 @@ class PerformanceController
     public function customerData(Request $request, string $customer)
     {
         $filters = $this->extractCustomerFilters($request);
-        $data = $this->calculateCustomerPerformance($customer, $filters);
+        $data = $this->safeQuery(function () use ($customer, $filters) {
+            return $this->calculateCustomerPerformance($customer, $filters);
+        });
 
         return response()->json($data);
     }
@@ -225,7 +351,9 @@ class PerformanceController
             }
         }
 
-        $perfData = $this->calculateCustomerPerformance($customer, $filters);
+        $perfData = $this->safeQuery(function () use ($customer, $filters) {
+            return $this->calculateCustomerPerformance($customer, $filters);
+        });
         $summary = $this->buildCustomerAiSummary($perfData, $filters);
 
         $aiResult = $this->callOllamaForCustomer($summary);
@@ -445,11 +573,11 @@ class PerformanceController
     private function getAvailableYears(): array
     {
         try {
-            $years = DB::table('tb_fakturpenjualan')
+            $years = $this->getDbConnection()->table('tb_fakturpenjualan')
                 ->whereNotNull('no_fakturpenjualan')
                 ->whereRaw("trim(no_fakturpenjualan) <> ''")
-                ->selectRaw("YEAR({$this->dateExpr}) as yr")
-                ->whereRaw("YEAR({$this->dateExpr}) between 2000 and 2099")
+                ->selectRaw("{$this->sqlYear('tgl_doc')} as yr")
+                ->whereRaw("{$this->sqlYear('tgl_doc')} between 2000 and 2099")
                 ->groupBy('yr')
                 ->orderByDesc('yr')
                 ->pluck('yr')
@@ -473,7 +601,7 @@ class PerformanceController
     private function getCustomersList(): array
     {
         try {
-            return DB::table('tb_fakturpenjualan')
+            return $this->getDbConnection()->table('tb_fakturpenjualan')
                 ->whereNotNull('no_fakturpenjualan')
                 ->whereRaw("trim(no_fakturpenjualan) <> ''")
                 ->whereNotNull('kd_cs')
@@ -509,11 +637,11 @@ class PerformanceController
         $prevEnd = $periodInfo['prevEnd'];
 
         // 1. Current Period Customer Breakdown Query
-        $currCustomerQuery = DB::table('tb_fakturpenjualan')
+        $currCustomerQuery = $this->getDbConnection()->table('tb_fakturpenjualan')
             ->whereNotNull('no_fakturpenjualan')
             ->whereRaw("trim(no_fakturpenjualan) <> ''")
             ->whereRaw("coalesce(ttl_price, 0) > 0")
-            ->whereRaw("{$this->dateExpr} between ? and ?", [$currStart, $currEnd]);
+            ->whereRaw("{$this->sqlDateExpr('tgl_doc')} between ? and ?", [$currStart, $currEnd]);
 
         if ($customerFilter !== 'all' && $customerFilter !== '') {
             $currCustomerQuery->where('kd_cs', $customerFilter);
@@ -527,11 +655,11 @@ class PerformanceController
             ->get();
 
         // 2. Previous Period Customer Breakdown Query
-        $prevCustomerQuery = DB::table('tb_fakturpenjualan')
+        $prevCustomerQuery = $this->getDbConnection()->table('tb_fakturpenjualan')
             ->whereNotNull('no_fakturpenjualan')
             ->whereRaw("trim(no_fakturpenjualan) <> ''")
             ->whereRaw("coalesce(ttl_price, 0) > 0")
-            ->whereRaw("{$this->dateExpr} between ? and ?", [$prevStart, $prevEnd]);
+            ->whereRaw("{$this->sqlDateExpr('tgl_doc')} between ? and ?", [$prevStart, $prevEnd]);
 
         if ($customerFilter !== 'all' && $customerFilter !== '') {
             $prevCustomerQuery->where('kd_cs', $customerFilter);
@@ -814,8 +942,8 @@ class PerformanceController
         $chartData = $this->generateChartData($year, $periodType, $month, $quarter, $semester, $customerFilter);
 
         // 4. Top 10 Ordered Materials from tb_do joined on tb_fakturpenjualan.no_do = tb_do.no_do
-        $dateExprWithTable = "CASE WHEN f.tgl_doc LIKE '__.__.____' THEN STR_TO_DATE(f.tgl_doc, '%d.%m.%Y') ELSE STR_TO_DATE(f.tgl_doc, '%Y-%m-%d') END";
-        $topMaterialsQuery = DB::table('tb_fakturpenjualan as f')
+        $dateExprWithTable = $this->sqlDateExpr('f.tgl_doc');
+        $topMaterialsQuery = $this->getDbConnection()->table('tb_fakturpenjualan as f')
             ->join('tb_do as d', 'f.no_do', '=', 'd.no_do')
             ->whereRaw("coalesce(f.ttl_price, 0) > 0")
             ->whereRaw("{$dateExprWithTable} between ? and ?", [$currStart, $currEnd])
@@ -851,6 +979,7 @@ class PerformanceController
 
         return [
             'periodInfo' => $periodInfo,
+            'data_source' => $this->isClickhouse() ? 'clickhouse' : 'mysql',
             'kpi' => [
                 'total_sales' => $totalSales,
                 'prev_total_sales' => $prevTotalSales,
@@ -998,7 +1127,7 @@ class PerformanceController
      */
     private function generateChartData(int $year, string $periodType, int $activeMonth, int $activeQuarter, int $activeSemester, string $customerFilter): array
     {
-        $baseQuery = DB::table('tb_fakturpenjualan')
+        $baseQuery = $this->getDbConnection()->table('tb_fakturpenjualan')
             ->whereNotNull('no_fakturpenjualan')
             ->whereRaw("trim(no_fakturpenjualan) <> ''")
             ->whereRaw("coalesce(ttl_price, 0) > 0");
@@ -1015,8 +1144,8 @@ class PerformanceController
             ];
 
             $results = (clone $baseQuery)
-                ->whereRaw("YEAR({$this->dateExpr}) = ?", [$year])
-                ->selectRaw("MONTH({$this->dateExpr}) as period_key")
+                ->whereRaw("{$this->sqlYear('tgl_doc')} = ?", [$year])
+                ->selectRaw("{$this->sqlMonth('tgl_doc')} as period_key")
                 ->selectRaw("sum(ttl_price) as total_sales")
                 ->selectRaw("count(distinct no_fakturpenjualan) as invoice_count")
                 ->groupBy('period_key')
@@ -1052,8 +1181,8 @@ class PerformanceController
             ];
 
             $results = (clone $baseQuery)
-                ->whereRaw("YEAR({$this->dateExpr}) = ?", [$year])
-                ->selectRaw("QUARTER({$this->dateExpr}) as period_key")
+                ->whereRaw("{$this->sqlYear('tgl_doc')} = ?", [$year])
+                ->selectRaw("{$this->sqlQuarter('tgl_doc')} as period_key")
                 ->selectRaw("sum(ttl_price) as total_sales")
                 ->selectRaw("count(distinct no_fakturpenjualan) as invoice_count")
                 ->groupBy('period_key')
@@ -1087,8 +1216,8 @@ class PerformanceController
             ];
 
             $results = (clone $baseQuery)
-                ->whereRaw("YEAR({$this->dateExpr}) = ?", [$year])
-                ->selectRaw("CASE WHEN MONTH({$this->dateExpr}) <= 6 THEN 1 ELSE 2 END as period_key")
+                ->whereRaw("{$this->sqlYear('tgl_doc')} = ?", [$year])
+                ->selectRaw("CASE WHEN {$this->sqlMonth('tgl_doc')} <= 6 THEN 1 ELSE 2 END as period_key")
                 ->selectRaw("sum(ttl_price) as total_sales")
                 ->selectRaw("count(distinct no_fakturpenjualan) as invoice_count")
                 ->groupBy('period_key')
@@ -1118,8 +1247,8 @@ class PerformanceController
         // Yearly: 5-year trend ending in $year
         $startYear = max(2018, $year - 4);
         $results = (clone $baseQuery)
-            ->whereRaw("YEAR({$this->dateExpr}) between ? and ?", [$startYear, $year])
-            ->selectRaw("YEAR({$this->dateExpr}) as period_key")
+            ->whereRaw("{$this->sqlYear('tgl_doc')} between ? and ?", [$startYear, $year])
+            ->selectRaw("{$this->sqlYear('tgl_doc')} as period_key")
             ->selectRaw("sum(ttl_price) as total_sales")
             ->selectRaw("count(distinct no_fakturpenjualan) as invoice_count")
             ->groupBy('period_key')
@@ -1581,11 +1710,11 @@ USER_PROMPT;
             $chartSubtitle = "Rincian realisasi harian 7 hari transaksi";
 
             // Query daily sales for 7 days
-            $dailyRows = DB::table('tb_fakturpenjualan')
+            $dailyRows = $this->getDbConnection()->table('tb_fakturpenjualan')
                 ->where('kd_cs', $kdCs)
-                ->whereRaw("{$this->dateExpr} between ? and ?", [$currStart, $currEnd])
+                ->whereRaw("{$this->sqlDateExpr('tgl_doc')} between ? and ?", [$currStart, $currEnd])
                 ->whereRaw("coalesce(ttl_price, 0) > 0")
-                ->selectRaw("{$this->dateExpr} as doc_date")
+                ->selectRaw("{$this->sqlDateFormat('tgl_doc')} as doc_date")
                 ->selectRaw("sum(ttl_price) as day_sales")
                 ->selectRaw("count(distinct no_fakturpenjualan) as day_invs")
                 ->groupBy('doc_date')
@@ -1644,9 +1773,9 @@ USER_PROMPT;
                 $wStartStr = sprintf('%04d-%02d-%02d', $year, $month, $range[0]);
                 $wEndStr = sprintf('%04d-%02d-%02d', $year, $month, $range[1]);
 
-                $wRow = DB::table('tb_fakturpenjualan')
+                $wRow = $this->getDbConnection()->table('tb_fakturpenjualan')
                     ->where('kd_cs', $kdCs)
-                    ->whereRaw("{$this->dateExpr} between ? and ?", [$wStartStr, $wEndStr])
+                    ->whereRaw("{$this->sqlDateExpr('tgl_doc')} between ? and ?", [$wStartStr, $wEndStr])
                     ->whereRaw("coalesce(ttl_price, 0) > 0")
                     ->selectRaw("sum(ttl_price) as w_sales")
                     ->selectRaw("count(distinct no_fakturpenjualan) as w_invs")
@@ -1693,9 +1822,9 @@ USER_PROMPT;
                 $mStart = sprintf('%04d-%02d-01', $year, $m);
                 $mEnd = sprintf('%04d-%02d-%02d', $year, $m, $mDays);
 
-                $mRow = DB::table('tb_fakturpenjualan')
+                $mRow = $this->getDbConnection()->table('tb_fakturpenjualan')
                     ->where('kd_cs', $kdCs)
-                    ->whereRaw("{$this->dateExpr} between ? and ?", [$mStart, $mEnd])
+                    ->whereRaw("{$this->sqlDateExpr('tgl_doc')} between ? and ?", [$mStart, $mEnd])
                     ->whereRaw("coalesce(ttl_price, 0) > 0")
                     ->selectRaw("sum(ttl_price) as m_sales")
                     ->selectRaw("count(distinct no_fakturpenjualan) as m_invs")
@@ -1744,9 +1873,9 @@ USER_PROMPT;
                 $mStart = sprintf('%04d-%02d-01', $year, $m);
                 $mEnd = sprintf('%04d-%02d-%02d', $year, $m, $mDays);
 
-                $mRow = DB::table('tb_fakturpenjualan')
+                $mRow = $this->getDbConnection()->table('tb_fakturpenjualan')
                     ->where('kd_cs', $kdCs)
-                    ->whereRaw("{$this->dateExpr} between ? and ?", [$mStart, $mEnd])
+                    ->whereRaw("{$this->sqlDateExpr('tgl_doc')} between ? and ?", [$mStart, $mEnd])
                     ->whereRaw("coalesce(ttl_price, 0) > 0")
                     ->selectRaw("sum(ttl_price) as m_sales")
                     ->selectRaw("count(distinct no_fakturpenjualan) as m_invs")
@@ -1775,11 +1904,11 @@ USER_PROMPT;
             $chartTitle = "Grafik Penjualan 12 Bulan (Tahun $year)";
             $chartSubtitle = "Rincian realisasi per bulan sepanjang tahun $year";
 
-            $yearRows = DB::table('tb_fakturpenjualan')
+            $yearRows = $this->getDbConnection()->table('tb_fakturpenjualan')
                 ->where('kd_cs', $kdCs)
-                ->whereRaw("YEAR({$this->dateExpr}) = ?", [$year])
+                ->whereRaw("{$this->sqlYear('tgl_doc')} = ?", [$year])
                 ->whereRaw("coalesce(ttl_price, 0) > 0")
-                ->selectRaw("MONTH({$this->dateExpr}) as doc_month")
+                ->selectRaw("{$this->sqlMonth('tgl_doc')} as doc_month")
                 ->selectRaw("sum(ttl_price) as m_sales")
                 ->selectRaw("count(distinct no_fakturpenjualan) as m_invs")
                 ->groupBy('doc_month')
@@ -1813,11 +1942,11 @@ USER_PROMPT;
             $chartTitle = "Grafik Penjualan Tahunan ($startYear - $endYear)";
             $chartSubtitle = "Perbandingan realisasi tahun ke tahun sesuai rentang terpilih";
 
-            $rangeRows = DB::table('tb_fakturpenjualan')
+            $rangeRows = $this->getDbConnection()->table('tb_fakturpenjualan')
                 ->where('kd_cs', $kdCs)
-                ->whereRaw("YEAR({$this->dateExpr}) between ? and ?", [$startYear, $endYear])
+                ->whereRaw("{$this->sqlYear('tgl_doc')} between ? and ?", [$startYear, $endYear])
                 ->whereRaw("coalesce(ttl_price, 0) > 0")
-                ->selectRaw("YEAR({$this->dateExpr}) as doc_year")
+                ->selectRaw("{$this->sqlYear('tgl_doc')} as doc_year")
                 ->selectRaw("sum(ttl_price) as y_sales")
                 ->selectRaw("count(distinct no_fakturpenjualan) as y_invs")
                 ->groupBy('doc_year')
@@ -1838,17 +1967,17 @@ USER_PROMPT;
         }
 
         // 2. Query KPI Totals for this customer
-        $currStats = DB::table('tb_fakturpenjualan')
+        $currStats = $this->getDbConnection()->table('tb_fakturpenjualan')
             ->where('kd_cs', $kdCs)
-            ->whereRaw("{$this->dateExpr} between ? and ?", [$currStart, $currEnd])
+            ->whereRaw("{$this->sqlDateExpr('tgl_doc')} between ? and ?", [$currStart, $currEnd])
             ->whereRaw("coalesce(ttl_price, 0) > 0")
             ->selectRaw("sum(ttl_price) as total_sales")
             ->selectRaw("count(distinct no_fakturpenjualan) as total_invoices")
             ->first();
 
-        $prevStats = DB::table('tb_fakturpenjualan')
+        $prevStats = $this->getDbConnection()->table('tb_fakturpenjualan')
             ->where('kd_cs', $kdCs)
-            ->whereRaw("{$this->dateExpr} between ? and ?", [$prevStart, $prevEnd])
+            ->whereRaw("{$this->sqlDateExpr('tgl_doc')} between ? and ?", [$prevStart, $prevEnd])
             ->whereRaw("coalesce(ttl_price, 0) > 0")
             ->selectRaw("sum(ttl_price) as total_sales")
             ->selectRaw("count(distinct no_fakturpenjualan) as total_invoices")
@@ -1867,9 +1996,9 @@ USER_PROMPT;
         $avgOrderValue = $totalInvoices > 0 ? $totalSales / $totalInvoices : 0.0;
 
         // Max single invoice
-        $maxInvoiceRow = DB::table('tb_fakturpenjualan')
+        $maxInvoiceRow = $this->getDbConnection()->table('tb_fakturpenjualan')
             ->where('kd_cs', $kdCs)
-            ->whereRaw("{$this->dateExpr} between ? and ?", [$currStart, $currEnd])
+            ->whereRaw("{$this->sqlDateExpr('tgl_doc')} between ? and ?", [$currStart, $currEnd])
             ->whereRaw("coalesce(ttl_price, 0) > 0")
             ->selectRaw("sum(ttl_price) as inv_total")
             ->groupBy('no_fakturpenjualan')
@@ -1878,11 +2007,11 @@ USER_PROMPT;
         $maxOrderValue = (float) ($maxInvoiceRow->inv_total ?? 0);
 
         // Overall company sales in current period
-        $companyTotalSales = (float) DB::table('tb_fakturpenjualan')
+        $companyTotalSales = (float) $this->getDbConnection()->table('tb_fakturpenjualan')
             ->whereNotNull('no_fakturpenjualan')
             ->whereRaw("trim(no_fakturpenjualan) <> ''")
             ->whereRaw("coalesce(ttl_price, 0) > 0")
-            ->whereRaw("{$this->dateExpr} between ? and ?", [$currStart, $currEnd])
+            ->whereRaw("{$this->sqlDateExpr('tgl_doc')} between ? and ?", [$currStart, $currEnd])
             ->sum('ttl_price');
 
         $companyShare = $companyTotalSales > 0 ? ($totalSales / $companyTotalSales) * 100 : 0.0;
@@ -1903,8 +2032,8 @@ USER_PROMPT;
         }
 
         // 3. Top 10 Purchased Products/Materials from tb_do joined on f.no_do = d.no_do
-        $dateExprWithTable = "CASE WHEN f.tgl_doc LIKE '__.__.____' THEN STR_TO_DATE(f.tgl_doc, '%d.%m.%Y') ELSE STR_TO_DATE(f.tgl_doc, '%Y-%m-%d') END";
-        $topMaterialsQuery = DB::table('tb_fakturpenjualan as f')
+        $dateExprWithTable = $this->sqlDateExpr('f.tgl_doc');
+        $topMaterialsQuery = $this->getDbConnection()->table('tb_fakturpenjualan as f')
             ->join('tb_do as d', 'f.no_do', '=', 'd.no_do')
             ->where('f.kd_cs', $kdCs)
             ->whereRaw("{$dateExprWithTable} between ? and ?", [$currStart, $currEnd])
@@ -1924,7 +2053,7 @@ USER_PROMPT;
         $isAllTimeMaterials = false;
         if ($topMaterialsQuery->isEmpty()) {
             // Fallback to all-time materials from tb_do so sales team sees historical profile
-            $topMaterialsQuery = DB::table('tb_fakturpenjualan as f')
+            $topMaterialsQuery = $this->getDbConnection()->table('tb_fakturpenjualan as f')
                 ->join('tb_do as d', 'f.no_do', '=', 'd.no_do')
                 ->where('f.kd_cs', $kdCs)
                 ->whereNotNull('d.mat')
@@ -1956,16 +2085,16 @@ USER_PROMPT;
         })->toArray();
 
         // 4. Invoices List for this period
-        $invoices = DB::table('tb_fakturpenjualan')
+        $invoices = $this->getDbConnection()->table('tb_fakturpenjualan')
             ->where('kd_cs', $kdCs)
-            ->whereRaw("{$this->dateExpr} between ? and ?", [$currStart, $currEnd])
+            ->whereRaw("{$this->sqlDateExpr('tgl_doc')} between ? and ?", [$currStart, $currEnd])
             ->whereRaw("coalesce(ttl_price, 0) > 0")
             ->select('no_fakturpenjualan', 'no_fakturpajak', 'ref_po')
             ->selectRaw("min(tgl_doc) as tgl_doc")
             ->selectRaw("sum(ttl_price) as total_amount")
             ->selectRaw("count(distinct kd_mat) as item_count")
             ->groupBy('no_fakturpenjualan', 'no_fakturpajak', 'ref_po')
-            ->orderByRaw("min({$this->dateExpr}) desc")
+            ->orderByRaw("min({$this->sqlDateExpr('tgl_doc')}) desc")
             ->limit(50)
             ->get()
             ->map(function ($row) {
@@ -1981,7 +2110,7 @@ USER_PROMPT;
             ->toArray();
 
         // Customer info
-        $custRow = DB::table('tb_fakturpenjualan')
+        $custRow = $this->getDbConnection()->table('tb_fakturpenjualan')
             ->where('kd_cs', $kdCs)
             ->select('kd_cs', 'nm_cs')
             ->first();
@@ -1991,6 +2120,7 @@ USER_PROMPT;
                 'kd_cs' => $kdCs,
                 'nm_cs' => $custRow->nm_cs ?? $kdCs,
             ],
+            'data_source' => $this->isClickhouse() ? 'clickhouse' : 'mysql',
             'periodInfo' => [
                 'period_type' => $periodType,
                 'currentLabel' => $currentLabel,
