@@ -542,7 +542,8 @@ class PurchaseRequirementController
             ->whereColumn('detail.realized_items', '=', 'detail.total_items')
             ->select(
                 'pr.no_pr',
-                DB::raw('po.latest_po_date as date'),
+                'pr.date',
+                'po.latest_po_date',
                 'pr.for_customer',
                 'pr.ref_po',
                 'pr.jenis_pr',

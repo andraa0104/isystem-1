@@ -1388,7 +1388,13 @@ export default function PurchaseRequirementIndex({
                         </Card>
                     </button>
 
-                    <Card className="transition hover:border-emerald-500/60 hover:shadow-md">
+                    <Card
+                        className="cursor-pointer transition hover:border-emerald-500/60 hover:shadow-md"
+                        onClick={() => {
+                            setIsRealizedModalOpen(true);
+                            loadRealized(periodFilter, true);
+                        }}
+                    >
                         <CardHeader className="pb-2">
                             <div className="flex items-start justify-between gap-3">
                                 <div className="flex-1">
@@ -1413,7 +1419,10 @@ export default function PurchaseRequirementIndex({
                                         )}
                                     </div>
                                 </div>
-                                <div className="flex flex-col items-end gap-2">
+                                <div
+                                    className="flex flex-col items-end gap-2"
+                                    onClick={(e) => e.stopPropagation()}
+                                >
                                     <select
                                         className="h-8 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs shadow-sm"
                                         value={periodFilter}
@@ -1438,7 +1447,8 @@ export default function PurchaseRequirementIndex({
                                         variant="ghost"
                                         size="icon"
                                         className="h-8 w-8"
-                                        onClick={() => {
+                                        onClick={(e) => {
+                                            e.stopPropagation();
                                             setIsRealizedModalOpen(true);
                                             loadRealized(periodFilter, true);
                                         }}
