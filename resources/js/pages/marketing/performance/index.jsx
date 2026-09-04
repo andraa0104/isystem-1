@@ -182,6 +182,9 @@ export default function PerformanceIndex({
             });
 
             if (!res.ok) {
+                if (res.status === 504) {
+                    throw new Error('Server VPS Gateway Time-out (504). AI di VPS sedang proses awal / antre di memori. Silakan klik Analisis Ulang.');
+                }
                 throw new Error(`Gagal memuat analisis AI (Kode: ${res.status}).`);
             }
 

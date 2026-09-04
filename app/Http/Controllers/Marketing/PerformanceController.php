@@ -46,6 +46,9 @@ class PerformanceController
      */
     public function aiAnalyze(Request $request)
     {
+        @set_time_limit(120);
+        @ini_set('max_execution_time', '120');
+
         $filters = $this->extractFilters($request);
         $force = $request->boolean('force', false);
         
@@ -186,6 +189,9 @@ class PerformanceController
      */
     public function customerAiAnalyze(Request $request, string $customer)
     {
+        @set_time_limit(120);
+        @ini_set('max_execution_time', '120');
+
         $filters = $this->extractCustomerFilters($request);
         $force = $request->boolean('force', false);
 
@@ -1148,7 +1154,9 @@ class PerformanceController
     {
         $baseUrl = rtrim(config('services.ollama.base_url', 'http://127.0.0.1:11434'), '/');
         $model = config('services.ollama.model', 'qwen2.5:3b');
-        $timeout = (int) config('services.ollama.timeout', 90);
+        // Cap timeout to 35s so PHP catches slow responses and falls back before Nginx 60s gateway timeout
+        $configuredTimeout = (int) config('services.ollama.timeout', 35);
+        $timeout = ($configuredTimeout > 0 && $configuredTimeout <= 45) ? $configuredTimeout : 35;
 
         $systemPrompt = <<<PROMPT
 Anda adalah Chief Commercial Officer (CCO) & Senior Sales Performance Analyst B2B.
@@ -1157,37 +1165,38 @@ Tugas Anda: Menganalisis laporan KPI Penjualan secara objektif, tajam, dan berba
 Format Output:
 - WAJIB berupa JSON valid MURNI tanpa teks pengantar, tanpa penutup, tanpa format markdown ```json.
 - Bahasa: Bahasa Indonesia bisnis profesional, padat, dan solutif.
+- PENTING: Tuliskan setiap analisis secara SINGKAT, PADAT, dan LANGSUNG PADA SOLUSI (maksimal 1-2 kalimat per poin). Hindari teks bertele-tele agar efisien.
 
 Struktur JSON:
 {
   "health_score": <angka integer 0-100>,
   "status_label": <"Sangat Baik" | "Baik" | "Waspada" | "Kritis">,
-  "executive_summary": "<1-2 paragraf ringkasan eksekutif menyeluruh mengulas pencapaian penjualan periode ini vs periode lalu dan pendorong kinerjanya>",
+  "executive_summary": "<1 paragraf padat (2-3 kalimat) ringkasan eksekutif pencapaian penjualan periode ini vs periode lalu>",
   "pareto_risk_analysis": {
     "top5_share_percent": <float persentase>,
     "risk_level": <"Tinggi" | "Sedang" | "Rendah">,
-    "evaluation": "<evaluasi ketergantungan omset pada top 5 customer dan mitigasinya>"
+    "evaluation": "<1-2 kalimat evaluasi ketergantungan omset pada top 5 customer dan mitigasinya>"
   },
   "critical_areas_to_fix": [
     {
-      "issue": "<judul anomali/permasalahan>",
+      "issue": "<judul anomali singkat>",
       "customer_affected": "<nama customer atau 'Umum'>",
       "nominal_impact": "<dampak nominal penurunan>",
-      "root_cause": "<analisis kemungkinan penyebab>",
-      "action_to_fix": "<tindakan korektif spesifik yang wajib dilakukan tim marketing>"
+      "root_cause": "<1 kalimat akar masalah>",
+      "action_to_fix": "<1 kalimat tindakan korektif tim marketing>"
     }
   ],
   "tactical_recommendations": [
     {
       "category": "<Customer VIP / Top Performers | Customer Menurun / At-Risk | Penetrasi & Upselling>",
       "focus": "<fokus utama>",
-      "action": "<langkah taktis spesifik tim sales>"
+      "action": "<1-2 kalimat langkah taktis tim sales>"
     }
   ],
   "quick_wins": [
-    "<aksi taktis 1 yang harus tuntas dalam 7 hari ke depan>",
-    "<aksi taktis 2 yang harus tuntas dalam 7 hari ke depan>",
-    "<aksi taktis 3 yang harus tuntas dalam 7 hari ke depan>"
+    "<aksi taktis 1 dalam 7 hari>",
+    "<aksi taktis 2 dalam 7 hari>",
+    "<aksi taktis 3 dalam 7 hari>"
   ]
 }
 PROMPT;
@@ -1214,7 +1223,7 @@ Top 5 Penurunan Omset Terbesar (Drop Sales):
 Top Material / Barang Paling Banyak Dipesan (Berdasarkan Surat Jalan DO):
 {$summary['top_materials_text']}
 
-Buat analisis KPI lengkap dan strategi produk penawaran sesuai instruksi JSON di atas.
+Buat analisis KPI singkat dan padat sesuai format JSON di atas.
 USER_PROMPT;
 
         try {
@@ -1223,6 +1232,7 @@ USER_PROMPT;
                 ->timeout($timeout)
                 ->post("{$baseUrl}/api/chat", [
                     'model' => $model,
+                    'keep_alive' => -1,
                     'messages' => [
                         ['role' => 'system', 'content' => $systemPrompt],
                         ['role' => 'user', 'content' => $userPrompt],
@@ -1230,7 +1240,9 @@ USER_PROMPT;
                     'stream' => false,
                     'format' => 'json',
                     'options' => [
-                        'temperature' => 0.2,
+                        'temperature' => 0.15,
+                        'top_p' => 0.85,
+                        'num_predict' => 380,
                     ],
                 ]);
 
@@ -1967,7 +1979,9 @@ USER_PROMPT;
     {
         $baseUrl = rtrim(config('services.ollama.base_url', 'http://127.0.0.1:11434'), '/');
         $model = config('services.ollama.model', 'qwen2.5:3b');
-        $timeout = (int) config('services.ollama.timeout', 90);
+        // Cap timeout to 35s so PHP catches slow responses and falls back before Nginx 60s gateway timeout
+        $configuredTimeout = (int) config('services.ollama.timeout', 35);
+        $timeout = ($configuredTimeout > 0 && $configuredTimeout <= 45) ? $configuredTimeout : 35;
 
         $systemPrompt = <<<PROMPT
 Anda adalah Senior Key Account Commercial Manager & B2B Sales Intelligence Analyst.
@@ -1976,36 +1990,37 @@ Tugas Anda: Menganalisis profil transaksi dan KPI satu akun pelanggan (Key Accou
 Format Output:
 - WAJIB berupa JSON valid MURNI tanpa teks pembuka, penutup, atau markdown backticks.
 - Bahasa: Bahasa Indonesia bisnis profesional, taktis, dan aplikatif.
+- PENTING: Setiap butir analisis dan rekomendasi WAJIB SINGKAT, PADAT, dan LANGSUNG PADA SOLUSI (1-2 kalimat per poin).
 
 Struktur JSON WAJIB:
 {
   "account_health_score": <angka integer 0-100>,
   "loyalty_status": <"VIP / Sangat Loyal" | "Aktif Reguler" | "At-Risk / Menurun" | "Dormant / Pasif">,
-  "executive_summary": "<1-2 paragraf ringkasan eksekutif komprehensif mengulas performa pembelian akun ini dan potensi komersialnya>",
+  "executive_summary": "<1 paragraf ringkas (2-3 kalimat) profil pembelian dan potensi komersial akun ini>",
   "buying_habits": {
-    "pattern": "<deskripsi pola belanja, misal: rutin mingguan, periodik awal bulan, atau fluktuatif>",
-    "favorite_categories": "<analisis produk atau kategori utama yang menjadi tumpuan belanja>",
-    "order_characteristics": "<analisis ukuran order (AOV) dan frekuensi faktur>"
+    "pattern": "<deskripsi singkat pola belanja>",
+    "favorite_categories": "<kategori atau material utama yang paling sering dibeli>",
+    "order_characteristics": "<analisis ringkas ukuran order dan frekuensi faktur>"
   },
   "risk_and_drop_alerts": [
     {
-      "alert": "<judul isu risiko atau anomali, misal: Penurunan repeat order produk X>",
-      "impact": "<dampak nominal atau volume>",
-      "mitigation": "<tindakan mitigasi dan pencegahan segera>"
+      "alert": "<judul isu risiko singkat>",
+      "impact": "<dampak nominal atau penurunan volume>",
+      "mitigation": "<1 kalimat tindakan mitigasi segera>"
     }
   ],
   "sales_growth_opportunities": [
     {
       "category": "<Cross-Selling / Produk Komplementer | Upselling Volume | Paket Penawaran>",
-      "suggested_product": "<rekomendasi produk atau barang yang cocok ditawarkan>",
-      "rationale": "<alasan mengapa customer ini butuh produk tersebut berdasarkan riwayat belanja>",
-      "pitching_strategy": "<strategi penawaran harga, diskon kuantiti, atau termin pembayaran>"
+      "suggested_product": "<rekomendasi produk atau barang>",
+      "rationale": "<1 kalimat alasan penawaran>",
+      "pitching_strategy": "<1 kalimat strategi penawaran atau diskon kuantiti>"
     }
   ],
   "quick_wins": [
-    "<aksi taktis sales 1 dalam 7 hari ke depan untuk akun ini>",
-    "<aksi taktis sales 2 dalam 7 hari ke depan untuk akun ini>",
-    "<aksi taktis sales 3 dalam 7 hari ke depan untuk akun ini>"
+    "<aksi taktis sales 1 dalam 7 hari>",
+    "<aksi taktis sales 2 dalam 7 hari>",
+    "<aksi taktis sales 3 dalam 7 hari>"
   ]
 }
 PROMPT;
@@ -2026,7 +2041,7 @@ Profil Pembelian Customer:
 Produk / Material yang Paling Banyak Dibeli:
 {$summary['top_materials_text']}
 
-Buat analisis profil akun customer, rekomendasi penawaran produk, dan strategi sales lengkap sesuai format JSON.
+Buat analisis profil akun customer, rekomendasi penawaran produk, dan strategi sales ringkas sesuai format JSON.
 USER_PROMPT;
 
         try {
@@ -2034,6 +2049,7 @@ USER_PROMPT;
                 ->timeout($timeout)
                 ->post("{$baseUrl}/api/chat", [
                     'model' => $model,
+                    'keep_alive' => -1,
                     'messages' => [
                         ['role' => 'system', 'content' => $systemPrompt],
                         ['role' => 'user', 'content' => $userPrompt],
@@ -2041,7 +2057,9 @@ USER_PROMPT;
                     'stream' => false,
                     'format' => 'json',
                     'options' => [
-                        'temperature' => 0.2,
+                        'temperature' => 0.15,
+                        'top_p' => 0.85,
+                        'num_predict' => 380,
                     ],
                 ]);
 

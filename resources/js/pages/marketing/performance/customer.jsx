@@ -57,16 +57,35 @@ const formatPercent = (value) => {
 const formatCompactRupiah = (value) => {
     const num = Number(value || 0);
     if (num >= 1_000_000_000) {
-        return (num / 1_000_000_000).toFixed(1).replace(/\.0$/, '') + ' M';
+        const v = (num / 1_000_000_000).toFixed(2);
+        return v.replace(/\.00$/, '').replace(/(\.[1-9])0$/, '$1') + ' M';
     }
     if (num >= 1_000_000) {
-        return (num / 1_000_000).toFixed(1).replace(/\.0$/, '') + ' jt';
+        const v = (num / 1_000_000).toFixed(2);
+        return v.replace(/\.00$/, '').replace(/(\.[1-9])0$/, '$1') + ' jt';
     }
     if (num >= 1_000) {
-        return (num / 1_000).toFixed(0) + ' rb';
+        return Math.round(num / 1_000) + ' rb';
     }
     if (num === 0) return 'Rp 0';
     return String(num);
+};
+
+const formatBarLabel = (value) => {
+    const num = Number(value || 0);
+    if (num >= 1_000_000_000) {
+        const v = (num / 1_000_000_000).toFixed(2);
+        return v.replace(/\.00$/, '').replace(/(\.[1-9])0$/, '$1') + 'M';
+    }
+    if (num >= 1_000_000) {
+        const v = (num / 1_000_000).toFixed(2);
+        return v.replace(/\.00$/, '').replace(/(\.[1-9])0$/, '$1') + 'jt';
+    }
+    if (num >= 1_000) {
+        return Math.round(num / 1_000) + 'rb';
+    }
+    if (num === 0) return '0';
+    return String(Math.round(num));
 };
 
 const monthOptions = [
@@ -256,6 +275,9 @@ export default function CustomerPerformanceDetail({
             );
 
             if (!res.ok) {
+                if (res.status === 504) {
+                    throw new Error('Server VPS Gateway Time-out (504). AI di VPS sedang proses awal / antre di memori. Silakan klik Analisis Ulang.');
+                }
                 throw new Error(`Gagal memuat analisis AI (${res.status}).`);
             }
 
@@ -374,11 +396,35 @@ export default function CustomerPerformanceDetail({
 
     const totalInvoicePages = Math.ceil(filteredInvoices.length / invoicesPerPage) || 1;
 
-    // Chart max value for relative heights
-    const maxSales = useMemo(() => {
-        if (!data?.chartData?.items || data.chartData.items.length === 0) return 1;
-        const max = Math.max(...data.chartData.items.map((i) => i.sales || 0));
-        return max > 0 ? max : 1;
+    // Comprehensive Chart Stats for modern visualization
+    const chartStats = useMemo(() => {
+        const items = data?.chartData?.items || [];
+        if (items.length === 0) {
+            return { max: 1, avg: 0, total: 0, peakItem: null, activeItemsCount: 0 };
+        }
+        let total = 0;
+        let max = 0;
+        let peakItem = null;
+        let activeCount = 0;
+
+        items.forEach((it) => {
+            const val = Number(it.sales || 0);
+            total += val;
+            if (val > max) {
+                max = val;
+                peakItem = it;
+            }
+            if (val > 0) activeCount++;
+        });
+
+        const avg = items.length > 0 ? total / items.length : 0;
+        return {
+            max: max > 0 ? max : 1,
+            avg,
+            total,
+            peakItem,
+            activeItemsCount: activeCount,
+        };
     }, [data?.chartData?.items]);
 
     return (
@@ -1185,94 +1231,456 @@ export default function CustomerPerformanceDetail({
                             )}
                         </div>
 
-                        {/* 5. Grafik Penjualan Interaktif Sesuai Granularity */}
-                        <div className="rounded-2xl border border-sidebar-border/70 bg-card p-5 shadow-xs">
-                            <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                                <div>
-                                    <h2 className="text-base font-bold text-foreground sm:text-lg">
-                                        {data.chartData?.title || 'Grafik Penjualan Customer'}
-                                    </h2>
-                                    <p className="text-xs text-muted-foreground">
-                                        {data.chartData?.subtitle ||
-                                            'Visualisasi realisasi penjualan customer sesuai periode'}
-                                    </p>
+                        {/* 5. Grafik Penjualan Interaktif Sesuai Granularity (Modern SVG) */}
+                        <div className="rounded-2xl border border-sidebar-border/70 bg-card p-5 sm:p-6 shadow-xs">
+                            {/* Chart Top Header & Stat Pills */}
+                            <div className="mb-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between border-b border-sidebar-border/50 pb-4">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary shadow-xs">
+                                        <BarChart3 className="h-5 w-5" />
+                                    </div>
+                                    <div>
+                                        <h2 className="text-base font-bold text-foreground sm:text-lg tracking-tight">
+                                            {data.chartData?.title || 'Grafik Realisasi Penjualan Customer'}
+                                        </h2>
+                                        <p className="text-xs text-muted-foreground">
+                                            {data.chartData?.subtitle || 'Visualisasi tren penjualan per interval waktu'}
+                                        </p>
+                                    </div>
                                 </div>
-                                <div className="text-xs text-muted-foreground">
-                                    Total: <strong className="text-foreground">{formatRupiah(data.kpi.total_sales)}</strong> ({data.kpi.total_invoices} Invoice)
-                                </div>
-                            </div>
 
-                            {/* Chart Bars */}
-                            {data.chartData?.items?.length > 0 ? (
-                                <div className="relative pt-6">
-                                    {/* Tooltip Hover Overlay */}
-                                    {hoveredChartItem && (
-                                        <div className="mb-3 rounded-lg border border-primary/20 bg-primary/5 px-3 py-2 text-xs flex flex-wrap items-center justify-between gap-2">
-                                            <div>
-                                                <span className="font-semibold text-foreground">
-                                                    {hoveredChartItem.full_label || hoveredChartItem.label}:
-                                                </span>{' '}
-                                                <span className="font-bold text-primary">
-                                                    {formatRupiah(hoveredChartItem.sales)}
-                                                </span>
-                                            </div>
-                                            <div className="text-muted-foreground">
-                                                {hoveredChartItem.invoices} faktur penjualan
-                                            </div>
+                                {/* Quick Metric Pills */}
+                                <div className="flex flex-wrap items-center gap-2">
+                                    {chartStats.peakItem && chartStats.peakItem.sales > 0 && (
+                                        <div className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-800 dark:text-emerald-300 shadow-2xs">
+                                            <Sparkles className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+                                            <span className="text-[11px] font-medium text-muted-foreground">Puncak:</span>
+                                            <strong className="font-bold text-foreground">{chartStats.peakItem.label}</strong>
+                                            <span className="font-bold text-emerald-600 dark:text-emerald-400">({formatCompactRupiah(chartStats.peakItem.sales)})</span>
                                         </div>
                                     )}
 
-                                    <div className="flex h-56 items-end gap-2 sm:gap-3 border-b border-sidebar-border/60 pb-2">
-                                        {data.chartData.items.map((item, idx) => {
-                                            const pctHeight =
-                                                item.sales > 0
-                                                    ? Math.max(8, (item.sales / maxSales) * 100)
-                                                    : 0;
+                                    {chartStats.avg > 0 && (
+                                        <div className="inline-flex items-center gap-1.5 rounded-lg border border-purple-500/30 bg-purple-500/10 px-3 py-1.5 text-xs text-purple-800 dark:text-purple-300 shadow-2xs">
+                                            <span className="text-[11px] font-medium text-muted-foreground">Rata-rata:</span>
+                                            <strong className="font-bold text-foreground">{formatCompactRupiah(chartStats.avg)}</strong>
+                                            <span className="text-[10px] text-muted-foreground">/ bar</span>
+                                        </div>
+                                    )}
 
-                                            return (
-                                                <div
-                                                    key={idx}
-                                                    onMouseEnter={() => setHoveredChartItem(item)}
-                                                    onMouseLeave={() => setHoveredChartItem(null)}
-                                                    className="group relative flex flex-1 flex-col items-center justify-end h-full cursor-pointer"
-                                                >
-                                                    {/* Bar Value Tooltip on hover */}
-                                                    <div className="absolute -top-7 hidden rounded bg-foreground px-1.5 py-0.5 text-[10px] font-semibold text-background shadow-xs group-hover:block z-10 whitespace-nowrap">
-                                                        {formatCompactRupiah(item.sales)}
-                                                    </div>
-
-                                                    {/* Bar element */}
-                                                    <div
-                                                        style={{ height: `${pctHeight}%` }}
-                                                        className={`w-full rounded-t-lg transition-all duration-300 ${
-                                                            item.sales > 0
-                                                                ? 'bg-primary hover:bg-primary/80'
-                                                                : 'bg-muted/40 h-1.5'
-                                                        }`}
-                                                    />
-                                                </div>
-                                            );
-                                        })}
+                                    <div className="inline-flex items-center gap-1.5 rounded-lg border border-sidebar-border/80 bg-muted/40 px-3 py-1.5 text-xs text-foreground shadow-2xs">
+                                        <span className="text-[11px] text-muted-foreground">Total Periode:</span>
+                                        <strong className="font-bold text-primary">{formatRupiah(data.kpi.total_sales)}</strong>
+                                        <span className="text-[10px] text-muted-foreground">({data.kpi.total_invoices} faktur)</span>
                                     </div>
+                                </div>
+                            </div>
 
-                                    {/* Labels underneath */}
-                                    <div className="flex gap-2 sm:gap-3 pt-2 text-center text-[10px] sm:text-xs text-muted-foreground">
-                                        {data.chartData.items.map((item, idx) => (
-                                            <div
-                                                key={idx}
-                                                className="flex-1 truncate"
-                                                title={item.full_label || item.label}
-                                            >
-                                                {item.label}
+                            {/* Active / Hovered Bar Details Live Banner */}
+                            <div className="mb-4 rounded-xl border border-sidebar-border/70 bg-muted/25 px-4 py-2.5 text-xs transition-all duration-200">
+                                {hoveredChartItem ? (
+                                    <div className="flex flex-wrap items-center justify-between gap-3">
+                                        <div className="flex items-center gap-2.5">
+                                            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground font-bold text-xs shadow-2xs">
+                                                <Calendar className="h-3.5 w-3.5" />
                                             </div>
-                                        ))}
+                                            <div>
+                                                <span className="font-bold text-xs sm:text-sm text-foreground">
+                                                    {hoveredChartItem.full_label || hoveredChartItem.label}
+                                                </span>
+                                                <span className="ml-2 text-[11px] text-muted-foreground">
+                                                    {hoveredChartItem.invoices > 0 ? `${hoveredChartItem.invoices} faktur penjualan` : 'Tidak ada faktur'}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <div className="text-right">
+                                                <div className="text-[10px] text-muted-foreground uppercase font-semibold tracking-wider">Realisasi Penjualan</div>
+                                                <div className="text-xs sm:text-sm font-bold text-primary">
+                                                    {formatRupiah(hoveredChartItem.sales)}
+                                                </div>
+                                            </div>
+                                            {data.kpi.total_sales > 0 && (
+                                                <div className="rounded-md border border-primary/20 bg-primary/10 px-2 py-1 text-center font-bold text-primary text-[11px]">
+                                                    {((hoveredChartItem.sales / data.kpi.total_sales) * 100).toFixed(1)}% porsi
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="flex flex-wrap items-center justify-between gap-2 text-muted-foreground">
+                                        <span className="flex items-center gap-1.5">
+                                            <Zap className="h-3.5 w-3.5 text-primary" />
+                                            Arahkan kursor atau sentuh bar pada grafik untuk melihat rincian angka dan faktur per tanggal/periode.
+                                        </span>
+                                        <span className="text-[11px] font-medium text-foreground">
+                                            {chartStats.activeItemsCount} dari {data.chartData?.items?.length || 0} interval bertransaksi
+                                        </span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* SVG Chart Canvas */}
+                            {data.chartData?.items?.length > 0 ? (
+                                <div className="overflow-x-auto pt-1 pb-2">
+                                    <div className="min-w-[700px] relative">
+                                        <svg
+                                            viewBox="0 0 940 330"
+                                            className="w-full h-auto select-none overflow-visible"
+                                        >
+                                            <defs>
+                                                {/* Modern Primary Bar Gradient */}
+                                                <linearGradient id="custBarGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                                                    <stop offset="0%" stopColor="#3b82f6" stopOpacity="1" />
+                                                    <stop offset="100%" stopColor="#1d4ed8" stopOpacity="0.85" />
+                                                </linearGradient>
+
+                                                {/* Peak/Highest Bar Gradient */}
+                                                <linearGradient id="custPeakGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                                                    <stop offset="0%" stopColor="#10b981" stopOpacity="1" />
+                                                    <stop offset="100%" stopColor="#047857" stopOpacity="0.9" />
+                                                </linearGradient>
+
+                                                {/* Hovered Bar Gradient */}
+                                                <linearGradient id="custHoverGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                                                    <stop offset="0%" stopColor="#6366f1" stopOpacity="1" />
+                                                    <stop offset="100%" stopColor="#4338ca" stopOpacity="0.95" />
+                                                </linearGradient>
+
+                                                {/* Glow Filters */}
+                                                <filter id="peakGlow" x="-20%" y="-20%" width="140%" height="140%">
+                                                    <feDropShadow dx="0" dy="4" stdDeviation="3.5" floodColor="#10b981" floodOpacity="0.4" />
+                                                </filter>
+                                                <filter id="hoverGlow" x="-20%" y="-20%" width="140%" height="140%">
+                                                    <feDropShadow dx="0" dy="4" stdDeviation="3.5" floodColor="#3b82f6" floodOpacity="0.35" />
+                                                </filter>
+                                            </defs>
+
+                                            {(() => {
+                                                const chartLeft = 85;
+                                                const chartRight = 915;
+                                                const chartTop = 45;
+                                                const chartBottom = 245;
+                                                const chartHeight = chartBottom - chartTop; // 200px
+                                                const chartWidth = chartRight - chartLeft; // 830px
+
+                                                const maxVal = chartStats.max;
+                                                const gridLevels = [1.0, 0.75, 0.5, 0.25, 0.0];
+
+                                                const n = data.chartData.items.length;
+                                                const step = chartWidth / n;
+                                                const barWidth = Math.min(52, Math.max(16, step * 0.58));
+
+                                                return (
+                                                    <g>
+                                                        {/* Horizontal Gridlines & Y-Axis Labels */}
+                                                        {gridLevels.map((pct, gIdx) => {
+                                                            const lineY = chartBottom - chartHeight * pct;
+                                                            const labelVal = maxVal * pct;
+                                                            return (
+                                                                <g key={gIdx}>
+                                                                    <line
+                                                                        x1={chartLeft}
+                                                                        y1={lineY}
+                                                                        x2={chartRight}
+                                                                        y2={lineY}
+                                                                        stroke="currentColor"
+                                                                        strokeOpacity={pct === 0 ? "0.3" : "0.08"}
+                                                                        strokeDasharray={pct === 0 ? undefined : "3 3"}
+                                                                        strokeWidth={pct === 0 ? "1.5" : "1"}
+                                                                    />
+                                                                    <text
+                                                                        x="75"
+                                                                        y={lineY + 3.5}
+                                                                        textAnchor="end"
+                                                                        fontSize="10"
+                                                                        fontFamily="monospace"
+                                                                        fill="currentColor"
+                                                                        opacity="0.6"
+                                                                        className="select-none font-medium"
+                                                                    >
+                                                                        {pct === 0 ? 'Rp 0' : formatCompactRupiah(labelVal)}
+                                                                    </text>
+                                                                </g>
+                                                            );
+                                                        })}
+
+                                                        {/* Average Benchmark Line (Jika ada sales) */}
+                                                        {chartStats.avg > 0 && chartStats.avg < maxVal && (
+                                                            <g>
+                                                                {(() => {
+                                                                    const avgY = chartBottom - (chartStats.avg / maxVal) * chartHeight;
+                                                                    return (
+                                                                        <g>
+                                                                            <line
+                                                                                x1={chartLeft}
+                                                                                y1={avgY}
+                                                                                x2={chartRight}
+                                                                                y2={avgY}
+                                                                                stroke="#a855f7"
+                                                                                strokeDasharray="4 4"
+                                                                                strokeWidth="1.2"
+                                                                                opacity="0.7"
+                                                                            />
+                                                                            <rect
+                                                                                x={chartRight - 122}
+                                                                                y={avgY - 9}
+                                                                                width="120"
+                                                                                height="18"
+                                                                                rx="4"
+                                                                                fill="#9333ea"
+                                                                                fillOpacity="0.12"
+                                                                                stroke="#a855f7"
+                                                                                strokeWidth="0.8"
+                                                                            />
+                                                                            <text
+                                                                                x={chartRight - 62}
+                                                                                y={avgY + 3.5}
+                                                                                textAnchor="middle"
+                                                                                fontSize="9.5"
+                                                                                fontWeight="bold"
+                                                                                fill="#9333ea"
+                                                                                className="dark:fill-purple-300 select-none"
+                                                                            >
+                                                                                Avg: {formatCompactRupiah(chartStats.avg)}
+                                                                            </text>
+                                                                        </g>
+                                                                    );
+                                                                })()}
+                                                            </g>
+                                                        )}
+
+                                                        {/* Bars, Value Pills & X-Axis Labels */}
+                                                        {data.chartData.items.map((item, index) => {
+                                                            const val = Number(item.sales || 0);
+                                                            const barH = maxVal > 0 ? (val / maxVal) * chartHeight : 0;
+                                                            const displayH = val > 0 ? Math.max(barH, 6) : 0;
+                                                            const x = chartLeft + index * step + (step - barWidth) / 2;
+                                                            const y = chartBottom - displayH;
+
+                                                            const isPeak = chartStats.peakItem && chartStats.peakItem.sales > 0 && item.sales === chartStats.peakItem.sales;
+                                                            const isHovered = hoveredChartItem?.key === item.key;
+
+                                                            // Format Value Label on top of Bar
+                                                            const labelText = formatBarLabel(val);
+                                                            const pillW = Math.max(42, labelText.length * 7 + 14);
+                                                            const pillH = 19;
+                                                            const pillX = x + barWidth / 2 - pillW / 2;
+                                                            const pillY = Math.max(y - 25, 18);
+
+                                                            return (
+                                                                <g
+                                                                    key={item.key || index}
+                                                                    className="cursor-pointer group"
+                                                                    onMouseEnter={() => setHoveredChartItem(item)}
+                                                                    onMouseLeave={() => setHoveredChartItem(null)}
+                                                                    onClick={() => setHoveredChartItem(hoveredChartItem?.key === item.key ? null : item)}
+                                                                >
+                                                                    {/* Full Column Hit Target */}
+                                                                    <rect
+                                                                        x={chartLeft + index * step}
+                                                                        y="15"
+                                                                        width={step}
+                                                                        height="295"
+                                                                        fill="transparent"
+                                                                    />
+
+                                                                    {/* Column Hover Background Beam */}
+                                                                    <rect
+                                                                        x={chartLeft + index * step + 2}
+                                                                        y={chartTop - 15}
+                                                                        width={step - 4}
+                                                                        height={chartHeight + 15}
+                                                                        rx="6"
+                                                                        fill="currentColor"
+                                                                        opacity={isHovered ? "0.08" : "0"}
+                                                                        className="transition-opacity duration-200"
+                                                                    />
+
+                                                                    {/* THE BAR ELEMENT */}
+                                                                    {val > 0 ? (
+                                                                        <rect
+                                                                            x={x}
+                                                                            y={y}
+                                                                            width={barWidth}
+                                                                            height={displayH}
+                                                                            rx="6"
+                                                                            ry="6"
+                                                                            fill={
+                                                                                isPeak
+                                                                                    ? "url(#custPeakGrad)"
+                                                                                    : (isHovered ? "url(#custHoverGrad)" : "url(#custBarGrad)")
+                                                                            }
+                                                                            filter={isPeak ? "url(#peakGlow)" : (isHovered ? "url(#hoverGlow)" : undefined)}
+                                                                            stroke={isPeak ? "#34d399" : (isHovered ? "#93c5fd" : "#60a5fa")}
+                                                                            strokeWidth={isPeak || isHovered ? "1.5" : "0.5"}
+                                                                            className="transition-all duration-300 hover:brightness-110"
+                                                                        />
+                                                                    ) : (
+                                                                        /* Zero Value Baseline Tick */
+                                                                        <rect
+                                                                            x={x}
+                                                                            y={chartBottom - 2}
+                                                                            width={barWidth}
+                                                                            height="2"
+                                                                            rx="1"
+                                                                            fill="currentColor"
+                                                                            opacity="0.2"
+                                                                        />
+                                                                    )}
+
+                                                                    {/* PER-BAR VALUE LABEL (PERMANENTLY VISIBLE) */}
+                                                                    {val > 0 ? (
+                                                                        <g className="transition-transform duration-200">
+                                                                            {/* Background Pill */}
+                                                                            <rect
+                                                                                x={pillX}
+                                                                                y={pillY}
+                                                                                width={pillW}
+                                                                                height={pillH}
+                                                                                rx="5"
+                                                                                fill={
+                                                                                    isPeak
+                                                                                        ? "#059669"
+                                                                                        : (isHovered ? "#2563eb" : "#0f172a")
+                                                                                }
+                                                                                stroke={
+                                                                                    isPeak
+                                                                                        ? "#34d399"
+                                                                                        : (isHovered ? "#60a5fa" : "#334155")
+                                                                                }
+                                                                                strokeWidth={isPeak || isHovered ? "1.5" : "1"}
+                                                                                className="dark:fill-slate-900 shadow-xs transition-colors"
+                                                                            />
+
+                                                                            {/* Peak Crown / Star indicator */}
+                                                                            {isPeak && (
+                                                                                <circle
+                                                                                    cx={pillX + 5}
+                                                                                    cy={pillY + 4}
+                                                                                    r="2.5"
+                                                                                    fill="#fbbf24"
+                                                                                />
+                                                                            )}
+
+                                                                            {/* Pill Text Value */}
+                                                                            <text
+                                                                                x={x + barWidth / 2 + (isPeak ? 2 : 0)}
+                                                                                y={pillY + 13}
+                                                                                textAnchor="middle"
+                                                                                fontSize="10"
+                                                                                fontWeight="700"
+                                                                                fill="#ffffff"
+                                                                                className="tabular-nums font-mono select-none"
+                                                                            >
+                                                                                {labelText}
+                                                                            </text>
+                                                                        </g>
+                                                                    ) : (
+                                                                        /* Zero Value Label */
+                                                                        <text
+                                                                            x={x + barWidth / 2}
+                                                                            y={chartBottom - 7}
+                                                                            textAnchor="middle"
+                                                                            fontSize="9.5"
+                                                                            fontWeight="500"
+                                                                            fill="currentColor"
+                                                                            opacity="0.35"
+                                                                            className="select-none"
+                                                                        >
+                                                                            0
+                                                                        </text>
+                                                                    )}
+
+                                                                    {/* X-AXIS LABELS (BAWAH BAR) */}
+                                                                    {/* 1. Main Period Label */}
+                                                                    <text
+                                                                        x={x + barWidth / 2}
+                                                                        y={chartBottom + 18}
+                                                                        textAnchor="middle"
+                                                                        fontSize="10.5"
+                                                                        fontWeight={isHovered || isPeak ? "700" : "500"}
+                                                                        fill={isHovered ? "#2563eb" : (isPeak ? "#059669" : "currentColor")}
+                                                                        opacity={isHovered || isPeak ? 1 : 0.75}
+                                                                        className="select-none transition-colors"
+                                                                    >
+                                                                        {item.label}
+                                                                    </text>
+
+                                                                    {/* 2. Invoices Count Pill Underneath */}
+                                                                    {item.invoices > 0 ? (
+                                                                        <g>
+                                                                            <rect
+                                                                                x={x + barWidth / 2 - 18}
+                                                                                y={chartBottom + 26}
+                                                                                width="36"
+                                                                                height="15"
+                                                                                rx="4"
+                                                                                fill="currentColor"
+                                                                                opacity={isHovered ? "0.15" : "0.07"}
+                                                                            />
+                                                                            <text
+                                                                                x={x + barWidth / 2}
+                                                                                y={chartBottom + 37.5}
+                                                                                textAnchor="middle"
+                                                                                fontSize="9"
+                                                                                fontWeight="600"
+                                                                                fill="currentColor"
+                                                                                opacity={isHovered ? "0.9" : "0.65"}
+                                                                                className="select-none"
+                                                                            >
+                                                                                {item.invoices} inv
+                                                                            </text>
+                                                                        </g>
+                                                                    ) : (
+                                                                        <text
+                                                                            x={x + barWidth / 2}
+                                                                            y={chartBottom + 37.5}
+                                                                            textAnchor="middle"
+                                                                            fontSize="8.5"
+                                                                            fill="currentColor"
+                                                                            opacity="0.25"
+                                                                            className="select-none"
+                                                                        >
+                                                                            -
+                                                                        </text>
+                                                                    )}
+                                                                </g>
+                                                            );
+                                                        })}
+                                                    </g>
+                                                );
+                                            })()}
+                                        </svg>
                                     </div>
                                 </div>
                             ) : (
-                                <div className="flex h-40 items-center justify-center text-xs text-muted-foreground">
-                                    Tidak ada data transaksi pada periode ini.
+                                <div className="flex h-44 flex-col items-center justify-center gap-2 text-muted-foreground">
+                                    <BarChart3 className="h-8 w-8 opacity-40" />
+                                    <span className="text-xs">Tidak ada data transaksi pada rentang periode ini.</span>
                                 </div>
                             )}
+
+                            {/* Chart Footer Legend */}
+                            <div className="mt-3 pt-3 border-t border-sidebar-border/50 flex flex-wrap items-center justify-between gap-3 text-[11px] text-muted-foreground">
+                                <div className="flex flex-wrap items-center gap-4">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="h-2.5 w-2.5 rounded-xs bg-blue-600" />
+                                        <span>Realisasi Penjualan</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="h-2.5 w-2.5 rounded-xs bg-emerald-500" />
+                                        <span>Puncak Periode Terbesar</span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5">
+                                        <span className="h-0.5 w-3.5 border-t-2 border-dashed border-purple-500" />
+                                        <span>Garis Rata-rata</span>
+                                    </div>
+                                </div>
+                                <div className="text-muted-foreground">
+                                    *Angka di atas bar merupakan nominal penjualan per interval waktu.
+                                </div>
+                            </div>
                         </div>
 
                         {/* 6. Top Purchased Products / Materials from tb_do */}
