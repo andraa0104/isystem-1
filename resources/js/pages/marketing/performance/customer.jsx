@@ -230,6 +230,7 @@ export default function CustomerPerformanceDetail({
     // Fetch AI Analysis specifically for this customer
     const fetchCustomerAi = async (overrideFilters = null, force = false) => {
         setAiLoading(true);
+        setAiData(null);
         setAiError(null);
         try {
             const pType = overrideFilters?.period_type ?? periodType;
@@ -284,7 +285,7 @@ export default function CustomerPerformanceDetail({
             const json = await res.json();
             if (json.success && json.data) {
                 setAiData(json.data);
-                setAiEngine(json.engine || 'qwen2.5:3b (Ollama)');
+                setAiEngine(json.engine || 'qwen2.5:7b (Ollama)');
                 setAiIsFallback(Boolean(json.is_fallback));
                 setAiNotice(json.notice || '');
             } else {
@@ -890,8 +891,8 @@ export default function CustomerPerformanceDetail({
                                                     }`}
                                                     title={
                                                         aiIsFallback
-                                                            ? 'Di VPS production, otomatis menggunakan model qwen2.5-3b via Ollama'
-                                                            : 'Didukung langsung oleh model Qwen 2.5 (3B) di Ollama VPS'
+                                                            ? 'Di VPS production, otomatis menggunakan model qwen2.5:7b via Ollama'
+                                                            : 'Didukung langsung oleh model Qwen 2.5 (7B) di Ollama VPS'
                                                     }
                                                 >
                                                     <span
@@ -904,8 +905,14 @@ export default function CustomerPerformanceDetail({
                                                     {aiEngine}
                                                 </span>
                                             )}
+                                            {data?.period_info?.current_label && (
+                                                <span className="inline-flex items-center gap-1 rounded-md border border-primary/20 bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
+                                                    <Calendar className="h-3 w-3" />
+                                                    Periode: {data.period_info.current_label}
+                                                </span>
+                                            )}
                                             <span className="hidden rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground sm:inline-block">
-                                                Otomatis Dimuat
+                                                Otomatis Sesuai Filter
                                             </span>
                                         </div>
                                         <p className="mt-0.5 text-xs text-muted-foreground">
@@ -1020,7 +1027,7 @@ export default function CustomerPerformanceDetail({
                                                 <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3.5 py-2 text-xs text-amber-700 dark:text-amber-300">
                                                     <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                                                     <span>
-                                                        <strong>Catatan Lingkungan:</strong> Model Qwen 2.5 (3B) aktif di VPS Production. Di komputer lokal modul ini menggunakan Intelligent Account Engine. Saat dideploy ke VPS Production, analisis otomatis dijalankan langsung oleh Qwen 2.5 (3B) Ollama.
+                                                        <strong>Catatan Lingkungan:</strong> Model Qwen 2.5 (7B) aktif di VPS Production. Di komputer lokal modul ini menggunakan Intelligent Account Engine. Saat dideploy ke VPS Production, analisis otomatis dijalankan langsung oleh Qwen 2.5 (7B) Ollama.
                                                     </span>
                                                 </div>
                                             )}
@@ -1086,8 +1093,8 @@ export default function CustomerPerformanceDetail({
                                                                 Ringkasan Strategis Akun Customer
                                                             </h3>
                                                         </div>
-                                                        <span className="text-[11px] text-muted-foreground">
-                                                            Evaluasi Komparatif & Tumpuan Belanja
+                                                        <span className="text-[11px] font-medium text-primary">
+                                                            Evaluasi Periode: {data?.period_info?.current_label || 'Periode Berjalan'}
                                                         </span>
                                                     </div>
                                                     <div className="my-2.5 text-sm leading-relaxed text-foreground/90">

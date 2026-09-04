@@ -170,40 +170,6 @@ class PerformanceController
         @ini_set('max_execution_time', '180');
 
         $filters = $this->extractFilters($request);
-        $force = $request->boolean('force', false);
-        
-        $cacheKey = 'marketing_kpi_ai_' . md5(json_encode($filters) . '_' . date('YmdH'));
-
-        if (!$force) {
-            try {
-                if (Cache::has($cacheKey)) {
-                    $cached = Cache::get($cacheKey);
-                    return response()->json([
-                        'success' => true,
-                        'cached' => true,
-                        'engine' => $cached['engine'] ?? (config('services.ollama.model', 'qwen2.5:7b') . ' (Ollama)'),
-                        'is_fallback' => $cached['is_fallback'] ?? false,
-                        'data' => $cached['analysis'] ?? $cached,
-                    ]);
-                }
-            } catch (\Throwable) {
-                // If database cache table doesn't exist, try file cache
-                try {
-                    if (Cache::store('file')->has($cacheKey)) {
-                        $cached = Cache::store('file')->get($cacheKey);
-                        return response()->json([
-                            'success' => true,
-                            'cached' => true,
-                            'engine' => $cached['engine'] ?? (config('services.ollama.model', 'qwen2.5:7b') . ' (Ollama)'),
-                            'is_fallback' => $cached['is_fallback'] ?? false,
-                            'data' => $cached['analysis'] ?? $cached,
-                        ]);
-                    }
-                } catch (\Throwable) {
-                    // Ignore cache read failures
-                }
-            }
-        }
 
         $perfData = $this->safeQuery(function () use ($filters) {
             return $this->calculatePerformanceData($filters);
@@ -214,26 +180,12 @@ class PerformanceController
         $aiResult = $this->callOllama($summary);
 
         if ($aiResult && !empty($aiResult['data'])) {
-            $payload = [
-                'engine' => $aiResult['engine'] ?? (config('services.ollama.model', 'qwen2.5:7b') . ' (Ollama)'),
-                'is_fallback' => false,
-                'analysis' => $aiResult['data'],
-            ];
-
-            try {
-                Cache::put($cacheKey, $payload, now()->addHour());
-            } catch (\Throwable) {
-                try {
-                    Cache::store('file')->put($cacheKey, $payload, now()->addHour());
-                } catch (\Throwable) {
-                    // Ignore cache write failures
-                }
-            }
+            $engine = $aiResult['engine'] ?? (config('services.ollama.model', 'qwen2.5:7b') . ' (Ollama)');
 
             return response()->json([
                 'success' => true,
                 'cached' => false,
-                'engine' => $payload['engine'],
+                'engine' => $engine,
                 'is_fallback' => false,
                 'data' => $aiResult['data'],
             ]);
@@ -247,16 +199,6 @@ class PerformanceController
             'notice' => $aiResult['error'] ?? 'Ollama AI engine belum terhubung di server.',
             'analysis' => $fallbackData,
         ];
-
-        try {
-            Cache::put($cacheKey, $fallbackPayload, now()->addMinutes(10));
-        } catch (\Throwable) {
-            try {
-                Cache::store('file')->put($cacheKey, $fallbackPayload, now()->addMinutes(10));
-            } catch (\Throwable) {
-                // Ignore cache write failures
-            }
-        }
 
         return response()->json([
             'success' => true,
@@ -319,37 +261,6 @@ class PerformanceController
         @ini_set('max_execution_time', '180');
 
         $filters = $this->extractCustomerFilters($request);
-        $force = $request->boolean('force', false);
-
-        $cacheKey = 'marketing_cust_kpi_ai_' . md5($customer . '_' . json_encode($filters) . '_' . date('YmdH'));
-
-        if (!$force) {
-            try {
-                if (Cache::has($cacheKey)) {
-                    $cached = Cache::get($cacheKey);
-                    return response()->json([
-                        'success' => true,
-                        'cached' => true,
-                        'engine' => $cached['engine'] ?? (config('services.ollama.model', 'qwen2.5:7b') . ' (Ollama)'),
-                        'is_fallback' => $cached['is_fallback'] ?? false,
-                        'data' => $cached['analysis'] ?? $cached,
-                    ]);
-                }
-            } catch (\Throwable) {
-                try {
-                    if (Cache::store('file')->has($cacheKey)) {
-                        $cached = Cache::store('file')->get($cacheKey);
-                        return response()->json([
-                            'success' => true,
-                            'cached' => true,
-                            'engine' => $cached['engine'] ?? (config('services.ollama.model', 'qwen2.5:7b') . ' (Ollama)'),
-                            'is_fallback' => $cached['is_fallback'] ?? false,
-                            'data' => $cached['analysis'] ?? $cached,
-                        ]);
-                    }
-                } catch (\Throwable) {}
-            }
-        }
 
         $perfData = $this->safeQuery(function () use ($customer, $filters) {
             return $this->calculateCustomerPerformance($customer, $filters);
@@ -359,24 +270,12 @@ class PerformanceController
         $aiResult = $this->callOllamaForCustomer($summary);
 
         if ($aiResult && !empty($aiResult['data'])) {
-            $payload = [
-                'engine' => $aiResult['engine'] ?? (config('services.ollama.model', 'qwen2.5:7b') . ' (Ollama)'),
-                'is_fallback' => false,
-                'analysis' => $aiResult['data'],
-            ];
-
-            try {
-                Cache::put($cacheKey, $payload, now()->addHour());
-            } catch (\Throwable) {
-                try {
-                    Cache::store('file')->put($cacheKey, $payload, now()->addHour());
-                } catch (\Throwable) {}
-            }
+            $engine = $aiResult['engine'] ?? (config('services.ollama.model', 'qwen2.5:7b') . ' (Ollama)');
 
             return response()->json([
                 'success' => true,
                 'cached' => false,
-                'engine' => $payload['engine'],
+                'engine' => $engine,
                 'is_fallback' => false,
                 'data' => $aiResult['data'],
             ]);
@@ -389,14 +288,6 @@ class PerformanceController
             'notice' => $aiResult['error'] ?? 'Ollama AI engine belum terhubung di server.',
             'analysis' => $fallbackData,
         ];
-
-        try {
-            Cache::put($cacheKey, $fallbackPayload, now()->addMinutes(10));
-        } catch (\Throwable) {
-            try {
-                Cache::store('file')->put($cacheKey, $fallbackPayload, now()->addMinutes(10));
-            } catch (\Throwable) {}
-        }
 
         return response()->json([
             'success' => true,
@@ -530,32 +421,32 @@ class PerformanceController
     {
         $currentYear = (int) date('Y');
         // If data is from 2026, default to 2026
-        $year = (int) $request->query('year', 2026);
+        $year = (int) $request->input('year', 2026);
         if ($year < 2000 || $year > 2100) {
             $year = 2026;
         }
 
-        $periodType = $request->query('period_type', 'monthly');
+        $periodType = $request->input('period_type', 'monthly');
         if (!in_array($periodType, ['monthly', 'quarterly', 'semester', 'yearly'], true)) {
             $periodType = 'monthly';
         }
 
-        $month = (int) $request->query('month', 8);
+        $month = (int) $request->input('month', 8);
         if ($month < 1 || $month > 12) {
             $month = 8;
         }
 
-        $quarter = (int) $request->query('quarter', 3);
+        $quarter = (int) $request->input('quarter', 3);
         if ($quarter < 1 || $quarter > 4) {
             $quarter = 3;
         }
 
-        $semester = (int) $request->query('semester', 2);
+        $semester = (int) $request->input('semester', 2);
         if ($semester < 1 || $semester > 2) {
             $semester = 2;
         }
 
-        $customer = trim((string) $request->query('customer', 'all'));
+        $customer = trim((string) $request->input('customer', 'all'));
 
         return [
             'year' => $year,
@@ -1598,10 +1489,11 @@ USER_PROMPT;
             ],
         ];
 
+        $worstCustName = !empty($decliningList) ? ($decliningList[0]['nm_cs'] ?? 'pelanggan terkait') : 'pelanggan yang mengalami kontraksi';
         $quickWins = [
-            "Segera kontak customer dengan drop penjualan terbesar ({$summary['declining_text']}) dalam 48 jam ke depan.",
+            "Segera kontak customer dengan penurunan omset terbesar ({$worstCustName}) untuk mengantisipasi churn.",
             "Follow-up penawaran ke {$churn} akun customer yang belum melakukan repeat order di {$currPeriod}.",
-            "Lakukan evaluasi kepuasan layanan dengan perwakilan Top 3 pelanggan utama untuk mengamankan pesanan bulan depan.",
+            "Lakukan evaluasi kepuasan layanan dengan perwakilan Top 3 pelanggan utama untuk mengamankan pesanan periode berikutnya.",
         ];
 
         return [
@@ -1624,28 +1516,28 @@ USER_PROMPT;
      */
     private function extractCustomerFilters(Request $request): array
     {
-        $periodType = $request->query('period_type', 'monthly');
+        $periodType = $request->input('period_type', 'monthly');
         if (!in_array($periodType, ['weekly', 'monthly', 'quarterly', 'semester', 'yearly', 'year_range'], true)) {
             $periodType = 'monthly';
         }
 
-        $year = (int) $request->query('year', 2026);
+        $year = (int) $request->input('year', 2026);
         if ($year < 2000 || $year > 2100) $year = 2026;
 
-        $month = (int) $request->query('month', 8);
+        $month = (int) $request->input('month', 8);
         if ($month < 1 || $month > 12) $month = 8;
 
-        $week = (int) $request->query('week', 1);
+        $week = (int) $request->input('week', 1);
         if ($week < 1 || $week > 5) $week = 1;
 
-        $quarter = (int) $request->query('quarter', 3);
+        $quarter = (int) $request->input('quarter', 3);
         if ($quarter < 1 || $quarter > 4) $quarter = 3;
 
-        $semester = (int) $request->query('semester', 2);
+        $semester = (int) $request->input('semester', 2);
         if ($semester < 1 || $semester > 2) $semester = 2;
 
-        $startYear = (int) $request->query('start_year', max(2020, $year - 4));
-        $endYear = (int) $request->query('end_year', $year);
+        $startYear = (int) $request->input('start_year', max(2020, $year - 4));
+        $endYear = (int) $request->input('end_year', $year);
         if ($startYear > $endYear) {
             $temp = $startYear;
             $startYear = $endYear;
