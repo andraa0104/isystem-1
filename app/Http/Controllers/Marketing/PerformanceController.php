@@ -650,10 +650,78 @@ class PerformanceController
         // Sort all customers descending by curr_sales
         usort($allCustomersList, fn($a, $b) => $b['curr_sales'] <=> $a['curr_sales']);
 
-        // Assign rankings
+        // Assign rankings and AI Intelligence diagnostic metrics
         $rank = 1;
         foreach ($allCustomersList as &$cust) {
             $cust['rank'] = $rank++;
+            $currS = (float) $cust['curr_sales'];
+            $prevS = (float) $cust['prev_sales'];
+            $growth = (float) $cust['growth'];
+            $diffSales = (float) $cust['diff_sales'];
+            $r = $cust['rank'];
+            $contrib = (float) $cust['contribution'];
+
+            // AI Status & Strategic Action Matrix
+            if ($currS <= 0 && $prevS <= 0) {
+                $aiStatus = 'Non-Aktif';
+                $aiBadge = 'gray';
+                $aiAction = '📋 Kirimkan Brosur & Katalog Material Baru';
+                $aiReason = 'Belum ada riwayat transaksi pada periode berjalan maupun pembanding.';
+            } elseif ($currS <= 0 && $prevS > 0) {
+                $aiStatus = 'Dormant (Macet)';
+                $aiBadge = 'red';
+                $aiAction = '🔄 Kunjungan Re-Aktivasi Sales & Penawaran Re-Entry';
+                $aiReason = 'Customer churn: pernah belanja Rp ' . number_format($prevS, 0, ',', '.') . ' di periode lalu namun terhenti.';
+            } elseif ($r <= 5 && $growth >= 0) {
+                $aiStatus = 'VIP Growth Leader';
+                $aiBadge = 'emerald';
+                $aiAction = '🛡️ Kunci Kontrak Tahunan & Proteksi Alokasi Stok VIP';
+                $aiReason = 'Penyumbang omset utama (' . round($contrib, 1) . '%) dengan tren pertumbuhan positif (' . ($growth > 0 ? '+' : '') . round($growth, 1) . '%).';
+            } elseif ($r <= 5 && $growth < 0) {
+                $aiStatus = 'VIP At-Risk';
+                $aiBadge = 'rose';
+                $aiAction = '🚨 Intervensi Langsung CCO: Re-Negosiasi & Mitigasi Churn';
+                $aiReason = 'Customer VIP mengalami penurunan omset Rp ' . number_format(abs($diffSales), 0, ',', '.') . ' (' . round($growth, 1) . '%).';
+            } elseif ($growth >= 25 && $currS > 0) {
+                $aiStatus = 'Akselerasi Tinggi';
+                $aiBadge = 'emerald';
+                $aiAction = '🚀 Cross-Selling Kategori Baru & Kemitraan Strategis';
+                $aiReason = 'Pertumbuhan volume sangat kuat (+ ' . round($growth, 1) . '%). Peluang besar untuk penetrasi item lain.';
+            } elseif ($growth >= 0 && $growth < 25 && $currS > 0) {
+                $aiStatus = 'Konsisten & Stabil';
+                $aiBadge = 'blue';
+                $aiAction = '📈 Kunci Jadwal Repeat Order Rutin & Lock Volume';
+                $aiReason = 'Pola belanja stabil dan teratur (' . $cust['curr_invoices'] . ' invoice). Pertahankan kepuasan layanan.';
+            } elseif ($growth < 0 && $growth >= -15) {
+                $aiStatus = 'Penurunan Ringan';
+                $aiBadge = 'amber';
+                $aiAction = '🔍 Follow-up Purchasing & Cek Kendala Operasional';
+                $aiReason = 'Penurunan omset wajar (' . round($growth, 1) . '%), perlu pengingat jadwal order dan penawaran.';
+            } elseif ($growth < -15 && $growth >= -40) {
+                $aiStatus = 'Menurun Signifikan';
+                $aiBadge = 'orange';
+                $aiAction = '⚠️ Audit Penyebab Drop & Berikan Diskon Penyelamatan';
+                $aiReason = 'Anomali penurunan tajam Rp ' . number_format(abs($diffSales), 0, ',', '.') . '. Perlu audit kebutuhan purchasing.';
+            } else {
+                $aiStatus = 'Kritis / Drop Drastis';
+                $aiBadge = 'rose';
+                $aiAction = '🚨 Audit Mendalam: Cek Sisa Stok & Negosiasi Ulang';
+                $aiReason = 'Penurunan omset sangat drastis (' . round($growth, 1) . '%). Risiko kehilangan akun permanen.';
+            }
+
+            // If small ticket but active
+            if ($currS > 0 && $currS < 10000000 && $r > 5 && $growth >= 0) {
+                $aiStatus = 'Potensial Penetrasi';
+                $aiBadge = 'cyan';
+                $aiAction = '📦 Tawarkan Paket Bundle & Diskon Kuantiti (Qty)';
+                $aiReason = 'Nominal order masih di bawah Rp 10 Juta namun aktif belanja. Potensi upselling volume.';
+            }
+
+            $cust['ai_status'] = $aiStatus;
+            $cust['ai_badge'] = $aiBadge;
+            $cust['ai_action'] = $aiAction;
+            $cust['ai_reason'] = $aiReason;
+            $cust['status'] = $aiStatus;
         }
         unset($cust);
 
@@ -667,34 +735,58 @@ class PerformanceController
             ]
             : null;
 
-        // Top 5 Highest Sales - Periode Berjalan (Fokus: Pertahankan)
+        // Top 5 Highest Sales - Periode Berjalan (Fokus: Aksi Tim AI)
         $topCustomers = array_slice(array_filter($allCustomersList, fn($c) => $c['curr_sales'] > 0), 0, 5);
         $tRank = 1;
         foreach ($topCustomers as &$tCust) {
             $tCust['rank'] = $tRank++;
-            $tCust['marketing_action'] = 'Pertahankan';
+            if ($tCust['rank'] === 1) {
+                $tCust['marketing_action'] = '👑 Kunci Kontrak Tahunan & Akun Prioritas';
+                $tCust['ai_team_action'] = '👑 Kunci Kontrak Tahunan & Akun Prioritas';
+            } elseif ($tCust['growth'] >= 15) {
+                $tCust['marketing_action'] = '⭐ Loyalitas & Prioritas Alokasi Stok VIP';
+                $tCust['ai_team_action'] = '⭐ Loyalitas & Prioritas Alokasi Stok VIP';
+            } elseif ($tCust['growth'] >= 0) {
+                $tCust['marketing_action'] = '🤝 Kunjungan Manajemen & Evaluasi PO';
+                $tCust['ai_team_action'] = '🤝 Kunjungan Manajemen & Evaluasi PO';
+            } else {
+                $tCust['marketing_action'] = '🚨 Mitigasi Churn: Intervensi CCO Segera';
+                $tCust['ai_team_action'] = '🚨 Mitigasi Churn: Intervensi CCO Segera';
+            }
         }
         unset($tCust);
 
-        // Top 5 Lowest Sales - Periode Berjalan (> 0, strictly no Rp 0!) (Fokus: Perbanyak Penawaran)
+        // Top 5 Lowest Sales - Periode Berjalan (> 0, strictly no Rp 0!) (Fokus: Aksi Tim AI)
         $positiveCustomers = array_filter($allCustomersList, fn($c) => $c['curr_sales'] > 0);
         usort($positiveCustomers, fn($a, $b) => $a['curr_sales'] <=> $b['curr_sales']);
         $lowestCustomers = array_slice($positiveCustomers, 0, 5);
         $lRank = 1;
         foreach ($lowestCustomers as &$lCust) {
             $lCust['rank'] = $lRank++;
-            $lCust['marketing_action'] = 'Perbanyak Penawaran';
+            if ($lCust['curr_sales'] < 5000000) {
+                $lCust['marketing_action'] = '🎯 Presentasi Material & Paket Sampel';
+                $lCust['ai_team_action'] = '🎯 Presentasi Material & Paket Sampel';
+            } else {
+                $lCust['marketing_action'] = '📦 Tawarkan Skema Diskon Qty & Volume';
+                $lCust['ai_team_action'] = '📦 Tawarkan Skema Diskon Qty & Volume';
+            }
         }
         unset($lCust);
 
-        // Top 5 Penurunan Penjualan Terbesar (Drop Sales - Prioritas Perbanyak Penawaran)
+        // Top 5 Penurunan Penjualan Terbesar (Drop Sales - Prioritas Aksi Tim AI)
         $decliningList = array_filter($allCustomersList, fn($c) => $c['diff_sales'] < 0 && $c['prev_sales'] > 0);
         usort($decliningList, fn($a, $b) => $a['diff_sales'] <=> $b['diff_sales']);
         $decliningCustomers = array_slice($decliningList, 0, 5);
         $dRank = 1;
         foreach ($decliningCustomers as &$dCust) {
             $dCust['rank'] = $dRank++;
-            $dCust['marketing_action'] = 'Perbanyak Penawaran';
+            if ($dCust['growth'] < -40) {
+                $dCust['marketing_action'] = '🔍 Audit Purchasing: Cek Stok Sisa & Alasan Drop';
+                $dCust['ai_team_action'] = '🔍 Audit Purchasing: Cek Stok Sisa & Alasan Drop';
+            } else {
+                $dCust['marketing_action'] = '📞 Follow-up Purchasing & Diskon Penyelamatan';
+                $dCust['ai_team_action'] = '📞 Follow-up Purchasing & Diskon Penyelamatan';
+            }
         }
         unset($dCust);
 

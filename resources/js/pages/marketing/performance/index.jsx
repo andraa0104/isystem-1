@@ -11,6 +11,7 @@ import {
     Award,
     Banknote,
     BarChart3,
+    Bot,
     Calendar,
     Check,
     CheckCircle2,
@@ -19,6 +20,7 @@ import {
     ChevronRight,
     ChevronUp,
     Copy,
+    Crown,
     ExternalLink,
     FileText,
     Filter,
@@ -26,6 +28,7 @@ import {
     Loader2,
     Minus,
     RefreshCw,
+    Rocket,
     Search,
     ShieldAlert,
     Sparkles,
@@ -367,9 +370,33 @@ export default function PerformanceIndex({
             );
         }
 
-        // Status Filter
+        // Status Filter (Support AI Status categories and legacy labels)
         if (statusFilter !== 'all') {
-            list = list.filter((c) => c.status === statusFilter);
+            list = list.filter((c) => {
+                const s = c.ai_status || c.status || '';
+                if (statusFilter === 'VIP') {
+                    return s.includes('VIP');
+                }
+                if (statusFilter === 'Akselerasi') {
+                    return s === 'Akselerasi Tinggi' || s === 'Sangat Baik';
+                }
+                if (statusFilter === 'Stabil') {
+                    return s === 'Konsisten & Stabil' || s === 'Baik' || s === 'Stabil';
+                }
+                if (statusFilter === 'Potensial') {
+                    return s.includes('Potensial');
+                }
+                if (statusFilter === 'Menurun') {
+                    return s.includes('Menurun') || s.includes('Kritis') || s.includes('Drop') || s === 'Penurunan Ringan';
+                }
+                if (statusFilter === 'Dormant') {
+                    return s.includes('Dormant') || s.includes('Macet');
+                }
+                if (statusFilter === 'Non-Aktif') {
+                    return s.includes('Non-Aktif') || s.includes('Tidak Ada Transaksi');
+                }
+                return s === statusFilter;
+            });
         }
 
         // Sort
@@ -411,41 +438,233 @@ export default function PerformanceIndex({
         }
     };
 
-    // Status Badge Helper
-    const renderStatusBadge = (status) => {
-        switch (status) {
-            case 'Sangat Baik':
-                return (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-600 dark:text-emerald-400">
-                        <ArrowUpRight className="h-3 w-3" /> Sangat Baik
-                    </span>
-                );
-            case 'Baik':
-                return (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-blue-500/20 bg-blue-500/10 px-2.5 py-0.5 text-xs font-semibold text-blue-600 dark:text-blue-400">
-                        <ArrowUpRight className="h-3 w-3" /> Baik
-                    </span>
-                );
-            case 'Stabil':
-                return (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-600 dark:text-amber-400">
-                        <Minus className="h-3 w-3" /> Stabil
-                    </span>
-                );
-            case 'Menurun':
-                return (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/20 bg-rose-500/10 px-2.5 py-0.5 text-xs font-semibold text-rose-600 dark:text-rose-400">
-                        <ArrowDownRight className="h-3 w-3" /> Menurun
-                    </span>
-                );
-            case 'Tidak Ada Transaksi':
-            default:
-                return (
-                    <span className="inline-flex items-center gap-1 rounded-full border border-border bg-muted/60 px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
-                        Tidak Ada Transaksi
-                    </span>
-                );
+    // Map AI Critical Fixes from Ollama to Customers
+    const aiCriticalMap = useMemo(() => {
+        if (!aiData?.critical_areas_to_fix || !Array.isArray(aiData.critical_areas_to_fix)) return {};
+        const map = {};
+        aiData.critical_areas_to_fix.forEach((item) => {
+            const affected = (item.customer_affected || '').toLowerCase().trim();
+            if (affected && affected !== 'umum' && affected !== 'semua') {
+                map[affected] = item;
+            }
+        });
+        return map;
+    }, [aiData]);
+
+    // Extract real-time AI status, action, and reasoning for a customer
+    const getCustomerAiMeta = (c) => {
+        if (!c) {
+            return {
+                status: 'Non-Aktif',
+                action: '📋 Kirimkan Brosur & Katalog Baru',
+                teamAction: 'Pantau',
+                reason: '',
+                isAiCritical: false,
+                aiIssue: null,
+            };
         }
+        const nm = (c.nm_cs || '').toLowerCase().trim();
+        const kd = (c.kd_cs || '').toLowerCase().trim();
+
+        // Check if explicitly cited in Ollama AI critical areas
+        let criticalItem = null;
+        for (const [key, item] of Object.entries(aiCriticalMap)) {
+            if (key && (nm.includes(key) || key.includes(nm) || kd === key)) {
+                criticalItem = item;
+                break;
+            }
+        }
+
+        const baseStatus = c.ai_status || c.status || 'Konsisten & Stabil';
+        const baseAction = c.ai_action || '📈 Jadwalkan Repeat Order Rutin & Lock Volume';
+        const baseTeamAction = c.ai_team_action || c.marketing_action || 'Pertahankan';
+        const baseReason = c.ai_reason || '';
+
+        if (criticalItem) {
+            return {
+                status: baseStatus,
+                action: criticalItem.action_to_fix ? `🤖 ${criticalItem.action_to_fix}` : baseAction,
+                teamAction: criticalItem.action_to_fix ? `🤖 ${criticalItem.action_to_fix}` : baseTeamAction,
+                reason: `Disorot AI: ${criticalItem.issue || ''}. Akar masalah: ${criticalItem.root_cause || '-'}. Rekomendasi: ${criticalItem.action_to_fix || '-'}`,
+                isAiCritical: true,
+                aiIssue: criticalItem.issue,
+            };
+        }
+
+        return {
+            status: baseStatus,
+            action: baseAction,
+            teamAction: baseTeamAction,
+            reason: baseReason,
+            isAiCritical: false,
+            aiIssue: null,
+        };
+    };
+
+    // Enhanced AI Performance Status Badge Helper
+    const renderAiStatusBadge = (c) => {
+        const meta = getCustomerAiMeta(c);
+        const status = meta.status;
+
+        if (status === 'VIP Growth Leader') {
+            return (
+                <span
+                    title={meta.reason}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/15 px-2.5 py-1 text-xs font-bold text-emerald-700 dark:text-emerald-300 shadow-2xs cursor-help"
+                >
+                    <Crown className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+                    <span>VIP Growth Leader</span>
+                </span>
+            );
+        }
+        if (status === 'VIP At-Risk') {
+            return (
+                <span
+                    title={meta.reason}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/40 bg-rose-500/15 px-2.5 py-1 text-xs font-bold text-rose-700 dark:text-rose-300 animate-pulse shadow-2xs cursor-help"
+                >
+                    <ShieldAlert className="h-3.5 w-3.5 text-rose-600 shrink-0" />
+                    <span>VIP At-Risk</span>
+                </span>
+            );
+        }
+        if (status === 'Akselerasi Tinggi' || status === 'Sangat Baik') {
+            return (
+                <span
+                    title={meta.reason}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-600 dark:text-emerald-400 cursor-help"
+                >
+                    <Rocket className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                    <span>Akselerasi Tinggi</span>
+                </span>
+            );
+        }
+        if (status === 'Konsisten & Stabil' || status === 'Baik' || status === 'Stabil') {
+            return (
+                <span
+                    title={meta.reason}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 px-2.5 py-1 text-xs font-semibold text-blue-600 dark:text-blue-400 cursor-help"
+                >
+                    <CheckCircle2 className="h-3.5 w-3.5 text-blue-600 shrink-0" />
+                    <span>Konsisten &amp; Stabil</span>
+                </span>
+            );
+        }
+        if (status === 'Potensial Penetrasi') {
+            return (
+                <span
+                    title={meta.reason}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-1 text-xs font-semibold text-cyan-700 dark:text-cyan-300 cursor-help"
+                >
+                    <Target className="h-3.5 w-3.5 text-cyan-600 shrink-0" />
+                    <span>Potensial Penetrasi</span>
+                </span>
+            );
+        }
+        if (status === 'Penurunan Ringan') {
+            return (
+                <span
+                    title={meta.reason}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-700 dark:text-amber-300 cursor-help"
+                >
+                    <Minus className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+                    <span>Penurunan Ringan</span>
+                </span>
+            );
+        }
+        if (status === 'Menurun Signifikan' || status === 'Menurun') {
+            return (
+                <span
+                    title={meta.reason}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-orange-500/30 bg-orange-500/10 px-2.5 py-1 text-xs font-semibold text-orange-700 dark:text-orange-300 cursor-help"
+                >
+                    <ArrowDownRight className="h-3.5 w-3.5 text-orange-600 shrink-0" />
+                    <span>Menurun Signifikan</span>
+                </span>
+            );
+        }
+        if (status === 'Kritis / Drop Drastis') {
+            return (
+                <span
+                    title={meta.reason}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-xs font-bold text-rose-700 dark:text-rose-300 cursor-help"
+                >
+                    <AlertTriangle className="h-3.5 w-3.5 text-rose-600 shrink-0" />
+                    <span>Kritis / Drop Drastis</span>
+                </span>
+            );
+        }
+        if (status === 'Dormant (Macet)') {
+            return (
+                <span
+                    title={meta.reason}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-rose-500/20 bg-rose-500/5 px-2.5 py-1 text-xs font-medium text-rose-600 dark:text-rose-400 cursor-help"
+                >
+                    <RefreshCw className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                    <span>Dormant (Macet)</span>
+                </span>
+            );
+        }
+        return (
+            <span
+                title={meta.reason}
+                className="inline-flex items-center gap-1.5 rounded-full border border-border bg-muted/60 px-2.5 py-1 text-xs font-medium text-muted-foreground cursor-help"
+            >
+                <span>Non-Aktif</span>
+            </span>
+        );
+    };
+
+    // Enhanced AI Action Recommendation Badge Helper (for Seluruh Customer Table)
+    const renderAiActionBadge = (c) => {
+        const meta = getCustomerAiMeta(c);
+
+        return (
+            <div className="flex flex-col items-center justify-center gap-1" title={meta.reason}>
+                {meta.isAiCritical && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-bold text-rose-700 dark:text-rose-300 border border-rose-500/30 animate-pulse">
+                        <Bot className="h-2.5 w-2.5 text-rose-600" />
+                        Prioritas Khusus AI
+                    </span>
+                )}
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-sidebar-border/80 bg-muted/50 px-2.5 py-1 text-xs font-semibold text-foreground hover:bg-muted/80 transition-colors cursor-help text-left max-w-xs leading-snug">
+                    <Zap className="h-3.5 w-3.5 text-primary shrink-0" />
+                    <span>{meta.action}</span>
+                </span>
+            </div>
+        );
+    };
+
+    // Enhanced AI Team Action Badge Helper (for Top 5 Tables)
+    const renderAiTeamActionBadge = (c, defaultType = 'top') => {
+        const meta = getCustomerAiMeta(c);
+        const isTop = defaultType === 'top';
+
+        return (
+            <div className="flex flex-col items-center justify-center gap-1" title={meta.reason}>
+                {meta.isAiCritical && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-rose-500/15 px-1.5 py-0.5 text-[9px] font-bold text-rose-700 dark:text-rose-300 border border-rose-500/30">
+                        <Bot className="h-2.5 w-2.5 text-rose-600" />
+                        Disorot AI
+                    </span>
+                )}
+                <span
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-bold transition-all cursor-help text-center max-w-xs ${
+                        isTop
+                            ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20'
+                            : 'border-amber-500/30 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20'
+                    }`}
+                >
+                    <Sparkles className="h-3 w-3 shrink-0" />
+                    <span>{meta.teamAction}</span>
+                </span>
+            </div>
+        );
+    };
+
+    // Status Badge Helper (Legacy fallback)
+    const renderStatusBadge = (status) => {
+        return renderAiStatusBadge({ status, ai_status: status });
     };
 
     // Max chart value for relative bar heights
@@ -1835,7 +2054,12 @@ export default function PerformanceIndex({
                                                         {data.periodInfo?.previousLabel || 'Periode Lalu'}
                                                     </th>
                                                     <th className="pb-2.5 text-right">Selisih &amp; Tren</th>
-                                                    <th className="pb-2.5 text-center">Aksi Tim</th>
+                                                    <th className="pb-2.5 text-center">
+                                                        <span className="inline-flex items-center gap-1 font-semibold text-emerald-600 dark:text-emerald-400">
+                                                            <Sparkles className="h-3 w-3" />
+                                                            Aksi Tim (AI)
+                                                        </span>
+                                                    </th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-sidebar-border/50 text-xs sm:text-sm">
@@ -1904,9 +2128,7 @@ export default function PerformanceIndex({
                                                                     </div>
                                                                 </td>
                                                                 <td className="py-3 text-center">
-                                                                    <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
-                                                                        Pertahankan
-                                                                    </span>
+                                                                    {renderAiTeamActionBadge(c, 'top')}
                                                                 </td>
                                                             </tr>
                                                         );
@@ -1980,7 +2202,12 @@ export default function PerformanceIndex({
                                                         {data.periodInfo?.previousLabel || 'Periode Lalu'}
                                                     </th>
                                                     <th className="pb-2.5 text-right">Selisih &amp; Tren</th>
-                                                    <th className="pb-2.5 text-center">Aksi Tim</th>
+                                                    <th className="pb-2.5 text-center">
+                                                        <span className="inline-flex items-center gap-1 font-semibold text-amber-600 dark:text-amber-400">
+                                                            <Sparkles className="h-3 w-3" />
+                                                            Aksi Tim (AI)
+                                                        </span>
+                                                    </th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-sidebar-border/50 text-xs sm:text-sm">
@@ -2050,9 +2277,7 @@ export default function PerformanceIndex({
                                                                     </div>
                                                                 </td>
                                                                 <td className="py-3 text-center">
-                                                                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-300">
-                                                                        Perbanyak Penawaran
-                                                                    </span>
+                                                                    {renderAiTeamActionBadge(c, 'lowest')}
                                                                 </td>
                                                             </tr>
                                                         );
@@ -2111,19 +2336,31 @@ export default function PerformanceIndex({
                                             setStatusFilter(e.target.value);
                                             setCurrentPage(1);
                                         }}
-                                        className="h-9 rounded-md border border-sidebar-border/70 bg-background px-3 text-xs text-foreground shadow-xs sm:text-sm"
+                                        className="h-9 rounded-md border border-sidebar-border/70 bg-background px-3 text-xs text-foreground shadow-xs sm:text-sm font-medium"
                                     >
                                         <option value="all">
-                                            Semua Status
+                                            Semua Status AI
                                         </option>
-                                        <option value="Sangat Baik">
-                                            Sangat Baik
+                                        <option value="VIP">
+                                            ⭐ VIP (Growth &amp; At-Risk)
                                         </option>
-                                        <option value="Baik">Baik</option>
-                                        <option value="Stabil">Stabil</option>
-                                        <option value="Menurun">Menurun</option>
-                                        <option value="Tidak Ada Transaksi">
-                                            Tidak Ada Transaksi
+                                        <option value="Akselerasi">
+                                            🚀 Akselerasi Tinggi
+                                        </option>
+                                        <option value="Stabil">
+                                            💎 Konsisten &amp; Stabil
+                                        </option>
+                                        <option value="Potensial">
+                                            🎯 Potensial Penetrasi
+                                        </option>
+                                        <option value="Menurun">
+                                            📉 Menurun &amp; Kritis
+                                        </option>
+                                        <option value="Dormant">
+                                            ⚠️ Dormant (Macet)
+                                        </option>
+                                        <option value="Non-Aktif">
+                                            ⚪ Non-Aktif
                                         </option>
                                     </select>
                                 </div>
@@ -2201,10 +2438,16 @@ export default function PerformanceIndex({
                                                 </div>
                                             </th>
                                             <th className="pb-3 text-center">
-                                                Status Performa
+                                                <div className="flex items-center justify-center gap-1.5 font-bold text-foreground">
+                                                    <Bot className="h-3.5 w-3.5 text-primary" />
+                                                    Status Performa (AI)
+                                                </div>
                                             </th>
                                             <th className="pb-3 text-center">
-                                                Rekomendasi Aksi
+                                                <div className="flex items-center justify-center gap-1.5 font-bold text-foreground">
+                                                    <Sparkles className="h-3.5 w-3.5 text-primary" />
+                                                    Rekomendasi Aksi (AI)
+                                                </div>
                                             </th>
                                         </tr>
                                     </thead>
@@ -2272,28 +2515,10 @@ export default function PerformanceIndex({
                                                         {c.curr_invoices}
                                                     </td>
                                                     <td className="py-3 text-center">
-                                                        {renderStatusBadge(
-                                                            c.status,
-                                                        )}
+                                                        {renderAiStatusBadge(c)}
                                                     </td>
                                                     <td className="py-3 text-center">
-                                                        {c.curr_sales >= 50000000 || c.status === 'Sangat Baik' ? (
-                                                            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300">
-                                                                🛡️ Pertahankan
-                                                            </span>
-                                                        ) : c.curr_sales > 0 && (c.growth < 0 || c.curr_sales < 10000000) ? (
-                                                            <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-bold text-amber-700 dark:text-amber-300">
-                                                                📈 Perbanyak Penawaran
-                                                            </span>
-                                                        ) : c.curr_sales === 0 && c.prev_sales > 0 ? (
-                                                            <span className="inline-flex items-center gap-1 rounded-full border border-rose-500/30 bg-rose-500/10 px-2.5 py-0.5 text-[11px] font-bold text-rose-700 dark:text-rose-300">
-                                                                🔄 Re-Aktivasi
-                                                            </span>
-                                                        ) : (
-                                                            <span className="inline-flex items-center gap-1 rounded-full bg-muted/60 px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
-                                                                Pantau
-                                                            </span>
-                                                        )}
+                                                        {renderAiActionBadge(c)}
                                                     </td>
                                                 </tr>
                                             ))
