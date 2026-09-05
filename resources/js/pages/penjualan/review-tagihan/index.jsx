@@ -97,10 +97,13 @@ export default function ReviewTagihanIndex() {
     const [summary, setSummary] = useState({
         near_due_customers: 0,
         near_due_invoices: 0,
+        near_due_amount: 0,
         current_month_customers: 0,
         current_month_invoices: 0,
+        current_month_amount: 0,
         overdue_customers: 0,
         overdue_invoices: 0,
+        overdue_amount: 0,
     });
     const [overdueRange, setOverdueRange] = useState('30');
     const [customers, setCustomers] = useState([]);
@@ -392,9 +395,15 @@ export default function ReviewTagihanIndex() {
                                 {summary.near_due_customers}
                             </div>
                             <p className="text-xs text-muted-foreground">customer perlu follow-up</p>
-                            <div className="mt-3 flex items-center justify-between border-t border-sidebar-border/40 pt-2 text-xs font-medium">
-                                <span className="text-muted-foreground">Total Tagihan:</span>
-                                <span className="text-foreground">{summary.near_due_invoices} invoice</span>
+                            <div className="mt-3 space-y-1 border-t border-sidebar-border/40 pt-2 text-xs font-medium">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-muted-foreground">Total Tagihan:</span>
+                                    <span className="text-foreground">{summary.near_due_invoices} invoice</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-muted-foreground">Nilai Tagihan:</span>
+                                    <span className="font-bold text-foreground">{formatRupiah(summary.near_due_amount)}</span>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
@@ -416,9 +425,15 @@ export default function ReviewTagihanIndex() {
                                 {summary.current_month_customers}
                             </div>
                             <p className="text-xs text-muted-foreground">customer berjalan</p>
-                            <div className="mt-3 flex items-center justify-between border-t border-sidebar-border/40 pt-2 text-xs font-medium">
-                                <span className="text-muted-foreground">Total Tagihan:</span>
-                                <span className="text-foreground">{summary.current_month_invoices} invoice</span>
+                            <div className="mt-3 space-y-1 border-t border-sidebar-border/40 pt-2 text-xs font-medium">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-muted-foreground">Total Tagihan:</span>
+                                    <span className="text-foreground">{summary.current_month_invoices} invoice</span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-muted-foreground">Nilai Tagihan:</span>
+                                    <span className="font-bold text-foreground">{formatRupiah(summary.current_month_amount)}</span>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>
@@ -451,11 +466,19 @@ export default function ReviewTagihanIndex() {
                                 {summary.overdue_customers}
                             </div>
                             <p className="text-xs text-muted-foreground">customer menunggak</p>
-                            <div className="mt-3 flex items-center justify-between border-t border-sidebar-border/40 pt-2 text-xs font-medium">
-                                <span className="text-muted-foreground">Total Tagihan:</span>
-                                <span className="font-semibold text-rose-600 dark:text-rose-400">
-                                    {summary.overdue_invoices} invoice
-                                </span>
+                            <div className="mt-3 space-y-1 border-t border-sidebar-border/40 pt-2 text-xs font-medium">
+                                <div className="flex items-center justify-between">
+                                    <span className="text-muted-foreground">Total Tagihan:</span>
+                                    <span className="font-semibold text-rose-600 dark:text-rose-400">
+                                        {summary.overdue_invoices} invoice
+                                    </span>
+                                </div>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-muted-foreground">Nilai Tagihan:</span>
+                                    <span className="font-bold text-rose-600 dark:text-rose-400">
+                                        {formatRupiah(summary.overdue_amount)}
+                                    </span>
+                                </div>
                             </div>
                         </CardContent>
                     </Card>

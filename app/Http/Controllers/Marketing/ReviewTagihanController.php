@@ -90,10 +90,13 @@ class ReviewTagihanController
         return response()->json([
             'near_due_customers' => (int) (clone $nearDue)->selectRaw('count(distinct nm_cs) as total')->value('total'),
             'near_due_invoices' => (int) (clone $nearDue)->count(),
+            'near_due_amount' => (float) (clone $nearDue)->sum(DB::raw('coalesce(cast(saldo_piutang as decimal(18,4)), 0)')),
             'current_month_customers' => (int) (clone $currentMonth)->selectRaw('count(distinct nm_cs) as total')->value('total'),
             'current_month_invoices' => (int) (clone $currentMonth)->count(),
+            'current_month_amount' => (float) (clone $currentMonth)->sum(DB::raw('coalesce(cast(saldo_piutang as decimal(18,4)), 0)')),
             'overdue_customers' => (int) (clone $overdue)->selectRaw('count(distinct nm_cs) as total')->value('total'),
             'overdue_invoices' => (int) (clone $overdue)->count(),
+            'overdue_amount' => (float) (clone $overdue)->sum(DB::raw('coalesce(cast(saldo_piutang as decimal(18,4)), 0)')),
         ]);
     }
 
