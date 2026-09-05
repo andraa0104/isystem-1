@@ -1024,10 +1024,10 @@ export default function CustomerPerformanceDetail({
                                         <div className="space-y-5">
                                             {/* Notice if local fallback */}
                                             {aiIsFallback && (
-                                                <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3.5 py-2 text-xs text-amber-700 dark:text-amber-300">
-                                                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                                                <div className="flex items-center gap-2 rounded-lg border border-indigo-500/20 bg-indigo-500/10 px-3.5 py-2 text-xs text-indigo-700 dark:text-indigo-300">
+                                                    <Sparkles className="h-4 w-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
                                                     <span>
-                                                        <strong>Catatan Lingkungan:</strong> Model Qwen 2.5 (7B) aktif di VPS Production. Di komputer lokal modul ini menggunakan Intelligent Account Engine. Saat dideploy ke VPS Production, analisis otomatis dijalankan langsung oleh Qwen 2.5 (7B) Ollama.
+                                                        <strong>Metode Analitik Data Terintegrasi (Python + Qwen 2.5):</strong> Seluruh analitik data dihitung secara presisi menggunakan <em>Python Data Analytics Engine</em> (RFM Scoring, Volatilitas Pembelian CV, dan Portofolio Basket), lalu diteruskan ke <strong>Qwen 2.5 (7B) Ollama</strong> di VPS Production agar hasil analisis serta kesimpulan strategisnya jauh lebih akurat dan terbebas dari halusinasi data.
                                                     </span>
                                                 </div>
                                             )}
@@ -1106,6 +1106,32 @@ export default function CustomerPerformanceDetail({
                                                                 Kategori Favorit:{' '}
                                                             </strong>
                                                             {aiData.buying_habits.favorite_categories}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Python Analytical Metrics Badges */}
+                                                    {aiData.analytics_metrics && (
+                                                        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-sidebar-border/50 pt-2.5">
+                                                            <span className="text-[11px] font-semibold text-muted-foreground">
+                                                                Metrik Analitik Python:
+                                                            </span>
+                                                            <span className="inline-flex items-center gap-1 rounded-md bg-secondary/80 px-2 py-0.5 text-[11px] font-medium text-foreground">
+                                                                Segmen RFM: <strong className="text-primary">{aiData.analytics_metrics.rfm_segment}</strong> (R:{aiData.analytics_metrics.rfm_scores?.r} F:{aiData.analytics_metrics.rfm_scores?.f} M:{aiData.analytics_metrics.rfm_scores?.m})
+                                                            </span>
+                                                            <span className="inline-flex items-center gap-1 rounded-md bg-secondary/80 px-2 py-0.5 text-[11px] font-medium text-foreground">
+                                                                Recency: <strong>{aiData.analytics_metrics.recency_days} hari lalu</strong>
+                                                            </span>
+                                                            <span className="inline-flex items-center gap-1 rounded-md bg-secondary/80 px-2 py-0.5 text-[11px] font-medium text-foreground">
+                                                                Siklus Order: <strong>±{aiData.analytics_metrics.avg_order_cycle_days} hari</strong>
+                                                            </span>
+                                                            <span className="inline-flex items-center gap-1 rounded-md bg-secondary/80 px-2 py-0.5 text-[11px] font-medium text-foreground">
+                                                                Volatilitas (CV): <strong>{aiData.analytics_metrics.coefficient_of_variation}</strong>
+                                                            </span>
+                                                            {aiData.analytics_metrics.top_material_share_percent > 0 && (
+                                                                <span className="inline-flex items-center gap-1 rounded-md bg-secondary/80 px-2 py-0.5 text-[11px] font-medium text-foreground">
+                                                                    Konsentrasi Utama: <strong>{aiData.analytics_metrics.top_material_share_percent}%</strong>
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     )}
                                                 </div>

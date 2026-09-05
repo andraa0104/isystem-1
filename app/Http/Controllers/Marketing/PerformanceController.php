@@ -9,6 +9,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Carbon\Carbon;
+use App\Services\Marketing\MarketingAnalyticsService;
 
 class PerformanceController
 {
@@ -174,40 +175,11 @@ class PerformanceController
         $perfData = $this->safeQuery(function () use ($filters) {
             return $this->calculatePerformanceData($filters);
         });
-        $summary = $this->buildKpiSummaryForPrompt($perfData, $filters);
 
-        // Try calling Ollama AI model (qwen2.5:7b)
-        $aiResult = $this->callOllama($summary);
+        $analyticsService = app(MarketingAnalyticsService::class);
+        $result = $analyticsService->analyzeOverallPerformance($perfData, $filters);
 
-        if ($aiResult && !empty($aiResult['data'])) {
-            $engine = $aiResult['engine'] ?? (config('services.ollama.model', 'qwen2.5:7b') . ' (Ollama)');
-
-            return response()->json([
-                'success' => true,
-                'cached' => false,
-                'engine' => $engine,
-                'is_fallback' => false,
-                'data' => $aiResult['data'],
-            ]);
-        }
-
-        // Graceful fallback to rule-based analytical engine
-        $fallbackData = $this->generateHeuristicAnalysis($summary);
-        $fallbackPayload = [
-            'engine' => 'Heuristic Analytical Engine (Ollama Standby)',
-            'is_fallback' => true,
-            'notice' => $aiResult['error'] ?? 'Ollama AI engine belum terhubung di server.',
-            'analysis' => $fallbackData,
-        ];
-
-        return response()->json([
-            'success' => true,
-            'cached' => false,
-            'engine' => $fallbackPayload['engine'],
-            'is_fallback' => true,
-            'notice' => $fallbackPayload['notice'],
-            'data' => $fallbackData,
-        ]);
+        return response()->json($result);
     }
 
     /**
@@ -265,38 +237,11 @@ class PerformanceController
         $perfData = $this->safeQuery(function () use ($customer, $filters) {
             return $this->calculateCustomerPerformance($customer, $filters);
         });
-        $summary = $this->buildCustomerAiSummary($perfData, $filters);
 
-        $aiResult = $this->callOllamaForCustomer($summary);
+        $analyticsService = app(MarketingAnalyticsService::class);
+        $result = $analyticsService->analyzeCustomerPerformance($perfData, $filters);
 
-        if ($aiResult && !empty($aiResult['data'])) {
-            $engine = $aiResult['engine'] ?? (config('services.ollama.model', 'qwen2.5:7b') . ' (Ollama)');
-
-            return response()->json([
-                'success' => true,
-                'cached' => false,
-                'engine' => $engine,
-                'is_fallback' => false,
-                'data' => $aiResult['data'],
-            ]);
-        }
-
-        $fallbackData = $this->generateCustomerHeuristicAnalysis($summary);
-        $fallbackPayload = [
-            'engine' => 'Heuristic Analytical Engine (Ollama Standby)',
-            'is_fallback' => true,
-            'notice' => $aiResult['error'] ?? 'Ollama AI engine belum terhubung di server.',
-            'analysis' => $fallbackData,
-        ];
-
-        return response()->json([
-            'success' => true,
-            'cached' => false,
-            'engine' => $fallbackPayload['engine'],
-            'is_fallback' => true,
-            'notice' => $fallbackPayload['notice'],
-            'data' => $fallbackData,
-        ]);
+        return response()->json($result);
     }
 
     /**
@@ -892,6 +837,16 @@ class PerformanceController
             'prevLowestCustomers' => array_values($prevLowestCustomers),
             'allCustomers' => array_values($allCustomersList),
         ];
+
+        // Enrich entire dataset with Python statistical analytics (Z-scores, RFM tiers, Pareto matrix)
+        try {
+            $analyticsService = app(MarketingAnalyticsService::class);
+            $perfData = $analyticsService->enrichPerformanceDataset($perfData);
+        } catch (\Throwable $e) {
+            Log::warning("Python performance enrichment failed: " . $e->getMessage());
+        }
+
+        return $perfData;
     }
 
     /**
@@ -2043,6 +1998,16 @@ USER_PROMPT;
             'isAllTimeMaterials' => $isAllTimeMaterials,
             'recentInvoices' => $invoices,
         ];
+
+        // Enrich customer KPI & RFM diagnostics using Python analytics
+        try {
+            $analyticsService = app(MarketingAnalyticsService::class);
+            $customerPerfData = $analyticsService->enrichCustomerDataset($customerPerfData);
+        } catch (\Throwable $e) {
+            Log::warning("Python customer performance enrichment failed: " . $e->getMessage());
+        }
+
+        return $customerPerfData;
     }
 
     /**

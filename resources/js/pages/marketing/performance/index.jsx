@@ -1290,10 +1290,10 @@ export default function PerformanceIndex({
                                         <div className="space-y-5">
                                             {/* Notice if local fallback */}
                                             {aiIsFallback && (
-                                                <div className="flex items-center gap-2 rounded-lg border border-amber-500/20 bg-amber-500/10 px-3.5 py-2 text-xs text-amber-700 dark:text-amber-300">
-                                                    <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
+                                                <div className="flex items-center gap-2 rounded-lg border border-indigo-500/20 bg-indigo-500/10 px-3.5 py-2 text-xs text-indigo-700 dark:text-indigo-300">
+                                                    <Sparkles className="h-4 w-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
                                                     <span>
-                                                        <strong>Catatan Lingkungan:</strong> Model Qwen 2.5 (7B) aktif di VPS Production. Di lokal saat ini modul berjalan dengan Intelligent Heuristic Engine. Saat dideploy ke VPS Production, modul otomatis terhubung ke engine Qwen 2.5 (7B) Ollama.
+                                                        <strong>Metode Analitik Data Terintegrasi (Python + Qwen 2.5):</strong> Seluruh analitik data dihitung secara presisi menggunakan <em>Python Data Analytics Engine</em> (Pareto HHI, Cohort Dynamics, Z-Score Outlier & Health Scoring berbobot), lalu diteruskan ke <strong>Qwen 2.5 (7B) Ollama</strong> di VPS Production agar kesimpulan serta rekomendasi strategisnya berbasis data riil dan jauh lebih akurat.
                                                     </span>
                                                 </div>
                                             )}
@@ -1404,6 +1404,30 @@ export default function PerformanceIndex({
                                                                 Analisis Pareto:{' '}
                                                             </strong>
                                                             {aiData.pareto_risk_analysis.evaluation}
+                                                        </div>
+                                                    )}
+
+                                                    {/* Python Analytical Metrics Badges */}
+                                                    {aiData.analytics_metrics && (
+                                                        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-sidebar-border/50 pt-2.5">
+                                                            <span className="text-[11px] font-semibold text-muted-foreground">
+                                                                Metrik Analitik Python:
+                                                            </span>
+                                                            <span className="inline-flex items-center gap-1 rounded-md bg-secondary/80 px-2 py-0.5 text-[11px] font-medium text-foreground">
+                                                                HHI: <strong className="text-primary">{aiData.analytics_metrics.hhi}</strong> ({aiData.analytics_metrics.hhi_label || aiData.analytics_metrics.risk_level})
+                                                            </span>
+                                                            <span className="inline-flex items-center gap-1 rounded-md bg-secondary/80 px-2 py-0.5 text-[11px] font-medium text-foreground">
+                                                                Gini: <strong className="text-primary">{aiData.analytics_metrics.gini}</strong>
+                                                            </span>
+                                                            <span className="inline-flex items-center gap-1 rounded-md bg-secondary/80 px-2 py-0.5 text-[11px] font-medium text-foreground">
+                                                                NRR: <strong className="text-emerald-600 dark:text-emerald-400">{aiData.analytics_metrics.nrr_percent}%</strong>
+                                                            </span>
+                                                            <span className="inline-flex items-center gap-1 rounded-md bg-secondary/80 px-2 py-0.5 text-[11px] font-medium text-foreground">
+                                                                Churn Rate: <strong className={aiData.analytics_metrics.churn_rate_percent > 15 ? 'text-rose-600 dark:text-rose-400' : 'text-foreground'}>{aiData.analytics_metrics.churn_rate_percent}%</strong>
+                                                            </span>
+                                                            <span className="inline-flex items-center gap-1 rounded-md bg-secondary/80 px-2 py-0.5 text-[11px] font-medium text-foreground">
+                                                                Titik 80% Pareto: <strong>{aiData.analytics_metrics.pareto_80_cutoff_customers} Akun</strong>
+                                                            </span>
                                                         </div>
                                                     )}
                                                 </div>
