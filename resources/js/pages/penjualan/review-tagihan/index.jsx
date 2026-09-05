@@ -262,20 +262,6 @@ export default function ReviewTagihanIndex() {
         setTimeout(() => setAiCopied(false), 2500);
     };
 
-    // Copy Targeted Customer Script for WhatsApp
-    const handleCopyCustomerScript = (customerName, saldo, overdueDays, invoicesCount) => {
-        const message =
-            `Halo Selamat Pagi/Siang Rekan Keuangan & Purchasing ${customerName},\n\n` +
-            `Semoga Bapak/Ibu dan tim senantiasa dalam keadaan sehat dan lancar usahanya.\n\n` +
-            `Kami dari Tim Penjualan & Keuangan izin mengonfirmasi rekapitulasi faktur penjualan dengan rincian outstanding sebesar *${saldo}* (${invoicesCount} faktur) yang saat ini telah melewati batas jatuh tempo (${overdueDays} hari).\n\n` +
-            `Mohon bantuannya untuk informasi estimasi jadwal kliring/transfer pelunasan faktur tersebut minggu ini agar kami dapat memprioritaskan alokasi armada dan proses order barang berikutnya untuk ${customerName}.\n\n` +
-            `Jika ada dokumen faktur atau tanda terima yang perlu kami kirimkan ulang, mohon berkenan mengabari kami. Terima kasih banyak atas kerja sama yang baik selama ini. 🙏`;
-
-        navigator.clipboard.writeText(message);
-        setAccountCopied(customerName);
-        setTimeout(() => setAccountCopied(null), 2500);
-    };
-
     const openInvoiceModal = async ({
         scope = 'overdue',
         customer = '',
@@ -384,21 +370,6 @@ export default function ReviewTagihanIndex() {
                         <p className="mt-1 text-sm text-muted-foreground">
                             Monitoring saldo piutang faktur, analitik risiko umur jatuh tempo, dan panduan taktis penagihan.
                         </p>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => fetchAiAnalysis(true)}
-                            disabled={aiLoading}
-                            className="gap-1.5 border-sidebar-border/70 text-xs font-medium shadow-2xs hover:bg-muted"
-                        >
-                            <RefreshCw
-                                className={`h-3.5 w-3.5 ${aiLoading ? 'animate-spin text-primary' : ''}`}
-                            />
-                            <span>{aiLoading ? 'Memproses...' : 'Analisis Ulang (AI)'}</span>
-                        </Button>
                     </div>
                 </div>
 
@@ -920,7 +891,7 @@ export default function ReviewTagihanIndex() {
                                                             </div>
                                                         </div>
 
-                                                        <div className="mt-3.5 flex items-center gap-2 border-t border-sidebar-border/40 pt-2.5">
+                                                        <div className="mt-3.5 border-t border-sidebar-border/40 pt-2.5">
                                                             <Button
                                                                 size="sm"
                                                                 variant="outline"
@@ -932,37 +903,10 @@ export default function ReviewTagihanIndex() {
                                                                         showPaymentFilter: true,
                                                                     })
                                                                 }
-                                                                className="h-8 flex-1 gap-1 text-xs"
+                                                                className="h-8 w-full gap-1 text-xs"
                                                             >
                                                                 <Eye className="h-3.5 w-3.5" />
                                                                 <span>Lihat Faktur</span>
-                                                            </Button>
-
-                                                            <Button
-                                                                size="sm"
-                                                                variant="secondary"
-                                                                onClick={() =>
-                                                                    handleCopyCustomerScript(
-                                                                        acc.customer,
-                                                                        acc.formatted_saldo,
-                                                                        acc.max_overdue_days,
-                                                                        acc.invoice_count,
-                                                                    )
-                                                                }
-                                                                className="h-8 gap-1 text-xs"
-                                                                title="Salin script chat WhatsApp khusus akun ini"
-                                                            >
-                                                                {accountCopied === acc.customer ? (
-                                                                    <>
-                                                                        <Check className="h-3.5 w-3.5 text-emerald-600" />
-                                                                        <span className="text-emerald-600 font-medium">Tersalin</span>
-                                                                    </>
-                                                                ) : (
-                                                                    <>
-                                                                        <MessageSquare className="h-3.5 w-3.5 text-primary" />
-                                                                        <span>Script WA</span>
-                                                                    </>
-                                                                )}
                                                             </Button>
                                                         </div>
                                                     </div>
@@ -1215,7 +1159,7 @@ export default function ReviewTagihanIndex() {
                                         <TableHead>Total Faktur</TableHead>
                                         <TableHead>Total Saldo Piutang</TableHead>
                                         <TableHead>Umur Jatuh Tempo Terlama</TableHead>
-                                        <TableHead className="w-[110px] text-right">Aksi</TableHead>
+                                        <TableHead className="w-[80px] text-right">Aksi</TableHead>
                                     </TableRow>
                                 </TableHeader>
                                 <TableBody>
@@ -1273,48 +1217,24 @@ export default function ReviewTagihanIndex() {
                                                         </span>
                                                     </TableCell>
                                                     <TableCell className="text-right">
-                                                        <div className="flex items-center justify-end gap-1">
-                                                            <Button
-                                                                type="button"
-                                                                size="sm"
-                                                                variant="ghost"
-                                                                onClick={() =>
-                                                                    handleCopyCustomerScript(
-                                                                        customer.nm_cs,
-                                                                        formatRupiah(customer.total_saldo_piutang),
-                                                                        customer.umur_tempo_terlama,
-                                                                        customer.total_faktur,
-                                                                    )
-                                                                }
-                                                                className="h-8 px-2 text-xs text-muted-foreground hover:text-foreground"
-                                                                title="Salin pesan tagihan WhatsApp untuk customer ini"
-                                                            >
-                                                                {accountCopied === customer.nm_cs ? (
-                                                                    <Check className="h-3.5 w-3.5 text-emerald-600" />
-                                                                ) : (
-                                                                    <MessageSquare className="h-3.5 w-3.5" />
-                                                                )}
-                                                            </Button>
-
-                                                            <Button
-                                                                type="button"
-                                                                size="sm"
-                                                                variant="outline"
-                                                                onClick={() =>
-                                                                    openInvoiceModal({
-                                                                        scope: 'overdue',
-                                                                        range: 'all',
-                                                                        showPaymentFilter: true,
-                                                                        customer: customer.nm_cs,
-                                                                    })
-                                                                }
-                                                                className="h-8 gap-1 px-2.5 text-xs font-medium"
-                                                                title="Lihat rincian faktur customer ini"
-                                                            >
-                                                                <Eye className="h-3.5 w-3.5" />
-                                                                <span>Faktur</span>
-                                                            </Button>
-                                                        </div>
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="outline"
+                                                            onClick={() =>
+                                                                openInvoiceModal({
+                                                                    scope: 'overdue',
+                                                                    range: 'all',
+                                                                    showPaymentFilter: true,
+                                                                    customer: customer.nm_cs,
+                                                                })
+                                                            }
+                                                            className="h-8 gap-1 px-2.5 text-xs font-medium"
+                                                            title="Lihat rincian faktur customer ini"
+                                                        >
+                                                            <Eye className="h-3.5 w-3.5" />
+                                                            <span>Faktur</span>
+                                                        </Button>
                                                     </TableCell>
                                                 </TableRow>
                                             );
