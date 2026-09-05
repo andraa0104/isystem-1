@@ -58,6 +58,32 @@ const getPrCustomers = (item) =>
         ? item.customers
         : [item];
 
+const getUniquePrCustomers = (item) => {
+    const rawCustomers = getPrCustomers(item);
+    const map = new Map();
+    rawCustomers.forEach((customer) => {
+        const rawName = String(customer?.for_customer ?? '').trim();
+        const key = rawName.toLowerCase() || '-';
+        if (!map.has(key)) {
+            map.set(key, {
+                ...customer,
+                for_customer: rawName || '-',
+            });
+        } else {
+            const existing = map.get(key);
+            if (hasOverdueMoreThan90Days(customer)) {
+                existing.has_overdue_gt_90 = true;
+                existing.oldest_overdue_days = Math.max(
+                    parseNumber(existing.oldest_overdue_days),
+                    parseNumber(customer.oldest_overdue_days),
+                );
+            }
+        }
+    });
+    const result = Array.from(map.values());
+    return result.length > 0 ? result : [{ for_customer: '-' }];
+};
+
 const getPrCustomerKey = (customer = {}) =>
     `${String(customer.for_customer ?? '').trim()}||${String(customer.ref_po ?? '').trim()}`;
 
@@ -307,12 +333,20 @@ export default function PurchaseOrderCreate({
         setFormData((prev) => ({
             ...prev,
             refPr: item.no_pr ?? '',
-            forCustomer: eligibleCustomers
-                .map((customer) => customer.for_customer)
-                .join(', '),
-            refPoMasuk: eligibleCustomers
-                .map((customer) => customer.ref_po)
-                .join(', '),
+            forCustomer: Array.from(
+                new Set(
+                    eligibleCustomers
+                        .map((customer) => String(customer.for_customer ?? '').trim())
+                        .filter(Boolean),
+                ),
+            ).join(', '),
+            refPoMasuk: Array.from(
+                new Set(
+                    eligibleCustomers
+                        .map((customer) => String(customer.ref_po ?? '').trim())
+                        .filter(Boolean),
+                ),
+            ).join(', '),
             refQuota: item.ref_quota ?? '',
             selectedCustomers: eligibleCustomers,
         }));
@@ -1634,6 +1668,15 @@ export default function PurchaseOrderCreate({
                                     />
                                     {displayedPr.map((item) => {
                                         const customers = getPrCustomers(item);
+                                        const uniqueCustomers = getUniquePrCustomers(item);
+                                        const rawRefPos = Array.from(
+                                            new Set(
+                                                customers
+                                                    .map((c) => String(c.ref_po ?? '').trim())
+                                                    .filter(Boolean),
+                                            ),
+                                        );
+                                        const uniqueRefPos = rawRefPos.length > 0 ? rawRefPos : ['-'];
                                         const isBlocked = Boolean(
                                             item.all_customers_blocked,
                                         );
@@ -1651,10 +1694,10 @@ export default function PurchaseOrderCreate({
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     <div className="space-y-2">
-                                                        {customers.map(
-                                                            (customer) => (
+                                                        {uniqueCustomers.map(
+                                                            (customer, idx) => (
                                                                 <div
-                                                                    key={`${customer.for_customer}-${customer.ref_po}`}
+                                                                    key={`${customer.for_customer}-${idx}`}
                                                                     className="flex flex-wrap items-center gap-2"
                                                                 >
                                                                     <span>
@@ -1679,13 +1722,13 @@ export default function PurchaseOrderCreate({
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     <div className="space-y-2">
-                                                        {customers.map(
-                                                            (customer) => (
+                                                        {uniqueRefPos.map(
+                                                            (refPo, idx) => (
                                                                 <div
-                                                                    key={`${customer.for_customer}-${customer.ref_po}`}
+                                                                    key={`${refPo}-${idx}`}
                                                                 >
                                                                     {renderValue(
-                                                                        customer.ref_po,
+                                                                        refPo,
                                                                     )}
                                                                 </div>
                                                             ),

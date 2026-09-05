@@ -1,3 +1,5 @@
+import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
+import { Badge } from '@/components/ui/badge';
 import { ActionIconButton } from '@/components/action-icon-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -37,6 +39,41 @@ const parseNumber = (value) => {
     normalized = normalized.replace(/[^\d.-]/g, '');
     const parsed = Number(normalized);
     return Number.isNaN(parsed) ? 0 : parsed;
+};
+
+const hasOverdueMoreThan90Days = (item) =>
+    Boolean(item?.has_overdue_gt_90) ||
+    parseNumber(item?.oldest_overdue_days) > 90;
+
+const getPrCustomers = (item) =>
+    Array.isArray(item?.customers) && item.customers.length > 0
+        ? item.customers
+        : [item];
+
+const getUniquePrCustomers = (item) => {
+    const rawCustomers = getPrCustomers(item);
+    const map = new Map();
+    rawCustomers.forEach((customer) => {
+        const rawName = String(customer?.for_customer ?? '').trim();
+        const key = rawName.toLowerCase() || '-';
+        if (!map.has(key)) {
+            map.set(key, {
+                ...customer,
+                for_customer: rawName || '-',
+            });
+        } else {
+            const existing = map.get(key);
+            if (hasOverdueMoreThan90Days(customer)) {
+                existing.has_overdue_gt_90 = true;
+                existing.oldest_overdue_days = Math.max(
+                    parseNumber(existing.oldest_overdue_days),
+                    parseNumber(customer.oldest_overdue_days),
+                );
+            }
+        }
+    });
+    const result = Array.from(map.values());
+    return result.length > 0 ? result : [{ for_customer: '-' }];
 };
 
 const getPrCustomerKey = (customer = {}) =>
@@ -90,6 +127,30 @@ export default function PurchaseOrderEdit({
     const [pendingClearRealization, setPendingClearRealization] =
         useState(null);
     const [pendingClearAllocations, setPendingClearAllocations] = useState({});
+
+    const [prs, setPrs] = useState([]);
+    const [prLoading, setPrLoading] = useState(false);
+    const [prError, setPrError] = useState(null);
+
+    const loadPrs = async () => {
+        setPrLoading(true);
+        setPrError(null);
+        try {
+            const response = await fetch(
+                '/pembelian/purchase-order/outstanding-prs',
+                { headers: { Accept: 'application/json' } },
+            );
+            if (!response.ok) {
+                throw new Error('Gagal memuat PR outstanding');
+            }
+            const data = await response.json();
+            setPrs(data.purchaseRequirements ?? []);
+        } catch (error) {
+            setPrError(error.message);
+        } finally {
+            setPrLoading(false);
+        }
+    };
 
     const [prSearchTerm, setPrSearchTerm] = useState('');
     const [prPageSize, setPrPageSize] = useState(10);
@@ -230,12 +291,13 @@ export default function PurchaseOrderEdit({
     };
 
     const filteredPr = useMemo(() => {
+        const source = prs.length > 0 ? prs : purchaseRequirements;
         const term = prSearchTerm.trim().toLowerCase();
         if (!term) {
-            return purchaseRequirements;
+            return source;
         }
 
-        return purchaseRequirements.filter((item) => {
+        return source.filter((item) => {
             const values = [item.no_pr, item.ref_po, item.for_customer];
             return values.some((value) =>
                 String(value ?? '')
@@ -243,7 +305,7 @@ export default function PurchaseOrderEdit({
                     .includes(term),
             );
         });
-    }, [prSearchTerm, purchaseRequirements]);
+    }, [prSearchTerm, prs, purchaseRequirements]);
 
     const prTotalItems = filteredPr.length;
     const prTotalPages = useMemo(() => {
@@ -359,11 +421,27 @@ export default function PurchaseOrderEdit({
     }, [formData.refPr, materialItems, pendingPrMaterial, prDetailList]);
 
     const handlePrSelect = (item) => {
+        const customers = getPrCustomers(item);
+        const uniqueCustomerNames = Array.from(
+            new Set(
+                customers
+                    .map((c) => String(c.for_customer ?? '').trim())
+                    .filter(Boolean),
+            ),
+        ).join(', ');
+        const uniqueRefPos = Array.from(
+            new Set(
+                customers
+                    .map((c) => String(c.ref_po ?? '').trim())
+                    .filter(Boolean),
+            ),
+        ).join(', ');
+
         setFormData((prev) => ({
             ...prev,
             refPr: item.no_pr ?? '',
-            forCustomer: item.for_customer ?? '',
-            refPoMasuk: item.ref_po ?? '',
+            forCustomer: uniqueCustomerNames || item.for_customer || prev.forCustomer,
+            refPoMasuk: uniqueRefPos || item.ref_po || prev.refPoMasuk,
             noPo: item.no_po ?? prev.noPo,
         }));
         setIsPrModalOpen(false);
@@ -1257,9 +1335,22 @@ export default function PurchaseOrderEdit({
                                 <Input value={formData.noPo} readOnly />
                             </label>
                             <label className="space-y-2 text-sm md:col-span-2">
-                                <span className="text-muted-foreground">
-                                    Ref PR
-                                </span>
+                                <div className="flex items-center justify-between">
+                                    <span className="text-muted-foreground">
+                                        Ref PR
+                                    </span>
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                            setIsPrModalOpen(true);
+                                            loadPrs();
+                                        }}
+                                    >
+                                        Cari PR Outstanding
+                                    </Button>
+                                </div>
                                 <Input value={formData.refPr} readOnly />
                             </label>
 
@@ -1873,16 +1964,18 @@ export default function PurchaseOrderEdit({
                                                                 ) &&
                                                                 detail.customers
                                                                     .length > 0
-                                                                    ? detail.customers
-                                                                          .map(
-                                                                              (
-                                                                                  customer,
-                                                                              ) =>
-                                                                                  `${renderValue(customer.for_customer)} / ${renderValue(customer.ref_po)}`,
-                                                                          )
-                                                                          .join(
-                                                                              ', ',
-                                                                          )
+                                                                    ? Array.from(
+                                                                          new Set(
+                                                                              detail.customers.map(
+                                                                                  (
+                                                                                      customer,
+                                                                                  ) =>
+                                                                                      `${renderValue(customer.for_customer)} / ${renderValue(customer.ref_po)}`,
+                                                                              ),
+                                                                          ),
+                                                                      ).join(
+                                                                          ', ',
+                                                                      )
                                                                     : '-'}
                                                             </td>
                                                             <td className="px-4 py-3">
@@ -1961,7 +2054,264 @@ export default function PurchaseOrderEdit({
                     </Card>
                 )}
 
-                {/* PR modal intentionally removed on edit */}
+                <Dialog
+                    open={isPrModalOpen}
+                    onOpenChange={(open) => {
+                        setIsPrModalOpen(open);
+                        if (open) {
+                            loadPrs();
+                        } else {
+                            setPrSearchTerm('');
+                            setPrPageSize(5);
+                            setPrCurrentPage(1);
+                        }
+                    }}
+                >
+                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
+                        <DialogHeader>
+                            <DialogTitle>PR Outstanding</DialogTitle>
+                        </DialogHeader>
+
+                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                            <label>
+                                Tampilkan
+                                <select
+                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                    value={
+                                        prPageSize === Infinity
+                                            ? 'all'
+                                            : prPageSize
+                                    }
+                                    onChange={(event) => {
+                                        const value = event.target.value;
+                                        setPrPageSize(
+                                            value === 'all'
+                                                ? Infinity
+                                                : Number(value),
+                                        );
+                                        setPrCurrentPage(1);
+                                    }}
+                                >
+                                    <option value={5}>5</option>
+                                    <option value={10}>10</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value="all">Semua</option>
+                                </select>
+                            </label>
+                            <label>
+                                Cari
+                                <input
+                                    type="search"
+                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
+                                    placeholder="Cari no PR, ref PO, customer..."
+                                    value={prSearchTerm}
+                                    onChange={(event) =>
+                                        setPrSearchTerm(event.target.value)
+                                    }
+                                />
+                            </label>
+                        </div>
+
+                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                            <table className="w-full text-sm">
+                                <thead className="bg-muted/50 text-muted-foreground">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left">
+                                            No PR
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Date
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Customer
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Ref PO
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Action
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <PlainTableStateRows
+                                        columns={5}
+                                        loading={
+                                            prLoading &&
+                                            displayedPr.length === 0
+                                        }
+                                        error={
+                                            displayedPr.length === 0
+                                                ? prError
+                                                : null
+                                        }
+                                        onRetry={loadPrs}
+                                        isEmpty={
+                                            !prLoading &&
+                                            !prError &&
+                                            displayedPr.length === 0
+                                        }
+                                        emptyTitle="Tidak ada PR outstanding."
+                                    />
+                                    {displayedPr.map((item) => {
+                                        const customers = getPrCustomers(item);
+                                        const uniqueCustomers = getUniquePrCustomers(item);
+                                        const rawRefPos = Array.from(
+                                            new Set(
+                                                customers
+                                                    .map((c) => String(c.ref_po ?? '').trim())
+                                                    .filter(Boolean),
+                                            ),
+                                        );
+                                        const uniqueRefPos = rawRefPos.length > 0 ? rawRefPos : ['-'];
+                                        const isBlocked = Boolean(
+                                            item.all_customers_blocked,
+                                        );
+
+                                        return (
+                                            <tr
+                                                key={`${item.no_pr}-${item.for_customer}-${item.ref_po}`}
+                                                className="border-t border-sidebar-border/70"
+                                            >
+                                                <td className="px-4 py-3">
+                                                    {renderValue(item.no_pr)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {renderValue(item.date)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <div className="space-y-2">
+                                                        {uniqueCustomers.map(
+                                                            (customer, idx) => (
+                                                                <div
+                                                                    key={`${customer.for_customer}-${idx}`}
+                                                                    className="flex flex-wrap items-center gap-2"
+                                                                >
+                                                                    <span>
+                                                                        {renderValue(
+                                                                            customer.for_customer,
+                                                                        )}
+                                                                    </span>
+                                                                    {hasOverdueMoreThan90Days(
+                                                                        customer,
+                                                                    ) && (
+                                                                        <Badge variant="destructive">
+                                                                            Tunggakan
+                                                                            &gt;
+                                                                            90
+                                                                            hari
+                                                                        </Badge>
+                                                                    )}
+                                                                </div>
+                                                            ),
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <div className="space-y-2">
+                                                        {uniqueRefPos.map(
+                                                            (refPo, idx) => (
+                                                                <div
+                                                                    key={`${refPo}-${idx}`}
+                                                                >
+                                                                    {renderValue(
+                                                                        refPo,
+                                                                    )}
+                                                                </div>
+                                                            ),
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex flex-col items-start gap-1">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            disabled={isBlocked}
+                                                            title={
+                                                                isBlocked
+                                                                    ? 'Customer memiliki tunggakan tagihan > 90 hari, tidak dapat dibuatkan PO keluar.'
+                                                                    : undefined
+                                                            }
+                                                            onClick={() =>
+                                                                handlePrSelect(
+                                                                    item,
+                                                                )
+                                                            }
+                                                        >
+                                                            Pilih
+                                                        </Button>
+                                                        {isBlocked && (
+                                                            <span className="max-w-48 text-xs leading-snug text-red-600">
+                                                                Tidak dapat
+                                                                dibuatkan PO
+                                                                keluar.
+                                                            </span>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {prPageSize !== Infinity && prTotalItems > 0 && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                <span>
+                                    Menampilkan{' '}
+                                    {Math.min(
+                                        (prCurrentPage - 1) * prPageSize + 1,
+                                        prTotalItems,
+                                    )}
+                                    -
+                                    {Math.min(
+                                        prCurrentPage * prPageSize,
+                                        prTotalItems,
+                                    )}{' '}
+                                    dari {prTotalItems} data
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setPrCurrentPage((page) =>
+                                                Math.max(1, page - 1),
+                                            )
+                                        }
+                                        disabled={prCurrentPage === 1}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground">
+                                        Halaman {prCurrentPage} dari{' '}
+                                        {prTotalPages}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setPrCurrentPage((page) =>
+                                                Math.min(
+                                                    prTotalPages,
+                                                    page + 1,
+                                                ),
+                                            )
+                                        }
+                                        disabled={
+                                            prCurrentPage === prTotalPages
+                                        }
+                                    >
+                                        Berikutnya
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                    </DialogContent>
+                </Dialog>
 
                 <Dialog
                     open={isVendorModalOpen}

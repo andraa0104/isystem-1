@@ -329,10 +329,21 @@ export default function PurchaseRequirementIndex({
     };
 
     const renderCustomersWithOverdueMarkers = (customers) => {
-        const list = splitMultiValue(customers);
+        const rawList = splitMultiValue(customers);
 
-        if (list.length === 0) {
+        if (rawList.length === 0) {
             return renderCustomerWithOverdueMarker(customers);
+        }
+
+        // Jika ada lebih dari 1 dengan nama customer yang sama, tampilkan 1 saja
+        const seen = new Set();
+        const list = [];
+        for (const customer of rawList) {
+            const key = normalizeCustomerName(customer);
+            if (key && !seen.has(key)) {
+                seen.add(key);
+                list.push(customer);
+            }
         }
 
         return (
@@ -1643,7 +1654,11 @@ export default function PurchaseRequirementIndex({
                                     {activeTab === 'material' ? (
                                         <>
                                             <td className="px-1 py-3 whitespace-nowrap">{item.ref_po ?? '-'}</td>
-                                            <td className="px-1 py-3">{item.for_customer ?? '-'}</td>
+                                            <td className="px-1 py-3">
+                                                {renderCustomersWithOverdueMarkers(
+                                                    item.for_customer,
+                                                )}
+                                            </td>
                                             <td className="px-1 py-3">{item.material ?? '-'}</td>
                                             <td className="px-1 py-3 text-right whitespace-nowrap">{item.qty ?? 0} {item.unit ?? ''}</td>
                                             <td className="px-1 py-3 text-right whitespace-nowrap">{item.sisa_pr ?? 0}</td>

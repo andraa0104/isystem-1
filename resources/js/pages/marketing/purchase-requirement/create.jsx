@@ -423,74 +423,54 @@ export default function PurchaseRequirementCreate() {
                 (item) => Number(item.sisa_qtypr ?? 0) > 0,
             );
 
-            // --- PROSES AUTOFILL MASSAL BERDASARKAN KODE MATERIAL ---
-            const itemsWithAutofilledPrice = await Promise.all(
-                filteredItems.map(async (item, index) => {
-                    let hargaModalTerakhir = item.harga_modal ?? '';
+            // --- PROSES MAPPING DATA MATERIAL DENGAN HARGA MODAL & STOK DARI BACKEND ---
+            const itemsWithAutofilledPrice = filteredItems.map((item, index) => {
+                const hargaModalTerakhir = item.harga_modal ?? '';
 
-                    // Jika harga_modal dari PO In kosong, mari cari ke tb_invin berdasarkan kd_material
-                    if (!hargaModalTerakhir && item.kd_material) {
-                        try {
-                            const priceRes = await axios.get(
-                                '/marketing/purchase-requirement/get-last-price',
-                                {
-                                    params: { kd_mat: item.kd_material },
-                                },
-                            );
-                            if (priceRes.data && priceRes.data.success) {
-                                hargaModalTerakhir = priceRes.data.harga;
-                            }
-                        } catch (err) {
-                            console.error(
-                                `Gagal autofill harga untuk ${item.kd_material}:`,
-                                err,
-                            );
-                        }
-                    }
+                const stockBreakdown = {
+                    stokG1: item.stok_g1 ?? 0,
+                    stokG2: item.stok_g2 ?? 0,
+                    stokG3: item.stok_g3 ?? 0,
+                    stokG4: item.stok_g4 ?? 0,
+                    mis: item.mis ?? 0,
+                    mib: item.mib ?? 0,
+                    mibs: item.mibs ?? 0,
+                    pr_outstanding: item.pr_outstanding ?? 0,
+                    po_outstanding: item.po_outstanding ?? 0,
+                    do_outstanding: item.do_outstanding ?? 0,
+                };
+                const totalStock = calculateTotalStock(stockBreakdown);
+                const remainingQtyPr = parseNumber(item.sisa_qtypr);
+                const orderInQty = parseNumber(item.qty_po_in);
 
-                    const stockBreakdown = {
-                        stokG1: item.stok_g1 ?? 0,
-                        stokG2: item.stok_g2 ?? 0,
-                        stokG3: item.stok_g3 ?? 0,
-                        stokG4: item.stok_g4 ?? 0,
-                        mis: item.mis ?? 0,
-                        mib: item.mib ?? 0,
-                        mibs: item.mibs ?? 0,
-                        pr_outstanding: item.pr_outstanding ?? 0,
-                        po_outstanding: item.po_outstanding ?? 0,
-                        do_outstanding: item.do_outstanding ?? 0,
-                    };
-                    const totalStock = calculateTotalStock(stockBreakdown);
-                    const remainingQtyPr = parseNumber(item.sisa_qtypr);
-                    const orderInQty = parseNumber(item.qty_po_in);
-
-                    return {
-                        id: item.id ?? `${Date.now()}-${index}`,
-                        no: index + 1,
-                        kodeMaterial: item.kd_material ?? '',
-                        namaMaterial: item.material ?? '',
-                        ...stockBreakdown,
-                        stok: totalStock,
-                        qtyPoIn: orderInQty,
-                        maxQtyPr: remainingQtyPr,
-                        qtyPr:
-                            totalStock < 0
-                                ? Math.min(remainingQtyPr, Math.abs(totalStock))
-                                : 0,
-                        satuan: item.satuan ?? '',
-                        hargaPoIn: item.harga_po_in ?? 0,
-                        // Diisi dengan harga modal terakhir dari tb_invin hasil dicocokkan tadi
-                        hargaModal: hargaModalTerakhir,
-                        margin: calculateMargin(
+                return {
+                    id: item.id ?? `${Date.now()}-${index}`,
+                    no: index + 1,
+                    kodeMaterial: item.kd_material ?? '',
+                    namaMaterial: item.material ?? '',
+                    ...stockBreakdown,
+                    stok: totalStock,
+                    qtyPoIn: orderInQty,
+                    maxQtyPr: remainingQtyPr,
+                    qtyPr:
+                        totalStock < 0
+                            ? Math.min(remainingQtyPr, Math.abs(totalStock))
+                            : 0,
+                    satuan: item.satuan ?? '',
+                    hargaPoIn: item.harga_po_in ?? 0,
+                    // Diisi langsung dari query batch backend (tb_detailpo & tb_invin)
+                    hargaModal: hargaModalTerakhir,
+                    margin:
+                        item.margin ??
+                        calculateMargin(
                             item.harga_po_in ?? 0,
                             hargaModalTerakhir,
                         ),
-                        remark: item.remark ?? '',
-                        refPo: selectedPoNumber,
-                        forCustomer: selectedCustomer,
-                    };
-                }),
-            );
+                    remark: item.remark ?? '',
+                    refPo: selectedPoNumber,
+                    forCustomer: selectedCustomer,
+                };
+            });
             // --------------------------------------------------------
 
             setMaterialItems(itemsWithAutofilledPrice);

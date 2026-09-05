@@ -827,13 +827,24 @@ class PurchaseRequirementController
             return response()->json(['items' => []]);
         }
 
-        $hasLineNo = Schema::hasColumn('tb_detailpoin', 'no');
-        $hasRemark = Schema::hasColumn('tb_detailpoin', 'remark');
-        $hasBarangStock = Schema::hasTable('tb_barang')
-            && Schema::hasColumn('tb_barang', 'stok_g1')
-            && Schema::hasColumn('tb_barang', 'stok_g2')
-            && Schema::hasColumn('tb_barang', 'stok_g3')
-            && Schema::hasColumn('tb_barang', 'stok_g4');
+        static $schemaCache = null;
+        if ($schemaCache === null) {
+            $schemaCache = Cache::remember('marketing_poin_details_schema', 86400, function () {
+                return [
+                    'hasLineNo' => Schema::hasColumn('tb_detailpoin', 'no'),
+                    'hasRemark' => Schema::hasColumn('tb_detailpoin', 'remark'),
+                    'hasBarangStock' => Schema::hasTable('tb_barang')
+                        && Schema::hasColumn('tb_barang', 'stok_g1')
+                        && Schema::hasColumn('tb_barang', 'stok_g2')
+                        && Schema::hasColumn('tb_barang', 'stok_g3')
+                        && Schema::hasColumn('tb_barang', 'stok_g4'),
+                ];
+            });
+        }
+
+        $hasLineNo = $schemaCache['hasLineNo'];
+        $hasRemark = $schemaCache['hasRemark'];
+        $hasBarangStock = $schemaCache['hasBarangStock'];
 
         $selects = [
             'd.id',
@@ -870,17 +881,12 @@ class PurchaseRequirementController
             $selects[] = DB::raw('0 as stok');
         }
 
+        // Query item PO IN memanfaatkan index idx_tb_detailpoin_kode_poin & idx_tb_barang_kd_material
         $items = DB::table('tb_detailpoin as d')
             ->when($hasBarangStock, function ($query) {
-                $query->leftJoin('tb_barang as b', function ($join) {
-                    $join->on(
-                        DB::raw('lower(trim(d.kd_material))'),
-                        '=',
-                        DB::raw('lower(trim(b.kd_material))')
-                    );
-                });
+                $query->leftJoin('tb_barang as b', 'b.kd_material', '=', 'd.kd_material');
             })
-            ->whereRaw('lower(trim(d.kode_poin)) = ?', [strtolower($kodePoin)])
+            ->where('d.kode_poin', '=', $kodePoin)
             ->when($hasLineNo, function ($query) {
                 $query->orderBy('d.no');
             }, function ($query) {
@@ -889,9 +895,11 @@ class PurchaseRequirementController
             ->select($selects)
             ->get();
 
-        $metrics = $this->getStockMetrics($items->pluck('kd_material')->toArray());
+        $rawKdMaterials = $items->pluck('kd_material')->filter()->unique()->values()->all();
+        $metrics = $this->getStockMetrics($rawKdMaterials);
+        $lastPrices = $this->getBatchLastPrices($rawKdMaterials);
 
-        $items = $items->map(function ($item) use ($metrics) {
+        $items = $items->map(function ($item) use ($metrics, $lastPrices) {
             $kd = strtolower(trim((string)$item->kd_material));
             if (isset($metrics[$kd])) {
                 $item->mis = array_key_exists('mis', $metrics[$kd]) ? $metrics[$kd]['mis'] : 0;
@@ -904,6 +912,14 @@ class PurchaseRequirementController
                 $item->mis = 0; $item->mib = 0; $item->mibs = 0; $item->pr_outstanding = 0; $item->po_outstanding = 0; $item->do_outstanding = 0;
             }
 
+            $hargaModal = isset($lastPrices[$kd]) && $lastPrices[$kd] > 0 ? (float) $lastPrices[$kd] : '';
+            $hargaPoIn = (float) $item->harga_po_in;
+            $margin = '0%';
+            if ($hargaPoIn > 0 && is_numeric($hargaModal) && (float)$hargaModal > 0) {
+                $calc = (($hargaPoIn - (float)$hargaModal) / $hargaPoIn) * 100;
+                $margin = round($calc, 2) . '%';
+            }
+
             return [
                 'id' => $item->id,
                 'kd_material' => $item->kd_material,
@@ -912,8 +928,8 @@ class PurchaseRequirementController
                 'qty_po_in' => (float) $item->qty_po_in,
                 'qty_pr' => (float) $item->sisa_qtypr,
                 'satuan' => $item->satuan,
-                'harga_po_in' => (float) $item->harga_po_in,
-                'harga_modal' => '',
+                'harga_po_in' => $hargaPoIn,
+                'harga_modal' => $hargaModal,
                 'stok_g1' => (float) $item->stok_g1,
                 'stok_g2' => (float) $item->stok_g2,
                 'stok_g3' => (float) $item->stok_g3,
@@ -925,7 +941,7 @@ class PurchaseRequirementController
                 'po_outstanding' => (float) $item->po_outstanding,
                 'do_outstanding' => (float) $item->do_outstanding,
                 'stok' => max(0, (float) $item->stok + (float) $item->mis + (float) $item->mib + (float) $item->mibs + (float) $item->pr_outstanding + (float) $item->po_outstanding - (float) $item->do_outstanding),
-                'margin' => '0%',
+                'margin' => $margin,
                 'remark' => $item->remark,
             ];
         })
@@ -941,42 +957,64 @@ class PurchaseRequirementController
             ->all();
 
         $selectedHeader = DB::table('tb_poin')
-            ->whereRaw('lower(trim(kode_poin)) = ?', [strtolower($kodePoin)])
+            ->where('kode_poin', trim($kodePoin))
             ->first(['kode_poin', 'no_poin', 'customer_name', 'note_doc']);
 
         $matchingPoIns = collect();
         if ($selectedHeader && !empty($selectedMaterialKeys)) {
-            $candidateHeaders = DB::table('tb_poin')
-                ->whereRaw('lower(trim(kode_poin)) <> ?', [strtolower($kodePoin)])
-                ->get(['kode_poin', 'no_poin', 'customer_name', 'note_doc']);
+            // Gunakan index idx_tb_detailpoin_kd_material untuk secara instan menyaring hanya PO IN yang memiliki material yang sama
+            $candidateKodePoins = DB::table('tb_detailpoin')
+                ->whereIn('kd_material', $selectedMaterialKeys)
+                ->where('kode_poin', '<>', trim($kodePoin))
+                ->whereRaw('coalesce(cast(sisa_qtypr as decimal(18,4)), 0) > 0')
+                ->distinct()
+                ->pluck('kode_poin');
 
-            foreach ($candidateHeaders as $candidate) {
-                $candidateItems = DB::table('tb_detailpoin')
-                    ->whereRaw('lower(trim(kode_poin)) = ?', [strtolower(trim((string) $candidate->kode_poin))])
-                    ->whereRaw('coalesce(cast(sisa_qtypr as decimal(18,4)), 0) > 0')
-                    ->orderBy('id')
-                    ->get(['id', 'kd_material', 'material', 'qty', 'sisa_qtypr', 'satuan', 'price_po_in']);
-                $candidateKeys = $candidateItems
-                    ->pluck('kd_material')
-                    ->map(fn ($value) => strtolower(trim((string) $value)))
-                    ->filter()->sort()->values()->all();
+            if ($candidateKodePoins->isNotEmpty()) {
+                $candidateDetails = DB::table('tb_detailpoin as d')
+                    ->join('tb_poin as p', 'p.kode_poin', '=', 'd.kode_poin')
+                    ->whereIn('d.kode_poin', $candidateKodePoins)
+                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) > 0')
+                    ->orderBy('d.id')
+                    ->get([
+                        'd.id',
+                        'd.kode_poin',
+                        'd.kd_material',
+                        'd.material',
+                        'd.qty',
+                        'd.sisa_qtypr',
+                        'd.satuan',
+                        'd.price_po_in',
+                        'p.no_poin',
+                        'p.customer_name',
+                        'p.note_doc',
+                    ])
+                    ->groupBy('kode_poin');
 
-                if ($candidateKeys === $selectedMaterialKeys) {
-                    $matchingPoIns->push([
-                        'kode_poin' => $candidate->kode_poin,
-                        'no_poin' => $candidate->no_poin,
-                        'customer_name' => $candidate->customer_name,
-                        'note_doc' => $candidate->note_doc,
-                        'materials' => $candidateItems->map(fn ($detail) => [
-                            'id' => $detail->id,
-                            'kd_material' => $detail->kd_material,
-                            'material' => $detail->material,
-                            'qty' => (float) $detail->qty,
-                            'sisa_qtypr' => (float) $detail->sisa_qtypr,
-                            'satuan' => $detail->satuan,
-                            'harga_po_in' => (float) $detail->price_po_in,
-                        ])->values(),
-                    ]);
+                foreach ($candidateDetails as $candKodePoin => $candidateItems) {
+                    $candidateKeys = $candidateItems
+                        ->pluck('kd_material')
+                        ->map(fn ($value) => strtolower(trim((string) $value)))
+                        ->filter()->sort()->values()->all();
+
+                    if ($candidateKeys === $selectedMaterialKeys) {
+                        $first = $candidateItems->first();
+                        $matchingPoIns->push([
+                            'kode_poin' => $candKodePoin,
+                            'no_poin' => $first->no_poin,
+                            'customer_name' => $first->customer_name,
+                            'note_doc' => $first->note_doc,
+                            'materials' => $candidateItems->map(fn ($detail) => [
+                                'id' => $detail->id,
+                                'kd_material' => $detail->kd_material,
+                                'material' => $detail->material,
+                                'qty' => (float) $detail->qty,
+                                'sisa_qtypr' => (float) $detail->sisa_qtypr,
+                                'satuan' => $detail->satuan,
+                                'harga_po_in' => (float) $detail->price_po_in,
+                            ])->values(),
+                        ]);
+                    }
                 }
             }
         }
@@ -2122,70 +2160,139 @@ class PurchaseRequirementController
         }
 
         $metrics = [];
+        $kdList = [];
         foreach ($kdMaterials as $kd) {
-            $metrics[strtolower(trim((string)$kd))] = [
-                'mib' => 0.0, 
-                'mis' => 0.0,
-                'mibs' => 0.0, 
-                'pr_outstanding' => 0.0, 
-                'po_outstanding' => 0.0, 
-                'do_outstanding' => 0.0
-            ];
+            $cleaned = strtolower(trim((string)$kd));
+            if ($cleaned !== '') {
+                $metrics[$cleaned] = [
+                    'mib' => 0.0, 
+                    'mis' => 0.0,
+                    'mibs' => 0.0, 
+                    'pr_outstanding' => 0.0, 
+                    'po_outstanding' => 0.0, 
+                    'do_outstanding' => 0.0
+                ];
+                $kdList[] = $kd;
+            }
         }
 
-        $kdList = array_map(function($k) { return strtolower(trim((string)$k)); }, $kdMaterials);
+        if (empty($kdList)) {
+            return [];
+        }
 
-        // Fetch MIB
-        $mibData = \Illuminate\Support\Facades\DB::table('tb_mi')
-            ->whereIn(\Illuminate\Support\Facades\DB::raw('lower(trim(kd_mat))'), $kdList)
-            ->selectRaw('lower(trim(kd_mat)) as kd_mat, sum(coalesce(cast(mib as decimal(18,4)), 0)) as mib_val, sum(coalesce(cast(mis as decimal(18,4)), 0)) as mis_val')
-            ->groupBy(\Illuminate\Support\Facades\DB::raw('lower(trim(kd_mat))'))
+        // Fetch MIB & MIS memanfaatkan index idx_tb_mi_kd_mat
+        $mibData = DB::table('tb_mi')
+            ->whereIn('kd_mat', $kdList)
+            ->selectRaw('kd_mat, sum(coalesce(cast(mib as decimal(18,4)), 0)) as mib_val, sum(coalesce(cast(mis as decimal(18,4)), 0)) as mis_val')
+            ->groupBy('kd_mat')
             ->get();
         foreach ($mibData as $row) {
-            $metrics[$row->kd_mat]['mib'] = (float) $row->mib_val;
-            $metrics[$row->kd_mat]['mis'] = (float) $row->mis_val;
+            $k = strtolower(trim((string)$row->kd_mat));
+            if (isset($metrics[$k])) {
+                $metrics[$k]['mib'] = (float) $row->mib_val;
+                $metrics[$k]['mis'] = (float) $row->mis_val;
+            }
         }
 
-        // Fetch MIBS
-        $mibsData = \Illuminate\Support\Facades\DB::table('tb_mib')
-            ->whereIn(\Illuminate\Support\Facades\DB::raw('lower(trim(kd_mat))'), $kdList)
-            ->selectRaw('lower(trim(kd_mat)) as kd_mat, sum(coalesce(cast(qty as decimal(18,4)), 0) - coalesce(cast(transfer as decimal(18,4)), 0)) as mibs_val')
-            ->groupBy(\Illuminate\Support\Facades\DB::raw('lower(trim(kd_mat))'))
+        // Fetch MIBS memanfaatkan index idx_tb_mib_kd_mat
+        $mibsData = DB::table('tb_mib')
+            ->whereIn('kd_mat', $kdList)
+            ->selectRaw('kd_mat, sum(coalesce(cast(qty as decimal(18,4)), 0) - coalesce(cast(transfer as decimal(18,4)), 0)) as mibs_val')
+            ->groupBy('kd_mat')
             ->get();
         foreach ($mibsData as $row) {
-            $metrics[$row->kd_mat]['mibs'] = (float) $row->mibs_val;
+            $k = strtolower(trim((string)$row->kd_mat));
+            if (isset($metrics[$k])) {
+                $metrics[$k]['mibs'] = (float) $row->mibs_val;
+            }
         }
 
-        // Fetch PR Outstanding
-        $prData = \Illuminate\Support\Facades\DB::table('tb_detailpr')
-            ->whereIn(\Illuminate\Support\Facades\DB::raw('lower(trim(kd_material))'), $kdList)
-            ->selectRaw('lower(trim(kd_material)) as kd_mat, coalesce(sum(sisa_pr), 0) as pr_val')
-            ->groupBy(\Illuminate\Support\Facades\DB::raw('lower(trim(kd_material))'))
+        // Fetch PR Outstanding memanfaatkan index idx_tb_detailpr_kd_mat
+        $prData = DB::table('tb_detailpr')
+            ->whereIn('kd_material', $kdList)
+            ->selectRaw('kd_material as kd_mat, coalesce(sum(sisa_pr), 0) as pr_val')
+            ->groupBy('kd_material')
             ->get();
         foreach ($prData as $row) {
-            $metrics[$row->kd_mat]['pr_outstanding'] = (float) $row->pr_val;
+            $k = strtolower(trim((string)$row->kd_mat));
+            if (isset($metrics[$k])) {
+                $metrics[$k]['pr_outstanding'] = (float) $row->pr_val;
+            }
         }
 
-        // Fetch PO Outstanding
-        $poData = \Illuminate\Support\Facades\DB::table('tb_detailpo')
-            ->whereIn(\Illuminate\Support\Facades\DB::raw('lower(trim(kd_mat))'), $kdList)
-            ->selectRaw('lower(trim(kd_mat)) as kd_mat, sum(coalesce(cast(gr_mat as decimal(18,4)), 0)) as po_val')
-            ->groupBy(\Illuminate\Support\Facades\DB::raw('lower(trim(kd_mat))'))
+        // Fetch PO Outstanding memanfaatkan index idx_tb_detailpo_kd_mat
+        $poData = DB::table('tb_detailpo')
+            ->whereIn('kd_mat', $kdList)
+            ->selectRaw('kd_mat, sum(coalesce(cast(gr_mat as decimal(18,4)), 0)) as po_val')
+            ->groupBy('kd_mat')
             ->get();
         foreach ($poData as $row) {
-            $metrics[$row->kd_mat]['po_outstanding'] = (float) $row->po_val;
+            $k = strtolower(trim((string)$row->kd_mat));
+            if (isset($metrics[$k])) {
+                $metrics[$k]['po_outstanding'] = (float) $row->po_val;
+            }
         }
 
-        // Fetch DO Outstanding
-        $doData = \Illuminate\Support\Facades\DB::table('tb_detailpoin as dpoin')
-            ->whereIn(\Illuminate\Support\Facades\DB::raw('lower(trim(dpoin.kd_material))'), $kdList)
-            ->selectRaw('lower(trim(dpoin.kd_material)) as kd_mat, sum(coalesce(cast(sisa_qtydo as decimal(18,4)), 0)) as do_val')
-            ->groupBy(\Illuminate\Support\Facades\DB::raw('lower(trim(dpoin.kd_material))'))
+        // Fetch DO Outstanding memanfaatkan index idx_tb_detailpoin_kd_material
+        $doData = DB::table('tb_detailpoin')
+            ->whereIn('kd_material', $kdList)
+            ->selectRaw('kd_material as kd_mat, sum(coalesce(cast(sisa_qtydo as decimal(18,4)), 0)) as do_val')
+            ->groupBy('kd_material')
             ->get();
         foreach ($doData as $row) {
-            $metrics[$row->kd_mat]['do_outstanding'] = (float) $row->do_val;
+            $k = strtolower(trim((string)$row->kd_mat));
+            if (isset($metrics[$k])) {
+                $metrics[$k]['do_outstanding'] = (float) $row->do_val;
+            }
         }
 
         return $metrics;
+    }
+
+    private function getBatchLastPrices(array $kdMaterials = []): array
+    {
+        if (empty($kdMaterials)) {
+            return [];
+        }
+
+        $kdList = array_values(array_unique(array_filter(array_map(fn ($k) => trim((string) $k), $kdMaterials))));
+        if (empty($kdList)) {
+            return [];
+        }
+
+        $prices = [];
+
+        // Fetch memanfaatkan index idx_tb_detailpo_kd_mat
+        $poPrices = DB::table('tb_detailpo')
+            ->whereIn('kd_mat', $kdList)
+            ->orderByRaw("str_to_date(nullif(trim(tgl), ''), '%d.%m.%Y') desc")
+            ->orderByDesc('no_po')
+            ->orderByDesc('id_po')
+            ->get(['kd_mat', 'price']);
+
+        foreach ($poPrices as $row) {
+            $k = strtolower(trim((string) $row->kd_mat));
+            if (!isset($prices[$k]) && (float) $row->price > 0) {
+                $prices[$k] = (float) $row->price;
+            }
+        }
+
+        $missing = array_values(array_diff(array_map('strtolower', $kdList), array_keys($prices)));
+        if (!empty($missing)) {
+            // Fetch memanfaatkan index idx_tb_invin_kd_mat
+            $invinPrices = DB::table('tb_invin')
+                ->whereIn('kd_mat', $missing)
+                ->orderByDesc('id_invin')
+                ->get(['kd_mat', 'harga']);
+
+            foreach ($invinPrices as $row) {
+                $k = strtolower(trim((string) $row->kd_mat));
+                if (!isset($prices[$k]) && (float) $row->harga > 0) {
+                    $prices[$k] = (float) $row->harga;
+                }
+            }
+        }
+
+        return $prices;
     }
 }
