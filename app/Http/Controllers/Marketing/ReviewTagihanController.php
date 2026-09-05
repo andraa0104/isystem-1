@@ -132,7 +132,32 @@ class ReviewTagihanController
             default => $rowsQuery->orderByDesc('umur_tempo_terlama'),
         };
 
-        $rows = $rowsQuery->get();
+        $rows = $rowsQuery->get()->map(function ($row) {
+            $maxAge = (int) ($row->umur_tempo_terlama ?? 0);
+            $saldo = (float) ($row->total_saldo_piutang ?? 0);
+
+            if ($maxAge > 90 || $saldo >= 50000000) {
+                $priority = 'CRITICAL';
+                $priorityLabel = 'Kritis';
+                $badgeClass = 'bg-rose-500/15 text-rose-700 dark:text-rose-400 border-rose-500/30';
+            } elseif ($maxAge > 45 || $saldo >= 25000000) {
+                $priority = 'HIGH';
+                $priorityLabel = 'Tinggi';
+                $badgeClass = 'bg-amber-500/15 text-amber-700 dark:text-amber-400 border-amber-500/30';
+            } elseif ($maxAge > 20) {
+                $priority = 'MEDIUM';
+                $priorityLabel = 'Sedang';
+                $badgeClass = 'bg-blue-500/15 text-blue-700 dark:text-blue-400 border-blue-500/30';
+            } else {
+                $priority = 'LOW';
+                $priorityLabel = 'Rendah';
+                $badgeClass = 'bg-slate-500/15 text-slate-700 dark:text-slate-400 border-slate-500/30';
+            }
+            $row->priority_tier = $priority;
+            $row->priority_label = $priorityLabel;
+            $row->badge_class = $badgeClass;
+            return $row;
+        });
 
         $total = $rows->count();
 
@@ -209,6 +234,41 @@ class ReviewTagihanController
             'oldest_overdue_days' => (int) ($rows->max('umur_tempo') ?? 0),
             'invoices' => $rows,
         ]);
+    }
+
+    public function aiAnalyze(Request $request, \App\Services\Marketing\CollectionAnalyticsService $analyticsService)
+    {
+        $scope = (string) $request->input('scope', 'all');
+        $overdueRange = (string) $request->input('overdue_range', 'all');
+        $customer = trim((string) $request->input('customer', ''));
+
+        $query = $this->baseInvoiceQuery()
+            ->select(
+                'no_fakturpenjualan',
+                'nm_cs',
+                'kd_cs',
+                'tgl_doc',
+                'jth_tempo',
+                'tgl_terimainv',
+                'ref_po',
+                'g_total',
+                'total_bayaran',
+                'saldo_piutang'
+            );
+
+        if ($customer !== '') {
+            $query->whereRaw('lower(trim(nm_cs)) = ?', [Str::lower(trim($customer))]);
+        }
+
+        if ($scope !== 'all') {
+            $this->applyDueScope($query, $scope, $overdueRange);
+        }
+
+        $invoices = $query->get()->map(fn ($row) => (array) $row)->toArray();
+
+        $result = $analyticsService->analyzeCollections($invoices, Carbon::today()->toDateString());
+
+        return response()->json($result);
     }
 
     private function scopeLabel(string $scope, string $overdueRange): string
