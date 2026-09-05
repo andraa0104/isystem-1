@@ -629,22 +629,34 @@ class PurchaseRequirementController
         $query = null;
         $mainTable = '';
 
+        static $materialSchemaCache = null;
+        if ($materialSchemaCache === null) {
+            $materialSchemaCache = Cache::remember('marketing_materials_schema', 86400, function () {
+                return [
+                    'hasBarangStock' => Schema::hasTable('tb_barang')
+                        && Schema::hasColumn('tb_barang', 'stok_g1')
+                        && Schema::hasColumn('tb_barang', 'stok_g2')
+                        && Schema::hasColumn('tb_barang', 'stok_g3')
+                        && Schema::hasColumn('tb_barang', 'stok_g4'),
+                    'priceColumn' => Schema::hasColumn('tb_barang', 'harga_stokg1')
+                        ? 'b.harga_stokg1'
+                        : (Schema::hasColumn('tb_barang', 'harga_g1') ? 'b.harga_g1' : null),
+                ];
+            });
+        }
+        $hasBarangStock = $materialSchemaCache['hasBarangStock'];
+        $priceColumn = $materialSchemaCache['priceColumn'];
+
         if ($refPo !== '') {
             $mainTable = 'd';
-            $hasBarangStock = Schema::hasTable('tb_barang')
-                && Schema::hasColumn('tb_barang', 'stok_g1')
-                && Schema::hasColumn('tb_barang', 'stok_g2')
-                && Schema::hasColumn('tb_barang', 'stok_g3')
-                && Schema::hasColumn('tb_barang', 'stok_g4');
-
+            // Memanfaatkan index idx_tb_poin_no_poin dan idx_tb_detailpoin_kode_poin
             $query = DB::table('tb_detailpoin as d')
                 ->join('tb_poin as p', 'd.kode_poin', '=', 'p.kode_poin')
-                ->whereRaw('lower(trim(p.no_poin)) = ?', [strtolower($refPo)]);
+                ->where('p.no_poin', $refPo);
 
             if ($hasBarangStock) {
-                $query->leftJoin('tb_barang as b', function($join) {
-                    $join->on(DB::raw('lower(trim(d.kd_material))'), '=', DB::raw('lower(trim(b.kd_material))'));
-                });
+                // Memanfaatkan index idx_tb_detailpoin_kd_material dan tb_barang.kd_material
+                $query->leftJoin('tb_barang as b', 'd.kd_material', '=', 'b.kd_material');
                 $query->select(
                     'd.kd_material',
                     'd.material',
@@ -675,10 +687,6 @@ class PurchaseRequirementController
             }
         } else {
             $mainTable = 'b';
-            $priceColumn = Schema::hasColumn('tb_barang', 'harga_stokg1')
-                ? 'b.harga_stokg1'
-                : (Schema::hasColumn('tb_barang', 'harga_g1') ? 'b.harga_g1' : null);
-
             $query = DB::table('tb_barang as b')
                 ->select(
                     'b.kd_material',
@@ -701,14 +709,14 @@ class PurchaseRequirementController
         }
 
         if (!empty($excludedMaterials)) {
-            $query->whereNotIn(DB::raw("lower(trim({$mainTable}.kd_material))"), array_values($excludedMaterials));
+            $query->whereNotIn("{$mainTable}.kd_material", array_values($excludedMaterials));
         }
 
         if ($search !== '') {
             $query->where(function ($q) use ($search, $mainTable) {
-                $like = '%'.strtolower($search).'%';
-                $q->whereRaw("lower({$mainTable}.kd_material) like ?", [$like])
-                    ->orWhereRaw("lower({$mainTable}.material) like ?", [$like]);
+                $like = '%' . $search . '%';
+                $q->where("{$mainTable}.kd_material", 'like', $like)
+                    ->orWhere("{$mainTable}.material", 'like', $like);
             });
         }
 
@@ -726,7 +734,8 @@ class PurchaseRequirementController
 
         if ($perPage === null) {
             $materials = (clone $query)->orderBy("{$mainTable}.material")->get();
-            $materials->transform(function ($item) {
+            $batchPrices = $this->getBatchLastPrices($materials->pluck('kd_material')->toArray());
+            $materials->transform(function ($item) use ($batchPrices) {
                 $item->stok_g1 = (int) ($item->stok_g1 ?? 0);
                 $item->stok_g2 = (int) ($item->stok_g2 ?? 0);
                 $item->stok_g3 = (int) ($item->stok_g3 ?? 0);
@@ -734,16 +743,22 @@ class PurchaseRequirementController
                 $item->stok = $item->stok_g1 + $item->stok_g2 + $item->stok_g3 + $item->stok_g4;
                 $item->sisa_qtypr = (float) ($item->sisa_qtypr ?? 0);
                 $item->qty_po_in = (float) ($item->qty_po_in ?? 0);
+                $kd = strtolower(trim((string) $item->kd_material));
+                $item->harga_modal = (float) ($batchPrices[$kd] ?? 0);
                 return $item;
             });
             return response()->json(['materials' => $materials, 'total' => $materials->count()]);
         }
 
-        $total = (clone $query)->count();
         $materials = (clone $query)->orderBy("{$mainTable}.material")->forPage($page, $perPage)->get();
-        $metrics = $this->getStockMetrics($materials->pluck('kd_material')->toArray());
+        $total = ($page === 1 && $materials->count() < $perPage)
+            ? $materials->count()
+            : (clone $query)->count();
 
-        $materials->transform(function ($item) use ($metrics) {
+        $metrics = $this->getStockMetrics($materials->pluck('kd_material')->toArray());
+        $batchPrices = $this->getBatchLastPrices($materials->pluck('kd_material')->toArray());
+
+        $materials->transform(function ($item) use ($metrics, $batchPrices) {
             $item->stok_g1 = (int) ($item->stok_g1 ?? 0);
             $item->stok_g2 = (int) ($item->stok_g2 ?? 0);
             $item->stok_g3 = (int) ($item->stok_g3 ?? 0);
@@ -762,6 +777,7 @@ class PurchaseRequirementController
             $item->stok = max(0, $item->stok_g1 + $item->stok_g2 + $item->stok_g3 + $item->stok_g4 + $item->mis + $item->mib + $item->mibs + $item->pr_outstanding + $item->po_outstanding - $item->do_outstanding);
             $item->sisa_qtypr = (float) ($item->sisa_qtypr ?? 0);
             $item->qty_po_in = (float) ($item->qty_po_in ?? 0);
+            $item->harga_modal = (float) ($batchPrices[$kd] ?? 0);
             return $item;
         });
 
@@ -786,31 +802,36 @@ class PurchaseRequirementController
             $perPage = 5;
         }
 
-        $query = DB::table('tb_poin')
-            ->select('kode_poin', 'no_poin', 'date_poin', 'delivery_date', 'customer_name', 'note_doc')
-            ->whereExists(function ($subQuery) {
-                $subQuery->select(DB::raw(1))
-                    ->from('tb_detailpoin as d')
-                    ->whereRaw('lower(trim(d.kode_poin)) = lower(trim(tb_poin.kode_poin))')
-                    ->whereRaw('coalesce(cast(d.sisa_qtypr as decimal(18,4)), 0) > 0');
-            });
+        // 1. Subquery memanfaatkan covering index idx_tb_detailpoin_sisa_qtypr_kode_poin
+        $subQuery = DB::table('tb_detailpoin')
+            ->select('kode_poin')
+            ->where('sisa_qtypr', '>', 0)
+            ->groupBy('kode_poin');
 
+        // 2. Join ke tb_poin memanfaatkan unique index uq_tb_poin_kode_poin
+        $query = DB::table('tb_poin as p')
+            ->joinSub($subQuery, 'd', 'p.kode_poin', '=', 'd.kode_poin')
+            ->select('p.id', 'p.kode_poin', 'p.no_poin', 'p.date_poin', 'p.delivery_date', 'p.customer_name', 'p.note_doc');
+
+        // 3. Search memanfaatkan index idx_kode_poin, idx_tb_poin_no_poin, dan idx_tb_poin_customer_name
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
-                $like = '%'.strtolower($search).'%';
-                $q->whereRaw('lower(kode_poin) like ?', [$like])
-                    ->orWhereRaw('lower(no_poin) like ?', [$like])
-                    ->orWhereRaw('lower(customer_name) like ?', [$like]);
+                $like = '%' . $search . '%';
+                $q->where('p.kode_poin', 'like', $like)
+                    ->orWhere('p.no_poin', 'like', $like)
+                    ->orWhere('p.customer_name', 'like', $like);
             });
         }
 
         if ($perPage === null) {
-            $data = (clone $query)->orderByDesc('id')->get();
+            $data = (clone $query)->orderBy('p.delivery_date', 'asc')->orderByDesc('p.id')->get();
             return response()->json(['customers' => $data, 'total' => $data->count()]);
         }
 
-        $total = (clone $query)->count();
-        $data = (clone $query)->orderByDesc('id')->forPage($page, $perPage)->get();
+        $data = (clone $query)->orderBy('p.delivery_date', 'asc')->orderByDesc('p.id')->forPage($page, $perPage)->get();
+        $total = ($page === 1 && $data->count() < $perPage)
+            ? $data->count()
+            : (clone $query)->count();
 
         return response()->json([
             'customers' => $data,

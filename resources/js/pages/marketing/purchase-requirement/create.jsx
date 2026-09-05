@@ -167,6 +167,7 @@ export default function PurchaseRequirementCreate() {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
     const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+    const [debouncedCustomerSearchTerm, setDebouncedCustomerSearchTerm] = useState('');
     const [customerPageSize, setCustomerPageSize] = useState(5);
     const [customerCurrentPage, setCustomerCurrentPage] = useState(1);
     const [customerList, setCustomerList] = useState([]);
@@ -267,6 +268,13 @@ export default function PurchaseRequirementCreate() {
         return Math.max(1, Math.ceil(customerTotal / customerPageSize));
     }, [customerTotal, customerPageSize]);
 
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedCustomerSearchTerm(customerSearchTerm);
+        }, 250);
+        return () => clearTimeout(handler);
+    }, [customerSearchTerm]);
+
     const loadCustomers = async () => {
         setCustomerLoading(true);
         setCustomerError('');
@@ -280,8 +288,8 @@ export default function PurchaseRequirementCreate() {
                     : String(customerPageSize),
             );
             params.set('page', String(customerCurrentPage));
-            if (customerSearchTerm.trim()) {
-                params.set('search', customerSearchTerm.trim());
+            if (debouncedCustomerSearchTerm.trim()) {
+                params.set('search', debouncedCustomerSearchTerm.trim());
             }
 
             const response = await fetch(
@@ -294,26 +302,9 @@ export default function PurchaseRequirementCreate() {
             }
 
             const data = await response.json();
-            let fetchedCustomers = Array.isArray(data?.customers)
+            const fetchedCustomers = Array.isArray(data?.customers)
                 ? data.customers
                 : [];
-
-            // PERBAIKAN STEP 1: Filter PO In secara lokal (opsional/fallback)
-            // Mengecek apakah properti sisa_qtypr dikirimkan oleh backend untuk header PO IN
-            if (
-                fetchedCustomers.length > 0 &&
-                fetchedCustomers[0].sisa_qtypr !== undefined
-            ) {
-                fetchedCustomers = fetchedCustomers.filter(
-                    (c) => Number(c.sisa_qtypr) > 0,
-                );
-            }
-
-            fetchedCustomers.sort((a, b) => {
-                const aDate = toDate(a.delivery_date)?.getTime() ?? Number.POSITIVE_INFINITY;
-                const bDate = toDate(b.delivery_date)?.getTime() ?? Number.POSITIVE_INFINITY;
-                return aDate - bDate;
-            });
 
             setCustomerList(fetchedCustomers);
             setCustomerTotal(Number(data?.total ?? 0));
@@ -351,9 +342,7 @@ export default function PurchaseRequirementCreate() {
             }
 
             const data = await response.json();
-            setMaterialList(
-                Array.isArray(data?.materials) ? data.materials : [],
-            );
+            setMaterialList(Array.isArray(data?.materials) ? data.materials : []);
             setMaterialTotal(Number(data?.total ?? 0));
         } catch {
             setMaterialError('Gagal memuat data material.');
@@ -389,7 +378,7 @@ export default function PurchaseRequirementCreate() {
         isCustomerModalOpen,
         customerCurrentPage,
         customerPageSize,
-        customerSearchTerm,
+        debouncedCustomerSearchTerm,
     ]);
 
     const loadPoInMaterials = async (kodePoin) => {

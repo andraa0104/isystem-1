@@ -20,6 +20,7 @@ import {
     TableRow,
 } from '@/components/ui/table';
 import AppLayout from '@/layouts/app-layout';
+import { cn } from '@/lib/utils';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import axios from 'axios';
 import { CheckCircle2, Pencil, Plus, Search, Trash2 } from 'lucide-react';
@@ -31,6 +32,37 @@ const breadcrumbs = [
     { title: 'Marketing', href: '/marketing/purchase-requirement' },
     { title: 'Edit PR', href: '/marketing/purchase-requirement' },
 ];
+
+const toDate = (str) => {
+    if (!str) return null;
+    const parts = str.split(/[-/.]/);
+    if (parts.length === 3) {
+        if (parts[0].length === 4) {
+            return new Date(parts[0], parts[1] - 1, parts[2]);
+        }
+        return new Date(parts[2], parts[1] - 1, parts[0]);
+    }
+    const d = new Date(str);
+    return isNaN(d.getTime()) ? null : d;
+};
+
+const getRowUrgency = (item) => {
+    if (!item.delivery_date) return 'normal';
+    const deliveryDateObj = toDate(item.delivery_date);
+    if (!deliveryDateObj) return 'normal';
+
+    const now = new Date();
+    now.setHours(0, 0, 0, 0);
+    const limitDate = new Date(now);
+    limitDate.setDate(limitDate.getDate() + 5);
+
+    if (deliveryDateObj.getTime() <= now.getTime()) {
+        return 'overdue';
+    } else if (deliveryDateObj.getTime() <= limitDate.getTime()) {
+        return 'soon';
+    }
+    return 'normal';
+};
 
 const toDateInputValue = (value) => {
     if (!value) return '';
@@ -266,9 +298,172 @@ export default function PurchaseRequirementEdit({
         });
     };
 
+    // PO In Selection Modal States
+    const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
+    const [customerSearchTerm, setCustomerSearchTerm] = useState('');
+    const [debouncedCustomerSearchTerm, setDebouncedCustomerSearchTerm] = useState('');
+    const [customerPageSize, setCustomerPageSize] = useState(5);
+    const [customerCurrentPage, setCustomerCurrentPage] = useState(1);
+    const [customerList, setCustomerList] = useState([]);
+    const [customerTotal, setCustomerTotal] = useState(0);
+    const [customerLoading, setCustomerLoading] = useState(false);
+    const [customerError, setCustomerError] = useState('');
+    const [poinMaterialLoading, setPoinMaterialLoading] = useState(false);
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedCustomerSearchTerm(customerSearchTerm);
+        }, 250);
+        return () => clearTimeout(handler);
+    }, [customerSearchTerm]);
+
+    const customerTotalPages = useMemo(() => {
+        if (customerPageSize === Infinity) return 1;
+        return Math.max(1, Math.ceil(customerTotal / customerPageSize));
+    }, [customerTotal, customerPageSize]);
+
+    const loadCustomers = useCallback(async () => {
+        setCustomerLoading(true);
+        setCustomerError('');
+        try {
+            const params = new URLSearchParams();
+            params.set(
+                'per_page',
+                customerPageSize === Infinity
+                    ? 'all'
+                    : String(customerPageSize),
+            );
+            params.set('page', String(customerCurrentPage));
+            if (debouncedCustomerSearchTerm.trim()) {
+                params.set('search', debouncedCustomerSearchTerm.trim());
+            }
+
+            const response = await fetch(
+                `/marketing/purchase-requirement/customers?${params.toString()}`,
+                { headers: { Accept: 'application/json' } },
+            );
+            if (!response.ok) throw new Error('Request failed');
+            const data = await response.json();
+            setCustomerList(Array.isArray(data?.customers) ? data.customers : []);
+            setCustomerTotal(Number(data?.total ?? 0));
+        } catch {
+            setCustomerError('Gagal memuat data PO In.');
+        } finally {
+            setCustomerLoading(false);
+        }
+    }, [customerCurrentPage, customerPageSize, debouncedCustomerSearchTerm]);
+
+    useEffect(() => {
+        if (isCustomerModalOpen) {
+            loadCustomers();
+        }
+    }, [isCustomerModalOpen, loadCustomers]);
+
+    const handleSelectPoIn = async (item) => {
+        setPoinMaterialLoading(true);
+        try {
+            const params = new URLSearchParams({ kode_poin: item.kode_poin });
+            const response = await fetch(
+                `/marketing/purchase-requirement/poin-details?${params.toString()}`,
+                { headers: { Accept: 'application/json' } },
+            );
+            if (!response.ok) throw new Error('Failed to fetch PO In details');
+            const data = await response.json();
+            const rawItems = Array.isArray(data?.items) ? data.items : [];
+            const noPoin = item.no_poin ?? '';
+            const customerName = item.customer_name ?? '';
+            const noteDoc = item.note_doc ?? '';
+
+            // Update header Ref PO & For Customer if empty or single
+            setFormData((prev) => ({
+                ...prev,
+                refPo: prev.refPo ? prev.refPo : noPoin,
+                forCustomer: prev.forCustomer ? prev.forCustomer : customerName,
+            }));
+
+            // Map and add items from PO In to materialItems
+            const existingKeys = new Set(
+                materialItems.map(
+                    (m) =>
+                        `${String(m.kd_material).toLowerCase()}||${String(m.refPo || '')}`,
+                ),
+            );
+
+            const newItems = [];
+            rawItems.forEach((m) => {
+                const key = `${String(m.kd_material).toLowerCase()}||${String(noPoin)}`;
+                if (!existingKeys.has(key)) {
+                    const hargaModal = Number(m.harga_modal || 0);
+                    const qtyPoIn = Number(m.qty_po_in || 0);
+                    const sisaQtyPoIn = Number(m.sisa_qtypr || 0);
+                    const qtyVal =
+                        sisaQtyPoIn > 0
+                            ? sisaQtyPoIn
+                            : qtyPoIn > 0
+                              ? qtyPoIn
+                              : 1;
+                    const pricePoIn = Number(m.harga_po_in || 0);
+
+                    newItems.push({
+                        no: null, // item baru yang ditambahkan di edit
+                        kd_material: m.kd_material,
+                        material: m.material,
+                        qty: qtyVal,
+                        unit: m.satuan || '',
+                        stok: Number(m.stok || 0),
+                        stok_g1: Number(m.stok_g1 || 0),
+                        stok_g2: Number(m.stok_g2 || 0),
+                        stok_g3: Number(m.stok_g3 || 0),
+                        stok_g4: Number(m.stok_g4 || 0),
+                        unitPrice: hargaModal.toString(),
+                        pricePo: pricePoIn.toString(),
+                        totalPrice: Math.round(qtyVal * hargaModal).toString(),
+                        margin: calculateMargin(pricePoIn, hargaModal),
+                        remark: m.remark || '',
+                        qtyPo: 0,
+                        qtyPoIn: qtyPoIn,
+                        sisaQtyPoIn: sisaQtyPoIn,
+                        refPo: noPoin,
+                        forCustomer: customerName,
+                        noteDoc: noteDoc,
+                    });
+                }
+            });
+
+            if (newItems.length > 0) {
+                setMaterialItems((prev) => [...prev, ...newItems]);
+                setActivePoTab(noPoin);
+                Swal.fire({
+                    icon: 'success',
+                    title: 'PO In Berhasil Dipilih',
+                    text: `${newItems.length} material dari PO In ${noPoin} ditambahkan ke daftar.`,
+                    timer: 2000,
+                    showConfirmButton: false,
+                });
+            } else {
+                Swal.fire({
+                    icon: 'info',
+                    title: 'PO In Terpilih',
+                    text: `Seluruh material dari PO In ${noPoin} sudah ada di daftar PR ini.`,
+                });
+            }
+
+            setIsCustomerModalOpen(false);
+        } catch (err) {
+            Swal.fire({
+                icon: 'error',
+                title: 'Gagal Memuat PO In',
+                text: err.message || 'Terjadi kesalahan saat memuat material PO In.',
+            });
+        } finally {
+            setPoinMaterialLoading(false);
+        }
+    };
+
     // Material Selection Modal States
     const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
     const [materialSearchTerm, setMaterialSearchTerm] = useState('');
+    const [debouncedMaterialSearchTerm, setDebouncedMaterialSearchTerm] = useState('');
     const [materialPageSize, setMaterialPageSize] = useState(5);
     const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
     const [materialList, setMaterialList] = useState([]);
@@ -276,6 +471,13 @@ export default function PurchaseRequirementEdit({
     const [materialLoading, setMaterialLoading] = useState(false);
     const [materialError, setMaterialError] = useState(null);
     const [activePoTab, setActivePoTab] = useState('');
+
+    useEffect(() => {
+        const handler = setTimeout(() => {
+            setDebouncedMaterialSearchTerm(materialSearchTerm);
+        }, 250);
+        return () => clearTimeout(handler);
+    }, [materialSearchTerm]);
 
     const materialTotalPages =
         materialPageSize === Infinity
@@ -287,7 +489,7 @@ export default function PurchaseRequirementEdit({
         setMaterialError(null);
         try {
             const params = new URLSearchParams({
-                search: materialSearchTerm,
+                search: debouncedMaterialSearchTerm,
                 per_page:
                     materialPageSize === Infinity ? 'all' : materialPageSize,
                 page: materialCurrentPage,
@@ -314,7 +516,7 @@ export default function PurchaseRequirementEdit({
         formData.refPo,
         materialCurrentPage,
         materialPageSize,
-        materialSearchTerm,
+        debouncedMaterialSearchTerm,
         purchaseRequirement?.no_pr,
     ]);
 
@@ -917,7 +1119,21 @@ export default function PurchaseRequirementEdit({
                             </label>
                             {uniqueCustomerPOs.length > 1 ? (
                                 <div className="space-y-2 md:col-span-2">
-                                    <Label>PO In Terpilih</Label>
+                                    <div className="flex items-center justify-between">
+                                        <Label>PO In Terpilih</Label>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            onClick={() => {
+                                                setIsCustomerModalOpen(true);
+                                                setCustomerCurrentPage(1);
+                                                setCustomerSearchTerm('');
+                                            }}
+                                        >
+                                            <Plus className="mr-1 h-3 w-3" /> Tambah PO In
+                                        </Button>
+                                    </div>
                                     <div className="grid gap-2 md:grid-cols-2">
                                         {uniqueCustomerPOs.map((po) => (
                                             <div
@@ -954,16 +1170,30 @@ export default function PurchaseRequirementEdit({
                                         <span className="text-muted-foreground">
                                             Ref PO
                                         </span>
-                                        <Input
-                                            value={formData.refPo}
-                                            disabled
-                                            onChange={(event) =>
-                                                setFormData((prev) => ({
-                                                    ...prev,
-                                                    refPo: event.target.value,
-                                                }))
-                                            }
-                                        />
+                                        <div className="flex gap-2">
+                                            <Input
+                                                value={formData.refPo}
+                                                readOnly
+                                                className="flex-1"
+                                                onChange={(event) =>
+                                                    setFormData((prev) => ({
+                                                        ...prev,
+                                                        refPo: event.target.value,
+                                                    }))
+                                                }
+                                            />
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                onClick={() => {
+                                                    setIsCustomerModalOpen(true);
+                                                    setCustomerCurrentPage(1);
+                                                    setCustomerSearchTerm('');
+                                                }}
+                                            >
+                                                Pilih PO In
+                                            </Button>
+                                        </div>
                                     </label>
                                     <label className="space-y-2 text-sm">
                                         <span className="text-muted-foreground">
@@ -1019,14 +1249,28 @@ export default function PurchaseRequirementEdit({
                     <Card>
                         <CardHeader className="flex flex-row items-center justify-between gap-2">
                             <CardTitle>Data Material</CardTitle>
-                            <Button
-                                type="button"
-                                size="sm"
-                                onClick={() => setIsMaterialModalOpen(true)}
-                            >
-                                <Plus className="mr-2 h-4 w-4" /> Tambah
-                                Material
-                            </Button>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                        setIsCustomerModalOpen(true);
+                                        setCustomerCurrentPage(1);
+                                        setCustomerSearchTerm('');
+                                    }}
+                                >
+                                    <Search className="mr-2 h-4 w-4" /> Pilih PO In
+                                </Button>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    onClick={() => setIsMaterialModalOpen(true)}
+                                >
+                                    <Plus className="mr-2 h-4 w-4" /> Tambah
+                                    Material
+                                </Button>
+                            </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
                             {poTabs.length > 1 && (
@@ -1708,46 +1952,56 @@ export default function PurchaseRequirementEdit({
                                                             className="h-8"
                                                             onClick={async () => {
                                                                 // <-- Pastikan ada keyword 'async'
-                                                                let hargaModalTerakhir = 0;
-
-                                                                // --- AMBIL HARGA TERAKHIR DARI DATABASE via AXIOS ---
-                                                                try {
-                                                                    const priceRes =
-                                                                        await axios.get(
-                                                                            '/marketing/purchase-requirement/get-last-price',
-                                                                            {
-                                                                                params: {
-                                                                                    kd_mat: m.kd_material,
-                                                                                },
-                                                                            },
-                                                                        );
-
-                                                                    if (
-                                                                        priceRes.data &&
-                                                                        priceRes
-                                                                            .data
-                                                                            .success
-                                                                    ) {
-                                                                        // Murni mengambil kolom 'harga' dari tb_invin sesuai response backend
-                                                                        hargaModalTerakhir =
-                                                                            Math.round(
-                                                                                Number(
-                                                                                    priceRes
-                                                                                        .data
-                                                                                        .harga,
-                                                                                ),
-                                                                            ) ||
-                                                                            0;
-                                                                    }
-                                                                } catch (error) {
-                                                                    console.error(
-                                                                        'Gagal autofill harga modal di edit.jsx:',
-                                                                        error,
+                                                                let hargaModalTerakhir =
+                                                                    Number(
+                                                                        m.harga_modal ??
+                                                                            0,
                                                                     );
-                                                                    hargaModalTerakhir =
-                                                                        Number(
-                                                                            m.harga,
-                                                                        ) || 0; // Fallback ke harga master jika API terkendala
+
+                                                                if (
+                                                                    hargaModalTerakhir <=
+                                                                    0
+                                                                ) {
+                                                                    try {
+                                                                        const priceRes =
+                                                                            await axios.get(
+                                                                                '/marketing/purchase-requirement/get-last-price',
+                                                                                {
+                                                                                    params: {
+                                                                                        kd_mat: m.kd_material,
+                                                                                    },
+                                                                                },
+                                                                            );
+
+                                                                        if (
+                                                                            priceRes.data &&
+                                                                            priceRes
+                                                                                .data
+                                                                                .success
+                                                                        ) {
+                                                                            hargaModalTerakhir =
+                                                                                Math.round(
+                                                                                    Number(
+                                                                                        priceRes
+                                                                                            .data
+                                                                                            .harga ||
+                                                                                            priceRes
+                                                                                                .data
+                                                                                                .last_price,
+                                                                                    ),
+                                                                                ) ||
+                                                                                0;
+                                                                        }
+                                                                    } catch (error) {
+                                                                        console.error(
+                                                                            'Gagal autofill harga modal di edit.jsx:',
+                                                                            error,
+                                                                        );
+                                                                        hargaModalTerakhir =
+                                                                            Number(
+                                                                                m.harga,
+                                                                            ) || 0;
+                                                                    }
                                                                 }
                                                                 // ----------------------------------------------------
 
@@ -2007,6 +2261,239 @@ export default function PurchaseRequirementEdit({
                                     </div>
                                 )}
                         </div>
+                    </DialogContent>
+                </Dialog>
+
+                <Dialog
+                    open={isCustomerModalOpen}
+                    onOpenChange={(open) => {
+                        setIsCustomerModalOpen(open);
+                        if (!open) {
+                            setCustomerSearchTerm('');
+                            setCustomerPageSize(5);
+                            setCustomerCurrentPage(1);
+                            setCustomerList([]);
+                            setCustomerTotal(0);
+                        }
+                    }}
+                >
+                    <DialogContent
+                        aria-describedby={undefined}
+                        className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none"
+                    >
+                        <DialogHeader>
+                            <DialogTitle>Pilih PO In</DialogTitle>
+                        </DialogHeader>
+                        <DialogDescription className="sr-only">
+                            Pilih PO In untuk menambahkan material dari PO In.
+                        </DialogDescription>
+
+                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                            <label>
+                                Tampilkan
+                                <select
+                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                    value={
+                                        customerPageSize === Infinity
+                                            ? 'all'
+                                            : customerPageSize
+                                    }
+                                    onChange={(event) => {
+                                        const value = event.target.value;
+                                        setCustomerPageSize(
+                                            value === 'all'
+                                                ? Infinity
+                                                : Number(value),
+                                        );
+                                        setCustomerCurrentPage(1);
+                                    }}
+                                >
+                                    <option value={5}>5</option>
+                                    <option value={10}>10</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value="all">Semua</option>
+                                </select>
+                            </label>
+                            <label>
+                                Cari
+                                <input
+                                    type="search"
+                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
+                                    placeholder="Cari kode PO In, no PO In, customer..."
+                                    value={customerSearchTerm}
+                                    onChange={(event) => {
+                                        setCustomerSearchTerm(
+                                            event.target.value,
+                                        );
+                                        setCustomerCurrentPage(1);
+                                    }}
+                                />
+                            </label>
+                            <Button
+                                type="button"
+                                variant="outline"
+                                onClick={loadCustomers}
+                            >
+                                Refresh
+                            </Button>
+                        </div>
+
+                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                            <table className="w-full text-sm">
+                                <thead className="bg-muted/50 text-muted-foreground">
+                                    <tr>
+                                        <th className="px-4 py-3 text-left">
+                                            Kode PO In
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            No PO In
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Date
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Customer
+                                        </th>
+                                        <th className="px-4 py-3 text-left">
+                                            Action
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {customerList.length === 0 && (
+                                        <tr>
+                                            <td
+                                                className="px-4 py-6 text-center text-muted-foreground"
+                                                colSpan={5}
+                                            >
+                                                {customerLoading
+                                                    ? 'Memuat data PO In...'
+                                                    : customerError ||
+                                                      'Tidak ada data PO In.'}
+                                            </td>
+                                        </tr>
+                                    )}
+                                    {customerList.map((item) => {
+                                        const urgency = getRowUrgency(item);
+                                        return (
+                                            <tr
+                                                key={`${item.kode_poin}-${item.no_poin}`}
+                                                className={cn(
+                                                    'border-t',
+                                                    urgency === 'overdue'
+                                                        ? 'border-red-500/40 bg-red-500/10'
+                                                        : urgency === 'soon'
+                                                          ? 'border-yellow-500/40 bg-yellow-500/10'
+                                                          : 'border-sidebar-border/70',
+                                                )}
+                                            >
+                                                <td className="px-4 py-3">
+                                                    {renderValue(item.kode_poin)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {renderValue(item.no_poin)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {renderValue(item.date_poin)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <div className="flex flex-wrap items-center gap-2">
+                                                        <span>{renderValue(item.customer_name)}</span>
+                                                        {urgency !== 'normal' && (
+                                                            <div
+                                                                className={cn(
+                                                                    'flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wider',
+                                                                    urgency === 'overdue'
+                                                                        ? 'bg-red-500/20 text-red-700'
+                                                                        : 'bg-yellow-500/20 text-yellow-700',
+                                                                )}
+                                                            >
+                                                                <span
+                                                                    className={cn(
+                                                                        'size-1.5 animate-pulse rounded-full',
+                                                                        urgency === 'overdue'
+                                                                            ? 'bg-red-600'
+                                                                            : 'bg-yellow-600',
+                                                                    )}
+                                                                />
+                                                                SEGERA DIKIRIM
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="outline"
+                                                        disabled={poinMaterialLoading}
+                                                        onClick={() => handleSelectPoIn(item)}
+                                                    >
+                                                        {poinMaterialLoading ? 'Memproses...' : 'Pilih'}
+                                                    </Button>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {customerPageSize !== Infinity && customerTotal > 0 && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                <span>
+                                    Menampilkan{' '}
+                                    {Math.min(
+                                        (customerCurrentPage - 1) *
+                                            customerPageSize +
+                                            1,
+                                        customerTotal,
+                                    )}
+                                    -
+                                    {Math.min(
+                                        customerCurrentPage * customerPageSize,
+                                        customerTotal,
+                                    )}{' '}
+                                    dari {customerTotal} data
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setCustomerCurrentPage((p) =>
+                                                Math.max(1, p - 1),
+                                            )
+                                        }
+                                        disabled={customerCurrentPage === 1}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground">
+                                        Halaman {customerCurrentPage} dari{' '}
+                                        {customerTotalPages}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setCustomerCurrentPage((p) =>
+                                                Math.min(
+                                                    customerTotalPages || p,
+                                                    p + 1,
+                                                ),
+                                            )
+                                        }
+                                        disabled={
+                                            customerCurrentPage >=
+                                            customerTotalPages
+                                        }
+                                    >
+                                        Berikutnya
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
                     </DialogContent>
                 </Dialog>
             </form>
