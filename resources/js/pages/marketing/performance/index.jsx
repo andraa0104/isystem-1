@@ -195,7 +195,18 @@ export default function PerformanceIndex({
             const json = await res.json();
             if (json.success && json.data) {
                 setAiData(json.data);
-                setAiEngine(json.engine || 'qwen2.5:7b (Ollama)');
+                setData((current) => {
+                    const enriched = json.data.enriched_customers;
+                    if (!current?.kpi || !enriched?.allCustomers) return current;
+                    return {
+                        ...current,
+                        allCustomers: enriched.allCustomers,
+                        topCustomers: enriched.topCustomers ?? current?.topCustomers,
+                        lowestCustomers: enriched.lowestCustomers ?? current?.lowestCustomers,
+                        decliningCustomers: enriched.decliningCustomers ?? current?.decliningCustomers,
+                    };
+                });
+                setAiEngine(json.engine || 'gemini-3.8-flash (Gemini)');
                 setAiIsFallback(Boolean(json.is_fallback));
                 setAiNotice(json.notice || '');
             } else {
@@ -250,6 +261,8 @@ export default function PerformanceIndex({
     // Fetch Performance Data
     const fetchData = async (overrideFilters = null) => {
         setLoading(true);
+        // Start the independent AI request while KPI data is loading.
+        const aiRequest = fetchAiAnalysis(overrideFilters);
         try {
             const params = new URLSearchParams({
                 year: String(overrideFilters?.year ?? year),
@@ -275,8 +288,8 @@ export default function PerformanceIndex({
             setData(json);
             setCurrentPage(1);
 
-            // Trigger AI analysis automatically in parallel
-            fetchAiAnalysis(overrideFilters);
+            // Keep the AI request alive independently from the KPI response.
+            void aiRequest;
         } catch (error) {
             console.error('Error loading performance data:', error);
             Swal.fire({
@@ -439,7 +452,7 @@ export default function PerformanceIndex({
         }
     };
 
-    // Map AI Critical Fixes from Ollama to Customers
+    // Map AI Critical Fixes from Gemini to Customers
     const aiCriticalMap = useMemo(() => {
         if (!aiData?.critical_areas_to_fix || !Array.isArray(aiData.critical_areas_to_fix)) return {};
         const map = {};
@@ -467,7 +480,7 @@ export default function PerformanceIndex({
         const nm = (c.nm_cs || '').toLowerCase().trim();
         const kd = (c.kd_cs || '').toLowerCase().trim();
 
-        // Check if explicitly cited in Ollama AI critical areas
+        // Check if explicitly cited in Gemini AI critical areas
         let criticalItem = null;
         for (const [key, item] of Object.entries(aiCriticalMap)) {
             if (key && (nm.includes(key) || key.includes(nm) || kd === key)) {
@@ -1156,8 +1169,8 @@ export default function PerformanceIndex({
                                                     }`}
                                                     title={
                                                         aiIsFallback
-                                                            ? 'Di VPS production, engine ini otomatis beralih ke model qwen2.5:7b via Ollama'
-                                                            : 'Didukung langsung oleh model Qwen 2.5 (7B) di Ollama VPS'
+                                                            ? 'Gemini sedang tidak tersedia; tabel memakai hasil analitik Python'
+                                                            : 'Didukung langsung oleh Gemini Flash 3.8'
                                                     }
                                                 >
                                                     <span
@@ -1293,7 +1306,8 @@ export default function PerformanceIndex({
                                                 <div className="flex items-center gap-2 rounded-lg border border-indigo-500/20 bg-indigo-500/10 px-3.5 py-2 text-xs text-indigo-700 dark:text-indigo-300">
                                                     <Sparkles className="h-4 w-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
                                                     <span>
-                                                        <strong>Metode Analitik Data Terintegrasi (Python + Qwen 2.5):</strong> Seluruh analitik data dihitung secara presisi menggunakan <em>Python Data Analytics Engine</em> (Pareto HHI, Cohort Dynamics, Z-Score Outlier & Health Scoring berbobot), lalu diteruskan ke <strong>Qwen 2.5 (7B) Ollama</strong> di VPS Production agar kesimpulan serta rekomendasi strategisnya berbasis data riil dan jauh lebih akurat.
+                                                        <strong>Gemini tidak tersedia, sehingga hasil Python digunakan.</strong>{' '}
+                                                        {aiNotice || 'Tidak ada detail error dari Gemini.'}
                                                     </span>
                                                 </div>
                                             )}

@@ -285,7 +285,7 @@ export default function CustomerPerformanceDetail({
             const json = await res.json();
             if (json.success && json.data) {
                 setAiData(json.data);
-                setAiEngine(json.engine || 'qwen2.5:7b (Ollama)');
+                setAiEngine(json.engine || 'gemini-3.8-flash (Gemini)');
                 setAiIsFallback(Boolean(json.is_fallback));
                 setAiNotice(json.notice || '');
             } else {
@@ -891,8 +891,8 @@ export default function CustomerPerformanceDetail({
                                                     }`}
                                                     title={
                                                         aiIsFallback
-                                                            ? 'Di VPS production, otomatis menggunakan model qwen2.5:7b via Ollama'
-                                                            : 'Didukung langsung oleh model Qwen 2.5 (7B) di Ollama VPS'
+                                                            ? 'Gemini sedang tidak tersedia; memakai hasil analitik Python'
+                                                            : 'Didukung langsung oleh Gemini Flash 3.8'
                                                     }
                                                 >
                                                     <span
@@ -1027,7 +1027,8 @@ export default function CustomerPerformanceDetail({
                                                 <div className="flex items-center gap-2 rounded-lg border border-indigo-500/20 bg-indigo-500/10 px-3.5 py-2 text-xs text-indigo-700 dark:text-indigo-300">
                                                     <Sparkles className="h-4 w-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
                                                     <span>
-                                                        <strong>Metode Analitik Data Terintegrasi (Python + Qwen 2.5):</strong> Seluruh analitik data dihitung secara presisi menggunakan <em>Python Data Analytics Engine</em> (RFM Scoring, Volatilitas Pembelian CV, dan Portofolio Basket), lalu diteruskan ke <strong>Qwen 2.5 (7B) Ollama</strong> di VPS Production agar hasil analisis serta kesimpulan strategisnya jauh lebih akurat dan terbebas dari halusinasi data.
+                                                        <strong>Gemini tidak tersedia, sehingga hasil Python digunakan.</strong>{' '}
+                                                        {aiNotice || 'Tidak ada detail error dari Gemini.'}
                                                     </span>
                                                 </div>
                                             )}

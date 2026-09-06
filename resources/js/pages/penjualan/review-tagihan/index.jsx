@@ -172,7 +172,7 @@ export default function ReviewTagihanIndex() {
         }
     };
 
-    // Load AI Collection Intelligence (Python + Qwen 2.5 7B)
+    // Load AI Collection Intelligence (Python + Gemini Flash 3.8)
     const fetchAiAnalysis = async (force = false) => {
         setAiLoading(true);
         setAiError(null);
@@ -205,7 +205,7 @@ export default function ReviewTagihanIndex() {
             const json = await response.json();
             if (json.success && json.data) {
                 setAiData(json.data);
-                setAiEngine(json.engine || 'Python Analytics Engine');
+                setAiEngine(json.engine || 'gemini-3.8-flash (Gemini)');
                 setAiIsFallback(Boolean(json.is_fallback));
                 setAiNotice(json.notice || '');
             } else {
@@ -503,7 +503,7 @@ export default function ReviewTagihanIndex() {
                                     </span>
                                 </div>
                                 <p className="text-xs text-muted-foreground">
-                                    Analisis presisi Python (Aging Buckets, DSO &amp; Skor Prioritas Penagihan) diteruskan ke Qwen 2.5 7B untuk panduan penagihan.
+                                    Analisis presisi Python (Aging Buckets, DSO &amp; Skor Prioritas Penagihan) diteruskan ke Gemini Flash 3.8 untuk panduan penagihan.
                                 </p>
                             </div>
                         </div>
@@ -602,7 +602,8 @@ export default function ReviewTagihanIndex() {
                                         <div className="flex items-center gap-2.5 rounded-xl border border-indigo-500/25 bg-indigo-500/10 px-4 py-2.5 text-xs text-indigo-800 dark:text-indigo-200">
                                             <Sparkles className="h-4 w-4 shrink-0 text-indigo-600 dark:text-indigo-400" />
                                             <span>
-                                                <strong>Metode Analitik Data Terintegrasi (Python + Qwen 2.5):</strong> Seluruh analitik data dihitung secara presisi menggunakan <em>Python Collection Analytics Engine</em> (Aging Buckets, DSO, Concentration HHI &amp; Multi-factor Priority Scoring), lalu diteruskan ke <strong>Qwen 2.5 (7B) Ollama</strong> di VPS Production agar arahan penagihan berbasis data riil dan jauh lebih akurat.
+                                                <strong>Gemini tidak tersedia, sehingga hasil Python digunakan.</strong>{' '}
+                                                {aiNotice || 'Tidak ada detail error dari Gemini.'}
                                             </span>
                                         </div>
                                     )}

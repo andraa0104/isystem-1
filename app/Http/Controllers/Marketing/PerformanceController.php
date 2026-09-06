@@ -167,8 +167,8 @@ class PerformanceController
      */
     public function aiAnalyze(Request $request)
     {
-        @set_time_limit(180);
-        @ini_set('max_execution_time', '180');
+        @set_time_limit(360);
+        @ini_set('max_execution_time', '360');
 
         $filters = $this->extractFilters($request);
 
@@ -176,8 +176,25 @@ class PerformanceController
             return $this->calculatePerformanceData($filters);
         });
 
+        // Reuse an analysis only when the underlying KPI dataset is unchanged.
+        $cacheKey = 'marketing-performance-ai:' . sha1(json_encode([
+            'filters' => $filters,
+            'data' => $perfData,
+        ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+
+        if (!$request->boolean('force')) {
+            $cachedResult = Cache::get($cacheKey);
+            if (is_array($cachedResult)) {
+                return response()->json(array_merge($cachedResult, ['cached' => true]));
+            }
+        }
+
         $analyticsService = app(MarketingAnalyticsService::class);
         $result = $analyticsService->analyzeOverallPerformance($perfData, $filters);
+
+        if (($result['success'] ?? false) === true && !empty($result['data'])) {
+            Cache::put($cacheKey, $result, now()->addMinutes(10));
+        }
 
         return response()->json($result);
     }
@@ -229,8 +246,8 @@ class PerformanceController
      */
     public function customerAiAnalyze(Request $request, string $customer)
     {
-        @set_time_limit(180);
-        @ini_set('max_execution_time', '180');
+        @set_time_limit(360);
+        @ini_set('max_execution_time', '360');
 
         $filters = $this->extractCustomerFilters($request);
 
