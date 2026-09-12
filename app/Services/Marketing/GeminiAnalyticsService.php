@@ -11,7 +11,7 @@ class GeminiAnalyticsService
     {
         $apiKey = (string) config('services.gemini.api_key', '');
         $model = (string) config('services.gemini.model', 'gemini-3.8-flash');
-        $timeout = max(10, (int) config('services.gemini.timeout', 60));
+        $timeout = max(10, (int) config('services.gemini.timeout', 90));
 
         if ($apiKey === '') {
             return [
@@ -35,7 +35,7 @@ class GeminiAnalyticsService
                     'generationConfig' => [
                         'temperature' => 0.15,
                         'topP' => 0.85,
-                        'maxOutputTokens' => 4096,
+                        'maxOutputTokens' => 8192,
                         'responseMimeType' => 'application/json',
                     ],
                 ]);
@@ -63,14 +63,22 @@ class GeminiAnalyticsService
                 return ['data' => null, 'error' => $error, 'error_code' => $errorCode];
             }
 
-            $text = trim((string) data_get($response->json(), 'candidates.0.content.parts.0.text', ''));
-            $text = preg_replace('/^```(?:json)?\s*/i', '', $text);
-            $text = preg_replace('/\s*```$/', '', $text);
-            $decoded = json_decode(trim($text), true);
+            $rawText = (string) data_get($response->json(), 'candidates.0.content.parts.0.text', '');
+            $finishReason = (string) data_get($response->json(), 'candidates.0.finishReason', '');
+
+            $decoded = $this->cleanAndDecodeJson($rawText);
 
             if (is_array($decoded)) {
                 return ['data' => $decoded, 'error' => null];
             }
+
+            Log::warning('Gemini response returned invalid JSON', [
+                'finish_reason' => $finishReason,
+                'raw_length' => strlen($rawText),
+                'raw_preview' => substr($rawText, 0, 500),
+                'raw_tail' => substr($rawText, -300),
+                'json_error' => json_last_error_msg(),
+            ]);
 
             return [
                 'data' => null,
@@ -90,5 +98,128 @@ class GeminiAnalyticsService
                 'error_code' => 'CONNECTION_ERROR',
             ];
         }
+    }
+
+    /**
+     * Parse and repair JSON from model output.
+     */
+    private function cleanAndDecodeJson(string $rawText): ?array
+    {
+        $text = trim($rawText);
+        if ($text === '') {
+            return null;
+        }
+
+        // 1. Direct decode
+        $decoded = json_decode($text, true);
+        if (is_array($decoded)) {
+            return $decoded;
+        }
+
+        // 2. Strip markdown code fences ```json ... ```
+        if (preg_match('/```(?:json)?\s*([\s\S]*?)\s*```/i', $text, $matches)) {
+            $extracted = trim($matches[1]);
+            $decoded = json_decode($extracted, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+            $text = $extracted;
+        }
+
+        // 3. Extract outermost JSON object { ... }
+        $firstBrace = strpos($text, '{');
+        $lastBrace = strrpos($text, '}');
+        if ($firstBrace !== false && $lastBrace !== false && $lastBrace > $firstBrace) {
+            $subJson = substr($text, $firstBrace, $lastBrace - $firstBrace + 1);
+            $decoded = json_decode($subJson, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        // 4. Remove trailing commas before closing braces/brackets (, } or , ])
+        $cleanCommas = preg_replace('/,\s*([\}\]])/', '$1', $text);
+        $decoded = json_decode($cleanCommas, true);
+        if (is_array($decoded)) {
+            return $decoded;
+        }
+
+        // 5. Repair truncated JSON (unclosed strings, braces, or brackets due to token limits)
+        $repaired = $this->repairTruncatedJson($text);
+        if ($repaired !== null) {
+            $decoded = json_decode($repaired, true);
+            if (is_array($decoded)) {
+                return $decoded;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Auto-close unclosed strings, objects, and arrays in truncated JSON.
+     */
+    private function repairTruncatedJson(string $text): ?string
+    {
+        $start = strpos($text, '{');
+        if ($start === false) {
+            return null;
+        }
+        $json = substr($text, $start);
+
+        $inString = false;
+        $escape = false;
+        $stack = [];
+
+        $len = strlen($json);
+        for ($i = 0; $i < $len; $i++) {
+            $char = $json[$i];
+            if ($escape) {
+                $escape = false;
+                continue;
+            }
+            if ($char === '\\') {
+                $escape = true;
+                continue;
+            }
+            if ($char === '"') {
+                $inString = !$inString;
+                continue;
+            }
+            if (!$inString) {
+                if ($char === '{' || $char === '[') {
+                    $stack[] = $char;
+                } elseif ($char === '}') {
+                    if (!empty($stack) && end($stack) === '{') {
+                        array_pop($stack);
+                    }
+                } elseif ($char === ']') {
+                    if (!empty($stack) && end($stack) === '[') {
+                        array_pop($stack);
+                    }
+                }
+            }
+        }
+
+        // If string is unclosed, close it
+        if ($inString) {
+            $json .= '"';
+        }
+
+        // Strip trailing commas, colons, or incomplete keys at the end
+        $json = preg_replace('/,\s*$/', '', $json);
+        $json = preg_replace('/:\s*$/', ': null', $json);
+        $json = preg_replace('/,\s*"[^"]*"\s*$/', '', $json); // unvalued key at tail
+
+        // Close unclosed brackets/braces in reverse order
+        while (!empty($stack)) {
+            $open = array_pop($stack);
+            $json .= ($open === '{') ? '}' : ']';
+        }
+
+        // Strip any trailing commas that might have been introduced
+        $json = preg_replace('/,\s*([\}\]])/', '$1', $json);
+
+        return $json;
     }
 }

@@ -33,14 +33,16 @@ class MarketingAnalyticsService
 
         $pythonResult = $pythonAnalysis['result'];
         $llmContext = $pythonAnalysis['llm_context'] ?? '';
-        $metrics = $pythonAnalysis['analytics'] ?? [];
+        $allCust = $pythonResult['enriched_customers']['allCustomers'] ?? [];
+        // Prioritaskan maksimal 25 akun paling krusial agar output LLM tidak terpotong (token cutoff)
+        $priorityCustomers = array_slice($allCust, 0, 25);
         $customerDossier = array_map(static function (array $customer): array {
             return array_intersect_key($customer, array_flip([
                 'kd_cs', 'nm_cs', 'curr_sales', 'prev_sales', 'growth', 'diff_sales',
                 'curr_invoices', 'ai_status', 'ai_action', 'ai_team_action', 'ai_reason',
             ]));
-        }, $pythonResult['enriched_customers']['allCustomers'] ?? []);
-        $llmContext .= "\n\nDOSSIER CUSTOMER UNTUK REKOMENDASI PER AKUN (gunakan kode customer apa adanya):\n" . json_encode($customerDossier, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        }, $priorityCustomers);
+        $llmContext .= "\n\nDOSSIER CUSTOMER PRIORITAS UNTUK REKOMENDASI (gunakan kode customer apa adanya):\n" . json_encode($customerDossier, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
         // 2. Teruskan dossier Python ke Gemini untuk narasi dan rekomendasi AI.
         $geminiResult = $this->callGeminiWithDossier('overall', $llmContext, $pythonResult);
@@ -236,13 +238,13 @@ Pedoman Analisis:
 
 Struktur JSON WAJIB:
 {
-  "account_health_score": {$pythonResult['account_health_score']},
-  "loyalty_status": "{$pythonResult['loyalty_status']}",
+  "account_health_score": 75,
+  "loyalty_status": "Reguler",
   "executive_summary": "<1 paragraf ringkas (2-3 kalimat) profil pembelian dan potensi komersial akun>",
   "buying_habits": {
-    "pattern": "{$pythonResult['buying_habits']['pattern']}",
-    "favorite_categories": "{$pythonResult['buying_habits']['favorite_categories']}",
-    "order_characteristics": "{$pythonResult['buying_habits']['order_characteristics']}"
+    "pattern": "<pola pembelian akun>",
+    "favorite_categories": "<kategori material favorit>",
+    "order_characteristics": "<karakteristik pemesanan>"
   },
   "risk_and_drop_alerts": [
     {
@@ -276,19 +278,19 @@ Pedoman Analisis:
 1. Jadikan data statistik Python sebagai fakta mutlak (GROUND TRUTH). Pertahankan skor kesehatan KPI dan metrik konsentrasi HHI yang telah dihitung.
 2. Bahasa: Bahasa Indonesia bisnis profesional, padat, lugas, dan berorientasi tindakan komersial (maksimal 1-2 kalimat per poin).
 3. Setiap kesimpulan harus mengikuti data periode aktif. Gunakan nama customer, nominal, persentase, tren, dan material dari dossier; jangan membuat rekomendasi generik yang bisa berlaku sama untuk semua kasus.
-4. Untuk customer_recommendations, kembalikan satu objek untuk setiap customer pada dossier. Status, team_action, recommendation, dan reason harus berbeda ketika bukti datanya berbeda.
+4. Untuk customer_recommendations, berikan rekomendasi untuk akun-akun pada dossier prioritas (fokus pada akun VIP, akun menurun/at-risk, atau anomali Z-score).
 5. Jangan menyalin mentah ai_status atau ai_action Python; gunakan hasil Python sebagai sinyal awal lalu berikan sintesis komersial yang lebih kontekstual.
 6. Output WAJIB berupa JSON murni tanpa markdown ```json.
 
 Struktur JSON WAJIB:
 {
-  "health_score": {$pythonResult['health_score']},
-  "status_label": "{$pythonResult['status_label']}",
+  "health_score": 75,
+  "status_label": "Kuat",
   "executive_summary": "<1 paragraf padat (2-3 kalimat) ringkasan pencapaian penjualan periode ini vs periode lalu>",
   "pareto_risk_analysis": {
-    "top5_share_percent": {$pythonResult['pareto_risk_analysis']['top5_share_percent']},
-    "risk_level": "{$pythonResult['pareto_risk_analysis']['risk_level']}",
-    "evaluation": "{$pythonResult['pareto_risk_analysis']['evaluation']}"
+    "top5_share_percent": 65.0,
+    "risk_level": "Sedang",
+    "evaluation": "<1-2 kalimat evaluasi risiko konsentrasi pendapatan>"
   },
   "critical_areas_to_fix": [
     {
@@ -310,16 +312,16 @@ Struktur JSON WAJIB:
     "<aksi prioritas 1 dalam 7 hari>",
     "<aksi prioritas 2 dalam 7 hari>",
     "<aksi prioritas 3 dalam 7 hari>"
-    ],
-    "customer_recommendations": [
-        {
-            "customer_code": "<kode customer dari dossier>",
-            "status": "<status performa singkat>",
-            "team_action": "<aksi tim yang spesifik>",
-            "recommendation": "<rekomendasi penjualan/marketing spesifik>",
-            "reason": "<alasan berbasis angka dossier>"
-        }
-    ]
+  ],
+  "customer_recommendations": [
+    {
+      "customer_code": "<kode customer dari dossier>",
+      "status": "<status performa singkat>",
+      "team_action": "<aksi tim yang spesifik>",
+      "recommendation": "<rekomendasi penjualan/marketing spesifik>",
+      "reason": "<alasan berbasis angka dossier>"
+    }
+  ]
 }
 PROMPT;
 
