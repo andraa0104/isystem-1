@@ -5,12 +5,77 @@ namespace App\Http\Controllers\MasterData;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Throwable;
 
 class CustomerController
 {
+    private ?bool $isClickhouse = null;
+    private ?\Illuminate\Database\ConnectionInterface $readConnection = null;
 
+    /**
+     * Dapatkan koneksi untuk read data:
+     * - VPS Production: Membaca dari ClickHouse (tersinkronisasi dengan MySQL).
+     * - Komputer Lokal: Otomatis fallback ke MySQL jika ClickHouse tidak ada / tidak berjalan.
+     */
+    private function getReadConnection(): \Illuminate\Database\ConnectionInterface
+    {
+        if ($this->readConnection !== null) {
+            return $this->readConnection;
+        }
+
+        $requestedDriver = strtolower((string) request()->query('driver', request()->query('source', env('CUSTOMER_DB_DRIVER', 'clickhouse'))));
+        if ($requestedDriver === 'mysql') {
+            $this->readConnection = DB::connection();
+            $this->isClickhouse = false;
+            return $this->readConnection;
+        }
+
+        try {
+            $connection = DB::connection('clickhouse');
+            if ($connection && $connection->getConfig('driver') === 'clickhouse') {
+                $connection->select('SELECT 1');
+                $this->readConnection = $connection;
+                $this->isClickhouse = true;
+                return $this->readConnection;
+            }
+        } catch (\Throwable $e) {
+            Log::info("CustomerController: ClickHouse tidak tersedia, otomatis fallback ke MySQL: " . $e->getMessage());
+        }
+
+        $this->readConnection = DB::connection();
+        $this->isClickhouse = false;
+        return $this->readConnection;
+    }
+
+    private function isClickhouse(): bool
+    {
+        if ($this->isClickhouse === null) {
+            $this->getReadConnection();
+        }
+
+        return (bool) $this->isClickhouse;
+    }
+
+    /**
+     * Eksekusi callback read data dengan proteksi failover:
+     * Jika ClickHouse mengalami kendala query/timeout, otomatis fallback ke MySQL.
+     */
+    private function safeRead(callable $callback)
+    {
+        try {
+            return $callback();
+        } catch (\Throwable $e) {
+            if ($this->isClickhouse()) {
+                Log::warning("CustomerController ClickHouse query error, fallback ke MySQL: " . $e->getMessage());
+                $this->readConnection = DB::connection();
+                $this->isClickhouse = false;
+                return $callback();
+            }
+            throw $e;
+        }
+    }
 
     public function index()
     {
@@ -18,67 +83,79 @@ class CustomerController
         // Hal ini mempercepat pemuatan halaman (UI render instan).
         return Inertia::render('master-data/customer/index', [
             'customers' => Inertia::lazy(function () {
-                return DB::table('tb_cs')
-                    ->select('kd_cs', 'nm_cs', 'alamat_cs')
-                    ->orderBy('kd_cs')
-                    ->get();
+                return $this->safeRead(function () {
+                    // Memanfaatkan index primary key / kd_cs untuk pengurutan cepat
+                    return $this->getReadConnection()->table('tb_cs')
+                        ->select('kd_cs', 'nm_cs', 'alamat_cs')
+                        ->orderBy('kd_cs')
+                        ->get();
+                });
             }),
             'customerCount' => Inertia::lazy(function () {
-                return DB::table('tb_cs')->count();
+                return $this->safeRead(function () {
+                    return $this->getReadConnection()->table('tb_cs')->count();
+                });
             }),
         ]);
     }
 
     public function show(string $kdCustomer)
     {
-        $customer = DB::table('tb_cs')
-            ->where('kd_cs', $kdCustomer)
-            ->first();
-        
-        if ($customer) {
-            // Attach multiple PICs
-            $pics = DB::table('tb_cspic')
+        return $this->safeRead(function () use ($kdCustomer) {
+            $readConn = $this->getReadConnection();
+
+            // Memanfaatkan index primary key kd_cs
+            $customer = $readConn->table('tb_cs')
                 ->where('kd_cs', $kdCustomer)
-                ->pluck('pic_name')
-                ->toArray();
+                ->first();
             
-            if (!empty($pics)) {
-                $customer->Attnd = $pics;
-            } else {
-                if ($customer->Attnd) {
-                    $customer->Attnd = array_values(array_filter(array_map('trim', explode(',', $customer->Attnd))));
-                    if (empty($customer->Attnd)) {
+            if ($customer) {
+                // Attach multiple PICs memanfaatkan index kd_cs
+                $pics = $readConn->table('tb_cspic')
+                    ->where('kd_cs', $kdCustomer)
+                    ->pluck('pic_name')
+                    ->toArray();
+                
+                if (!empty($pics)) {
+                    $customer->Attnd = $pics;
+                } else {
+                    if (!empty($customer->Attnd)) {
+                        $customer->Attnd = array_values(array_filter(array_map('trim', explode(',', $customer->Attnd))));
+                        if (empty($customer->Attnd)) {
+                            $customer->Attnd = [''];
+                        }
+                    } else {
                         $customer->Attnd = [''];
                     }
-                } else {
-                    $customer->Attnd = [''];
                 }
             }
-        }
 
-        if (!$customer) {
-            return response()->json(['message' => 'Customer tidak ditemukan.'], 404);
-        }
+            if (!$customer) {
+                return response()->json(['message' => 'Customer tidak ditemukan.'], 404);
+            }
 
-        $deliveryOrders = DB::table('tb_do')
-            ->select('no_do', 'date', 'ref_po')
-            ->where('kd_cs', $kdCustomer)
-            ->groupBy('no_do', 'date', 'ref_po')
-            ->orderBy('no_do', 'desc')
-            ->get();
+            // Ambil riwayat Delivery Orders terkait memanfaatkan index kd_cs dan no_do
+            $deliveryOrders = $readConn->table('tb_do')
+                ->select('no_do', 'date', 'ref_po')
+                ->where('kd_cs', $kdCustomer)
+                ->groupBy('no_do', 'date', 'ref_po')
+                ->orderBy('no_do', 'desc')
+                ->get();
 
-        if (is_array($customer->Attnd) && count($customer->Attnd) === 1 && str_contains($customer->Attnd[0] ?? '', ',')) {
-            $customer->Attnd = array_values(array_filter(array_map('trim', explode(',', $customer->Attnd[0]))));
-        }
+            if (is_array($customer->Attnd) && count($customer->Attnd) === 1 && str_contains($customer->Attnd[0] ?? '', ',')) {
+                $customer->Attnd = array_values(array_filter(array_map('trim', explode(',', $customer->Attnd[0]))));
+            }
 
-        return response()->json([
-            'customer' => $customer,
-            'deliveryOrders' => $deliveryOrders,
-        ]);
+            return response()->json([
+                'customer' => $customer,
+                'deliveryOrders' => $deliveryOrders,
+            ]);
+        });
     }
 
     public function store(Request $request)
     {
+        // Operasi Write (INSERT) TETAP ke MySQL sebagai master source of truth
         $validated = $request->validate([
             'nm_cs' => ['required', 'string', 'max:255'],
             'alamat_cs' => ['nullable', 'string', 'max:255'],
@@ -92,6 +169,7 @@ class CustomerController
             'Attnd.*' => ['nullable', 'string', 'max:255'],
         ]);
 
+        // Generate kode baru langsung dari MySQL untuk konsistensi data realtime
         $lastCode = DB::table('tb_cs')
             ->where('kd_cs', 'like', 'CST%')
             ->orderBy('kd_cs', 'desc')
@@ -139,7 +217,6 @@ class CustomerController
             return back()->with('error', 'Gagal menyimpan data customer: ' . $exception->getMessage());
         }
 
-
         return redirect()
             ->route('master-data.customer.index')
             ->with('success', 'Data customer berhasil disimpan.');
@@ -147,6 +224,7 @@ class CustomerController
 
     public function update(Request $request, string $kdCustomer)
     {
+        // Operasi Write (UPDATE) TETAP ke MySQL sebagai master source of truth
         $validated = $request->validate([
             'nm_cs' => ['required', 'string', 'max:255'],
             'alamat_cs' => ['nullable', 'string', 'max:255'],
@@ -203,7 +281,6 @@ class CustomerController
             return back()->with('error', 'Gagal memperbarui data customer: ' . $exception->getMessage());
         }
 
-
         return redirect()
             ->route('master-data.customer.index')
             ->with('success', 'Data customer berhasil diperbarui.');
@@ -211,49 +288,54 @@ class CustomerController
 
     public function export(Request $request)
     {
-        // Ambil semua customer dari tb_cs
-        $customers = DB::table('tb_cs')
-            ->select(
-                'kd_cs', 'nm_cs', 'alamat_cs', 'kota_cs',
-                'telp_cs', 'fax_cs', 'npwp_cs', 'npwp1_cs', 'npwp2_cs'
-            )
-            ->orderBy('kd_cs')
-            ->get();
+        return $this->safeRead(function () {
+            $readConn = $this->getReadConnection();
 
-        // Ambil semua PIC dari tb_cspic, group by kd_cs
-        $picsRaw = DB::table('tb_cspic')
-            ->select('kd_cs', 'pic_name')
-            ->whereNotNull('pic_name')
-            ->where('pic_name', '<>', '')
-            ->orderBy('kd_cs')
-            ->orderBy('pic_name')
-            ->get()
-            ->groupBy('kd_cs');
+            // Ambil semua customer dari tb_cs memanfaatkan index kd_cs
+            $customers = $readConn->table('tb_cs')
+                ->select(
+                    'kd_cs', 'nm_cs', 'alamat_cs', 'kota_cs',
+                    'telp_cs', 'fax_cs', 'npwp_cs', 'npwp1_cs', 'npwp2_cs'
+                )
+                ->orderBy('kd_cs')
+                ->get();
 
-        // Merge: tiap customer dapat array pic_names dari tb_cspic
-        $data = $customers->map(function ($cs) use ($picsRaw) {
-            $pics = $picsRaw->get($cs->kd_cs, collect())->pluck('pic_name')->toArray();
-            return [
-                'kd_cs'     => $cs->kd_cs,
-                'nm_cs'     => $cs->nm_cs,
-                'alamat_cs' => $cs->alamat_cs,
-                'kota_cs'   => $cs->kota_cs,
-                'telp_cs'   => $cs->telp_cs,
-                'fax_cs'    => $cs->fax_cs,
-                'npwp_cs'   => $cs->npwp_cs,
-                'npwp1_cs'  => $cs->npwp1_cs,
-                'npwp2_cs'  => $cs->npwp2_cs,
-                'pics'      => $pics,
-            ];
-        })->values()->toArray();
+            // Ambil semua PIC dari tb_cspic memanfaatkan index kd_cs
+            $picsRaw = $readConn->table('tb_cspic')
+                ->select('kd_cs', 'pic_name')
+                ->whereNotNull('pic_name')
+                ->where('pic_name', '<>', '')
+                ->orderBy('kd_cs')
+                ->orderBy('pic_name')
+                ->get()
+                ->groupBy('kd_cs');
 
-        return Inertia::render('master-data/customer/export', [
-            'customers' => $data,
-        ]);
+            // Merge: tiap customer dapat array pic_names dari tb_cspic
+            $data = $customers->map(function ($cs) use ($picsRaw) {
+                $pics = $picsRaw->get($cs->kd_cs, collect())->pluck('pic_name')->toArray();
+                return [
+                    'kd_cs'     => $cs->kd_cs,
+                    'nm_cs'     => $cs->nm_cs,
+                    'alamat_cs' => $cs->alamat_cs,
+                    'kota_cs'   => $cs->kota_cs,
+                    'telp_cs'   => $cs->telp_cs,
+                    'fax_cs'    => $cs->fax_cs,
+                    'npwp_cs'   => $cs->npwp_cs,
+                    'npwp1_cs'  => $cs->npwp1_cs,
+                    'npwp2_cs'  => $cs->npwp2_cs,
+                    'pics'      => $pics,
+                ];
+            })->values()->toArray();
+
+            return Inertia::render('master-data/customer/export', [
+                'customers' => $data,
+            ]);
+        });
     }
 
     public function destroy(string $kdCustomer)
     {
+        // Operasi Write (DELETE) TETAP ke MySQL sebagai master source of truth
         try {
             DB::transaction(function () use ($kdCustomer) {
                 DB::table('tb_cspic')->where('kd_cs', $kdCustomer)->delete();
@@ -264,7 +346,6 @@ class CustomerController
 
             return back()->with('error', 'Gagal menghapus data customer: ' . $exception->getMessage());
         }
-
 
         return redirect()
             ->route('master-data.customer.index')
