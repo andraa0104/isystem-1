@@ -209,10 +209,11 @@ export default function ReviewTagihanIndex() {
             });
 
             if (!response.ok) {
+                const errorData = await response.json().catch(() => null);
                 if (response.status === 504) {
                     throw new Error('Server AI Timeout (504). Mengantre di memori VPS, silakan coba lagi.');
                 }
-                throw new Error(`Gagal memuat analisis AI penagihan (Kode: ${response.status}).`);
+                throw new Error(errorData?.notice || `Gagal memuat analisis AI penagihan (Kode: ${response.status}).`);
             }
 
             const json = await response.json();

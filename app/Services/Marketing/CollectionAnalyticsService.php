@@ -33,6 +33,7 @@ class CollectionAnalyticsService
 
         $pythonResult = $pythonAnalysis['result'];
         $llmContext = $pythonAnalysis['llm_context'] ?? '';
+        $metrics = $pythonAnalysis['analytics'] ?? ($pythonAnalysis['metrics'] ?? []);
         $agingDistribution = $pythonAnalysis['aging_distribution'] ?? [];
         $topAccounts = $pythonAnalysis['top_priority_accounts'] ?? [];
         $quickWins = $pythonAnalysis['quick_wins'] ?? [];

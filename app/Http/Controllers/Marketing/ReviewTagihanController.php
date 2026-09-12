@@ -241,37 +241,72 @@ class ReviewTagihanController
 
     public function aiAnalyze(Request $request, \App\Services\Marketing\CollectionAnalyticsService $analyticsService)
     {
+        @set_time_limit(360);
+        @ini_set('max_execution_time', '360');
+
         $scope = (string) $request->input('scope', 'all');
         $overdueRange = (string) $request->input('overdue_range', 'all');
         $customer = trim((string) $request->input('customer', ''));
 
-        $query = $this->baseInvoiceQuery()
-            ->select(
-                'no_fakturpenjualan',
-                'nm_cs',
-                'kd_cs',
-                'tgl_doc',
-                'jth_tempo',
-                'tgl_terimainv',
-                'ref_po',
-                'g_total',
-                'total_bayaran',
-                'saldo_piutang'
-            );
+        $cacheKey = 'review-tagihan-ai:' . sha1(json_encode([
+            'scope' => $scope,
+            'overdue_range' => $overdueRange,
+            'customer' => $customer,
+        ]));
 
-        if ($customer !== '') {
-            $query->whereRaw('lower(trim(nm_cs)) = ?', [Str::lower(trim($customer))]);
+        if (!$request->boolean('force')) {
+            $cachedResult = \Illuminate\Support\Facades\Cache::get($cacheKey);
+            if (is_array($cachedResult)) {
+                return response()->json(array_merge($cachedResult, ['cached' => true]));
+            }
         }
 
-        if ($scope !== 'all') {
-            $this->applyDueScope($query, $scope, $overdueRange);
+        try {
+            $query = $this->baseInvoiceQuery()
+                ->select(
+                    'no_fakturpenjualan',
+                    'nm_cs',
+                    'kd_cs',
+                    'tgl_doc',
+                    'jth_tempo',
+                    'tgl_terimainv',
+                    'ref_po',
+                    'g_total',
+                    'total_bayaran',
+                    'saldo_piutang'
+                );
+
+            if ($customer !== '') {
+                $query->whereRaw('lower(trim(nm_cs)) = ?', [Str::lower(trim($customer))]);
+            }
+
+            if ($scope !== 'all') {
+                $this->applyDueScope($query, $scope, $overdueRange);
+            }
+
+            $invoices = $query->get()->map(fn ($row) => (array) $row)->toArray();
+
+            $result = $analyticsService->analyzeCollections($invoices, Carbon::today()->toDateString());
+
+            if (!empty($result['success'])) {
+                \Illuminate\Support\Facades\Cache::put($cacheKey, $result, now()->addMinutes(15));
+            }
+
+            return response()->json($result);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('ReviewTagihanController aiAnalyze failed: ' . $e->getMessage(), [
+                'exception' => get_class($e),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'engine' => 'Error Handler Fallback',
+                'is_fallback' => true,
+                'notice' => 'Gagal memproses analitik penagihan: ' . $e->getMessage(),
+                'data' => null,
+            ], 500);
         }
-
-        $invoices = $query->get()->map(fn ($row) => (array) $row)->toArray();
-
-        $result = $analyticsService->analyzeCollections($invoices, Carbon::today()->toDateString());
-
-        return response()->json($result);
     }
 
     private function scopeLabel(string $scope, string $overdueRange): string
