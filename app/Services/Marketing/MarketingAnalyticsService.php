@@ -33,6 +33,7 @@ class MarketingAnalyticsService
 
         $pythonResult = $pythonAnalysis['result'];
         $llmContext = $pythonAnalysis['llm_context'] ?? '';
+        $metrics = $pythonAnalysis['analytics'] ?? [];
         $allCust = $pythonResult['enriched_customers']['allCustomers'] ?? [];
         // Prioritaskan maksimal 25 akun paling krusial agar output LLM tidak terpotong (token cutoff)
         $priorityCustomers = array_slice($allCust, 0, 25);

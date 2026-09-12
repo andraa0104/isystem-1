@@ -189,8 +189,22 @@ class PerformanceController
             }
         }
 
-        $analyticsService = app(MarketingAnalyticsService::class);
-        $result = $analyticsService->analyzeOverallPerformance($perfData, $filters);
+        try {
+            $analyticsService = app(MarketingAnalyticsService::class);
+            $result = $analyticsService->analyzeOverallPerformance($perfData, $filters);
+        } catch (\Throwable $e) {
+            Log::error('PerformanceController aiAnalyze failed: ' . $e->getMessage(), [
+                'exception' => get_class($e),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'engine' => 'AI Analytics Engine',
+                'is_fallback' => true,
+                'notice' => 'Gagal memproses analisis AI: ' . $e->getMessage(),
+                'data' => null,
+            ], 200);
+        }
 
         if (($result['success'] ?? false) === true && !empty($result['data'])) {
             Cache::put($cacheKey, $result, now()->addMinutes(10));
@@ -219,12 +233,11 @@ class PerformanceController
         }
 
         $filters = $this->extractCustomerFilters($request);
-        $availableYears = $this->getAvailableYears();
 
         return Inertia::render('marketing/performance/customer', [
             'customer' => $customerInfo,
             'initialFilters' => $filters,
-            'availableYears' => $availableYears,
+            'availableYears' => $this->getAvailableYears(),
         ]);
     }
 
@@ -255,8 +268,22 @@ class PerformanceController
             return $this->calculateCustomerPerformance($customer, $filters);
         });
 
-        $analyticsService = app(MarketingAnalyticsService::class);
-        $result = $analyticsService->analyzeCustomerPerformance($perfData, $filters);
+        try {
+            $analyticsService = app(MarketingAnalyticsService::class);
+            $result = $analyticsService->analyzeCustomerPerformance($perfData, $filters);
+        } catch (\Throwable $e) {
+            Log::error('PerformanceController customerAiAnalyze failed: ' . $e->getMessage(), [
+                'exception' => get_class($e),
+            ]);
+
+            return response()->json([
+                'success' => false,
+                'engine' => 'AI Analytics Engine',
+                'is_fallback' => true,
+                'notice' => 'Gagal memproses analisis AI customer: ' . $e->getMessage(),
+                'data' => null,
+            ], 200);
+        }
 
         return response()->json($result);
     }
