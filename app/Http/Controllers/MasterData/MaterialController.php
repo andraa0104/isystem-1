@@ -228,10 +228,6 @@ class MaterialController
             return null;
         }
 
-        if ($queries->count() === 1) {
-            return $queries->first();
-        }
-
         $query = $queries->shift();
         foreach ($queries as $unionQuery) {
             $query->unionAll($unionQuery);
@@ -369,6 +365,7 @@ class MaterialController
             }
 
             $rows = $query
+                ->where('gudang', $validated['warehouse'])
                 ->whereRaw("lower(trim(coalesce(kategori, ''))) not in ('', '0')")
                 ->get();
 
