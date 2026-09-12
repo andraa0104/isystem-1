@@ -19,6 +19,7 @@ import {
     ChevronLeft,
     ChevronRight,
     ChevronUp,
+    Clock,
     Copy,
     Crown,
     ExternalLink,
@@ -31,6 +32,7 @@ import {
     Rocket,
     Search,
     ShieldAlert,
+    ShieldCheck,
     Sparkles,
     Target,
     TrendingDown,
@@ -122,6 +124,7 @@ export default function PerformanceIndex({
     // Table states
     const [searchCustomer, setSearchCustomer] = useState('');
     const [statusFilter, setStatusFilter] = useState('all');
+    const [clusterFilter, setClusterFilter] = useState('all');
     const [sortField, setSortField] = useState('rank');
     const [sortDirection, setSortDirection] = useState('asc');
     const [currentPage, setCurrentPage] = useState(1);
@@ -413,6 +416,11 @@ export default function PerformanceIndex({
             });
         }
 
+        // Cluster Filter (K-Means ML)
+        if (clusterFilter !== 'all') {
+            list = list.filter((c) => c.ml_cluster === clusterFilter);
+        }
+
         // Sort
         list.sort((a, b) => {
             let valA = a[sortField];
@@ -429,7 +437,7 @@ export default function PerformanceIndex({
         });
 
         return list;
-    }, [data, searchCustomer, statusFilter, sortField, sortDirection]);
+    }, [data, searchCustomer, statusFilter, clusterFilter, sortField, sortDirection]);
 
     // Paginated Customer Data
     const paginatedCustomers = useMemo(() => {
@@ -679,6 +687,61 @@ export default function PerformanceIndex({
     // Status Badge Helper (Legacy fallback)
     const renderStatusBadge = (status) => {
         return renderAiStatusBadge({ status, ai_status: status });
+    };
+
+    // ML K-Means Cluster Badge Helper
+    const renderMlClusterBadge = (c) => {
+        if (!c?.ml_cluster) return null;
+        const cluster = c.ml_cluster;
+        let badgeClass = 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/30';
+        let IconComponent = Sparkles;
+        if (cluster.includes('Champion')) {
+            badgeClass = 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30';
+            IconComponent = Crown;
+        } else if (cluster.includes('Loyal')) {
+            badgeClass = 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30';
+            IconComponent = ShieldCheck;
+        } else if (cluster.includes('At-Risk')) {
+            badgeClass = 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30';
+            IconComponent = AlertTriangle;
+        } else if (cluster.includes('Growth')) {
+            badgeClass = 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30';
+            IconComponent = TrendingUp;
+        } else if (cluster.includes('Dormant')) {
+            badgeClass = 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30';
+            IconComponent = Clock;
+        }
+
+        return (
+            <span
+                className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${badgeClass}`}
+                title={`Kluster K-Means ML: ${cluster}`}
+            >
+                <IconComponent className="h-3 w-3 shrink-0" />
+                <span>{cluster}</span>
+            </span>
+        );
+    };
+
+    // ML Churn Probability Badge Helper
+    const renderChurnProbBadge = (c) => {
+        if (c?.churn_prob === undefined || c?.churn_prob === null) return null;
+        const prob = Math.round(Number(c.churn_prob) * 100);
+        const risk = c.churn_risk_level || (prob >= 75 ? 'Critical' : prob >= 50 ? 'High' : prob >= 25 ? 'Moderate' : 'Low');
+
+        let badgeClass = 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30';
+        if (risk === 'Critical') badgeClass = 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border-rose-500/40 font-bold';
+        else if (risk === 'High') badgeClass = 'bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/30 font-semibold';
+        else if (risk === 'Moderate') badgeClass = 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30';
+
+        return (
+            <span
+                className={`inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[10px] font-medium ${badgeClass}`}
+                title={`Probabilitas Churn (Logistic Regression): ${prob}% (${risk})`}
+            >
+                <span>Churn: {prob}%</span>
+            </span>
+        );
     };
 
     // Max chart value for relative bar heights
@@ -1446,6 +1509,183 @@ export default function PerformanceIndex({
                                                     )}
                                                 </div>
                                             </div>
+
+                                            {/* 1b. MACHINE LEARNING PREDICTIVE ANALYTICS SECTION */}
+                                            {(() => {
+                                                const ml = aiData?.ml_analytics || data?.ml_analytics;
+                                                if (!ml) return null;
+                                                const forecast = ml.forecast;
+                                                const churn = ml.churn;
+                                                const clusters = ml.clusters || {};
+
+                                                return (
+                                                    <div className="space-y-4 rounded-xl border border-primary/30 bg-primary/[0.02] p-4 sm:p-5">
+                                                        <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                                                            <div className="flex items-center gap-2">
+                                                                <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                                                                    <Sparkles className="h-4 w-4" />
+                                                                </div>
+                                                                <div>
+                                                                    <h3 className="text-sm font-bold tracking-tight text-foreground flex items-center gap-2">
+                                                                        Machine Learning Predictive Analytics
+                                                                        <span className="rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-semibold text-primary">
+                                                                            Algoritma ML Terapan
+                                                                        </span>
+                                                                    </h3>
+                                                                    <p className="text-xs text-muted-foreground">
+                                                                        Peramalan pendapatan deret waktu (Holt-Winters), deteksi dini atrisi pelanggan (Logistic Probability), dan segmentasi klaster otomatis (K-Means K=5).
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                            {forecast?.model_metrics?.mape !== undefined && (
+                                                                <span className="self-start rounded-md border border-sidebar-border bg-background px-2.5 py-1 text-[11px] font-semibold text-foreground shadow-xs sm:self-auto">
+                                                                    Akurasi Model: <strong className="text-emerald-600 dark:text-emerald-400">MAPE {forecast.model_metrics.mape}%</strong>
+                                                                </span>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Grid of ML Forecast & Churn Risk */}
+                                                        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                                            {/* 1. Revenue Forecast Card */}
+                                                            <div className="flex flex-col justify-between rounded-xl border border-sidebar-border/70 bg-card p-4 shadow-xs">
+                                                                <div>
+                                                                    <div className="flex items-center justify-between gap-2 border-b border-sidebar-border/60 pb-2.5">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <TrendingUp className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                                                                            <h4 className="text-xs font-bold text-foreground">
+                                                                                Proyeksi Pendapatan 1-3 Periode Mendatang
+                                                                            </h4>
+                                                                        </div>
+                                                                        <span className="rounded bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400">
+                                                                            Holt-Winters Model
+                                                                        </span>
+                                                                    </div>
+                                                                    <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
+                                                                        {forecast?.narrative}
+                                                                    </p>
+
+                                                                    <div className="mt-3 grid grid-cols-3 gap-2">
+                                                                        {(forecast?.forecast_periods || []).map((fp, fIdx) => (
+                                                                            <div key={fIdx} className="rounded-lg border border-sidebar-border/60 bg-muted/30 p-2 text-center">
+                                                                                <span className="text-[10px] font-semibold text-muted-foreground block truncate">
+                                                                                    {fp.period_label || `+${fIdx + 1} Periode`}
+                                                                                </span>
+                                                                                <span className="text-xs font-bold text-foreground block mt-0.5">
+                                                                                    {formatCompactRupiah(fp.predicted_sales)}
+                                                                                </span>
+                                                                                <span className={`text-[10px] font-semibold block mt-0.5 ${fp.growth_pct >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600'}`}>
+                                                                                    {formatPercent(fp.growth_pct)}
+                                                                                </span>
+                                                                                <span className="text-[9px] text-muted-foreground/80 block mt-0.5 leading-tight">
+                                                                                    95% CI: {formatCompactRupiah(fp.lower_bound_95)} - {formatCompactRupiah(fp.upper_bound_95)}
+                                                                                </span>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+
+                                                            {/* 2. Churn Early Warning Card */}
+                                                            <div className="flex flex-col justify-between rounded-xl border border-rose-500/20 bg-rose-500/[0.02] p-4 shadow-xs">
+                                                                <div>
+                                                                    <div className="flex items-center justify-between gap-2 border-b border-rose-500/20 pb-2.5">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <ShieldAlert className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+                                                                            <h4 className="text-xs font-bold text-rose-700 dark:text-rose-300">
+                                                                                Peringatan Dini Churn Pelanggan
+                                                                            </h4>
+                                                                        </div>
+                                                                        <span className="rounded bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-bold text-rose-600 dark:text-rose-400">
+                                                                            VaR: {churn?.value_at_risk_high_fmt || 'Rp 0'}
+                                                                        </span>
+                                                                    </div>
+
+                                                                    <div className="mt-2.5 flex items-center gap-3 text-xs">
+                                                                        <div className="flex items-center gap-1.5 font-medium">
+                                                                            <span className="h-2 w-2 rounded-full bg-rose-500" />
+                                                                            <span>{churn?.high_risk_count || 0} Akun Risiko Tinggi</span>
+                                                                        </div>
+                                                                        <div className="flex items-center gap-1.5 font-medium">
+                                                                            <span className="h-2 w-2 rounded-full bg-amber-500" />
+                                                                            <span>{churn?.medium_risk_count || 0} Akun Waspada</span>
+                                                                        </div>
+                                                                    </div>
+
+                                                                    <div className="mt-3 space-y-2">
+                                                                        {(churn?.top_at_risk_accounts || []).slice(0, 3).map((ac, aIdx) => (
+                                                                            <div key={aIdx} className="flex items-center justify-between rounded-lg border border-sidebar-border/50 bg-background/80 p-2 text-xs">
+                                                                                <div className="min-w-0 pr-2">
+                                                                                    <div className="font-semibold truncate text-foreground flex items-center gap-1">
+                                                                                        {ac.nm_cs}
+                                                                                        <span className="text-[10px] text-muted-foreground font-normal">({ac.kd_cs})</span>
+                                                                                    </div>
+                                                                                    <div className="text-[10px] text-muted-foreground truncate">
+                                                                                        {ac.risk_factor}
+                                                                                    </div>
+                                                                                </div>
+                                                                                <div className="text-right shrink-0">
+                                                                                    <span className="rounded-md bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-bold text-rose-600 dark:text-rose-400">
+                                                                                        P(churn): {ac.churn_prob}%
+                                                                                    </span>
+                                                                                    <span className="block text-[10px] text-muted-foreground mt-0.5">
+                                                                                        Vol: {ac.prev_sales_fmt}
+                                                                                    </span>
+                                                                                </div>
+                                                                            </div>
+                                                                        ))}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* 3. Customer Segmentation Clusters Pill Bar */}
+                                                        {Object.keys(clusters).length > 0 && (
+                                                            <div className="rounded-lg border border-sidebar-border/60 bg-card p-3">
+                                                                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                                                                    <div className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                                                                        <Users className="h-3.5 w-3.5 text-primary" />
+                                                                        <span>Segmentasi Otomatis (K-Means K=5):</span>
+                                                                    </div>
+                                                                    <div className="flex flex-wrap items-center gap-1.5">
+                                                                        {Object.entries(clusters).map(([cName, cInfo]) => {
+                                                                            const isSelected = clusterFilter === cName;
+                                                                            return (
+                                                                                <button
+                                                                                    key={cName}
+                                                                                    type="button"
+                                                                                    onClick={() => {
+                                                                                        setClusterFilter(isSelected ? 'all' : cName);
+                                                                                        setCurrentPage(1);
+                                                                                    }}
+                                                                                    className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium transition-all ${
+                                                                                        isSelected
+                                                                                            ? 'bg-primary text-primary-foreground shadow-xs ring-2 ring-primary/40'
+                                                                                            : 'bg-muted/70 text-muted-foreground hover:bg-muted hover:text-foreground'
+                                                                                    }`}
+                                                                                >
+                                                                                    <span>{cName}</span>
+                                                                                    <span className="rounded-full bg-background/40 px-1.5 text-[9px] font-bold">
+                                                                                        {cInfo.count}
+                                                                                    </span>
+                                                                                </button>
+                                                                            );
+                                                                        })}
+                                                                        {clusterFilter !== 'all' && (
+                                                                            <button
+                                                                                type="button"
+                                                                                onClick={() => setClusterFilter('all')}
+                                                                                className="text-[10px] text-primary hover:underline ml-1 font-semibold"
+                                                                            >
+                                                                                Reset Filter
+                                                                            </button>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })()}
 
                                             {/* 2. Sorotan Kritis & Hal yang Harus Diperbaiki */}
                                             {aiData.critical_areas_to_fix && aiData.critical_areas_to_fix.length > 0 && (
@@ -2408,6 +2648,34 @@ export default function PerformanceIndex({
                                             ⚪ Non-Aktif
                                         </option>
                                     </select>
+
+                                    <select
+                                        value={clusterFilter}
+                                        onChange={(e) => {
+                                            setClusterFilter(e.target.value);
+                                            setCurrentPage(1);
+                                        }}
+                                        className="h-9 rounded-md border border-sidebar-border/70 bg-background px-3 text-xs text-foreground shadow-xs sm:text-sm font-medium"
+                                    >
+                                        <option value="all">
+                                            Semua Kluster ML (K-Means)
+                                        </option>
+                                        <option value="Champions">
+                                            🏆 Champions
+                                        </option>
+                                        <option value="Loyal Backbone">
+                                            💎 Loyal Backbone
+                                        </option>
+                                        <option value="At-Risk High-Spenders">
+                                            ⚠️ At-Risk High-Spenders
+                                        </option>
+                                        <option value="Potential Growth">
+                                            🚀 Potential Growth
+                                        </option>
+                                        <option value="Dormant">
+                                            💤 Dormant / Churned
+                                        </option>
+                                    </select>
                                 </div>
                             </div>
 
@@ -2532,6 +2800,10 @@ export default function PerformanceIndex({
                                                                 {c.kd_cs}
                                                             </span>
                                                         </Link>
+                                                        <div className="mt-1 flex flex-wrap items-center gap-1.5">
+                                                            {renderMlClusterBadge(c)}
+                                                            {renderChurnProbBadge(c)}
+                                                        </div>
                                                     </td>
                                                     <td className="py-3 text-right font-bold text-foreground">
                                                         {formatRupiah(

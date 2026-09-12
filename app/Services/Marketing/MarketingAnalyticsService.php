@@ -143,6 +143,7 @@ class MarketingAnalyticsService
             $perfData['lowestCustomers'] = $pythonAnalysis['enriched_customers']['lowestCustomers'];
             $perfData['decliningCustomers'] = $pythonAnalysis['enriched_customers']['decliningCustomers'];
             $perfData['analyticsMetrics'] = $pythonAnalysis['analytics'] ?? [];
+            $perfData['ml_analytics'] = $pythonAnalysis['ml_analytics'] ?? ($pythonAnalysis['analytics']['ml_analytics'] ?? []);
         }
         return $perfData;
     }
@@ -163,6 +164,7 @@ class MarketingAnalyticsService
             $kpi['rfm_segment'] = $pythonAnalysis['enriched_kpi']['rfm_segment'] ?? 'Reguler';
             $customerData['kpi'] = $kpi;
             $customerData['analyticsMetrics'] = $pythonAnalysis['analytics'] ?? [];
+            $customerData['ml_prediction'] = $pythonAnalysis['ml_prediction'] ?? ($pythonAnalysis['analytics']['ml_prediction'] ?? []);
         }
         return $customerData;
     }
@@ -187,7 +189,8 @@ class MarketingAnalyticsService
         try {
             $jsonInput = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-            $process = new Process(['python3', $scriptPath, "--mode={$mode}"]);
+            $pythonBinary = env('PYTHON_BINARY', 'python3');
+            $process = new Process([$pythonBinary, $scriptPath, "--mode={$mode}"]);
             $process->setInput($jsonInput);
             $process->setTimeout(30); // Maksimal 30 detik (biasanya < 100ms)
             $process->run();
@@ -397,6 +400,7 @@ PROMPT;
                 : $pythonResult['quick_wins'],
             'enriched_customers' => $customerLists,
             'analytics_metrics' => $metrics,
+            'ml_analytics' => $pythonResult['ml_analytics'] ?? ($metrics['ml_analytics'] ?? []),
         ];
     }
 
@@ -429,6 +433,7 @@ PROMPT;
                 ? $geminiData['quick_wins']
                 : $pythonResult['quick_wins'],
             'analytics_metrics' => $metrics,
+            'ml_prediction' => $pythonResult['ml_prediction'] ?? ($metrics['ml_prediction'] ?? []),
         ];
     }
 }

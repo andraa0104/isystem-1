@@ -20,7 +20,9 @@ import {
     ChevronLeft,
     ChevronRight,
     ChevronUp,
+    Clock,
     Copy,
+    Crown,
     FileText,
     Filter,
     HelpCircle,
@@ -32,6 +34,7 @@ import {
     RefreshCw,
     Search,
     ShieldAlert,
+    ShieldCheck,
     Sparkles,
     Tag,
     Target,
@@ -39,6 +42,7 @@ import {
     TrendingUp,
     Users,
     Zap,
+    Bot,
 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
@@ -166,6 +170,11 @@ export default function CustomerPerformanceDetail({
     const [invoiceSearch, setInvoiceSearch] = useState('');
     const [invoicePage, setInvoicePage] = useState(1);
     const invoicesPerPage = 8;
+
+    // Machine Learning Predictive Intelligence data
+    const mlPrediction = useMemo(() => {
+        return aiData?.ml_prediction || data?.ml_prediction || aiData?.analytics_metrics?.ml_prediction || data?.analytics_metrics?.ml_prediction || null;
+    }, [aiData, data]);
 
     const breadcrumbs = [
         { title: 'Dashboard', href: '/dashboard' },
@@ -468,6 +477,32 @@ export default function CustomerPerformanceDetail({
                                         }`}
                                     >
                                         {data.kpi.status}
+                                    </span>
+                                )}
+                                {mlPrediction?.churn_risk && (
+                                    <span
+                                        className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+                                            mlPrediction.churn_risk.churn_risk_level === 'Critical'
+                                                ? 'border border-rose-500/40 bg-rose-500/15 text-rose-700 dark:text-rose-300 font-bold animate-pulse'
+                                                : mlPrediction.churn_risk.churn_risk_level === 'High'
+                                                ? 'border border-orange-500/30 bg-orange-500/15 text-orange-700 dark:text-orange-300'
+                                                : mlPrediction.churn_risk.churn_risk_level === 'Moderate'
+                                                ? 'border border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                                                : 'border border-emerald-500/30 bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                                        }`}
+                                        title={`Probabilitas Churn (Logistic Regression): ${mlPrediction.churn_risk.churn_prob}%`}
+                                    >
+                                        <ShieldAlert className="h-3 w-3 shrink-0" />
+                                        <span>ML Churn: {mlPrediction.churn_risk.churn_prob}% ({mlPrediction.churn_risk.churn_risk_level})</span>
+                                    </span>
+                                )}
+                                {mlPrediction?.next_order?.expected_days_label && (
+                                    <span
+                                        className="inline-flex items-center gap-1 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300"
+                                        title={`Prediksi Repeat Order: ${mlPrediction.next_order.expected_date_window}`}
+                                    >
+                                        <Clock className="h-3 w-3 shrink-0" />
+                                        <span>Next Order: {mlPrediction.next_order.expected_days_label}</span>
                                     </span>
                                 )}
                             </div>
@@ -869,7 +904,219 @@ export default function CustomerPerformanceDetail({
                             </div>
                         </div>
 
-                        {/* 4. AI Strategic Customer Intelligence Widget */}
+                        {/* 4. Machine Learning Predictive Intelligence Widget */}
+                        {mlPrediction && (
+                            <div className="overflow-hidden rounded-2xl border border-indigo-500/30 bg-card shadow-xs transition-all">
+                                {/* Header */}
+                                <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sidebar-border/60 bg-gradient-to-r from-indigo-500/10 via-purple-500/5 to-transparent px-5 py-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 shadow-xs ring-1 ring-indigo-500/30">
+                                            <Sparkles className="h-5 w-5 animate-pulse" />
+                                        </div>
+                                        <div>
+                                            <div className="flex flex-wrap items-center gap-2">
+                                                <h2 className="text-base font-bold text-foreground sm:text-lg">
+                                                    Machine Learning Predictive Analytics
+                                                </h2>
+                                                <span className="inline-flex items-center gap-1 rounded-full border border-indigo-500/30 bg-indigo-500/10 px-2.5 py-0.5 text-xs font-semibold text-indigo-700 dark:text-indigo-300">
+                                                    <Bot className="h-3.5 w-3.5" />
+                                                    Model Kuantitatif Python
+                                                </span>
+                                            </div>
+                                            <p className="mt-0.5 text-xs text-muted-foreground">
+                                                Estimasi siklus demand repeat order (IPT), deteksi dini risiko churn (Multivariate Logistic Model), dan ekspansi keranjang (Product Affinity).
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <div className="inline-flex items-center gap-1.5 rounded-lg border border-indigo-500/20 bg-indigo-500/5 px-3 py-1.5 text-xs text-indigo-700 dark:text-indigo-300">
+                                            <span className="text-[11px] font-medium text-muted-foreground">Status Engine:</span>
+                                            <strong className="font-bold text-indigo-600 dark:text-indigo-400">Aktif &amp; Terkalibrasi</strong>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Content Body */}
+                                <div className="p-5 space-y-5">
+                                    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+                                        {/* 1. Demand & Repeat Order Forecast */}
+                                        {mlPrediction.next_order && (
+                                            <div className="flex flex-col justify-between rounded-xl border border-sidebar-border/80 bg-gradient-to-br from-card to-background p-4.5 shadow-2xs">
+                                                <div>
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2">
+                                                            <Clock className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+                                                            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                                                Prediksi Repeat Order Berikutnya
+                                                            </span>
+                                                        </div>
+                                                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                                                            mlPrediction.next_order.expected_order_days <= 0
+                                                                ? 'bg-rose-500/15 text-rose-700 dark:text-rose-300'
+                                                                : mlPrediction.next_order.expected_order_days <= 7
+                                                                ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                                                                : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                                                        }`}>
+                                                            {mlPrediction.next_order.expected_days_label}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="mt-3.5">
+                                                        <div className="text-xs text-muted-foreground font-medium">Jendela Tanggal Diproyeksikan:</div>
+                                                        <div className="text-lg font-extrabold text-foreground sm:text-xl">
+                                                            {mlPrediction.next_order.expected_date_window}
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="mt-3 rounded-lg border border-sidebar-border/60 bg-muted/40 p-3">
+                                                        <div className="flex items-center justify-between text-xs">
+                                                            <span className="text-muted-foreground">Estimasi Nilai Order (AOV):</span>
+                                                            <span className="font-bold text-foreground text-sm">
+                                                                {mlPrediction.next_order.expected_order_value_fmt}
+                                                            </span>
+                                                        </div>
+                                                        <div className="mt-1 flex items-center justify-between text-[11px] text-muted-foreground">
+                                                            <span>Rentang Estimasi (95% CI):</span>
+                                                            <span>{mlPrediction.next_order.value_lower_fmt} - {mlPrediction.next_order.value_upper_fmt}</span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+
+                                                <div className="mt-3.5 border-t border-sidebar-border/50 pt-2.5 text-xs text-muted-foreground">
+                                                    <div className="flex flex-wrap items-center justify-between gap-1">
+                                                        <span>Siklus Historis: <strong>±{mlPrediction.next_order.mean_cycle_days} hari</strong></span>
+                                                        <span className="text-[11px] font-semibold text-primary">{mlPrediction.next_order.urgency_status}</span>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* 2. Early Warning Churn Risk */}
+                                        {mlPrediction.churn_risk && (
+                                            <div className="flex flex-col justify-between rounded-xl border border-sidebar-border/80 bg-gradient-to-br from-card to-background p-4.5 shadow-2xs">
+                                                <div>
+                                                    <div className="flex items-center justify-between">
+                                                        <div className="flex items-center gap-2">
+                                                            <ShieldAlert className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+                                                            <span className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                                                Early Warning Churn Risk
+                                                            </span>
+                                                        </div>
+                                                        <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
+                                                            mlPrediction.churn_risk.churn_risk_level === 'Critical'
+                                                                ? 'bg-rose-500/20 text-rose-700 dark:text-rose-300 animate-pulse'
+                                                                : mlPrediction.churn_risk.churn_risk_level === 'High'
+                                                                ? 'bg-orange-500/15 text-orange-700 dark:text-orange-300'
+                                                                : mlPrediction.churn_risk.churn_risk_level === 'Moderate'
+                                                                ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                                                                : 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                                                        }`}>
+                                                            Risiko: {mlPrediction.churn_risk.churn_risk_level}
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="my-3 flex items-baseline gap-2">
+                                                        <span className={`text-3xl font-extrabold tracking-tight ${
+                                                            mlPrediction.churn_risk.churn_prob >= 70
+                                                                ? 'text-rose-600 dark:text-rose-400'
+                                                                : mlPrediction.churn_risk.churn_prob >= 40
+                                                                ? 'text-orange-600 dark:text-orange-400'
+                                                                : mlPrediction.churn_risk.churn_prob >= 20
+                                                                ? 'text-amber-600 dark:text-amber-400'
+                                                                : 'text-emerald-600 dark:text-emerald-400'
+                                                        }`}>
+                                                            {mlPrediction.churn_risk.churn_prob}%
+                                                        </span>
+                                                        <span className="text-xs font-semibold text-muted-foreground">
+                                                            Probabilitas P(Churn)
+                                                        </span>
+                                                    </div>
+
+                                                    {/* Progress bar */}
+                                                    <div className="h-2 w-full overflow-hidden rounded-full bg-muted">
+                                                        <div
+                                                            className={`h-full transition-all duration-500 ${
+                                                                mlPrediction.churn_risk.churn_prob >= 70
+                                                                    ? 'bg-rose-500'
+                                                                    : mlPrediction.churn_risk.churn_prob >= 40
+                                                                    ? 'bg-orange-500'
+                                                                    : mlPrediction.churn_risk.churn_prob >= 20
+                                                                    ? 'bg-amber-500'
+                                                                    : 'bg-emerald-500'
+                                                            }`}
+                                                            style={{ width: `${Math.min(100, Math.max(5, mlPrediction.churn_risk.churn_prob))}%` }}
+                                                        />
+                                                    </div>
+
+                                                    <div className="mt-3 text-xs text-muted-foreground">
+                                                        <strong className="text-foreground">Faktor Pemicu Risiko: </strong>
+                                                        {mlPrediction.churn_risk.risk_factor}
+                                                    </div>
+                                                </div>
+
+                                                {mlPrediction.churn_risk.retention_recommendation && (
+                                                    <div className="mt-3 rounded-lg border border-sidebar-border/60 bg-muted/40 p-2.5 text-xs text-foreground">
+                                                        <strong className="text-primary">Tindakan Retensi: </strong>
+                                                        {mlPrediction.churn_risk.retention_recommendation}
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {/* 3. Cross-Selling & Basket Expansion Recommendations */}
+                                    {mlPrediction.cross_sell && mlPrediction.cross_sell.length > 0 && (
+                                        <div className="rounded-xl border border-sidebar-border/80 bg-card p-4.5 shadow-2xs">
+                                            <div className="mb-3 flex items-center justify-between">
+                                                <div className="flex items-center gap-2">
+                                                    <Target className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                                                    <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                                        Rekomendasi Cross-Selling &amp; Ekspansi Keranjang (Product Affinity)
+                                                    </h3>
+                                                </div>
+                                                <span className="text-[11px] font-medium text-purple-600 dark:text-purple-400">
+                                                    Peluang Basket Expansion
+                                                </span>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                                                {mlPrediction.cross_sell.map((item, idx) => (
+                                                    <div
+                                                        key={idx}
+                                                        className="flex flex-col justify-between rounded-lg border border-sidebar-border/60 bg-muted/30 p-3.5 transition-all hover:bg-muted/50"
+                                                    >
+                                                        <div>
+                                                            <div className="flex items-start justify-between gap-2">
+                                                                <span className="font-bold text-xs sm:text-sm text-foreground">
+                                                                    {item.product}
+                                                                </span>
+                                                                <span className="inline-flex shrink-0 items-center rounded-md bg-purple-500/10 px-2 py-0.5 text-[10px] font-bold text-purple-700 dark:text-purple-300">
+                                                                    Skor {item.affinity_score}%
+                                                                </span>
+                                                            </div>
+                                                            <div className="mt-1 text-[11px] font-medium text-muted-foreground">
+                                                                Kategori: {item.category}
+                                                            </div>
+                                                            <p className="mt-2 text-xs text-muted-foreground leading-relaxed">
+                                                                {item.rationale}
+                                                            </p>
+                                                        </div>
+                                                        {item.pitch_strategy && (
+                                                            <div className="mt-3 border-t border-sidebar-border/40 pt-2 text-[11px] text-foreground">
+                                                                <strong className="text-primary">Taktik Pitching: </strong>
+                                                                {item.pitch_strategy}
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* 5. AI Strategic Customer Intelligence Widget */}
                         <div className="overflow-hidden rounded-2xl border border-sidebar-border/80 bg-card shadow-xs transition-all">
                             {/* Header Widget */}
                             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sidebar-border/60 bg-gradient-to-r from-primary/5 via-background to-transparent px-5 py-4">

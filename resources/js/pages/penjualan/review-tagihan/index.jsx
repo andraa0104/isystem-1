@@ -136,6 +136,19 @@ export default function ReviewTagihanIndex() {
         [customerTotal, pageSize],
     );
 
+    // Debtor Default Probability Lookup Map (ML Logistic Hazard)
+    const defaultProbMap = useMemo(() => {
+        const map = {};
+        if (Array.isArray(aiData?.top_priority_accounts)) {
+            aiData.top_priority_accounts.forEach((acc) => {
+                if (acc.customer && acc.default_prob !== undefined) {
+                    map[acc.customer.trim().toLowerCase()] = acc;
+                }
+            });
+        }
+        return map;
+    }, [aiData]);
+
     const loadSummary = async () => {
         const params = new URLSearchParams();
         params.set('overdue_range', overdueRange);
@@ -762,6 +775,198 @@ export default function ReviewTagihanIndex() {
                                         </p>
                                     </div>
 
+                                    {/* 2b. Machine Learning Cash Recovery & Default Risk Forecast */}
+                                    {(aiData.cashflow_forecast || aiData.default_risk_analysis) && (
+                                        <div className="rounded-xl border border-indigo-500/30 bg-gradient-to-br from-card to-background p-4.5 shadow-xs space-y-4">
+                                            {/* ML Header */}
+                                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sidebar-border/50 pb-3">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-400">
+                                                        <Sparkles className="h-4 w-4" />
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="text-sm font-bold text-foreground flex items-center gap-2">
+                                                            Machine Learning Cash Recovery &amp; Default Risk Forecast
+                                                            <span className="rounded-full bg-indigo-500/10 border border-indigo-500/30 px-2 py-0.5 text-[10px] font-semibold text-indigo-700 dark:text-indigo-300">
+                                                                Python Model
+                                                            </span>
+                                                        </h3>
+                                                        <p className="text-[11px] text-muted-foreground">
+                                                            Estimasi pemulihan kas berbasis Survival Analysis &amp; deteksi dini probabilitas gagal bayar (Logistic Hazard).
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                {aiData.default_risk_analysis?.total_at_risk_fmt && (
+                                                    <div className="inline-flex items-center gap-1.5 rounded-lg border border-rose-500/20 bg-rose-500/10 px-2.5 py-1 text-xs text-rose-700 dark:text-rose-300">
+                                                        <ShieldAlert className="h-3.5 w-3.5" />
+                                                        <span>Value at Risk: <strong>{aiData.default_risk_analysis.total_at_risk_fmt}</strong></span>
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            {/* 1. Cashflow Forecast Horizons */}
+                                            {aiData.cashflow_forecast && (
+                                                <div className="space-y-2.5">
+                                                    <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                                        <span className="flex items-center gap-1.5">
+                                                            <Clock className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+                                                            Proyeksi Pencairan Kas Masuk (Cash Inflow Projection)
+                                                        </span>
+                                                        <span className="text-[11px] normal-case text-muted-foreground font-normal">
+                                                            Berdasarkan Hazard Decay Probability
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                                                        {/* 7 Days */}
+                                                        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3.5 flex flex-col justify-between">
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">Horizon 7 Hari</span>
+                                                                <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
+                                                                    {aiData.cashflow_forecast.inflow_7d_pct}% Recovery
+                                                                </span>
+                                                            </div>
+                                                            <div className="my-2 text-lg font-extrabold text-emerald-700 dark:text-emerald-400 sm:text-xl">
+                                                                {aiData.cashflow_forecast.inflow_7d_fmt}
+                                                            </div>
+                                                            <div className="text-[11px] text-muted-foreground border-t border-emerald-500/20 pt-1.5 flex items-center justify-between">
+                                                                <span>Estimasi Faktur:</span>
+                                                                <strong className="text-foreground">{aiData.cashflow_forecast.horizon_7d?.invoices_count || 0} faktur</strong>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* 14 Days */}
+                                                        <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3.5 flex flex-col justify-between">
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-xs font-bold text-blue-800 dark:text-blue-300">Horizon 14 Hari</span>
+                                                                <span className="rounded-md bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-bold text-blue-700 dark:text-blue-300">
+                                                                    {aiData.cashflow_forecast.inflow_14d_pct}% Recovery
+                                                                </span>
+                                                            </div>
+                                                            <div className="my-2 text-lg font-extrabold text-blue-700 dark:text-blue-400 sm:text-xl">
+                                                                {aiData.cashflow_forecast.inflow_14d_fmt}
+                                                            </div>
+                                                            <div className="text-[11px] text-muted-foreground border-t border-blue-500/20 pt-1.5 flex items-center justify-between">
+                                                                <span>Estimasi Faktur:</span>
+                                                                <strong className="text-foreground">{aiData.cashflow_forecast.horizon_14d?.invoices_count || 0} faktur</strong>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* 30 Days */}
+                                                        <div className="rounded-xl border border-purple-500/30 bg-purple-500/5 p-3.5 flex flex-col justify-between">
+                                                            <div className="flex items-center justify-between">
+                                                                <span className="text-xs font-bold text-purple-800 dark:text-purple-300">Horizon 30 Hari</span>
+                                                                <span className="rounded-md bg-purple-500/15 px-1.5 py-0.5 text-[10px] font-bold text-purple-700 dark:text-purple-300">
+                                                                    {aiData.cashflow_forecast.inflow_30d_pct}% Recovery
+                                                                </span>
+                                                            </div>
+                                                            <div className="my-2 text-lg font-extrabold text-purple-700 dark:text-purple-400 sm:text-xl">
+                                                                {aiData.cashflow_forecast.inflow_30d_fmt}
+                                                            </div>
+                                                            <div className="text-[11px] text-muted-foreground border-t border-purple-500/20 pt-1.5 flex items-center justify-between">
+                                                                <span>Estimasi Faktur:</span>
+                                                                <strong className="text-foreground">{aiData.cashflow_forecast.horizon_30d?.invoices_count || 0} faktur</strong>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {aiData.cashflow_forecast.forecast_narrative && (
+                                                        <p className="text-xs text-muted-foreground leading-relaxed bg-muted/30 rounded-lg p-2.5 border border-sidebar-border/40">
+                                                            {aiData.cashflow_forecast.forecast_narrative}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+
+                                            {/* 2. Default Risk Analysis Breakdown */}
+                                            {aiData.default_risk_analysis && (
+                                                <div className="space-y-2.5 border-t border-sidebar-border/40 pt-3">
+                                                    <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                                                        <span className="flex items-center gap-1.5">
+                                                            <ShieldAlert className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
+                                                            Peta Risiko Gagal Bayar Portofolio (Default Hazard Distribution)
+                                                        </span>
+                                                        <span className="text-[11px] normal-case text-muted-foreground font-normal">
+                                                            Logistic Hazard Model
+                                                        </span>
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                                                        {/* Critical */}
+                                                        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-2.5">
+                                                            <div className="text-[11px] font-bold text-rose-700 dark:text-rose-300 flex items-center justify-between">
+                                                                <span>Critical (&gt;75%)</span>
+                                                                <span className="rounded bg-rose-500/20 px-1 py-0.5 font-mono">
+                                                                    {aiData.default_risk_analysis.critical_risk?.count || 0} Debtor
+                                                                </span>
+                                                            </div>
+                                                            <div className="mt-1.5 text-sm font-extrabold text-rose-700 dark:text-rose-300">
+                                                                {aiData.default_risk_analysis.critical_risk?.formatted_nominal || 'Rp 0'}
+                                                            </div>
+                                                            <div className="text-[10px] text-rose-600 dark:text-rose-400 mt-0.5">
+                                                                {aiData.default_risk_analysis.critical_risk?.pct || 0}% eksposur
+                                                            </div>
+                                                        </div>
+
+                                                        {/* High */}
+                                                        <div className="rounded-lg border border-orange-500/30 bg-orange-500/10 p-2.5">
+                                                            <div className="text-[11px] font-bold text-orange-700 dark:text-orange-300 flex items-center justify-between">
+                                                                <span>High (50-75%)</span>
+                                                                <span className="rounded bg-orange-500/20 px-1 py-0.5 font-mono">
+                                                                    {aiData.default_risk_analysis.high_risk?.count || 0} Debtor
+                                                                </span>
+                                                            </div>
+                                                            <div className="mt-1.5 text-sm font-extrabold text-orange-700 dark:text-orange-300">
+                                                                {aiData.default_risk_analysis.high_risk?.formatted_nominal || 'Rp 0'}
+                                                            </div>
+                                                            <div className="text-[10px] text-orange-600 dark:text-orange-400 mt-0.5">
+                                                                {aiData.default_risk_analysis.high_risk?.pct || 0}% eksposur
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Moderate */}
+                                                        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5">
+                                                            <div className="text-[11px] font-bold text-amber-700 dark:text-amber-300 flex items-center justify-between">
+                                                                <span>Moderate (25-50%)</span>
+                                                                <span className="rounded bg-amber-500/20 px-1 py-0.5 font-mono">
+                                                                    {aiData.default_risk_analysis.moderate_risk?.count || 0} Debtor
+                                                                </span>
+                                                            </div>
+                                                            <div className="mt-1.5 text-sm font-extrabold text-amber-700 dark:text-amber-300">
+                                                                {aiData.default_risk_analysis.moderate_risk?.formatted_nominal || 'Rp 0'}
+                                                            </div>
+                                                            <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
+                                                                {aiData.default_risk_analysis.moderate_risk?.pct || 0}% eksposur
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Low */}
+                                                        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2.5">
+                                                            <div className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 flex items-center justify-between">
+                                                                <span>Low (&lt;25%)</span>
+                                                                <span className="rounded bg-emerald-500/20 px-1 py-0.5 font-mono">
+                                                                    {aiData.default_risk_analysis.low_risk?.count || 0} Debtor
+                                                                </span>
+                                                            </div>
+                                                            <div className="mt-1.5 text-sm font-extrabold text-emerald-700 dark:text-emerald-300">
+                                                                {aiData.default_risk_analysis.low_risk?.formatted_nominal || 'Rp 0'}
+                                                            </div>
+                                                            <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">
+                                                                {aiData.default_risk_analysis.low_risk?.pct || 0}% eksposur
+                                                            </div>
+                                                        </div>
+                                                    </div>
+
+                                                    {aiData.default_risk_analysis.assessment && (
+                                                        <p className="text-xs text-muted-foreground leading-relaxed bg-muted/30 rounded-lg p-2.5 border border-sidebar-border/40">
+                                                            {aiData.default_risk_analysis.assessment}
+                                                        </p>
+                                                    )}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
                                     {/* 3. Aging Distribution Breakdown */}
                                     {Array.isArray(aiData.aging_distribution) && aiData.aging_distribution.length > 0 && (
                                         <div className="space-y-3">
@@ -878,17 +1083,27 @@ export default function ReviewTagihanIndex() {
                                                                         {acc.customer}
                                                                     </h4>
                                                                 </div>
-                                                                <span
-                                                                    className={`rounded-md border px-2 py-0.5 text-[10px] font-bold shrink-0 ${
-                                                                        acc.tier === 'CRITICAL'
-                                                                            ? 'border-rose-500/30 bg-rose-500/15 text-rose-700 dark:text-rose-300 animate-pulse'
-                                                                            : acc.tier === 'HIGH'
-                                                                            ? 'border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-300'
-                                                                            : 'border-blue-500/30 bg-blue-500/15 text-blue-700 dark:text-blue-300'
-                                                                    }`}
-                                                                >
-                                                                    {acc.tier_label || acc.tier}
-                                                                </span>
+                                                                <div className="flex items-center gap-1.5 shrink-0">
+                                                                    <span
+                                                                        className={`rounded-md border px-2 py-0.5 text-[10px] font-bold ${
+                                                                            acc.tier === 'CRITICAL'
+                                                                                ? 'border-rose-500/30 bg-rose-500/15 text-rose-700 dark:text-rose-300 animate-pulse'
+                                                                                : acc.tier === 'HIGH'
+                                                                                ? 'border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                                                                                : 'border-blue-500/30 bg-blue-500/15 text-blue-700 dark:text-blue-300'
+                                                                        }`}
+                                                                    >
+                                                                        {acc.tier_label || acc.tier}
+                                                                    </span>
+                                                                    {acc.default_prob !== undefined && acc.default_prob !== null && (
+                                                                        <span
+                                                                            className="rounded-md border border-rose-500/30 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-bold text-rose-700 dark:text-rose-300"
+                                                                            title={`Probabilitas Gagal Bayar ML: ${acc.default_prob}% (${acc.default_risk_level})`}
+                                                                        >
+                                                                            P(Def): {acc.default_prob}%
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             </div>
 
                                                             <div className="mt-3 flex items-baseline justify-between border-b border-sidebar-border/40 pb-2">
@@ -1214,14 +1429,35 @@ export default function ReviewTagihanIndex() {
                                                         {customer.nm_cs || '-'}
                                                     </TableCell>
                                                     <TableCell>
-                                                        <span
-                                                            className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold ${
-                                                                customer.badge_class ||
-                                                                'border-slate-500/30 bg-slate-500/10 text-slate-700 dark:text-slate-400'
-                                                            }`}
-                                                        >
-                                                            {customer.priority_label || 'Normal'}
-                                                        </span>
+                                                        {(() => {
+                                                            const debtorRisk = defaultProbMap[customer.nm_cs?.trim().toLowerCase()];
+                                                            return (
+                                                                <div className="flex flex-wrap items-center gap-1.5">
+                                                                    <span
+                                                                        className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[10px] font-bold ${
+                                                                            customer.badge_class ||
+                                                                            'border-slate-500/30 bg-slate-500/10 text-slate-700 dark:text-slate-400'
+                                                                        }`}
+                                                                    >
+                                                                        {customer.priority_label || 'Normal'}
+                                                                    </span>
+                                                                    {debtorRisk && debtorRisk.default_prob !== undefined && (
+                                                                        <span
+                                                                            className={`inline-flex items-center rounded-md border px-1.5 py-0.5 text-[10px] font-bold ${
+                                                                                debtorRisk.default_risk_level === 'Critical'
+                                                                                    ? 'border-rose-500/40 bg-rose-500/15 text-rose-700 dark:text-rose-300 animate-pulse'
+                                                                                    : debtorRisk.default_risk_level === 'High'
+                                                                                    ? 'border-orange-500/30 bg-orange-500/15 text-orange-700 dark:text-orange-300'
+                                                                                    : 'border-amber-500/30 bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                                                                            }`}
+                                                                            title={`Probabilitas Gagal Bayar ML (Logistic Hazard): ${debtorRisk.default_prob}% (${debtorRisk.default_risk_level})`}
+                                                                        >
+                                                                            P(Def): {debtorRisk.default_prob}%
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })()}
                                                     </TableCell>
                                                     <TableCell className="text-xs font-medium">
                                                         {customer.total_faktur} faktur

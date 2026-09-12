@@ -33,10 +33,11 @@ class CollectionAnalyticsService
 
         $pythonResult = $pythonAnalysis['result'];
         $llmContext = $pythonAnalysis['llm_context'] ?? '';
-        $metrics = $pythonAnalysis['analytics'] ?? [];
         $agingDistribution = $pythonAnalysis['aging_distribution'] ?? [];
         $topAccounts = $pythonAnalysis['top_priority_accounts'] ?? [];
         $quickWins = $pythonAnalysis['quick_wins'] ?? [];
+        $cashflowForecast = $pythonAnalysis['cashflow_forecast'] ?? ($pythonResult['cashflow_forecast'] ?? []);
+        $defaultRiskAnalysis = $pythonAnalysis['default_risk_analysis'] ?? ($pythonResult['default_risk_analysis'] ?? []);
 
         // 2. Teruskan dossier Python ke Gemini untuk arahan penagihan.
         $geminiResult = $this->callGeminiWithDossier($llmContext, $pythonResult);
@@ -49,7 +50,9 @@ class CollectionAnalyticsService
                 $metrics,
                 $agingDistribution,
                 $topAccounts,
-                $quickWins
+                $quickWins,
+                $cashflowForecast,
+                $defaultRiskAnalysis
             );
             $modelName = config('services.gemini.model', 'gemini-3.8-flash');
 
@@ -64,9 +67,10 @@ class CollectionAnalyticsService
         }
 
         // 3. Fallback numerik bila Gemini sedang tidak tersedia.
-        // Menggunakan output komputasi Python langsung yang sudah sangat terstruktur dan akurat
         $pythonResult['aging_distribution'] = $agingDistribution;
         $pythonResult['analytics'] = $metrics;
+        $pythonResult['cashflow_forecast'] = $cashflowForecast;
+        $pythonResult['default_risk_analysis'] = $defaultRiskAnalysis;
 
         return [
             'success' => true,
@@ -103,7 +107,8 @@ class CollectionAnalyticsService
 
             $jsonInput = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-            $process = new Process(['python3', $scriptPath]);
+            $pythonBinary = env('PYTHON_BINARY', 'python3');
+            $process = new Process([$pythonBinary, $scriptPath]);
             $process->setInput($jsonInput);
             $process->setTimeout(30);
             $process->run();
@@ -208,7 +213,9 @@ PROMPT;
         array $metrics,
         array $agingDistribution,
         array $topAccounts,
-        array $quickWins
+        array $quickWins,
+        array $cashflowForecast = [],
+        array $defaultRiskAnalysis = []
     ): array {
         return [
             // Selalu kunci Health Score dan Status ke hasil perhitungan matematis Python
@@ -222,6 +229,8 @@ PROMPT;
                 ? $geminiData['collection_directives']
                 : ($pythonResult['collection_directives'] ?? []),
             'quick_wins' => $quickWins,
+            'cashflow_forecast' => $cashflowForecast,
+            'default_risk_analysis' => $defaultRiskAnalysis,
             'credit_risk_warnings' => !empty($geminiData['credit_risk_warnings'])
                 ? $geminiData['credit_risk_warnings']
                 : ($pythonResult['credit_risk_warnings'] ?? []),

@@ -20,6 +20,22 @@ import datetime
 import re
 
 # =====================================================================
+# ADAPTIVE HYBRID ML ENGINE: SCIKIT-LEARN & NUMPY DETECTION
+# =====================================================================
+# Di VPS Production: Menggunakan scikit-learn & numpy terkompilasi C
+# Di Komputer Lokal: Graceful fallback ke algoritma Python Standard Library
+try:
+    import numpy as np
+    from sklearn.cluster import KMeans
+    from sklearn.preprocessing import StandardScaler
+    HAS_SKLEARN = True
+    ML_ENGINE_TYPE = "scikit-learn + numpy (Accelerated VPS Production)"
+except ImportError:
+    HAS_SKLEARN = False
+    ML_ENGINE_TYPE = "pure-python (Standard Library Local Fallback)"
+
+
+# =====================================================================
 # FORMATTING & MATH UTILITIES
 # =====================================================================
 
@@ -124,6 +140,494 @@ def linear_regression_slope(points):
     return slope
 
 # =====================================================================
+# MACHINE LEARNING PREDICTIVE ANALYTICS ENGINE (STANDARD LIBRARY ONLY)
+# =====================================================================
+
+class TimeSeriesForecaster:
+    """
+    Peramalan deret waktu omset (Revenue Forecasting) menggunakan Double Exponential Smoothing
+    (Holt's Linear Trend) dengan penyesuaian interval kepercayaan 95% dan perhitungan MAPE.
+    """
+    @staticmethod
+    def forecast(history_points, horizon=3, alpha=0.45, beta=0.25):
+        clean_points = [max(0.0, safe_float(p)) for p in (history_points or [])]
+        n = len(clean_points)
+        if n == 0:
+            return {
+                "forecast_periods": [],
+                "model_metrics": {"mape": 0.0, "rmse": 0.0, "method": "None"},
+                "narrative": "Data historis tidak mencukupi untuk peramalan deret waktu."
+            }
+
+        if n == 1:
+            val = clean_points[0]
+            forecasts = []
+            for h in range(1, horizon + 1):
+                forecasts.append({
+                    "step": h,
+                    "period_label": f"+{h} Periode ke Depan",
+                    "predicted_sales": round(val, 2),
+                    "lower_bound_95": round(max(0.0, val * 0.85), 2),
+                    "upper_bound_95": round(val * 1.15, 2),
+                    "growth_pct": 0.0,
+                })
+            return {
+                "forecast_periods": forecasts,
+                "model_metrics": {"mape": 0.0, "rmse": 0.0, "method": "Naive Constant Baseline"},
+                "narrative": "Menggunakan estimasi konstan berbasis transaksi periode tunggal."
+            }
+
+        level = clean_points[0]
+        trend = clean_points[1] - clean_points[0] if n > 1 else 0.0
+        fitted = [level]
+
+        for t in range(1, n):
+            y_t = clean_points[t]
+            prev_level = level
+            level = alpha * y_t + (1.0 - alpha) * (prev_level + trend)
+            trend = beta * (level - prev_level) + (1.0 - beta) * trend
+            fitted.append(level + trend)
+
+        # In-sample Error
+        errors = [actual - pred for actual, pred in zip(clean_points, fitted)]
+        squared_errors = [e ** 2 for e in errors]
+        rmse = math.sqrt(sum(squared_errors) / len(squared_errors)) if squared_errors else 0.0
+
+        # MAPE
+        ape_list = [abs(e) / actual * 100.0 for actual, e in zip(clean_points, errors) if actual > 0]
+        mape = calc_mean(ape_list) if ape_list else 5.0
+        mape = min(100.0, round(mape, 2))
+
+        # Out-of-sample Forecast
+        last_actual = clean_points[-1]
+        forecast_periods = []
+        dampening = 0.92
+        cum_trend = 0.0
+
+        for h in range(1, horizon + 1):
+            cum_trend += trend * (dampening ** h)
+            pred = max(0.0, level + cum_trend)
+            margin_error = 1.96 * rmse * math.sqrt(h)
+            lower = max(0.0, pred - margin_error)
+            upper = pred + margin_error
+            growth_from_last = ((pred - last_actual) / last_actual * 100.0) if last_actual > 0 else 0.0
+
+            forecast_periods.append({
+                "step": h,
+                "period_label": f"+{h} Periode ke Depan",
+                "predicted_sales": round(pred, 2),
+                "lower_bound_95": round(lower, 2),
+                "upper_bound_95": round(upper, 2),
+                "growth_pct": round(growth_from_last, 2),
+            })
+
+        f1 = forecast_periods[0]
+        f_dir = "tumbuh" if f1["growth_pct"] >= 0 else "terkoreksi"
+        narrative = (
+            f"Berdasarkan model Holt-Winters Exponential Smoothing (MAPE: {mape}%), omset periode berikutnya diproyeksikan "
+            f"sebesar {format_rupiah(f1['predicted_sales'])} ({f_dir} {abs(f1['growth_pct']):.1f}% vs realisasi akhir), "
+            f"dengan rentang kepercayaan 95% antara {format_rupiah(f1['lower_bound_95'])} s/d {format_rupiah(f1['upper_bound_95'])}."
+        )
+
+        return {
+            "forecast_periods": forecast_periods,
+            "model_metrics": {
+                "mape": mape,
+                "rmse": round(rmse, 2),
+                "method": "Holt-Winters Double Exponential Smoothing"
+            },
+            "narrative": narrative
+        }
+
+
+class CustomerChurnPredictor:
+    """
+    Model Probabilitas Churn Pelanggan B2B berbasis Multivariate Logistic Sigmoid.
+    P(churn) = 1 / (1 + exp(-z))
+    """
+    @staticmethod
+    def predict_churn(customer):
+        curr_s = safe_float(customer.get("curr_sales"))
+        prev_s = safe_float(customer.get("prev_sales"))
+        curr_inv = safe_int(customer.get("curr_invoices"))
+        prev_inv = safe_int(customer.get("prev_invoices"))
+
+        if curr_s <= 0 and prev_s <= 0:
+            return {
+                "churn_prob": 0.0,
+                "churn_risk_level": "Non-Aktif",
+                "churn_badge": "gray",
+                "risk_factor": "Belum ada riwayat transaksi",
+            }
+
+        if prev_s > 0 and curr_s <= 0:
+            return {
+                "churn_prob": 95.0,
+                "churn_risk_level": "Tinggi",
+                "churn_badge": "rose",
+                "risk_factor": f"Terhenti total dari sebelumnya {format_rupiah(prev_s)} ({prev_inv} faktur)",
+            }
+
+        # 1. Cadence decay
+        if prev_inv > 0:
+            cadence_decay = max(-1.0, min(1.0, (prev_inv - curr_inv) / prev_inv))
+        else:
+            cadence_decay = -0.5 if curr_inv > 0 else 0.0
+
+        # 2. Monetary drop
+        if prev_s > 0:
+            monetary_drop = max(-1.0, min(1.0, (prev_s - curr_s) / prev_s))
+        else:
+            monetary_drop = -0.5 if curr_s > 0 else 0.0
+
+        # 3. AOV decay
+        prev_aov = (prev_s / prev_inv) if prev_inv > 0 else 0.0
+        curr_aov = (curr_s / curr_inv) if curr_inv > 0 else 0.0
+        if prev_aov > 0:
+            aov_decay = max(-1.0, min(1.0, (prev_aov - curr_aov) / prev_aov))
+        else:
+            aov_decay = 0.0
+
+        # Multivariate Logit calculation
+        z = -1.4 + (2.0 * cadence_decay) + (2.4 * monetary_drop) + (0.8 * aov_decay)
+        prob = 1.0 / (1.0 + math.exp(-z))
+        prob_pct = round(prob * 100.0, 1)
+
+        if prob_pct >= 70.0:
+            risk_level = "Tinggi"
+            badge = "rose"
+            if cadence_decay > 0.4:
+                factor = f"Frekuensi belanja anjlok {(cadence_decay * 100):.0f}%"
+            elif monetary_drop > 0.3:
+                factor = f"Volume pembelian terkontraksi {(monetary_drop * 100):.0f}%"
+            else:
+                factor = "Penurunan tajam ukuran faktur & order interval"
+        elif prob_pct >= 40.0:
+            risk_level = "Sedang"
+            badge = "amber"
+            factor = "Siklus re-order melambat dibanding periode pembanding"
+        else:
+            risk_level = "Rendah"
+            badge = "emerald"
+            factor = "Pola transaksi sehat dan bertumbuh stabil"
+
+        return {
+            "churn_prob": prob_pct,
+            "churn_risk_level": risk_level,
+            "churn_badge": badge,
+            "risk_factor": factor,
+        }
+
+
+class KMeansCustomerSegmenter:
+    """
+    Unsupervised K-Means Customer Clustering (K=5) berbasis RFM & Pertumbuhan.
+    Kluster Bisnis:
+    1. Champions (VIP Inti)
+    2. Loyal Backbone (Penopang Konsisten)
+    3. At-Risk High-Spenders (Akun Besar Rawan Churn)
+    4. Potential Growth (Bintang Baru Bertumbuh)
+    5. Dormant / Hibernating (Perlu Reaktivasi)
+    """
+    @staticmethod
+    def cluster_customers(customers):
+        if not customers:
+            return customers, {}
+
+        features = []
+        for idx, c in enumerate(customers):
+            curr_s = safe_float(c.get("curr_sales"))
+            prev_s = safe_float(c.get("prev_sales"))
+            curr_inv = safe_int(c.get("curr_invoices"))
+            growth = safe_float(c.get("growth"))
+            growth_clipped = max(-100.0, min(200.0, growth))
+
+            features.append([
+                math.log1p(max(0.0, curr_s)),
+                float(curr_inv),
+                growth_clipped,
+                1.0 if (curr_s == 0 and prev_s > 0) else 0.0
+            ])
+
+        n = len(features)
+        k = min(5, n)
+        if k < 2:
+            for c in customers:
+                c["ml_cluster"] = "Loyal Backbone"
+                c["ml_cluster_badge"] = "blue"
+            return customers, {"Loyal Backbone": {"count": n, "total_sales": sum(safe_float(c.get("curr_sales")) for c in customers), "badge": "blue"}}
+
+        dim = len(features[0])
+        labels = None
+
+        # Mode A: Scikit-Learn KMeans (Aktif otomatis di VPS Production)
+        if HAS_SKLEARN and n >= k:
+            try:
+                X = np.array(features, dtype=np.float64)
+                scaler = StandardScaler()
+                X_scaled = scaler.fit_transform(X)
+                km = KMeans(n_clusters=k, init='k-means++', n_init=10, max_iter=300, random_state=42)
+                labels = km.fit_predict(X_scaled).tolist()
+            except Exception:
+                labels = None
+
+        # Mode B: Pure Python KMeans (Graceful Fallback di Komputer Lokal)
+        if labels is None:
+            means = [calc_mean([f[d] for f in features]) for d in range(dim)]
+            stdevs = [max(0.001, calc_stdev([f[d] for f in features])) for d in range(dim)]
+            norm_features = [
+                [(f[d] - means[d]) / stdevs[d] for d in range(dim)]
+                for f in features
+            ]
+
+            sorted_by_sales = sorted(range(n), key=lambda i: norm_features[i][0])
+            step = max(1, n // k)
+            centroids = [norm_features[sorted_by_sales[min(i * step, n - 1)]][:] for i in range(k)]
+
+            labels = [0] * n
+            for _ in range(20):
+                changed = False
+                for i in range(n):
+                    best_cluster = 0
+                    best_dist = float("inf")
+                    for c_idx in range(k):
+                        dist = sum((norm_features[i][d] - centroids[c_idx][d]) ** 2 for d in range(dim))
+                        if dist < best_dist:
+                            best_dist = dist
+                            best_cluster = c_idx
+                    if labels[i] != best_cluster:
+                        labels[i] = best_cluster
+                        changed = True
+
+                if not changed:
+                    break
+
+                for c_idx in range(k):
+                    members = [norm_features[i] for i in range(n) if labels[i] == c_idx]
+                    if members:
+                        centroids[c_idx] = [calc_mean([m[d] for m in members]) for d in range(dim)]
+
+        cluster_stats = []
+        for c_idx in range(k):
+            indices = [i for i in range(n) if labels[i] == c_idx]
+            avg_sales = calc_mean([safe_float(customers[i].get("curr_sales")) for i in indices])
+            avg_growth = calc_mean([safe_float(customers[i].get("growth")) for i in indices])
+            churn_count = sum(1 for i in indices if safe_float(customers[i].get("curr_sales")) == 0 and safe_float(customers[i].get("prev_sales")) > 0)
+            cluster_stats.append({
+                "cluster_idx": c_idx,
+                "count": len(indices),
+                "avg_sales": avg_sales,
+                "avg_growth": avg_growth,
+                "churn_count": churn_count
+            })
+
+        sorted_clusters = sorted(cluster_stats, key=lambda x: x["avg_sales"], reverse=True)
+
+        cluster_name_map = {}
+        for rank, cs in enumerate(sorted_clusters):
+            c_idx = cs["cluster_idx"]
+            if cs["churn_count"] > 0 and cs["avg_sales"] == 0:
+                name = "Dormant / Hibernating"
+                badge = "rose"
+            elif rank == 0:
+                name = "Champions (VIP)"
+                badge = "emerald"
+            elif cs["avg_growth"] > 25.0:
+                name = "Potential Growth"
+                badge = "cyan"
+            elif cs["avg_growth"] < -15.0 and cs["avg_sales"] > 10_000_000:
+                name = "At-Risk High-Spenders"
+                badge = "amber"
+            else:
+                name = "Loyal Backbone"
+                badge = "blue"
+            cluster_name_map[c_idx] = (name, badge)
+
+        cluster_distribution = {}
+        for i, c in enumerate(customers):
+            c_idx = labels[i]
+            name, badge = cluster_name_map[c_idx]
+            c["ml_cluster"] = name
+            c["ml_cluster_badge"] = badge
+
+            if name not in cluster_distribution:
+                cluster_distribution[name] = {"count": 0, "total_sales": 0.0, "badge": badge}
+            cluster_distribution[name]["count"] += 1
+            cluster_distribution[name]["total_sales"] += safe_float(c.get("curr_sales"))
+
+        return customers, cluster_distribution
+
+
+class CustomerOrderDemandPredictor:
+    """
+    Prediksi Siklus, Tanggal, & Estimasi Nominal Order Berikutnya (Inter-Purchase Time / IPT).
+    """
+    @staticmethod
+    def predict(invoices, curr_end_date_str=None):
+        dates = []
+        amounts = []
+        for inv in (invoices or []):
+            tgl = inv.get("tgl_doc")
+            if tgl:
+                try:
+                    dt = datetime.datetime.strptime(str(tgl)[:10], "%Y-%m-%d").date()
+                    dates.append(dt)
+                except Exception:
+                    pass
+            amt = safe_float(inv.get("total_amount") or inv.get("g_total") or inv.get("nominal"))
+            if amt > 0:
+                amounts.append(amt)
+
+        if not dates:
+            return {
+                "expected_order_days": 14,
+                "expected_days_label": "Dalam 14 hari (estimasi)",
+                "expected_date_window": "Belum dapat diproyeksikan (data minim)",
+                "expected_order_value": 0.0,
+                "expected_order_value_fmt": "Rp 0",
+                "value_lower_fmt": "Rp 0",
+                "value_upper_fmt": "Rp 0",
+                "urgency_status": "Data transaksi historis minim",
+                "mean_cycle_days": 30.0,
+                "confidence_level": "Rendah",
+                "prediction_summary": "Riwayat transaksi belum mencukupi untuk pemodelan deret waktu presisi."
+            }
+
+        dates_sorted = sorted(dates)
+        latest_date = dates_sorted[-1]
+
+        try:
+            ref_date = datetime.datetime.strptime(curr_end_date_str[:10], "%Y-%m-%d").date() if curr_end_date_str else datetime.date.today()
+        except Exception:
+            ref_date = datetime.date.today()
+
+        recency_days = max(0, (ref_date - latest_date).days)
+
+        if len(dates_sorted) >= 2:
+            intervals = [(dates_sorted[i+1] - dates_sorted[i]).days for i in range(len(dates_sorted)-1)]
+            mean_interval = calc_mean(intervals)
+        else:
+            mean_interval = 30.0
+
+        days_to_order = round(mean_interval - recency_days)
+        if days_to_order <= 0:
+            urgency_status = f"Terlambat {abs(days_to_order)} hari dari siklus rata-rata ({mean_interval:.0f} hari)"
+            expected_days_str = "Segera / Melewati Siklus Repeat Order"
+            target_start = ref_date
+            target_end = ref_date + datetime.timedelta(days=7)
+        else:
+            urgency_status = f"Diproyeksikan dalam {days_to_order} hari ke depan"
+            expected_days_str = f"Dalam {days_to_order} hari"
+            target_start = ref_date + datetime.timedelta(days=max(1, days_to_order - 3))
+            target_end = ref_date + datetime.timedelta(days=days_to_order + 4)
+
+        if amounts:
+            alpha = 0.4
+            ewma = amounts[0]
+            for a in amounts[1:]:
+                ewma = alpha * a + (1.0 - alpha) * ewma
+            pred_val = ewma
+            std_val = calc_stdev(amounts) if len(amounts) > 1 else (pred_val * 0.2)
+            lower_val = max(0.0, pred_val - std_val)
+            upper_val = pred_val + std_val
+        else:
+            pred_val = 0.0
+            lower_val = 0.0
+            upper_val = 0.0
+
+        window_str = f"{target_start.strftime('%d %b %Y')} - {target_end.strftime('%d %b %Y')}"
+        summary = (
+            f"Berdasarkan interval pembelian historis (rata-rata siklus ±{mean_interval:.0f} hari), "
+            f"repeat order berikutnya diproyeksikan terjadi pada {window_str} ({expected_days_str}) "
+            f"dengan estimasi nilai order {format_rupiah(pred_val)} (rentang estimasi {format_rupiah(lower_val)} s/d {format_rupiah(upper_val)})."
+        )
+
+        return {
+            "expected_order_days": days_to_order,
+            "expected_days_label": expected_days_str,
+            "expected_date_window": window_str,
+            "expected_order_value": round(pred_val, 2),
+            "expected_order_value_fmt": format_rupiah(pred_val),
+            "value_lower_fmt": format_rupiah(lower_val),
+            "value_upper_fmt": format_rupiah(upper_val),
+            "urgency_status": urgency_status,
+            "mean_cycle_days": round(mean_interval, 1),
+            "confidence_level": "Tinggi" if len(dates_sorted) >= 4 else "Moderat",
+            "prediction_summary": summary
+        }
+
+
+class ProductAffinityRecommender:
+    """
+    Rekomendasi Cross-Selling Berdasarkan Analisis Keranjang Material (Market Basket Affinity).
+    """
+    @staticmethod
+    def recommend(top_materials, customer_name="Customer"):
+        purchased_items = [m.get("material", "").strip() for m in (top_materials or []) if m.get("material")]
+
+        catalog_portfolio = [
+            {
+                "product": "Besi Beton Ulir (Deformed Rebar)",
+                "category": "Besi & Baja Struktural",
+                "affinity_triggers": ["wiremesh", "semen", "pipa", "plat", "baja"],
+                "reason": "Material pelengkap utama pekerjaan struktur beton bertulang yang rutin dibutuhkan bersama semen dan wiremesh.",
+                "pitch": "Tawarkan paket bundling besi beton ulir SNI bersamaan dengan pengiriman pesanan wiremesh/semen berikutnya."
+            },
+            {
+                "product": "Wiremesh M6 - M8 Standar SNI",
+                "category": "Flooring & Plat Dak",
+                "affinity_triggers": ["beton", "semen", "besi", "rebar"],
+                "reason": "Menggantikan anyaman besi konvensional untuk menghemat ongkos kerja konstruksi lantai customer hingga 30%.",
+                "pitch": "Presentasikan efisiensi kecepatan pasang wiremesh lembaran/roll untuk proyek pengecoran lantai mereka."
+            },
+            {
+                "product": "Pipa Besi Hitam / Galvanis Medium",
+                "category": "Perpipaan & Mekanikal",
+                "affinity_triggers": ["plat", "besi", "fitting", "baja"],
+                "reason": "Kebutuhan instalasi mekanikal dan drainase industri yang melengkapi pengadaan plat konstruksi.",
+                "pitch": "Sertakan price list pipa galvanis bergaransi sertifikat uji pabrik pada penawaran kuota berikutnya."
+            },
+            {
+                "product": "Plat Bordes & Plat Hitam Baja",
+                "category": "Plat & Fabrikasi",
+                "affinity_triggers": ["besi", "h-beam", "wf", "pipa"],
+                "reason": "Material fabrikasi pendukung konstruksi tangga, lantai bordes pabrik, dan rangka mesin.",
+                "pitch": "Berikan sampel potongan plat bordes dan tawarkan toleransi ukuran khusus sesuai kebutuhan workshop mereka."
+            },
+            {
+                "product": "Baja Profil H-Beam / WF (Wide Flange)",
+                "category": "Konstruksi Berat & Gudang",
+                "affinity_triggers": ["plat", "rebar", "baut", "fondasi"],
+                "reason": "Pilar utama proyek perluasan gudang atau kanopi pabrik yang sering dibutuhkan customer industri.",
+                "pitch": "Kordinasikan dengan tim engineering customer untuk membedah gambar tender konstruksi gedung mereka."
+            }
+        ]
+
+        purchased_lower = " ".join(purchased_items).lower()
+        recommendations = []
+
+        for item in catalog_portfolio:
+            already_bought = any(p.lower() in item["product"].lower() or item["product"].lower() in p.lower() for p in purchased_items)
+            if already_bought:
+                continue
+
+            score = 1
+            for trigger in item["affinity_triggers"]:
+                if trigger in purchased_lower:
+                    score += 2
+
+            recommendations.append({
+                "product": item["product"],
+                "category": item["category"],
+                "affinity_score": score,
+                "rationale": item["reason"],
+                "pitch_strategy": item["pitch"]
+            })
+
+        recommendations.sort(key=lambda x: x["affinity_score"], reverse=True)
+        return recommendations[:3]
+
+# =====================================================================
 # ENRICHMENT: CUSTOMER DIAGNOSTIC MATRIX & RANKINGS
 # =====================================================================
 
@@ -218,12 +722,22 @@ def enrich_customer_matrix(all_customers, total_sales, mean_delta, stdev_delta):
             ai_action = "📦 Tawarkan Paket Bundle & Diskon Kuantiti (Qty)"
             ai_reason = f"Nominal order masih di bawah Rp 10 Juta namun aktif belanja ({curr_inv} faktur). Potensi upselling volume."
 
+        # ML Churn Early Warning Prediction
+        churn_res = CustomerChurnPredictor.predict_churn(item)
+        item["churn_prob"] = churn_res["churn_prob"]
+        item["churn_risk_level"] = churn_res["churn_risk_level"]
+        item["churn_badge"] = churn_res["churn_badge"]
+        item["churn_risk_factor"] = churn_res["risk_factor"]
+
         item["ai_status"] = ai_status
         item["ai_badge"] = ai_badge
         item["ai_action"] = ai_action
         item["ai_reason"] = ai_reason
         item["status"] = ai_status
         enriched_list.append(item)
+
+    # ML Customer Segmentation (K-Means Clustering K=5)
+    enriched_list, cluster_distribution = KMeansCustomerSegmenter.cluster_customers(enriched_list)
 
     # 1. Top 5 Highest Sales
     top_5 = [c for c in enriched_list if safe_float(c.get("curr_sales")) > 0][:5]
@@ -268,7 +782,8 @@ def enrich_customer_matrix(all_customers, total_sales, mean_delta, stdev_delta):
         "allCustomers": enriched_list,
         "topCustomers": top_5,
         "lowestCustomers": lowest_5,
-        "decliningCustomers": declining_5
+        "decliningCustomers": declining_5,
+        "cluster_distribution": cluster_distribution
     }
 
 # =====================================================================
@@ -457,6 +972,10 @@ def analyze_overall(data):
     trend_slope = linear_regression_slope(revenue_points)
     trend_direction = "Akselerasi Positif" if trend_slope > 0 else ("Kontraksi / Deselerasi" if trend_slope < 0 else "Stabil Datar")
 
+    # 4b. MACHINE LEARNING TIME-SERIES REVENUE FORECASTING (HOLT-WINTERS)
+    forecast_input = revenue_points if len(revenue_points) >= 2 else ([prev_total_sales, total_sales] if (prev_total_sales > 0 or total_sales > 0) else [])
+    ml_forecast = TimeSeriesForecaster.forecast(forecast_input, horizon=3)
+
     # -------------------------------------------------------------
     # 5. MULTI-FACTOR WEIGHTED HEALTH SCORING (0 - 100)
     # -------------------------------------------------------------
@@ -612,6 +1131,44 @@ def analyze_overall(data):
     # -------------------------------------------------------------
     # 7. METRIK ANALITIK & DOSSIER UNTUK QWEN 2.5 7B
     # -------------------------------------------------------------
+    enriched_custs = enrich_customer_matrix(all_customers, total_sales, mean_delta, stdev_delta)
+    all_cust_list = enriched_custs.get("allCustomers", [])
+
+    high_risk_churn_custs = [c for c in all_cust_list if c.get("churn_risk_level") == "Tinggi" and safe_float(c.get("prev_sales")) > 0]
+    high_risk_churn_custs.sort(key=lambda x: safe_float(x.get("prev_sales")), reverse=True)
+    val_at_risk_high = sum(safe_float(c.get("prev_sales")) for c in high_risk_churn_custs)
+
+    ml_churn = {
+        "high_risk_count": len(high_risk_churn_custs),
+        "medium_risk_count": sum(1 for c in all_cust_list if c.get("churn_risk_level") == "Sedang"),
+        "low_risk_count": sum(1 for c in all_cust_list if c.get("churn_risk_level") == "Rendah"),
+        "value_at_risk_high": val_at_risk_high,
+        "value_at_risk_high_fmt": format_rupiah(val_at_risk_high),
+        "top_at_risk_accounts": [
+            {
+                "kd_cs": c.get("kd_cs"),
+                "nm_cs": c.get("nm_cs"),
+                "churn_prob": c.get("churn_prob"),
+                "churn_risk_level": c.get("churn_risk_level"),
+                "churn_badge": c.get("churn_badge"),
+                "risk_factor": c.get("churn_risk_factor"),
+                "prev_sales_fmt": format_rupiah(c.get("prev_sales")),
+                "diff_sales_fmt": format_rupiah(c.get("diff_sales")),
+                "curr_invoices": c.get("curr_invoices"),
+                "prev_invoices": c.get("prev_invoices"),
+            }
+            for c in high_risk_churn_custs[:5]
+        ]
+    }
+
+    ml_analytics = {
+        "engine_type": ML_ENGINE_TYPE,
+        "has_sklearn": HAS_SKLEARN,
+        "forecast": ml_forecast,
+        "churn": ml_churn,
+        "clusters": enriched_custs.get("cluster_distribution", {})
+    }
+
     analytics_payload = {
         "hhi": hhi,
         "hhi_label": hhi_label,
@@ -634,10 +1191,12 @@ def analyze_overall(data):
         "trend_direction": trend_direction,
         "trend_slope": round(trend_slope, 2),
         "health_score": final_health_score,
-        "status_label": status_label
+        "status_label": status_label,
+        "ml_analytics": ml_analytics
     }
 
-    # LLM Briefing Context untuk dimasukkan ke dalam prompt Qwen
+    # LLM Briefing Context untuk dimasukkan ke dalam prompt Qwen / Gemini
+    cluster_summary_str = ", ".join([f"{k} ({v['count']} akun)" for k, v in enriched_custs.get("cluster_distribution", {}).items()])
     llm_context = f"""
 FAKTA ANALITIK DATA MATEMATIS HASIL PERHITUNGAN PYTHON (GROUND TRUTH):
 - Skor Kesehatan KPI (Health Score): {final_health_score}/100 [Status: {status_label}]
@@ -650,9 +1209,10 @@ FAKTA ANALITIK DATA MATEMATIS HASIL PERHITUNGAN PYTHON (GROUND TRUTH):
 - Total Nilai Risiko Penurunan (Value at Risk): {format_rupiah(total_value_at_risk)}
 - Anomali Penurunan Kritis Terbesar (Z-Score Outlier): {critical_areas[0]['customer_affected'] if critical_areas else 'N/A'} ({critical_areas[0]['nominal_impact'] if critical_areas else 'N/A'})
 - Momentum Deret Waktu: {trend_direction} (Slope: {trend_slope:,.0f})
+- Machine Learning Revenue Forecast (Holt-Winters): {ml_forecast['narrative']}
+- Machine Learning Churn Early Warning: {ml_churn['high_risk_count']} Akun Risiko Tinggi dengan Nilai Omset Terancam {ml_churn['value_at_risk_high_fmt']}
+- Machine Learning Customer Clusters (K-Means K=5): {cluster_summary_str}
 """
-
-    enriched_custs = enrich_customer_matrix(all_customers, total_sales, mean_delta, stdev_delta)
 
     result = {
         "health_score": final_health_score,
@@ -667,13 +1227,15 @@ FAKTA ANALITIK DATA MATEMATIS HASIL PERHITUNGAN PYTHON (GROUND TRUTH):
         "tactical_recommendations": tactical_recommendations,
         "quick_wins": quick_wins,
         "analytics_metrics": analytics_payload,
-        "enriched_customers": enriched_custs
+        "enriched_customers": enriched_custs,
+        "ml_analytics": ml_analytics
     }
 
     return {
         "result": result,
         "analytics": analytics_payload,
         "enriched_customers": enriched_custs,
+        "ml_analytics": ml_analytics,
         "llm_context": llm_context.strip()
     }
 
@@ -949,6 +1511,26 @@ def analyze_customer(data):
         f"{buying_pattern}"
     )
 
+    # -------------------------------------------------------------
+    # 7. MACHINE LEARNING PREDICTIVE MODELS (CUSTOMER-SPECIFIC)
+    # -------------------------------------------------------------
+    next_order_pred = CustomerOrderDemandPredictor.predict(recent_invoices, period_info.get("currEnd"))
+
+    churn_input = {
+        "curr_sales": total_sales,
+        "prev_sales": prev_total_sales,
+        "curr_invoices": total_invoices,
+        "prev_invoices": prev_total_invoices,
+    }
+    churn_pred = CustomerChurnPredictor.predict_churn(churn_input)
+    cross_sell_recs = ProductAffinityRecommender.recommend(top_materials, nm_cs)
+
+    ml_prediction = {
+        "next_order": next_order_pred,
+        "churn_risk": churn_pred,
+        "cross_sell": cross_sell_recs
+    }
+
     analytics_payload = {
         "rfm_scores": {"r": r_score, "f": f_score, "m": m_score},
         "rfm_segment": rfm_segment,
@@ -957,7 +1539,8 @@ def analyze_customer(data):
         "coefficient_of_variation": round(cv, 3),
         "account_health_score": account_health_score,
         "loyalty_status": loyalty_status,
-        "top_material_share_percent": round(top_mat_share, 1)
+        "top_material_share_percent": round(top_mat_share, 1),
+        "ml_prediction": ml_prediction
     }
 
     llm_context = f"""
@@ -972,6 +1555,9 @@ FAKTA ANALITIK DATA AKUN CUSTOMER HASIL PERHITUNGAN PYTHON (GROUND TRUTH):
 - Volatilitas Order (CV): {cv:.2f} (Pola: {buying_pattern})
 - Pangsa terhadap Omset Perusahaan: {company_share_percent:.2f}%
 - Kategori Material Utama: {favorite_categories} (Konsentrasi item teratas: {top_mat_share:.1f}%)
+- Prediksi Repeat Order Berikutnya (ML IPT): {next_order_pred['prediction_summary']}
+- Probabilitas Churn Akun (ML Risk Model): {churn_pred['churn_prob']}% [{churn_pred['churn_risk_level']}] - Faktor: {churn_pred['risk_factor']}
+- Peluang Cross-Selling Teratas: {', '.join([r['product'] for r in cross_sell_recs]) if cross_sell_recs else 'Portofolio lengkap'}
 """
 
     enriched_kpi = {
@@ -983,7 +1569,8 @@ FAKTA ANALITIK DATA AKUN CUSTOMER HASIL PERHITUNGAN PYTHON (GROUND TRUTH):
         "avg_order_cycle_days": avg_order_cycle_days,
         "coefficient_of_variation": round(cv, 3),
         "buying_pattern": buying_pattern,
-        "order_characteristics": order_characteristics
+        "order_characteristics": order_characteristics,
+        "ml_prediction": ml_prediction
     }
 
     result = {
@@ -999,13 +1586,15 @@ FAKTA ANALITIK DATA AKUN CUSTOMER HASIL PERHITUNGAN PYTHON (GROUND TRUTH):
         "risk_and_drop_alerts": risk_alerts,
         "quick_wins": quick_wins,
         "analytics_metrics": analytics_payload,
-        "enriched_kpi": enriched_kpi
+        "enriched_kpi": enriched_kpi,
+        "ml_prediction": ml_prediction
     }
 
     return {
         "result": result,
         "analytics": analytics_payload,
         "enriched_kpi": enriched_kpi,
+        "ml_prediction": ml_prediction,
         "llm_context": llm_context.strip()
     }
 
