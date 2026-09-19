@@ -638,7 +638,7 @@ export default function QuotationIndex({
                                         <th className="w-full whitespace-nowrap px-2 py-2 text-left">Material</th>
                                         <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Qty</th>
                                         <th className="w-1 whitespace-nowrap px-2 py-2 text-right">Harga</th>
-                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-right">Harga Modal</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-right">Modal</th>
                                         <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Action</th>
                                     </tr>
                                 </thead>
@@ -851,7 +851,7 @@ export default function QuotationIndex({
                                                     <th className="w-full whitespace-nowrap px-2 py-2 text-left">Material</th>
                                                     <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Qty</th>
                                                     <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Harga</th>
-                                                    <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Harga Modal</th>
+                                                    <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Modal</th>
                                                     <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Margin</th>
                                                     <th className="w-[18rem] whitespace-nowrap px-2 py-2 text-left">Remark</th>
                                                 </tr>

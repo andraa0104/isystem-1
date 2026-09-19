@@ -112,9 +112,9 @@ export default function OverdueInvoiceWarningDialog({
         pageSize === Infinity
             ? filteredInvoices
             : filteredInvoices.slice(
-                  (normalizedPage - 1) * pageSize,
-                  normalizedPage * pageSize,
-              );
+                (normalizedPage - 1) * pageSize,
+                normalizedPage * pageSize,
+            );
 
     useEffect(() => {
         setCurrentPage(1);
@@ -234,10 +234,10 @@ export default function OverdueInvoiceWarningDialog({
                                 <TableHead>PPN</TableHead>
                                 <TableHead>Total</TableHead>
                                 <TableHead>Date Tempo</TableHead>
-                                <TableHead>Date Receive Inv</TableHead>
+                                <TableHead>Receive Inv</TableHead>
                                 <TableHead>Date Payment</TableHead>
                                 <TableHead>Total Payment</TableHead>
-                                <TableHead>Saldo Piutang</TableHead>
+                                <TableHead>Sisa Piutang</TableHead>
                                 <TableHead>Umur Tempo</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -256,7 +256,7 @@ export default function OverdueInvoiceWarningDialog({
                                     <TableRow key={invoice.no_fakturpenjualan}>
                                         <TableCell className="sticky left-0 z-10 bg-background">
                                             {onInvoiceClick &&
-                                            invoice.no_fakturpenjualan ? (
+                                                invoice.no_fakturpenjualan ? (
                                                 <button
                                                     type="button"
                                                     className="font-medium text-primary underline-offset-4 hover:underline"
