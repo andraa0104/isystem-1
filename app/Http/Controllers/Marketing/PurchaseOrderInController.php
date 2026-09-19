@@ -8,6 +8,7 @@ use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 use Throwable;
 use App\Services\Marketing\PurchaseOrderInService;
@@ -43,64 +44,69 @@ class PurchaseOrderInController
             $prefix
         );
 
-        $kodePoins = collect($data['purchaseOrderIns'] ?? [])->pluck('kode_poin');
+        $kodePoins = collect($data['purchaseOrderIns'] ?? [])->pluck('kode_poin')->filter()->values();
 
-        $purchaseOrders = DB::table('tb_poin')
-            ->whereIn('kode_poin', $kodePoins)
-            ->orderByDesc('created_at')
-            ->orderByDesc('kode_poin')
-            ->get();
+        $purchaseOrders = collect();
+        $detailsByDocument = collect();
 
-        $detailsByDocument = DB::table('tb_detailpoin')
-            ->whereIn('kode_poin', $purchaseOrders->pluck('kode_poin'))
-            ->orderBy('id')
-            ->get()
-            ->groupBy('kode_poin');
+        if ($kodePoins->isNotEmpty()) {
+            $purchaseOrders = $this->safeClickhouseRead(function ($conn) use ($kodePoins) {
+                return $conn->table('tb_poin')
+                    ->whereIn('kode_poin', $kodePoins->all())
+                    ->orderByDesc('created_at')
+                    ->orderByDesc('kode_poin')
+                    ->get();
+            });
 
-        $exportRows = $purchaseOrders->map(function ($purchaseOrder) use ($detailsByDocument) {
+            $orderKodePoins = collect($purchaseOrders)->pluck('kode_poin')->filter()->values();
+
+            if ($orderKodePoins->isNotEmpty()) {
+                $detailsByDocument = $this->safeClickhouseRead(function ($conn) use ($orderKodePoins) {
+                    return $conn->table('tb_detailpoin')
+                        ->whereIn('kode_poin', $orderKodePoins->all())
+                        ->orderBy('id')
+                        ->get()
+                        ->groupBy('kode_poin');
+                });
+            }
+        }
+
+        $exportRows = collect($purchaseOrders)->map(function ($purchaseOrder) use ($detailsByDocument) {
+            $purchaseOrder = (object) $purchaseOrder;
+
             foreach (['ppn_input_percent', 'total_price', 'ppn_amount', 'grand_total'] as $column) {
                 $purchaseOrder->{$column} = (float) ($purchaseOrder->{$column} ?? 0);
             }
 
-            // Data legacy dari aplikasi desktop tersimpan dalam dua satuan:
-            // sebagian rupiah penuh, sebagian dalam ribuan rupiah. Normalisasi
-            // satu dokumen secara utuh sebelum dikirim ke halaman export.
-            $moneyScale = $purchaseOrder->total_price > 0
-                && $purchaseOrder->total_price < 100000
-                ? 1000
-                : 1;
+            $details = collect($detailsByDocument->get($purchaseOrder->kode_poin, collect()));
 
-            foreach (['total_price', 'ppn_amount', 'grand_total'] as $column) {
-                $purchaseOrder->{$column} *= $moneyScale;
-            }
-
-            $purchaseOrder->details = $detailsByDocument
-                ->get($purchaseOrder->kode_poin, collect())
+            $purchaseOrder->details = $details
                 ->map(function ($detail) {
-                    foreach (['qty', 'price_po_in', 'total_price_po_in'] as $column) {
+                    $detail = (object) $detail;
+
+                    foreach (['qty', 'price_po_in', 'total_price_po_in', 'sisa_qtypr', 'sisa_qtydo'] as $column) {
                         $detail->{$column} = (float) ($detail->{$column} ?? 0);
                     }
 
-                    // Detail dalam satu dokumen pun dapat bercampur antara
-                    // rupiah penuh dan ribuan rupiah (data legacy desktop).
-                    $detailScale = $detail->total_price_po_in > 0
-                        && $detail->total_price_po_in < 100000
-                        ? 1000
-                        : 1;
-                    $detail->total_price_po_in *= $detailScale;
-                    if ($detail->qty > 0 && $detail->total_price_po_in > 0) {
+                    if ($detail->price_po_in <= 0 && $detail->qty > 0 && $detail->total_price_po_in > 0) {
                         $detail->price_po_in = $detail->total_price_po_in / $detail->qty;
-                    } else {
-                        $priceScale = $detail->price_po_in > 0
-                            && $detail->price_po_in < 100000
-                            ? 1000
-                            : 1;
-                        $detail->price_po_in *= $priceScale;
+                    } elseif ($detail->total_price_po_in <= 0 && $detail->qty > 0 && $detail->price_po_in > 0) {
+                        $detail->total_price_po_in = $detail->qty * $detail->price_po_in;
                     }
 
                     return $detail;
                 })
                 ->values();
+
+            if ($purchaseOrder->total_price <= 0 && $purchaseOrder->details->isNotEmpty()) {
+                $purchaseOrder->total_price = (float) $purchaseOrder->details->sum('total_price_po_in');
+                if ($purchaseOrder->grand_total <= 0) {
+                    $ppnPercent = (float) ($purchaseOrder->ppn_input_percent ?? 0);
+                    $ppnValue = round($purchaseOrder->total_price * (min(11.0, max(0.0, $ppnPercent)) / 100), 2);
+                    $purchaseOrder->ppn_amount = $ppnValue;
+                    $purchaseOrder->grand_total = $purchaseOrder->total_price + $ppnValue;
+                }
+            }
 
             return $purchaseOrder;
         });
@@ -112,16 +118,39 @@ class PurchaseOrderInController
         ]);
     }
 
-    private function getClickhouseOrFallbackConnection()
+    private function getClickhouseOrFallbackConnection(): \Illuminate\Database\ConnectionInterface
     {
+        $requestedDriver = strtolower((string) request()->query('driver', request()->query('source', env('POIN_DB_DRIVER', 'clickhouse'))));
+        if ($requestedDriver === 'mysql') {
+            return DB::connection();
+        }
+
         try {
             $connection = DB::connection('clickhouse');
-            if (!$connection->getConfig('driver')) {
-                throw new \Exception("Driver not set");
+            if ($connection && $connection->getConfig('driver') === 'clickhouse') {
+                $connection->select('SELECT 1');
+                return $connection;
             }
-            return $connection;
         } catch (\Throwable $e) {
-            return DB::connection();
+            Log::info("PurchaseOrderInController: ClickHouse tidak tersedia, otomatis fallback ke MySQL: " . $e->getMessage());
+        }
+
+        return DB::connection();
+    }
+
+    private function safeClickhouseRead(callable $callback)
+    {
+        $conn = $this->getClickhouseOrFallbackConnection();
+        $isClickhouse = ($conn->getConfig('driver') === 'clickhouse');
+
+        try {
+            return $callback($conn);
+        } catch (\Throwable $e) {
+            if ($isClickhouse) {
+                Log::warning("PurchaseOrderInController ClickHouse query error, fallback ke MySQL: " . $e->getMessage());
+                return $callback(DB::connection());
+            }
+            throw $e;
         }
     }
 
