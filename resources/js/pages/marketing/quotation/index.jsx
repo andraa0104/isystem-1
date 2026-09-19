@@ -497,7 +497,7 @@ export default function QuotationIndex({
                             <table className="w-full table-auto text-sm">
                                 <thead className="bg-muted/50 text-muted-foreground">
                                     <tr>
-                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">No Penawaran</th>
+                                        <th className="w-1 whitespace-nowrap px-2 py-2 text-left">No Doc</th>
                                         <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Tanggal</th>
                                         <th className="w-full whitespace-nowrap px-2 py-2 text-left">Customer</th>
                                         <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Attend</th>
