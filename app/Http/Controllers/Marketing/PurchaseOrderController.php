@@ -5,10 +5,81 @@ namespace App\Http\Controllers\Marketing;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Inertia\Inertia;
 
 class PurchaseOrderController
 {
+    private ?bool $isClickhouse = null;
+    private ?\Illuminate\Database\ConnectionInterface $readConnection = null;
+
+    /**
+     * Dapatkan koneksi untuk read data:
+     * - Production: Membaca dari ClickHouse jika tersedia.
+     * - Fallback: Otomatis fallback ke MySQL jika ClickHouse tidak ada / tidak berjalan / error.
+     */
+    private function getReadConnection(): \Illuminate\Database\ConnectionInterface
+    {
+        if ($this->readConnection !== null) {
+            return $this->readConnection;
+        }
+
+        $requestedDriver = strtolower((string) request()->query('driver', request()->query('source', env('PO_DB_DRIVER', 'clickhouse'))));
+        if ($requestedDriver === 'mysql') {
+            $this->readConnection = DB::connection();
+            $this->isClickhouse = false;
+            return $this->readConnection;
+        }
+
+        try {
+            $connection = DB::connection('clickhouse');
+            if ($connection && $connection->getConfig('driver') === 'clickhouse') {
+                $tenantDb = session('tenant.database') ?? request()->cookie('tenant_database');
+                if ($tenantDb) {
+                    config(['database.connections.clickhouse.database' => $tenantDb]);
+                }
+                $connection->select('SELECT 1');
+                $this->readConnection = $connection;
+                $this->isClickhouse = true;
+                return $this->readConnection;
+            }
+        } catch (\Throwable $e) {
+            Log::info("PurchaseOrderController: ClickHouse tidak tersedia, otomatis fallback ke MySQL: " . $e->getMessage());
+        }
+
+        $this->readConnection = DB::connection();
+        $this->isClickhouse = false;
+        return $this->readConnection;
+    }
+
+    private function isClickhouse(): bool
+    {
+        if ($this->isClickhouse === null) {
+            $this->getReadConnection();
+        }
+
+        return (bool) $this->isClickhouse;
+    }
+
+    /**
+     * Eksekusi callback read data dengan proteksi failover:
+     * Jika ClickHouse mengalami kendala query/timeout, otomatis fallback ke MySQL.
+     */
+    private function safeRead(callable $callback)
+    {
+        try {
+            return $callback($this->getReadConnection(), $this->isClickhouse());
+        } catch (\Throwable $e) {
+            if ($this->isClickhouse()) {
+                Log::warning("PurchaseOrderController ClickHouse query error, fallback ke MySQL: " . $e->getMessage());
+                $this->readConnection = DB::connection();
+                $this->isClickhouse = false;
+                return $callback($this->readConnection, false);
+            }
+            throw $e;
+        }
+    }
+
     private function bypassCache() {
         return new class {
             public function remember($key, $ttl, $callback) { return $callback(); }
@@ -1362,104 +1433,117 @@ class PurchaseOrderController
 
     public function dataByMaterial(Request $request)
     {
-        $dateFilter  = (string) $request->query('date_filter', 'today');
-        $status      = (string) $request->query('status', 'outstanding');
-        $search      = trim((string) $request->query('search', ''));
-        $pageSizeRaw = $request->query('pageSize', '5');
-        $page        = max(1, (int) $request->query('page', 1));
+        return $this->safeRead(function ($readConn, $isClickhouse) use ($request) {
+            $dateFilter  = (string) $request->query('date_filter', 'today');
+            $status      = (string) $request->query('status', 'outstanding');
+            $search      = trim((string) $request->query('search', ''));
+            $pageSizeRaw = $request->query('pageSize', '5');
+            $page        = max(1, (int) $request->query('page', 1));
 
-        $poDateExpr = "coalesce(str_to_date(trim(d.tgl), '%d.%m.%Y'), str_to_date(trim(d.tgl), '%d/%m/%Y'), str_to_date(trim(d.tgl), '%d-%m-%Y'), str_to_date(trim(d.tgl), '%Y-%m-%d'), str_to_date(trim(d.tgl), '%Y/%m/%d'), date(trim(d.tgl)))";
-
-        $query = DB::table('tb_detailpo as d')
-            ->select(
-                'd.no_po',
-                'd.tgl',
-                'd.ref_pr',
-                'd.ref_quota',
-                'd.for_cus',
-                'd.ref_poin',
-                'd.nm_vdr',
-                'd.ppn',
-                'd.kd_mat',
-                'd.material',
-                'd.qty',
-                'd.unit',
-                'd.price',
-                'd.total_price',
-                'd.gr_mat',
-                'd.ir_mat'
-            );
-
-        $now = now();
-        if ($dateFilter === 'today') {
-            $query->whereRaw("{$poDateExpr} = ?", [$now->toDateString()]);
-        } elseif ($dateFilter === 'this_week') {
-            $query->whereRaw("{$poDateExpr} between ? and ?", [
-                $now->copy()->startOfWeek()->toDateString(),
-                $now->copy()->endOfWeek()->toDateString(),
-            ]);
-        } elseif ($dateFilter === 'this_month') {
-            $query->whereRaw("year({$poDateExpr}) = ?", [$now->year])
-                ->whereRaw("month({$poDateExpr}) = ?", [$now->month]);
-        } elseif ($dateFilter === 'this_year') {
-            $query->whereRaw("year({$poDateExpr}) = ?", [$now->year]);
-        } elseif ($dateFilter === 'range') {
-            $startDate = (string) $request->query('start_date', '');
-            $endDate   = (string) $request->query('end_date', '');
-            if ($startDate !== '' && $endDate !== '') {
-                $query->whereRaw("{$poDateExpr} between ? and ?", [$startDate, $endDate]);
+            if ($isClickhouse) {
+                $poDateExpr = "coalesce(toDateOrNull(parseDateTimeBestEffortOrNull(trim(d.tgl))), d.tgl)";
             } else {
-                $query->whereRaw('1 = 0');
+                $poDateExpr = "coalesce(str_to_date(trim(d.tgl), '%d.%m.%Y'), str_to_date(trim(d.tgl), '%d/%m/%Y'), str_to_date(trim(d.tgl), '%d-%m-%Y'), str_to_date(trim(d.tgl), '%Y-%m-%d'), str_to_date(trim(d.tgl), '%Y/%m/%d'), date(trim(d.tgl)))";
             }
-        }
 
-        if ($status === 'outstanding') {
-            $query->whereRaw('coalesce(cast(d.qty as decimal(18,4)), 0) > 0 and coalesce(cast(d.gr_mat as decimal(18,4)), 0) = coalesce(cast(d.qty as decimal(18,4)), 0)');
-        } elseif ($status === 'partial') {
-            $query->whereRaw('coalesce(cast(d.qty as decimal(18,4)), 0) > 0 and coalesce(cast(d.gr_mat as decimal(18,4)), 0) > 0 and coalesce(cast(d.gr_mat as decimal(18,4)), 0) != coalesce(cast(d.qty as decimal(18,4)), 0)');
-        } elseif ($status === 'realized') {
-            $query->whereRaw('coalesce(cast(d.qty as decimal(18,4)), 0) > 0 and (coalesce(cast(d.gr_mat as decimal(18,4)), 0) = 0 or coalesce(cast(d.qty as decimal(18,4)), 0) = coalesce(cast(d.end_fl as decimal(18,4)), 0))');
-        } elseif ($status === 'sisa_ir') {
-            $query->whereRaw('coalesce(cast(d.qty as decimal(18,4)), 0) > 0 and coalesce(cast(d.ir_mat as decimal(18,4)), 0) > 0 and coalesce(cast(d.ir_mat as decimal(18,4)), 0) < coalesce(cast(d.qty as decimal(18,4)), 0)');
-        }
+            $query = $readConn->table('tb_detailpo as d')
+                ->select(
+                    'd.no_po',
+                    'd.tgl',
+                    'd.ref_pr',
+                    'd.ref_quota',
+                    'd.for_cus',
+                    'd.ref_poin',
+                    'd.nm_vdr',
+                    'd.ppn',
+                    'd.kd_mat',
+                    'd.material',
+                    'd.qty',
+                    'd.unit',
+                    'd.price',
+                    'd.total_price',
+                    'd.gr_mat',
+                    'd.ir_mat'
+                );
 
-        if ($search !== '') {
-            $query->where(function ($q) use ($search) {
-                $q->where('d.no_po', 'like', "%{$search}%")
-                    ->orWhere('d.material', 'like', "%{$search}%")
-                    ->orWhere('d.kd_mat', 'like', "%{$search}%")
-                    ->orWhere('d.for_cus', 'like', "%{$search}%")
-                    ->orWhere('d.nm_vdr', 'like', "%{$search}%")
-                    ->orWhere('d.ref_poin', 'like', "%{$search}%");
-            });
-        }
-
-        $total = (clone $query)->count();
-
-        $query->orderByRaw("{$poDateExpr} desc")
-            ->orderBy('d.id', 'desc');
-
-        if ($pageSizeRaw !== 'all') {
-            $pageSize = max(1, (int) $pageSizeRaw);
-            $query->forPage($page, $pageSize);
-        }
-
-        $rows = $query->get();
-
-        $rows->transform(function ($item) {
-            if ($item->tgl) {
-                try {
-                    $item->tgl = \Carbon\Carbon::parse($item->tgl)->format('d.m.Y');
-                } catch (\Throwable $e) {
+            $now = now();
+            if ($dateFilter === 'today') {
+                $query->whereRaw("{$poDateExpr} = ?", [$now->toDateString()]);
+            } elseif ($dateFilter === 'this_week') {
+                $query->whereRaw("{$poDateExpr} between ? and ?", [
+                    $now->copy()->startOfWeek()->toDateString(),
+                    $now->copy()->endOfWeek()->toDateString(),
+                ]);
+            } elseif ($dateFilter === 'this_month') {
+                if ($isClickhouse) {
+                    $query->whereRaw("toYear({$poDateExpr}) = ? and toMonth({$poDateExpr}) = ?", [$now->year, $now->month]);
+                } else {
+                    $query->whereRaw("year({$poDateExpr}) = ? and month({$poDateExpr}) = ?", [$now->year, $now->month]);
+                }
+            } elseif ($dateFilter === 'this_year') {
+                if ($isClickhouse) {
+                    $query->whereRaw("toYear({$poDateExpr}) = ?", [$now->year]);
+                } else {
+                    $query->whereRaw("year({$poDateExpr}) = ?", [$now->year]);
+                }
+            } elseif ($dateFilter === 'range') {
+                $startDate = (string) $request->query('start_date', '');
+                $endDate   = (string) $request->query('end_date', '');
+                if ($startDate !== '' && $endDate !== '') {
+                    $query->whereRaw("{$poDateExpr} between ? and ?", [$startDate, $endDate]);
+                } else {
+                    $query->whereRaw('1 = 0');
                 }
             }
-            return $item;
-        });
 
-        return response()->json([
-            'rows'  => $rows,
-            'total' => $total,
-        ]);
+            if ($status === 'outstanding') {
+                $query->whereRaw('coalesce(cast(d.qty as decimal(18,4)), 0) > 0 and coalesce(cast(d.gr_mat as decimal(18,4)), 0) = coalesce(cast(d.qty as decimal(18,4)), 0)');
+            } elseif ($status === 'partial') {
+                $query->whereRaw('coalesce(cast(d.qty as decimal(18,4)), 0) > 0 and coalesce(cast(d.gr_mat as decimal(18,4)), 0) > 0 and coalesce(cast(d.gr_mat as decimal(18,4)), 0) != coalesce(cast(d.qty as decimal(18,4)), 0)');
+            } elseif ($status === 'realized') {
+                $query->whereRaw('coalesce(cast(d.qty as decimal(18,4)), 0) > 0 and (coalesce(cast(d.gr_mat as decimal(18,4)), 0) = 0 or coalesce(cast(d.qty as decimal(18,4)), 0) = coalesce(cast(d.end_fl as decimal(18,4)), 0))');
+            } elseif ($status === 'sisa_ir') {
+                $query->whereRaw('coalesce(cast(d.qty as decimal(18,4)), 0) > 0 and coalesce(cast(d.ir_mat as decimal(18,4)), 0) > 0 and coalesce(cast(d.ir_mat as decimal(18,4)), 0) < coalesce(cast(d.qty as decimal(18,4)), 0)');
+            }
+
+            if ($search !== '') {
+                $query->where(function ($q) use ($search) {
+                    $q->where('d.no_po', 'like', "%{$search}%")
+                        ->orWhere('d.material', 'like', "%{$search}%")
+                        ->orWhere('d.kd_mat', 'like', "%{$search}%")
+                        ->orWhere('d.for_cus', 'like', "%{$search}%")
+                        ->orWhere('d.nm_vdr', 'like', "%{$search}%")
+                        ->orWhere('d.ref_poin', 'like', "%{$search}%");
+                });
+            }
+
+            $total = (clone $query)->count();
+
+            $query->orderByRaw("{$poDateExpr} desc")
+                ->orderBy('d.id', 'desc');
+
+            if ($pageSizeRaw !== 'all') {
+                $pageSize = max(1, (int) $pageSizeRaw);
+                $query->forPage($page, $pageSize);
+            }
+
+            $rows = $query->get();
+
+            $rows->transform(function ($item) {
+                if ($item->tgl) {
+                    try {
+                        $item->tgl = \Carbon\Carbon::parse($item->tgl)->format('d.m.Y');
+                    } catch (\Throwable $e) {
+                    }
+                }
+                return $item;
+            });
+
+            return response()->json([
+                'rows'  => $rows,
+                'total' => $total,
+            ]);
+        });
     }
 
     public function index(Request $request)
@@ -1485,171 +1569,188 @@ class PurchaseOrderController
 
     public function data(Request $request)
     {
-        $dateFilter = (string) $request->query('date_filter', 'today');
-        $status = (string) $request->query('status', 'all');
-        $search = trim((string) $request->query('search', ''));
-        $pageSizeRaw = $request->query('pageSize', '5');
-        $page = max(1, (int) $request->query('page', 1));
-        $poDateExpr = "coalesce(str_to_date(trim(po.tgl), '%d.%m.%Y'), str_to_date(trim(po.tgl), '%d/%m/%Y'), str_to_date(trim(po.tgl), '%d-%m-%Y'), str_to_date(trim(po.tgl), '%Y-%m-%d'), str_to_date(trim(po.tgl), '%Y/%m/%d'), date(trim(po.tgl)))";
+        return $this->safeRead(function ($readConn, $isClickhouse) use ($request) {
+            $dateFilter = (string) $request->query('date_filter', 'today');
+            $status = (string) $request->query('status', 'all');
+            $search = trim((string) $request->query('search', ''));
+            $pageSizeRaw = $request->query('pageSize', '5');
+            $page = max(1, (int) $request->query('page', 1));
 
-        $now = \Carbon\Carbon::now();
-        $actualDateKey = $dateFilter;
-        if ($dateFilter === 'today') {
-            $actualDateKey = $now->toDateString();
-        } elseif ($dateFilter === 'this_week') {
-            $actualDateKey = $now->startOfWeek()->toDateString();
-        } elseif ($dateFilter === 'this_month') {
-            $actualDateKey = $now->format('Y-m');
-        } elseif ($dateFilter === 'this_year') {
-            $actualDateKey = $now->year;
-        }
-
-        $cacheKey = $this->poCacheKey('data', [
-            'date_filter' => $dateFilter,
-            'actual_date' => $actualDateKey, // <--- Kunci Tanggal Dinamis
-            'status' => $status,
-            'search' => $search,
-            'pageSize' => $pageSizeRaw,
-            'page' => $page,
-            'start_date' => (string) $request->query('start_date', ''),
-            'end_date' => (string) $request->query('end_date', ''),
-            'include_summary' => $request->boolean('include_summary'),
-            'summary_only' => $request->boolean('summary_only'),
-            'summary_scope' => (string) $request->query('summary_scope', 'all'),
-            'period' => (string) $request->query('period', 'today'),
-        ], $request);
-
-        $response = $this->bypassCache()->remember($cacheKey, self::PO_CACHE_TTL, function () use ($dateFilter, $status, $search, $pageSizeRaw, $page, $poDateExpr, $request) {
-            if ($request->boolean('summary_only')) {
-                return [
-                    'summary' => $this->getPurchaseOrderSummaryScopeData(
-                        (string) $request->query('summary_scope', 'all'),
-                        (string) $request->query('period', 'today')
-                    ),
-                ];
-            }
-
-            $statusSub = DB::table('tb_detailpo')
-            ->select('no_po')
-            ->selectRaw("
-                case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) = 0 then 1 else 0 end as is_outstanding,
-                case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 and coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) > 0 then 1 else 0 end as is_partial,
-                case when sum(case when coalesce(qty, 0) > 0 and coalesce(qty, 0) != coalesce(end_fl, 0) then 1 else 0 end) = 0 then 1 else 0 end as is_fully_realized,
-                case when sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0 and sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) > 0 then 1 else 0 end) > 0 then 1 else 0 end as is_sisa_ir
-            ")
-            ->groupBy('no_po');
-
-        $query = DB::table('tb_po as po')
-            ->leftJoinSub($statusSub, 's', 'po.no_po', '=', 's.no_po')
-            ->select(
-                'po.no_po',
-                'po.tgl',
-                'po.nm_vdr',
-                'po.g_total',
-                'po.ref_pr',
-                'po.ref_quota',
-                'po.ref_poin',
-                'po.for_cus',
-                'po.ppn',
-                'po.s_total',
-                'po.h_ppn'
-            )
-            ->selectRaw('coalesce(s.is_outstanding, 0) as is_outstanding')
-            ->selectRaw('coalesce(s.is_partial, 0) as is_partial')
-            ->selectRaw('coalesce(s.is_sisa_ir, 0) as is_sisa_ir');
-
-        $now = now();
-        if ($dateFilter === 'today') {
-            $query->whereRaw("{$poDateExpr} = ?", [$now->toDateString()]);
-        } elseif ($dateFilter === 'this_week') {
-            $query->whereRaw("{$poDateExpr} between ? and ?", [
-                $now->copy()->startOfWeek()->toDateString(),
-                $now->copy()->endOfWeek()->toDateString(),
-            ]);
-        } elseif ($dateFilter === 'this_month') {
-            $query->whereRaw("year({$poDateExpr}) = ?", [$now->year])
-                ->whereRaw("month({$poDateExpr}) = ?", [$now->month]);
-        } elseif ($dateFilter === 'this_year') {
-            $query->whereRaw("year({$poDateExpr}) = ?", [$now->year]);
-        } elseif ($dateFilter === 'range') {
-            $startDate = (string) $request->query('start_date', '');
-            $endDate = (string) $request->query('end_date', '');
-            if ($startDate !== '' && $endDate !== '') {
-                $query->whereRaw("{$poDateExpr} between ? and ?", [$startDate, $endDate]);
+            if ($isClickhouse) {
+                $poDateExpr = "coalesce(toDateOrNull(parseDateTimeBestEffortOrNull(trim(po.tgl))), po.tgl)";
             } else {
-                $query->whereRaw('1 = 0');
+                $poDateExpr = "coalesce(str_to_date(trim(po.tgl), '%d.%m.%Y'), str_to_date(trim(po.tgl), '%d/%m/%Y'), str_to_date(trim(po.tgl), '%d-%m-%Y'), str_to_date(trim(po.tgl), '%Y-%m-%d'), str_to_date(trim(po.tgl), '%Y/%m/%d'), date(trim(po.tgl)))";
             }
-        }
 
-        if ($status === 'outstanding') {
-            $query->whereRaw('coalesce(s.is_outstanding, 0) = 1');
-        } elseif ($status === 'partial') {
-            $query->whereRaw('coalesce(s.is_partial, 0) = 1');
-        } elseif ($status === 'realized') {
-            $query->whereRaw('coalesce(s.is_fully_realized, 0) = 1');
-        } elseif ($status === 'sisa_ir') {
-            $query->whereRaw('coalesce(s.is_sisa_ir, 0) = 1');
-        }
-
-        if ($search !== '') {
-            $query->where(function ($q) use ($search) {
-                $q->where('po.no_po', 'like', "%{$search}%")
-                    ->orWhere('po.tgl', 'like', "%{$search}%")
-                    ->orWhere('po.nm_vdr', 'like', "%{$search}%")
-                    ->orWhere('po.ref_pr', 'like', "%{$search}%")
-                    ->orWhere('po.ref_quota', 'like', "%{$search}%")
-                    ->orWhere('po.ref_poin', 'like', "%{$search}%");
-            });
-        }
-
-        $total = (clone $query)->count();
-
-        $query->orderByRaw("{$poDateExpr} desc")
-            ->orderBy('po.no_po', 'desc');
-
-        if ($pageSizeRaw !== 'all') {
-            $pageSize = max(1, (int) $pageSizeRaw);
-            $query->forPage($page, $pageSize);
-        }
-
-        $purchaseOrders = $query->get();
-
-        $purchaseOrders->transform(function ($item) {
-            if ($item->tgl) {
-                try {
-                    $item->tgl = \Carbon\Carbon::parse($item->tgl)->format('d.m.Y');
-                } catch (\Throwable $e) {
-                }
+            $now = \Carbon\Carbon::now();
+            $actualDateKey = $dateFilter;
+            if ($dateFilter === 'today') {
+                $actualDateKey = $now->toDateString();
+            } elseif ($dateFilter === 'this_week') {
+                $actualDateKey = $now->startOfWeek()->toDateString();
+            } elseif ($dateFilter === 'this_month') {
+                $actualDateKey = $now->format('Y-m');
+            } elseif ($dateFilter === 'this_year') {
+                $actualDateKey = $now->year;
             }
-            return $item;
-        });
 
-        $response = [
-            'purchaseOrders' => $purchaseOrders,
-            'total' => $total,
-            'filters' => [
+            $cacheKey = $this->poCacheKey('data', [
                 'date_filter' => $dateFilter,
+                'actual_date' => $actualDateKey, // <--- Kunci Tanggal Dinamis
                 'status' => $status,
-            ],
-        ];
+                'search' => $search,
+                'pageSize' => $pageSizeRaw,
+                'page' => $page,
+                'start_date' => (string) $request->query('start_date', ''),
+                'end_date' => (string) $request->query('end_date', ''),
+                'include_summary' => $request->boolean('include_summary'),
+                'summary_only' => $request->boolean('summary_only'),
+                'summary_scope' => (string) $request->query('summary_scope', 'all'),
+                'period' => (string) $request->query('period', 'today'),
+                'driver' => $isClickhouse ? 'clickhouse' : 'mysql',
+            ], $request);
 
-        if ($request->boolean('include_summary')) {
-            $response['summary'] = $this->getPurchaseOrderSummaryData(
-                (string) $request->query('period', 'today')
-            );
-        }
+            $response = $this->bypassCache()->remember($cacheKey, self::PO_CACHE_TTL, function () use ($dateFilter, $status, $search, $pageSizeRaw, $page, $poDateExpr, $request, $readConn, $isClickhouse, $now) {
+                if ($request->boolean('summary_only')) {
+                    return [
+                        'summary' => $this->getPurchaseOrderSummaryScopeData(
+                            (string) $request->query('summary_scope', 'all'),
+                            (string) $request->query('period', 'today'),
+                            $readConn
+                        ),
+                    ];
+                }
 
-            return $response;
+                $statusSub = $readConn->table('tb_detailpo')
+                    ->select('no_po')
+                    ->selectRaw("
+                        case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) = 0 then 1 else 0 end as is_outstanding,
+                        case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 and coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) > 0 then 1 else 0 end as is_partial,
+                        case when sum(case when coalesce(qty, 0) > 0 and coalesce(qty, 0) != coalesce(end_fl, 0) then 1 else 0 end) = 0 then 1 else 0 end as is_fully_realized,
+                        case when sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0 and sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) > 0 then 1 else 0 end) > 0 then 1 else 0 end as is_sisa_ir
+                    ")
+                    ->groupBy('no_po');
+
+                $query = $readConn->table('tb_po as po')
+                    ->leftJoinSub($statusSub, 's', 'po.no_po', '=', 's.no_po')
+                    ->select(
+                        'po.no_po',
+                        'po.tgl',
+                        'po.nm_vdr',
+                        'po.g_total',
+                        'po.ref_pr',
+                        'po.ref_quota',
+                        'po.ref_poin',
+                        'po.for_cus',
+                        'po.ppn',
+                        'po.s_total',
+                        'po.h_ppn'
+                    )
+                    ->selectRaw('coalesce(s.is_outstanding, 0) as is_outstanding')
+                    ->selectRaw('coalesce(s.is_partial, 0) as is_partial')
+                    ->selectRaw('coalesce(s.is_sisa_ir, 0) as is_sisa_ir');
+
+                if ($dateFilter === 'today') {
+                    $query->whereRaw("{$poDateExpr} = ?", [$now->toDateString()]);
+                } elseif ($dateFilter === 'this_week') {
+                    $query->whereRaw("{$poDateExpr} between ? and ?", [
+                        $now->copy()->startOfWeek()->toDateString(),
+                        $now->copy()->endOfWeek()->toDateString(),
+                    ]);
+                } elseif ($dateFilter === 'this_month') {
+                    if ($isClickhouse) {
+                        $query->whereRaw("toYear({$poDateExpr}) = ? and toMonth({$poDateExpr}) = ?", [$now->year, $now->month]);
+                    } else {
+                        $query->whereRaw("year({$poDateExpr}) = ? and month({$poDateExpr}) = ?", [$now->year, $now->month]);
+                    }
+                } elseif ($dateFilter === 'this_year') {
+                    if ($isClickhouse) {
+                        $query->whereRaw("toYear({$poDateExpr}) = ?", [$now->year]);
+                    } else {
+                        $query->whereRaw("year({$poDateExpr}) = ?", [$now->year]);
+                    }
+                } elseif ($dateFilter === 'range') {
+                    $startDate = (string) $request->query('start_date', '');
+                    $endDate = (string) $request->query('end_date', '');
+                    if ($startDate !== '' && $endDate !== '') {
+                        $query->whereRaw("{$poDateExpr} between ? and ?", [$startDate, $endDate]);
+                    } else {
+                        $query->whereRaw('1 = 0');
+                    }
+                }
+
+                if ($status === 'outstanding') {
+                    $query->whereRaw('coalesce(s.is_outstanding, 0) = 1');
+                } elseif ($status === 'partial') {
+                    $query->whereRaw('coalesce(s.is_partial, 0) = 1');
+                } elseif ($status === 'realized') {
+                    $query->whereRaw('coalesce(s.is_fully_realized, 0) = 1');
+                } elseif ($status === 'sisa_ir') {
+                    $query->whereRaw('coalesce(s.is_sisa_ir, 0) = 1');
+                }
+
+                if ($search !== '') {
+                    $query->where(function ($q) use ($search) {
+                        $q->where('po.no_po', 'like', "%{$search}%")
+                            ->orWhere('po.tgl', 'like', "%{$search}%")
+                            ->orWhere('po.nm_vdr', 'like', "%{$search}%")
+                            ->orWhere('po.ref_pr', 'like', "%{$search}%")
+                            ->orWhere('po.ref_quota', 'like', "%{$search}%")
+                            ->orWhere('po.ref_poin', 'like', "%{$search}%");
+                    });
+                }
+
+                $total = (clone $query)->count();
+
+                $query->orderByRaw("{$poDateExpr} desc")
+                    ->orderBy('po.no_po', 'desc');
+
+                if ($pageSizeRaw !== 'all') {
+                    $pageSize = max(1, (int) $pageSizeRaw);
+                    $query->forPage($page, $pageSize);
+                }
+
+                $purchaseOrders = $query->get();
+
+                $purchaseOrders->transform(function ($item) {
+                    if ($item->tgl) {
+                        try {
+                            $item->tgl = \Carbon\Carbon::parse($item->tgl)->format('d.m.Y');
+                        } catch (\Throwable $e) {
+                        }
+                    }
+                    return $item;
+                });
+
+                $response = [
+                    'purchaseOrders' => $purchaseOrders,
+                    'total' => $total,
+                    'filters' => [
+                        'date_filter' => $dateFilter,
+                        'status' => $status,
+                    ],
+                ];
+
+                if ($request->boolean('include_summary')) {
+                    $response['summary'] = $this->getPurchaseOrderSummaryData(
+                        (string) $request->query('period', 'today'),
+                        $readConn
+                    );
+                }
+
+                return $response;
+            });
+
+            return response()->json($response);
         });
-
-        return response()->json($response);
     }
 
-    private function getPurchaseOrderSummaryScopeData(string $scope, string $period): array
+    private function getPurchaseOrderSummaryScopeData(string $scope, string $period, $readConn = null): array
     {
+        $conn = $readConn ?? $this->getReadConnection();
         if ($scope === 'outstanding') {
-            $stats = DB::table('tb_po')
-                ->whereIn('no_po', DB::table('tb_detailpo')->select('no_po')->groupBy('no_po')
+            $stats = $conn->table('tb_po')
+                ->whereIn('no_po', $conn->table('tb_detailpo')->select('no_po')->groupBy('no_po')
                     ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) = 0')
                     ->havingRaw('count(*) > 0'))
                 ->selectRaw('count(*) as count, sum(g_total) as total')
@@ -1659,8 +1760,8 @@ class PurchaseOrderController
         }
 
         if ($scope === 'partial') {
-            $stats = DB::table('tb_po')
-                ->whereIn('no_po', DB::table('tb_detailpo')->select('no_po')->groupBy('no_po')
+            $stats = $conn->table('tb_po')
+                ->whereIn('no_po', $conn->table('tb_detailpo')->select('no_po')->groupBy('no_po')
                     ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 and coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) > 0'))
                 ->selectRaw('count(*) as count, sum(g_total) as total')
                 ->first();
@@ -1669,8 +1770,8 @@ class PurchaseOrderController
         }
 
         if ($scope === 'partial_ir') {
-            $stats = DB::table('tb_detailpo')
-                ->whereIn('no_po', DB::table('tb_detailpo')->select('no_po')->groupBy('no_po')
+            $stats = $conn->table('tb_detailpo')
+                ->whereIn('no_po', $conn->table('tb_detailpo')->select('no_po')->groupBy('no_po')
                     ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0')
                     ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) > 0 then 1 else 0 end) > 0'))
                 ->selectRaw('count(distinct no_po) as count, sum(coalesce(cast(ir_price as decimal(65,4)), 0)) as total')
@@ -1679,35 +1780,41 @@ class PurchaseOrderController
             return ['partialIrCount' => (int) ($stats->count ?? 0), 'partialIrTotal' => (float) ($stats->total ?? 0)];
         }
 
-        return $this->getPurchaseOrderSummaryData($period);
+        return $this->getPurchaseOrderSummaryData($period, $conn);
     }
 
-    private function getPurchaseOrderSummaryData($period = 'today')
+    private function getPurchaseOrderSummaryData($period = 'today', $readConn = null)
     {
-        $outstandingIds = DB::table('tb_detailpo')
+        $conn = $readConn ?? $this->getReadConnection();
+        $outstandingIds = $conn->table('tb_detailpo')
             ->select('no_po')
             ->groupBy('no_po')
             ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) = 0')
             ->havingRaw('count(*) > 0')
             ->pluck('no_po');
 
-        $outstandingStats = DB::table('tb_po')
+        $outstandingStats = $conn->table('tb_po')
             ->whereIn('no_po', $outstandingIds)
             ->selectRaw('count(*) as count, sum(g_total) as total')
             ->first();
 
-        $partialIds = DB::table('tb_detailpo')
+        $partialIds = $conn->table('tb_detailpo')
             ->select('no_po')
             ->groupBy('no_po')
             ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 and coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) > 0')
             ->pluck('no_po');
 
-        $partialStats = DB::table('tb_po')
+        $partialStats = $conn->table('tb_po')
             ->whereIn('no_po', $partialIds)
             ->selectRaw('count(*) as count, sum(g_total) as total')
             ->first();
 
-        $docDateExpr = "coalesce(str_to_date(k.doc_tgl, '%d.%m.%Y'), str_to_date(k.doc_tgl, '%d/%m/%Y'), str_to_date(k.doc_tgl, '%d-%m-%Y'), str_to_date(k.doc_tgl, '%Y-%m-%d'), str_to_date(k.doc_tgl, '%Y/%m/%d'), date(k.doc_tgl))";
+        $isClickhouse = ($conn->getConfig('driver') === 'clickhouse');
+        if ($isClickhouse) {
+            $docDateExpr = "coalesce(toDateOrNull(parseDateTimeBestEffortOrNull(trim(k.doc_tgl))), k.doc_tgl)";
+        } else {
+            $docDateExpr = "coalesce(str_to_date(k.doc_tgl, '%d.%m.%Y'), str_to_date(k.doc_tgl, '%d/%m/%Y'), str_to_date(k.doc_tgl, '%d-%m-%Y'), str_to_date(k.doc_tgl, '%Y-%m-%d'), str_to_date(k.doc_tgl, '%Y/%m/%d'), date(k.doc_tgl))";
+        }
 
         $now = now();
         $startDate = $now->copy()->startOfDay()->toDateString();
@@ -1724,7 +1831,7 @@ class PurchaseOrderController
             $endDate = $now->copy()->endOfYear()->toDateString();
         }
 
-        $poNumbersInPeriod = DB::table('tb_kdmi as k')
+        $poNumbersInPeriod = $conn->table('tb_kdmi as k')
             ->whereRaw("{$docDateExpr} >= ?", [$startDate])
             ->whereRaw("{$docDateExpr} <= ?", [$endDate])
             ->pluck('ref_pr')
@@ -1735,7 +1842,7 @@ class PurchaseOrderController
         $realizedCount = 0;
         $realizedTotal = 0;
         if (!empty($poNumbersInPeriod)) {
-            $finishedPoNumbers = DB::table('tb_detailpo')
+            $finishedPoNumbers = $conn->table('tb_detailpo')
                 ->whereIn('no_po', $poNumbersInPeriod)
                 ->groupBy('no_po')
                 ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(qty, 0) != coalesce(end_fl, 0) then 1 else 0 end) = 0')
@@ -1743,7 +1850,7 @@ class PurchaseOrderController
                 ->all();
 
             if (!empty($finishedPoNumbers)) {
-                $realizedQuery = DB::table('tb_po')
+                $realizedQuery = $conn->table('tb_po')
                     ->whereIn('no_po', $finishedPoNumbers)
                     ->selectRaw('count(*) as count, sum(g_total) as total')
                     ->first();
@@ -2089,303 +2196,316 @@ class PurchaseOrderController
             ]);
         }
 
-        $response = $this->bypassCache()->remember($this->poCacheKey('details', [
-            'no_po' => $noPo,
-            'realized_only' => $request->boolean('realized_only'),
-            'search' => (string) $request->input('search', ''),
-        ], $request), self::PO_CACHE_TTL, function () use ($request, $noPo) {
-            $header = DB::table('tb_po')
-                ->select(
-                    'no_po',
-                    'tgl',
-                    'ref_pr',
-                    'ref_quota',
-                    'ref_poin',
-                    'for_cus',
-                    'nm_vdr',
-                    's_total',
-                    'h_ppn',
-                    'g_total',
-                    'ppn'
-                )
-                ->where('no_po', $noPo)
-                ->first();
+        return $this->safeRead(function ($readConn, $isClickhouse) use ($request, $noPo) {
+            $response = $this->bypassCache()->remember($this->poCacheKey('details', [
+                'no_po' => $noPo,
+                'realized_only' => $request->boolean('realized_only'),
+                'search' => (string) $request->input('search', ''),
+                'driver' => $isClickhouse ? 'clickhouse' : 'mysql',
+            ], $request), self::PO_CACHE_TTL, function () use ($request, $noPo, $readConn) {
+                $header = $readConn->table('tb_po')
+                    ->select(
+                        'no_po',
+                        'tgl',
+                        'ref_pr',
+                        'ref_quota',
+                        'ref_poin',
+                        'for_cus',
+                        'nm_vdr',
+                        's_total',
+                        'h_ppn',
+                        'g_total',
+                        'ppn'
+                    )
+                    ->where('no_po', $noPo)
+                    ->first();
 
-            if (!$header) {
-                $firstDetail = DB::table('tb_detailpo')->where('no_po', $noPo)->first();
-                if ($firstDetail) {
-                    $subTotal = (float) DB::table('tb_detailpo')->where('no_po', $noPo)->sum('total_price');
-                    $header = (object) [
-                        'no_po' => $firstDetail->no_po,
-                        'tgl' => $firstDetail->tgl,
-                        'ref_pr' => $firstDetail->ref_pr,
-                        'ref_quota' => $firstDetail->ref_quota,
-                        'ref_poin' => $firstDetail->ref_poin,
-                        'for_cus' => $firstDetail->for_cus,
-                        'nm_vdr' => $firstDetail->nm_vdr,
-                        's_total' => $subTotal,
-                        'h_ppn' => 0,
-                        'g_total' => $subTotal,
-                        'ppn' => $firstDetail->ppn,
-                    ];
+                if (!$header) {
+                    $firstDetail = $readConn->table('tb_detailpo')->where('no_po', $noPo)->first();
+                    if ($firstDetail) {
+                        $subTotal = (float) $readConn->table('tb_detailpo')->where('no_po', $noPo)->sum('total_price');
+                        $header = (object) [
+                            'no_po' => $firstDetail->no_po,
+                            'tgl' => $firstDetail->tgl,
+                            'ref_pr' => $firstDetail->ref_pr,
+                            'ref_quota' => $firstDetail->ref_quota,
+                            'ref_poin' => $firstDetail->ref_poin,
+                            'for_cus' => $firstDetail->for_cus,
+                            'nm_vdr' => $firstDetail->nm_vdr,
+                            's_total' => $subTotal,
+                            'h_ppn' => 0,
+                            'g_total' => $subTotal,
+                            'ppn' => $firstDetail->ppn,
+                        ];
+                    }
                 }
-            }
 
-            if ($header && !empty($header->tgl)) {
-                try {
-                    $header->tgl = \Carbon\Carbon::parse($header->tgl)->format('d.m.Y');
-                } catch (\Throwable $e) {
+                if ($header && !empty($header->tgl)) {
+                    try {
+                        $header->tgl = \Carbon\Carbon::parse($header->tgl)->format('d.m.Y');
+                    } catch (\Throwable $e) {
+                    }
                 }
-            }
 
-            $query = DB::table('tb_detailpo')
-                ->select(
-                    'no_po',
-                    'no',
-                    'material',
-                    'qty',
-                    'gr_mat',
-                    'ir_mat',
-                    'unit',
-                    'price',
-                    'total_price',
-                    'del_time',
-                    'payment_terms',
-                    'franco_loco',
-                    'ket1',
-                    'ket2',
-                    'ket3',
-                    'ket4'
-                )
-                ->where('no_po', $noPo);
+                $query = $readConn->table('tb_detailpo')
+                    ->select(
+                        'no_po',
+                        'no',
+                        'material',
+                        'qty',
+                        'gr_mat',
+                        'ir_mat',
+                        'unit',
+                        'price',
+                        'total_price',
+                        'del_time',
+                        'payment_terms',
+                        'franco_loco',
+                        'ket1',
+                        'ket2',
+                        'ket3',
+                        'ket4'
+                    )
+                    ->where('no_po', $noPo);
 
-            if ($request->boolean('realized_only')) {
-                // only tampilkan detail yang sudah masuk gudang (no_gudang != 0 / kosong)
-                $query->whereRaw("coalesce(nullif(no_gudang, ''), '0') <> '0'");
-            }
+                if ($request->boolean('realized_only')) {
+                    // only tampilkan detail yang sudah masuk gudang (no_gudang != 0 / kosong)
+                    $query->whereRaw("coalesce(nullif(no_gudang, ''), '0') <> '0'");
+                }
 
-            if ($request->filled('search')) {
-                $search = $request->input('search');
-                $query->where('material', 'like', "%{$search}%");
-            }
+                if ($request->filled('search')) {
+                    $search = $request->input('search');
+                    $query->where('material', 'like', "%{$search}%");
+                }
 
-            return [
-                'purchaseOrder' => $header,
-                'purchaseOrderDetails' => $query->orderBy('no')->get(),
-            ];
+                return [
+                    'purchaseOrder' => $header,
+                    'purchaseOrderDetails' => $query->orderBy('no')->get(),
+                ];
+            });
+
+            return response()->json($response);
         });
-
-        return response()->json($response);
     }
 
     public function outstanding(Request $request)
     {
-        $search = trim((string) $request->query('search', ''));
-        $pageSizeRaw = $request->query('pageSize', 'all');
-        $page = max(1, (int) $request->query('page', 1));
+        return $this->safeRead(function ($readConn, $isClickhouse) use ($request) {
+            $search = trim((string) $request->query('search', ''));
+            $pageSizeRaw = $request->query('pageSize', 'all');
+            $page = max(1, (int) $request->query('page', 1));
 
-        $response = $this->bypassCache()->remember($this->poCacheKey('outstanding', [
-            'search' => $search,
-            'pageSize' => $pageSizeRaw,
-            'page' => $page,
-        ], $request), self::PO_CACHE_TTL, function () use ($search, $pageSizeRaw, $page) {
-            $sub = DB::table('tb_detailpo')
-            ->select('no_po')
-            ->groupBy('no_po')
-            ->havingRaw('sum(case when coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) = 0');
+            $response = $this->bypassCache()->remember($this->poCacheKey('outstanding', [
+                'search' => $search,
+                'pageSize' => $pageSizeRaw,
+                'page' => $page,
+                'driver' => $isClickhouse ? 'clickhouse' : 'mysql',
+            ], $request), self::PO_CACHE_TTL, function () use ($search, $pageSizeRaw, $page, $readConn) {
+                $sub = $readConn->table('tb_detailpo')
+                    ->select('no_po')
+                    ->groupBy('no_po')
+                    ->havingRaw('sum(case when coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) = 0');
 
-        $query = DB::table('tb_po as po')
-            ->joinSub($sub, 's', 'po.no_po', '=', 's.no_po')
-            ->select(
-                'po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.for_cus', 'po.ppn', 'po.s_total', 'po.h_ppn'
-            )
-            ->orderby('no_po', 'desc');
+                $query = $readConn->table('tb_po as po')
+                    ->joinSub($sub, 's', 'po.no_po', '=', 's.no_po')
+                    ->select(
+                        'po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.for_cus', 'po.ppn', 'po.s_total', 'po.h_ppn'
+                    )
+                    ->orderby('no_po', 'desc');
 
-        if ($search !== '') {
-            $query->where(function($q) use ($search) {
-                $q->where('po.no_po', 'like', "%{$search}%")
-                  ->orWhere('po.nm_vdr', 'like', "%{$search}%")
-                  ->orWhere('po.ref_pr', 'like', "%{$search}%");
+                if ($search !== '') {
+                    $query->where(function($q) use ($search) {
+                        $q->where('po.no_po', 'like', "%{$search}%")
+                          ->orWhere('po.nm_vdr', 'like', "%{$search}%")
+                          ->orWhere('po.ref_pr', 'like', "%{$search}%");
+                    });
+                }
+
+                $total = (clone $query)->count();
+
+                if ($pageSizeRaw !== 'all') {
+                    $pageSize = max(1, (int) $pageSizeRaw);
+                    $query->forPage($page, $pageSize);
+                }
+
+                $purchaseOrders = $query->orderBy('po.tgl', 'desc')
+                    ->orderBy('po.no_po', 'desc')
+                    ->get();
+
+                $poNumbers = $purchaseOrders->pluck('no_po')->all();
+                $invinAgg = [];
+                if (!empty($poNumbers)) {
+                    $invinAgg = $readConn->table('tb_invin')
+                        ->whereIn('ref_po', $poNumbers)
+                        ->pluck('ref_po')
+                        ->unique()
+                        ->all();
+                }
+
+                $purchaseOrders->transform(function ($item) use ($invinAgg) {
+                    $item->can_delete = !in_array($item->no_po, $invinAgg);
+                    $item->is_outstanding = 1;
+                    if ($item->tgl) {
+                        try {
+                            $item->tgl = \Carbon\Carbon::parse($item->tgl)->format('d.m.Y');
+                        } catch (\Throwable $e) {}
+                    }
+                    return $item;
+                });
+
+                return [
+                    'purchaseOrders' => $purchaseOrders,
+                    'total' => $total,
+                ];
             });
-        }
 
-        $total = (clone $query)->count();
-
-        if ($pageSizeRaw !== 'all') {
-            $pageSize = max(1, (int) $pageSizeRaw);
-            $query->forPage($page, $pageSize);
-        }
-
-        $purchaseOrders = $query->orderBy('po.tgl', 'desc')
-            ->orderBy('po.no_po', 'desc')
-            ->get();
-
-        $poNumbers = $purchaseOrders->pluck('no_po')->all();
-        $invinAgg = [];
-        if (!empty($poNumbers)) {
-            $invinAgg = DB::table('tb_invin')
-                ->whereIn('ref_po', $poNumbers)
-                ->pluck('ref_po')
-                ->unique()
-                ->all();
-        }
-
-        $purchaseOrders->transform(function ($item) use ($invinAgg) {
-            $item->can_delete = !in_array($item->no_po, $invinAgg);
-            $item->is_outstanding = 1;
-            if ($item->tgl) {
-                try {
-                    $item->tgl = \Carbon\Carbon::parse($item->tgl)->format('d.m.Y');
-                } catch (\Throwable $e) {}
-            }
-            return $item;
+            return response()->json($response);
         });
-
-            return [
-            'purchaseOrders' => $purchaseOrders,
-            'total' => $total,
-            ];
-        });
-
-        return response()->json($response);
     }
 
     public function partialIr(Request $request)
     {
-        $search = trim((string) $request->query('search', ''));
-        $pageSizeRaw = $request->query('pageSize', 'all');
-        $page = max(1, (int) $request->query('page', 1));
+        return $this->safeRead(function ($readConn, $isClickhouse) use ($request) {
+            $search = trim((string) $request->query('search', ''));
+            $pageSizeRaw = $request->query('pageSize', 'all');
+            $page = max(1, (int) $request->query('page', 1));
 
-        $response = $this->bypassCache()->remember($this->poCacheKey('partial_ir', [
-            'search' => $search,
-            'pageSize' => $pageSizeRaw,
-            'page' => $page,
-        ], $request), self::PO_CACHE_TTL, function () use ($search, $pageSizeRaw, $page) {
-            $sub = DB::table('tb_detailpo')
-            ->select('no_po')
-            ->groupBy('no_po')
-            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0')
-            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) > 0 then 1 else 0 end) > 0');
+            $response = $this->bypassCache()->remember($this->poCacheKey('partial_ir', [
+                'search' => $search,
+                'pageSize' => $pageSizeRaw,
+                'page' => $page,
+                'driver' => $isClickhouse ? 'clickhouse' : 'mysql',
+            ], $request), self::PO_CACHE_TTL, function () use ($search, $pageSizeRaw, $page, $readConn) {
+                $sub = $readConn->table('tb_detailpo')
+                    ->select('no_po')
+                    ->groupBy('no_po')
+                    ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0')
+                    ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) > 0 then 1 else 0 end) > 0');
 
-        $query = DB::table('tb_po as po')
-            ->joinSub($sub, 's', 'po.no_po', '=', 's.no_po')
-            ->select(
-                'po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.for_cus', 'po.ppn', 'po.s_total', 'po.h_ppn'
-            )
-            ->orderby('no_po', 'desc');
+                $query = $readConn->table('tb_po as po')
+                    ->joinSub($sub, 's', 'po.no_po', '=', 's.no_po')
+                    ->select(
+                        'po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.for_cus', 'po.ppn', 'po.s_total', 'po.h_ppn'
+                    )
+                    ->orderby('no_po', 'desc');
 
-        if ($search !== '') {
-            $query->where(function($q) use ($search) {
-                $q->where('po.no_po', 'like', "%{$search}%")
-                  ->orWhere('po.nm_vdr', 'like', "%{$search}%")
-                  ->orWhere('po.ref_pr', 'like', "%{$search}%");
+                if ($search !== '') {
+                    $query->where(function($q) use ($search) {
+                        $q->where('po.no_po', 'like', "%{$search}%")
+                          ->orWhere('po.nm_vdr', 'like', "%{$search}%")
+                          ->orWhere('po.ref_pr', 'like', "%{$search}%");
+                    });
+                }
+
+                $total = (clone $query)->count();
+
+                if ($pageSizeRaw !== 'all') {
+                    $pageSize = max(1, (int) $pageSizeRaw);
+                    $query->limit($pageSize)->offset(($page - 1) * $pageSize);
+                }
+
+                $purchaseOrders = collect($query->get());
+
+                $hasRealized = false;
+                if ($purchaseOrders->isNotEmpty()) {
+                    $hasRealized = $readConn->table('tb_kddo')
+                        ->whereIn('ref_po', $purchaseOrders->pluck('no_po'))
+                        ->exists();
+                }
+
+                $purchaseOrders->transform(function ($item) use ($hasRealized) {
+                    $item->is_outstanding = 0;
+                    $item->is_partial = 0;
+                    $item->is_fully_realized = 0; 
+                    $item->is_partial_ir = 1;
+                    $item->has_realized = $hasRealized ? 1 : 0;
+                    return $item;
+                });
+
+                return [
+                    'purchaseOrders' => $purchaseOrders,
+                    'total' => $total,
+                    'page' => $page,
+                    'pageSize' => $pageSizeRaw === 'all' ? $total : (int)$pageSizeRaw,
+                ];
             });
-        }
 
-        $total = (clone $query)->count();
-
-        if ($pageSizeRaw !== 'all') {
-            $pageSize = max(1, (int) $pageSizeRaw);
-            $query->limit($pageSize)->offset(($page - 1) * $pageSize);
-        }
-
-        $purchaseOrders = collect($query->get());
-
-        $hasRealized = false;
-        if ($purchaseOrders->isNotEmpty()) {
-            $hasRealized = DB::table('tb_kddo')
-                ->whereIn('ref_po', $purchaseOrders->pluck('no_po'))
-                ->exists();
-        }
-
-        $purchaseOrders->transform(function ($item) use ($hasRealized) {
-            $item->is_outstanding = 0;
-            $item->is_partial = 0;
-            $item->is_fully_realized = 0; 
-            $item->is_partial_ir = 1;
-            $item->has_realized = $hasRealized ? 1 : 0;
-            return $item;
+            return response()->json($response);
         });
-
-        return [
-            'purchaseOrders' => $purchaseOrders,
-            'total' => $total,
-            'page' => $page,
-            'pageSize' => $pageSizeRaw === 'all' ? $total : (int)$pageSizeRaw,
-        ];
-        });
-
-        return response()->json($response);
     }
+
     public function partial(Request $request)
     {
-        $search = trim((string) $request->query('search', ''));
-        $pageSizeRaw = $request->query('pageSize', 'all');
-        $page = max(1, (int) $request->query('page', 1));
+        return $this->safeRead(function ($readConn, $isClickhouse) use ($request) {
+            $search = trim((string) $request->query('search', ''));
+            $pageSizeRaw = $request->query('pageSize', 'all');
+            $page = max(1, (int) $request->query('page', 1));
 
-        $response = $this->bypassCache()->remember($this->poCacheKey('partial', [
-            'search' => $search,
-            'pageSize' => $pageSizeRaw,
-            'page' => $page,
-        ], $request), self::PO_CACHE_TTL, function () use ($search, $pageSizeRaw, $page) {
-            $sub = DB::table('tb_detailpo')
-            ->select('no_po')
-            ->groupBy('no_po')
-            ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 and coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) > 0');
+            $response = $this->bypassCache()->remember($this->poCacheKey('partial', [
+                'search' => $search,
+                'pageSize' => $pageSizeRaw,
+                'page' => $page,
+                'driver' => $isClickhouse ? 'clickhouse' : 'mysql',
+            ], $request), self::PO_CACHE_TTL, function () use ($search, $pageSizeRaw, $page, $readConn) {
+                $sub = $readConn->table('tb_detailpo')
+                    ->select('no_po')
+                    ->groupBy('no_po')
+                    ->havingRaw('sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 and coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) > 0');
 
-        $query = DB::table('tb_po as po')
-            ->joinSub($sub, 's', 'po.no_po', '=', 's.no_po')
-            ->select(
-                'po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.for_cus', 'po.ppn', 'po.s_total', 'po.h_ppn'
-            );
+                $query = $readConn->table('tb_po as po')
+                    ->joinSub($sub, 's', 'po.no_po', '=', 's.no_po')
+                    ->select(
+                        'po.no_po', 'po.tgl', 'po.nm_vdr', 'po.g_total', 'po.ref_pr', 'po.ref_quota', 'po.ref_poin', 'po.for_cus', 'po.ppn', 'po.s_total', 'po.h_ppn'
+                    );
 
-        if ($search !== '') {
-            $query->where(function($q) use ($search) {
-                $q->where('po.no_po', 'like', "%{$search}%")
-                  ->orWhere('po.nm_vdr', 'like', "%{$search}%")
-                  ->orWhere('po.ref_pr', 'like', "%{$search}%");
+                if ($search !== '') {
+                    $query->where(function($q) use ($search) {
+                        $q->where('po.no_po', 'like', "%{$search}%")
+                          ->orWhere('po.nm_vdr', 'like', "%{$search}%")
+                          ->orWhere('po.ref_pr', 'like', "%{$search}%");
+                    });
+                }
+
+                $total = (clone $query)->count();
+
+                if ($pageSizeRaw !== 'all') {
+                    $pageSize = max(1, (int) $pageSizeRaw);
+                    $query->forPage($page, $pageSize);
+                }
+
+                $purchaseOrders = $query->orderBy('po.tgl', 'desc')
+                    ->orderBy('po.no_po', 'desc')
+                    ->get();
+
+                $poNumbers = $purchaseOrders->pluck('no_po')->all();
+                $invinAgg = [];
+                if (!empty($poNumbers)) {
+                    $invinAgg = $readConn->table('tb_invin')
+                        ->whereIn('ref_po', $poNumbers)
+                        ->pluck('ref_po')
+                        ->unique()
+                        ->all();
+                }
+
+                $purchaseOrders->transform(function ($item) use ($invinAgg) {
+                    $item->can_delete = !in_array($item->no_po, $invinAgg);
+                    $item->is_partial = 1;
+                    if ($item->tgl) {
+                        try {
+                            $item->tgl = \Carbon\Carbon::parse($item->tgl)->format('d.m.Y');
+                        } catch (\Throwable $e) {}
+                    }
+                    return $item;
+                });
+
+                return [
+                    'purchaseOrders' => $purchaseOrders,
+                    'total' => $total,
+                ];
             });
-        }
 
-        $total = (clone $query)->count();
-
-        if ($pageSizeRaw !== 'all') {
-            $pageSize = max(1, (int) $pageSizeRaw);
-            $query->forPage($page, $pageSize);
-        }
-
-        $purchaseOrders = $query->orderBy('po.tgl', 'desc')
-            ->orderBy('po.no_po', 'desc')
-            ->get();
-
-        $poNumbers = $purchaseOrders->pluck('no_po')->all();
-        $invinAgg = [];
-        if (!empty($poNumbers)) {
-            $invinAgg = DB::table('tb_invin')
-                ->whereIn('ref_po', $poNumbers)
-                ->pluck('ref_po')
-                ->unique()
-                ->all();
-        }
-
-        $purchaseOrders->transform(function ($item) use ($invinAgg) {
-            $item->can_delete = !in_array($item->no_po, $invinAgg);
-            $item->is_partial = 1;
-            if ($item->tgl) {
-                try {
-                    $item->tgl = \Carbon\Carbon::parse($item->tgl)->format('d.m.Y');
-                } catch (\Throwable $e) {}
-            }
-            return $item;
+            return response()->json($response);
         });
-
-            return [
-            'purchaseOrders' => $purchaseOrders,
-            'total' => $total,
-            ];
-        });
-
-        return response()->json($response);
     }
 
     public function print(Request $request, $noPo)
