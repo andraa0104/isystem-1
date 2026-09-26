@@ -82,6 +82,53 @@ const toDateInputValue = (value) => {
     return date.toISOString().slice(0, 10);
 };
 
+const formatToDdmmyyyy = (dateStr) => {
+    if (!dateStr) {
+        const d = new Date();
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        return `${dd}${mm}${yyyy}`;
+    }
+    const parts = String(dateStr).split('-');
+    if (parts.length === 3 && parts[0].length === 4) {
+        const [year, month, day] = parts;
+        return `${day.padStart(2, '0')}${month.padStart(2, '0')}${year}`;
+    }
+    const dmyParts = String(dateStr).split('.');
+    if (dmyParts.length === 3 && dmyParts[2].length === 4) {
+        const [day, month, year] = dmyParts;
+        return `${day.padStart(2, '0')}${month.padStart(2, '0')}${year}`;
+    }
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        return `${dd}${mm}${yyyy}`;
+    }
+    return '';
+};
+
+const fetchNextRefPo = async (jenisPr, dateStr, excludeNoPr = '') => {
+    if (!jenisPr) return '';
+    try {
+        const response = await axios.get('/marketing/purchase-requirement/generate-ref-po', {
+            params: {
+                jenis_pr: jenisPr,
+                date: dateStr,
+                exclude_no_pr: excludeNoPr,
+            },
+        });
+        if (response.data && response.data.ref_po) {
+            return response.data.ref_po;
+        }
+    } catch (e) {
+        console.error('Failed to generate ref PO:', e);
+    }
+    return `${jenisPr} ${formatToDdmmyyyy(dateStr)}-1`;
+};
+
 const parseNumber = (value) => {
     const parsed = Number(value);
     return Number.isNaN(parsed) ? 0 : parsed;
@@ -948,8 +995,8 @@ export default function PurchaseRequirementEdit({
                     price_po: item.priceInPo,
                     margin: item.margin,
                     renmark: item.remark,
-                    ref_po: item.refPo || formData.refPo,
-                    for_customer: item.forCustomer || formData.forCustomer,
+                    ref_po: formData.jenisPr ? formData.refPo : (item.refPo || formData.refPo),
+                    for_customer: formData.jenisPr ? formData.forCustomer : (item.forCustomer || formData.forCustomer),
                 })),
             },
             {
@@ -1037,7 +1084,9 @@ export default function PurchaseRequirementEdit({
                         </CardHeader>
                         <CardContent className="grid gap-4 md:grid-cols-2">
                             {(!formData.refPo ||
-                                formData.refPo === forValue) && (
+                                formData.refPo === forValue ||
+                                formData.jenisPr ||
+                                uniqueCustomerPOs.length === 0) && (
                                 <div className="mb-2 rounded-xl border border-primary/10 bg-primary/5 p-4 md:col-span-2">
                                     <Label className="mb-3 block text-sm font-bold text-gray-700">
                                         Pilih Jenis PR:
@@ -1068,22 +1117,41 @@ export default function PurchaseRequirementEdit({
                                                         formData.jenisPr ===
                                                         jenisObj.label
                                                     }
-                                                    onCheckedChange={(
+                                                    onCheckedChange={async (
                                                         checked,
                                                     ) => {
                                                         const newJenis = checked
                                                             ? jenisObj.label
                                                             : '';
-                                                        setFormData((prev) => ({
-                                                            ...prev,
-                                                            jenisPr: newJenis,
-                                                            refPo: checked
-                                                                ? forValue
-                                                                : '',
-                                                            forCustomer: checked
-                                                                ? forValue
-                                                                : '',
-                                                        }));
+                                                        if (checked) {
+                                                            let nextRefPo = '';
+                                                            if (
+                                                                purchaseRequirement?.jenis_pr === newJenis &&
+                                                                purchaseRequirement?.ref_po &&
+                                                                purchaseRequirement.ref_po !== forValue
+                                                            ) {
+                                                                nextRefPo = purchaseRequirement.ref_po;
+                                                            } else {
+                                                                nextRefPo = await fetchNextRefPo(
+                                                                    newJenis,
+                                                                    formData.date,
+                                                                    purchaseRequirement?.no_pr,
+                                                                );
+                                                            }
+                                                            setFormData((prev) => ({
+                                                                ...prev,
+                                                                jenisPr: newJenis,
+                                                                refPo: nextRefPo || `${newJenis} ${formatToDdmmyyyy(prev.date)}-1`,
+                                                                forCustomer: forValue,
+                                                            }));
+                                                        } else {
+                                                            setFormData((prev) => ({
+                                                                ...prev,
+                                                                jenisPr: '',
+                                                                refPo: '',
+                                                                forCustomer: '',
+                                                            }));
+                                                        }
                                                     }}
                                                 />
                                                 <div className="grid gap-1.5 leading-none">
@@ -1109,12 +1177,26 @@ export default function PurchaseRequirementEdit({
                                 <Input
                                     type="date"
                                     value={formData.date}
-                                    onChange={(event) =>
+                                    onChange={async (event) => {
+                                        const newDate = event.target.value;
                                         setFormData((prev) => ({
                                             ...prev,
-                                            date: event.target.value,
-                                        }))
-                                    }
+                                            date: newDate,
+                                        }));
+                                        if (formData.jenisPr) {
+                                            const nextRefPo = await fetchNextRefPo(
+                                                formData.jenisPr,
+                                                newDate,
+                                                purchaseRequirement?.no_pr,
+                                            );
+                                            if (nextRefPo) {
+                                                setFormData((prev) => ({
+                                                    ...prev,
+                                                    refPo: nextRefPo,
+                                                }));
+                                            }
+                                        }
+                                    }}
                                 />
                             </label>
                             {uniqueCustomerPOs.length > 1 ? (
@@ -1173,7 +1255,7 @@ export default function PurchaseRequirementEdit({
                                         <div className="flex gap-2">
                                             <Input
                                                 value={formData.refPo}
-                                                readOnly
+                                                readOnly={!formData.jenisPr}
                                                 className="flex-1"
                                                 onChange={(event) =>
                                                     setFormData((prev) => ({
@@ -1182,17 +1264,19 @@ export default function PurchaseRequirementEdit({
                                                     }))
                                                 }
                                             />
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                onClick={() => {
-                                                    setIsCustomerModalOpen(true);
-                                                    setCustomerCurrentPage(1);
-                                                    setCustomerSearchTerm('');
-                                                }}
-                                            >
-                                                Pilih PO In
-                                            </Button>
+                                            {!formData.jenisPr && (
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    onClick={() => {
+                                                        setIsCustomerModalOpen(true);
+                                                        setCustomerCurrentPage(1);
+                                                        setCustomerSearchTerm('');
+                                                    }}
+                                                >
+                                                    Pilih PO In
+                                                </Button>
+                                            )}
                                         </div>
                                     </label>
                                     <label className="space-y-2 text-sm">
@@ -1202,13 +1286,6 @@ export default function PurchaseRequirementEdit({
                                         <Input
                                             value={formData.forCustomer}
                                             disabled
-                                            onChange={(event) =>
-                                                setFormData((prev) => ({
-                                                    ...prev,
-                                                    forCustomer:
-                                                        event.target.value,
-                                                }))
-                                            }
                                         />
                                     </label>
                                 </>

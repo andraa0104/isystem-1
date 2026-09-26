@@ -46,6 +46,52 @@ const todayValue = () => {
     return date.toISOString().slice(0, 10);
 };
 
+const formatToDdmmyyyy = (dateStr) => {
+    if (!dateStr) {
+        const d = new Date();
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        return `${dd}${mm}${yyyy}`;
+    }
+    const parts = String(dateStr).split('-');
+    if (parts.length === 3 && parts[0].length === 4) {
+        const [year, month, day] = parts;
+        return `${day.padStart(2, '0')}${month.padStart(2, '0')}${year}`;
+    }
+    const dmyParts = String(dateStr).split('.');
+    if (dmyParts.length === 3 && dmyParts[2].length === 4) {
+        const [day, month, year] = dmyParts;
+        return `${day.padStart(2, '0')}${month.padStart(2, '0')}${year}`;
+    }
+    const d = new Date(dateStr);
+    if (!isNaN(d.getTime())) {
+        const dd = String(d.getDate()).padStart(2, '0');
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const yyyy = d.getFullYear();
+        return `${dd}${mm}${yyyy}`;
+    }
+    return '';
+};
+
+const fetchNextRefPo = async (jenisPr, dateStr) => {
+    if (!jenisPr) return '';
+    try {
+        const response = await axios.get('/marketing/purchase-requirement/generate-ref-po', {
+            params: {
+                jenis_pr: jenisPr,
+                date: dateStr,
+            },
+        });
+        if (response.data && response.data.ref_po) {
+            return response.data.ref_po;
+        }
+    } catch (e) {
+        console.error('Failed to generate ref PO:', e);
+    }
+    return `${jenisPr} ${formatToDdmmyyyy(dateStr)}-1`;
+};
+
 const renderValue = (value) =>
     value === null || value === undefined || value === '' ? '-' : value;
 
@@ -619,6 +665,8 @@ export default function PurchaseRequirementCreate() {
             totalPrice: materialForm.totalPrice,
             margin: '',
             remark: materialForm.remark,
+            refPo: formData.refPo,
+            forCustomer: formData.forCustomer,
         };
 
         setMaterialItems((prev) => [...prev, newItem]);
@@ -796,8 +844,8 @@ export default function PurchaseRequirementCreate() {
                 detail_id: String(item.id).startsWith('manual-')
                     ? null
                     : item.id,
-                ref_po: item.refPo || formData.refPo,
-                for_customer: item.forCustomer || formData.forCustomer,
+                ref_po: formData.jenisPr ? formData.refPo : (item.refPo || formData.refPo),
+                for_customer: formData.jenisPr ? formData.forCustomer : (item.forCustomer || formData.forCustomer),
                 kd_material: item.kodeMaterial,
                 material: item.namaMaterial,
                 qty: item.qtyPr,
@@ -1005,7 +1053,7 @@ export default function PurchaseRequirementCreate() {
                                                             formData.jenisPr ===
                                                             jenisObj.label
                                                         }
-                                                        onCheckedChange={(
+                                                        onCheckedChange={async (
                                                             checked,
                                                         ) => {
                                                             const newJenis = checked
@@ -1018,17 +1066,21 @@ export default function PurchaseRequirementCreate() {
                                                                 setMaterialItems(
                                                                     [],
                                                                 );
+                                                                const nextRefPo = await fetchNextRefPo(newJenis, formData.date);
+                                                                setFormData((prev) => ({
+                                                                    ...prev,
+                                                                    jenisPr: newJenis,
+                                                                    refPo: nextRefPo || `${newJenis} ${formatToDdmmyyyy(prev.date)}-1`,
+                                                                    forCustomer: forValue,
+                                                                }));
+                                                            } else {
+                                                                setFormData((prev) => ({
+                                                                    ...prev,
+                                                                    jenisPr: '',
+                                                                    refPo: '',
+                                                                    forCustomer: '',
+                                                                }));
                                                             }
-                                                            setFormData((prev) => ({
-                                                                ...prev,
-                                                                jenisPr: newJenis,
-                                                                refPo: checked
-                                                                    ? forValue
-                                                                    : '',
-                                                                forCustomer: checked
-                                                                    ? forValue
-                                                                    : '',
-                                                            }));
                                                         }}
                                                     />
                                                     <div className="grid gap-1.5 leading-none">
@@ -1054,12 +1106,22 @@ export default function PurchaseRequirementCreate() {
                                 <Input
                                     type="date"
                                     value={formData.date}
-                                    onChange={(event) =>
+                                    onChange={async (event) => {
+                                        const newDate = event.target.value;
                                         setFormData((prev) => ({
                                             ...prev,
-                                            date: event.target.value,
-                                        }))
-                                    }
+                                            date: newDate,
+                                        }));
+                                        if (formData.jenisPr) {
+                                            const nextRefPo = await fetchNextRefPo(formData.jenisPr, newDate);
+                                            if (nextRefPo) {
+                                                setFormData((prev) => ({
+                                                    ...prev,
+                                                    refPo: nextRefPo,
+                                                }));
+                                            }
+                                        }
+                                    }}
                                 />
                             </label>
                             {formData.jenisPr && (
@@ -1074,7 +1136,6 @@ export default function PurchaseRequirementCreate() {
                                             setFormData((prev) => ({
                                                 ...prev,
                                                 refPo: value,
-                                                forCustomer: value,
                                             }));
                                         }}
                                     />

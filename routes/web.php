@@ -315,6 +315,8 @@ Route::get('marketing/purchase-requirement/realized', [PurchaseRequirementContro
     ->name('marketing.purchase-requirement.realized');
 Route::get('marketing/purchase-requirement/sisa-po', [PurchaseRequirementController::class, 'sisaPo'])
     ->name('marketing.purchase-requirement.sisa-po');
+Route::get('marketing/purchase-requirement/generate-ref-po', [PurchaseRequirementController::class, 'generateRefPo'])
+    ->name('marketing.purchase-requirement.generate-ref-po');
 Route::get('marketing/purchase-requirement/create', [PurchaseRequirementController::class, 'create'])
     ->name('marketing.purchase-requirement.create');
 Route::get('marketing/purchase-requirement/{noPr}/edit', [PurchaseRequirementController::class, 'edit'])

@@ -1125,6 +1125,67 @@ class PurchaseRequirementController
         ]);
     }
 
+    public function generateRefPo(Request $request)
+    {
+        $jenisPr = trim((string) $request->query('jenis_pr', ''));
+        $dateInput = $request->query('date');
+        $excludeNoPr = trim((string) $request->query('exclude_no_pr', ''));
+
+        if ($jenisPr === '') {
+            return response()->json(['ref_po' => '']);
+        }
+
+        $refPo = $this->calculateNextRefPo($jenisPr, $dateInput, $excludeNoPr);
+
+        return response()->json([
+            'ref_po' => $refPo,
+        ]);
+    }
+
+    public function calculateNextRefPo(string $jenisPr, $dateInput = null, ?string $excludeNoPr = null): string
+    {
+        $dateFormatted = null;
+        try {
+            if ($dateInput) {
+                $parsed = Carbon::parse($dateInput);
+                $dateFormatted = $parsed->format('dmY');
+            } else {
+                $dateFormatted = Carbon::now()->format('dmY');
+            }
+        } catch (\Throwable $e) {
+            $dateFormatted = Carbon::now()->format('dmY');
+        }
+
+        $basePattern = $jenisPr . ' ' . $dateFormatted . '-';
+
+        $query = DB::table('tb_pr')
+            ->where('ref_po', 'like', $basePattern . '%');
+
+        if (!empty($excludeNoPr)) {
+            $query->where('no_pr', '!=', $excludeNoPr);
+        }
+
+        $existingRefPos = $query
+            ->orderByDesc('ref_po')
+            ->limit(200)
+            ->pluck('ref_po');
+
+        $maxSequence = 0;
+        $escapedPrefix = preg_quote($basePattern, '/');
+        foreach ($existingRefPos as $refPo) {
+            if (preg_match('/^' . $escapedPrefix . '(\d+)$/', trim((string) $refPo), $matches)) {
+                $seq = (int) $matches[1];
+                if ($seq > $maxSequence) {
+                    $maxSequence = $seq;
+                }
+            }
+        }
+
+        $nextSequence = $maxSequence + 1;
+
+        return $basePattern . $nextSequence;
+    }
+
     public function store(Request $request)
     {
         $database = $request->session()->get('tenant.database')
@@ -1181,13 +1242,19 @@ class PurchaseRequirementController
                         $dateFormatted = $dateInput;
                     }
 
+                    $refPo = $request->input('ref_po');
+                    $jenisPr = $request->input('jenis_pr');
+                    if (empty($refPo) && !empty($jenisPr) && $jenisPr !== 'PR For Customer') {
+                        $refPo = $this->calculateNextRefPo($jenisPr, $request->input('date'));
+                    }
+
                     DB::table('tb_pr')->insert([
                         'no_pr' => $noPr,
                         'date' => $dateFormatted,
                         'payment' => $request->input('payment'),
                         'for_customer' => $request->input('for_customer'),
-                        'ref_po' => $request->input('ref_po'),
-                        'jenis_pr' => $request->input('jenis_pr'),
+                        'ref_po' => $refPo,
+                        'jenis_pr' => $jenisPr,
                     ]);
 
                     $detailIdsToUpdate = [];
@@ -1267,7 +1334,7 @@ class PurchaseRequirementController
                             'date' => $request->input('date'),
                             'payment' => $request->input('payment'),
                             'for_customer' => $item['for_customer'] ?? $request->input('for_customer'),
-                            'ref_po' => $item['ref_po'] ?? $request->input('ref_po'),
+                            'ref_po' => $item['ref_po'] ?? $refPo,
                             'no' => $item['no'] ?? ($index + 1),
                             'no_pr' => $noPr,
                             'kd_material' => $item['kd_material'] ?? null,
@@ -1438,14 +1505,20 @@ class PurchaseRequirementController
                     }
                 }
 
+                $newRefPo = $request->input('ref_po');
+                $jenisPr = $request->input('jenis_pr');
+                if (empty($newRefPo) && !empty($jenisPr) && $jenisPr !== 'PR For Customer') {
+                    $newRefPo = $this->calculateNextRefPo($jenisPr, $request->input('date'), $noPr);
+                }
+
                 DB::table('tb_pr')
                     ->where('no_pr', $noPr)
                     ->update([
                         'date' => $dateFormatted,
                         'payment' => $request->input('payment'),
                         'for_customer' => $request->input('for_customer'),
-                        'ref_po' => $request->input('ref_po'),
-                        'jenis_pr' => $request->input('jenis_pr'),
+                        'ref_po' => $newRefPo,
+                        'jenis_pr' => $jenisPr,
                     ]);
 
                 DB::table('tb_detailpr')
@@ -1454,8 +1527,6 @@ class PurchaseRequirementController
 
                 $insertDetails = [];
                 $insertUbah = [];
-
-                $newRefPo = $request->input('ref_po');
 
                 foreach ($materials as $index => $item) {
                     $itemRefPo = $item['ref_po'] ?? $newRefPo;
