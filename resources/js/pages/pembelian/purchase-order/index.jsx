@@ -304,6 +304,8 @@ export default function PurchaseOrderIndex({
     const handlePageSizeChange = (event) => {
         const value = event.target.value;
         setPageSize(value === 'all' ? Infinity : Number(value));
+        setCurrentPage(1);
+        setMatPage(1);
     };
 
     const handleStatusFilterChange = (event) => {
@@ -318,6 +320,8 @@ export default function PurchaseOrderIndex({
         ) {
             setTableDateFilter('all');
         }
+        setCurrentPage(1);
+        setMatPage(1);
     };
 
     const [isRealizedDetail, setIsRealizedDetail] = useState(false);
@@ -415,6 +419,8 @@ export default function PurchaseOrderIndex({
             })
             .catch((error) => {
                 setMatError(normalizeApiError(error, 'Gagal memuat data material PO.'));
+                setMatData([]);
+                setMatTotalRows(0);
             })
             .finally(() => {
                 setMatLoading(false);
@@ -1190,9 +1196,11 @@ export default function PurchaseOrderIndex({
                                     <select
                                         className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
                                         value={tableDateFilter}
-                                        onChange={(event) =>
-                                            setTableDateFilter(event.target.value)
-                                        }
+                                        onChange={(event) => {
+                                            setTableDateFilter(event.target.value);
+                                            setCurrentPage(1);
+                                            setMatPage(1);
+                                        }}
                                     >
                                         <option value="today">Hari Ini</option>
                                         <option value="this_week">Minggu Ini</option>
@@ -1459,80 +1467,92 @@ export default function PurchaseOrderIndex({
                                     <select
                                         className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
                                         value={tableDateFilter}
-                                        onChange={(e) => setTableDateFilter(e.target.value)}
+                                        onChange={(e) => {
+                                            setTableDateFilter(e.target.value);
+                                            setCurrentPage(1);
+                                            setMatPage(1);
+                                        }}
                                     >
-                                        <option value="today">Hari Ini</option>
-                                        <option value="this_week">Minggu Ini</option>
-                                        <option value="this_month">Bulan Ini</option>
-                                        <option value="this_year">Tahun Ini</option>
-                                        <option value="range">Range Tanggal</option>
-                                        <option value="all">Semua Data</option>
-                                    </select>
-                                </label>
-                                {tableDateFilter === 'range' && (
-                                    <>
-                                        <label className="text-sm text-muted-foreground">
-                                            Dari
-                                            <input
-                                                type="date"
-                                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
-                                                value={tableStartDate}
-                                                onChange={(e) => setTableStartDate(e.target.value)}
-                                            />
-                                        </label>
-                                        <label className="text-sm text-muted-foreground">
-                                            Sampai
-                                            <input
-                                                type="date"
-                                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
-                                                value={tableEndDate}
-                                                onChange={(e) => setTableEndDate(e.target.value)}
-                                            />
-                                        </label>
-                                    </>
-                                )}
-                            </div>
-                            <label className="text-sm text-muted-foreground">
-                                Cari
-                                <input
-                                    type="search"
-                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
-                                    placeholder="Cari no PO, vendor, customer, atau material..."
-                                    value={searchTerm}
-                                    onChange={(e) => setSearchTerm(e.target.value)}
-                                />
-                            </label>
-                        </div>
+                                         <option value="today">Hari Ini</option>
+                                         <option value="this_week">Minggu Ini</option>
+                                         <option value="this_month">Bulan Ini</option>
+                                         <option value="this_year">Tahun Ini</option>
+                                         <option value="range">Range Tanggal</option>
+                                         <option value="all">Semua Data</option>
+                                     </select>
+                                 </label>
+                                 {tableDateFilter === 'range' && (
+                                     <>
+                                         <label className="text-sm text-muted-foreground">
+                                             Dari
+                                             <input
+                                                 type="date"
+                                                 className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
+                                                 value={tableStartDate}
+                                                 onChange={(e) => {
+                                                     setTableStartDate(e.target.value);
+                                                     setCurrentPage(1);
+                                                     setMatPage(1);
+                                                 }}
+                                             />
+                                         </label>
+                                         <label className="text-sm text-muted-foreground">
+                                             Sampai
+                                             <input
+                                                 type="date"
+                                                 className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
+                                                 value={tableEndDate}
+                                                 onChange={(e) => {
+                                                     setTableEndDate(e.target.value);
+                                                     setCurrentPage(1);
+                                                     setMatPage(1);
+                                                 }}
+                                             />
+                                         </label>
+                                     </>
+                                 )}
+                             </div>
+                             <label className="text-sm text-muted-foreground">
+                                 Cari
+                                 <input
+                                     type="search"
+                                     className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
+                                     placeholder="Cari no PO, vendor, customer, atau material..."
+                                     value={searchTerm}
+                                     onChange={(e) => setSearchTerm(e.target.value)}
+                                 />
+                             </label>
+                         </div>
 
-                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                            <table className="w-full text-sm">
-                                <thead className="bg-muted/50 text-muted-foreground">
-                                    <tr className="sticky top-0 z-10 bg-muted/50">
-                                        <th className="w-[1%] px-3 py-2 text-left whitespace-nowrap">No PO</th>
-                                        <th className="w-[1%] px-3 py-2 text-left whitespace-nowrap">Date</th>
-                                        <th className="w-[1%] px-3 py-2 text-left whitespace-nowrap">Ref PO</th>
-                                        <th className="px-3 py-2 text-left">Customer</th>
-                                        <th className="px-3 py-2 text-left">Nama Vendor</th>
-                                        <th className="px-3 py-2 text-left">Material</th>
-                                        <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">Qty</th>
-                                        <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">Price</th>
-                                        <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">Total Price</th>
-                                        <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">Sisa GR</th>
-                                        <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">Sisa IR</th>
-                                        <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <PlainTableStateRows
-                                        columns={12}
-                                        loading={matLoading && matData.length === 0}
-                                        error={matData.length === 0 ? matError : null}
-                                        onRetry={fetchDataByMaterial}
-                                        isEmpty={!matLoading && !matError && matData.length === 0}
-                                        emptyTitle={matHasFetched ? 'Tidak ada data material.' : 'Klik tab untuk memuat data.'}
-                                        emptyDescription={matHasFetched ? 'Silakan ubah filter atau pencarian.' : 'Data akan dimuat saat tab ini dipilih.'}
-                                    />
-                                    {matData.map((item, idx) => (
+                         <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                             <table className="w-full text-sm">
+                                 <thead className="bg-muted/50 text-muted-foreground">
+                                     <tr className="sticky top-0 z-10 bg-muted/50">
+                                         <th className="w-[1%] px-3 py-2 text-left whitespace-nowrap">No PO</th>
+                                         <th className="w-[1%] px-3 py-2 text-left whitespace-nowrap">Date</th>
+                                         <th className="w-[1%] px-3 py-2 text-left whitespace-nowrap">Ref PO</th>
+                                         <th className="px-3 py-2 text-left">Customer</th>
+                                         <th className="px-3 py-2 text-left">Nama Vendor</th>
+                                         <th className="px-3 py-2 text-left">Material</th>
+                                         <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">Qty</th>
+                                         <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">Price</th>
+                                         <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">Total Price</th>
+                                         <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">Sisa GR</th>
+                                         <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">Sisa IR</th>
+                                         <th className="w-[1%] px-3 py-2 text-right whitespace-nowrap">Action</th>
+                                     </tr>
+                                 </thead>
+                                 <tbody>
+                                     <PlainTableStateRows
+                                         columns={12}
+                                         loading={matLoading}
+                                         error={matError}
+                                         onRetry={fetchDataByMaterial}
+                                         isEmpty={!matLoading && !matError && matData.length === 0}
+                                         emptyTitle={matHasFetched ? 'Tidak ada data material.' : 'Klik tab untuk memuat data.'}
+                                         emptyDescription={matHasFetched ? 'Silakan ubah filter atau pencarian.' : 'Data akan dimuat saat tab ini dipilih.'}
+                                     />
+                                     {!matLoading && !matError && matData.map((item, idx) => (
                                         <tr
                                             key={`${item.no_po}-${item.kd_mat}-${idx}`}
                                             className="border-t border-sidebar-border/70"

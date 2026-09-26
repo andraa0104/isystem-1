@@ -1368,31 +1368,15 @@ class PurchaseOrderController
         $pageSizeRaw = $request->query('pageSize', '5');
         $page        = max(1, (int) $request->query('page', 1));
 
-        $poDateExpr = "coalesce(str_to_date(trim(po.tgl), '%d.%m.%Y'), str_to_date(trim(po.tgl), '%d/%m/%Y'), str_to_date(trim(po.tgl), '%d-%m-%Y'), str_to_date(trim(po.tgl), '%Y-%m-%d'), str_to_date(trim(po.tgl), '%Y/%m/%d'), date(trim(po.tgl)))";
-
-        $statusSub = DB::table('tb_detailpo')
-            ->selectRaw("
-                trim(lower(no_po)) as no_po,
-                case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) = 0 then 1 else 0 end as is_outstanding,
-                case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 and coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) > 0 then 1 else 0 end as is_partial,
-                case when sum(case when coalesce(qty, 0) > 0 and coalesce(qty, 0) != coalesce(end_fl, 0) then 1 else 0 end) = 0 then 1 else 0 end as is_fully_realized,
-                case when sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0 and sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) > 0 then 1 else 0 end) > 0 then 1 else 0 end as is_sisa_ir
-            ")
-            ->groupByRaw('trim(lower(no_po))');
+        $poDateExpr = "coalesce(str_to_date(trim(d.tgl), '%d.%m.%Y'), str_to_date(trim(d.tgl), '%d/%m/%Y'), str_to_date(trim(d.tgl), '%d-%m-%Y'), str_to_date(trim(d.tgl), '%Y-%m-%d'), str_to_date(trim(d.tgl), '%Y/%m/%d'), date(trim(d.tgl)))";
 
         $query = DB::table('tb_detailpo as d')
-            ->join('tb_po as po', function ($join) {
-                $join->on(DB::raw('trim(lower(po.no_po))'), '=', DB::raw('trim(lower(d.no_po))'));
-            })
-            ->leftJoinSub($statusSub, 's', function ($join) {
-                $join->on(DB::raw('trim(lower(d.no_po))'), '=', 's.no_po');
-            })
             ->select(
                 'd.no_po',
-                'po.tgl',
-                'po.ref_poin',
-                'po.for_cus',
-                'po.nm_vdr',
+                'd.tgl',
+                'd.ref_poin',
+                'd.for_cus',
+                'd.nm_vdr',
                 'd.kd_mat',
                 'd.material',
                 'd.qty',
@@ -1427,25 +1411,13 @@ class PurchaseOrderController
         }
 
         if ($status === 'outstanding') {
-            $query->where(function ($q) {
-                $q->whereRaw('coalesce(s.is_outstanding, 0) = 1')
-                  ->orWhereRaw('coalesce(d.qty, 0) > 0 and coalesce(d.gr_mat, 0) = coalesce(d.qty, 0)');
-            });
+            $query->whereRaw('coalesce(cast(d.qty as decimal(18,4)), 0) > 0 and coalesce(cast(d.gr_mat as decimal(18,4)), 0) = coalesce(cast(d.qty as decimal(18,4)), 0)');
         } elseif ($status === 'partial') {
-            $query->where(function ($q) {
-                $q->whereRaw('coalesce(s.is_partial, 0) = 1')
-                  ->orWhereRaw('coalesce(d.qty, 0) > 0 and coalesce(d.gr_mat, 0) > 0 and coalesce(d.gr_mat, 0) != coalesce(d.qty, 0)');
-            });
+            $query->whereRaw('coalesce(cast(d.qty as decimal(18,4)), 0) > 0 and coalesce(cast(d.gr_mat as decimal(18,4)), 0) > 0 and coalesce(cast(d.gr_mat as decimal(18,4)), 0) != coalesce(cast(d.qty as decimal(18,4)), 0)');
         } elseif ($status === 'realized') {
-            $query->where(function ($q) {
-                $q->whereRaw('coalesce(s.is_fully_realized, 0) = 1')
-                  ->orWhereRaw('coalesce(d.qty, 0) > 0 and (coalesce(d.qty, 0) = coalesce(d.end_fl, 0) or coalesce(d.gr_mat, 0) = 0)');
-            });
+            $query->whereRaw('coalesce(cast(d.qty as decimal(18,4)), 0) > 0 and (coalesce(cast(d.gr_mat as decimal(18,4)), 0) = 0 or coalesce(cast(d.qty as decimal(18,4)), 0) = coalesce(cast(d.end_fl as decimal(18,4)), 0))');
         } elseif ($status === 'sisa_ir') {
-            $query->where(function ($q) {
-                $q->whereRaw('coalesce(s.is_sisa_ir, 0) = 1')
-                  ->orWhereRaw('coalesce(d.qty, 0) > 0 and coalesce(d.ir_mat, 0) > 0 and coalesce(d.ir_mat, 0) < coalesce(d.qty, 0)');
-            });
+            $query->whereRaw('coalesce(cast(d.qty as decimal(18,4)), 0) > 0 and coalesce(cast(d.ir_mat as decimal(18,4)), 0) > 0 and coalesce(cast(d.ir_mat as decimal(18,4)), 0) < coalesce(cast(d.qty as decimal(18,4)), 0)');
         }
 
         if ($search !== '') {
@@ -1453,20 +1425,16 @@ class PurchaseOrderController
                 $q->where('d.no_po', 'like', "%{$search}%")
                     ->orWhere('d.material', 'like', "%{$search}%")
                     ->orWhere('d.kd_mat', 'like', "%{$search}%")
-                    ->orWhere('po.for_cus', 'like', "%{$search}%")
-                    ->orWhere('po.nm_vdr', 'like', "%{$search}%")
-                    ->orWhere('po.ref_poin', 'like', "%{$search}%");
+                    ->orWhere('d.for_cus', 'like', "%{$search}%")
+                    ->orWhere('d.nm_vdr', 'like', "%{$search}%")
+                    ->orWhere('d.ref_poin', 'like', "%{$search}%");
             });
         }
 
         $total = (clone $query)->count();
 
-        if ($status === 'partial') {
-            $query->orderByRaw("case when coalesce(d.qty, 0) > 0 and coalesce(d.gr_mat, 0) > 0 and coalesce(d.gr_mat, 0) != coalesce(d.qty, 0) then 0 else 1 end asc");
-        }
         $query->orderByRaw("{$poDateExpr} desc")
-            ->orderBy('d.no_po', 'desc')
-            ->orderBy('d.no', 'asc');
+            ->orderBy('d.id', 'desc');
 
         if ($pageSizeRaw !== 'all') {
             $pageSize = max(1, (int) $pageSizeRaw);
@@ -1559,19 +1527,17 @@ class PurchaseOrderController
             }
 
             $statusSub = DB::table('tb_detailpo')
+            ->select('no_po')
             ->selectRaw("
-                trim(lower(no_po)) as no_po,
                 case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) = 0 then 1 else 0 end as is_outstanding,
                 case when sum(case when coalesce(qty, 0) > 0 and coalesce(gr_mat, 0) > 0 and coalesce(gr_mat, 0) != coalesce(qty, 0) then 1 else 0 end) > 0 then 1 else 0 end as is_partial,
                 case when sum(case when coalesce(qty, 0) > 0 and coalesce(qty, 0) != coalesce(end_fl, 0) then 1 else 0 end) = 0 then 1 else 0 end as is_fully_realized,
                 case when sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) < coalesce(qty, 0) then 1 else 0 end) > 0 and sum(case when coalesce(qty, 0) > 0 and coalesce(ir_mat, 0) > 0 then 1 else 0 end) > 0 then 1 else 0 end as is_sisa_ir
             ")
-            ->groupByRaw('trim(lower(no_po))');
+            ->groupBy('no_po');
 
         $query = DB::table('tb_po as po')
-            ->leftJoinSub($statusSub, 's', function ($join) {
-                $join->on(DB::raw('trim(lower(po.no_po))'), '=', 's.no_po');
-            })
+            ->leftJoinSub($statusSub, 's', 'po.no_po', '=', 's.no_po')
             ->select(
                 'po.no_po',
                 'po.tgl',
