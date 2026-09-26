@@ -556,6 +556,12 @@ export default function PurchaseOrderIndex({
                 return response.json();
             })
             .then((data) => {
+                if (data?.purchaseOrder) {
+                    setSelectedPo((prev) => ({
+                        ...prev,
+                        ...data.purchaseOrder,
+                    }));
+                }
                 setSelectedDetails(
                     Array.isArray(data?.purchaseOrderDetails)
                         ? data.purchaseOrderDetails
@@ -1574,7 +1580,7 @@ export default function PurchaseOrderIndex({
                                                 <div className="flex items-center justify-end gap-2">
                                                     <ActionIconButton
                                                         label="Detail"
-                                                        onClick={() => handleOpenModal({ no_po: item.no_po, tgl: item.tgl, ref_poin: item.ref_poin, for_cus: item.for_cus, nm_vdr: item.nm_vdr })}
+                                                        onClick={() => handleOpenModal(item)}
                                                     >
                                                         <Eye className="size-4" />
                                                     </ActionIconButton>

@@ -1374,9 +1374,12 @@ class PurchaseOrderController
             ->select(
                 'd.no_po',
                 'd.tgl',
-                'd.ref_poin',
+                'd.ref_pr',
+                'd.ref_quota',
                 'd.for_cus',
+                'd.ref_poin',
                 'd.nm_vdr',
+                'd.ppn',
                 'd.kd_mat',
                 'd.material',
                 'd.qty',
@@ -2107,6 +2110,33 @@ class PurchaseOrderController
                 )
                 ->where('no_po', $noPo)
                 ->first();
+
+            if (!$header) {
+                $firstDetail = DB::table('tb_detailpo')->where('no_po', $noPo)->first();
+                if ($firstDetail) {
+                    $subTotal = (float) DB::table('tb_detailpo')->where('no_po', $noPo)->sum('total_price');
+                    $header = (object) [
+                        'no_po' => $firstDetail->no_po,
+                        'tgl' => $firstDetail->tgl,
+                        'ref_pr' => $firstDetail->ref_pr,
+                        'ref_quota' => $firstDetail->ref_quota,
+                        'ref_poin' => $firstDetail->ref_poin,
+                        'for_cus' => $firstDetail->for_cus,
+                        'nm_vdr' => $firstDetail->nm_vdr,
+                        's_total' => $subTotal,
+                        'h_ppn' => 0,
+                        'g_total' => $subTotal,
+                        'ppn' => $firstDetail->ppn,
+                    ];
+                }
+            }
+
+            if ($header && !empty($header->tgl)) {
+                try {
+                    $header->tgl = \Carbon\Carbon::parse($header->tgl)->format('d.m.Y');
+                } catch (\Throwable $e) {
+                }
+            }
 
             $query = DB::table('tb_detailpo')
                 ->select(
