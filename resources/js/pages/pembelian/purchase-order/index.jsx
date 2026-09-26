@@ -531,14 +531,16 @@ export default function PurchaseOrderIndex({
             });
     };
 
+    const selectedPoNoPo = selectedPo?.no_po;
+
     const fetchPoDetails = () => {
-        if (!selectedPo || !isModalOpen) {
+        if (!selectedPoNoPo || !isModalOpen) {
             return;
         }
         setDetailError(null);
         setDetailLoading(true);
         const params = new URLSearchParams({
-            no_po: selectedPo.no_po,
+            no_po: selectedPoNoPo,
         });
         if (debouncedDetailSearch) {
             params.append('search', debouncedDetailSearch);
@@ -557,10 +559,13 @@ export default function PurchaseOrderIndex({
             })
             .then((data) => {
                 if (data?.purchaseOrder) {
-                    setSelectedPo((prev) => ({
-                        ...prev,
-                        ...data.purchaseOrder,
-                    }));
+                    setSelectedPo((prev) => {
+                        if (!prev) return data.purchaseOrder;
+                        return {
+                            ...prev,
+                            ...data.purchaseOrder,
+                        };
+                    });
                 }
                 setSelectedDetails(
                     Array.isArray(data?.purchaseOrderDetails)
@@ -580,9 +585,12 @@ export default function PurchaseOrderIndex({
     };
 
     useEffect(() => {
+        if (!isModalOpen || !selectedPoNoPo) {
+            return;
+        }
         fetchPoDetails();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [debouncedDetailSearch, isModalOpen, selectedPo, isRealizedDetail]);
+    }, [debouncedDetailSearch, isModalOpen, selectedPoNoPo, isRealizedDetail]);
 
     const loadOutstanding = () => {
         setOutstandingLoading(true);
