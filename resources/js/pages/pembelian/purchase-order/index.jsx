@@ -186,15 +186,8 @@ export default function PurchaseOrderIndex({
     const [matData, setMatData] = useState([]);
     const [matLoading, setMatLoading] = useState(false);
     const [matError, setMatError] = useState(null);
-    const [matSearch, setMatSearch] = useState('');
-    const [matDebouncedSearch, setMatDebouncedSearch] = useState('');
     const [matPage, setMatPage] = useState(1);
-    const [matPageSize, setMatPageSize] = useState(5);
     const [matTotalRows, setMatTotalRows] = useState(0);
-    const [matDateFilter, setMatDateFilter] = useState('today');
-    const [matStartDate, setMatStartDate] = useState('');
-    const [matEndDate, setMatEndDate] = useState('');
-    const [matStatusFilter, setMatStatusFilter] = useState('outstanding');
     const [matHasFetched, setMatHasFetched] = useState(false);
 
     useEffect(() => {
@@ -217,13 +210,6 @@ export default function PurchaseOrderIndex({
         }, 400);
         return () => clearTimeout(handler);
     }, [searchTerm]);
-
-    useEffect(() => {
-        const handler = setTimeout(() => {
-            setMatDebouncedSearch(matSearch);
-        }, 400);
-        return () => clearTimeout(handler);
-    }, [matSearch]);
 
     const totalItems = tableTotalRows;
     const totalPages = useMemo(() => {
@@ -320,6 +306,20 @@ export default function PurchaseOrderIndex({
         setPageSize(value === 'all' ? Infinity : Number(value));
     };
 
+    const handleStatusFilterChange = (event) => {
+        const nextStatus = event.target.value;
+        setStatusFilter(nextStatus);
+        if (
+            [
+                'outstanding',
+                'partial',
+                'sisa_ir',
+            ].includes(nextStatus)
+        ) {
+            setTableDateFilter('all');
+        }
+    };
+
     const [isRealizedDetail, setIsRealizedDetail] = useState(false);
 
     const handleOpenModal = (item, realizedOnly = false) => {
@@ -392,14 +392,14 @@ export default function PurchaseOrderIndex({
         setMatLoading(true);
         setMatError(null);
         const params = new URLSearchParams();
-        params.set('date_filter', matDateFilter);
-        params.set('status', matStatusFilter);
-        params.set('search', matDebouncedSearch);
+        params.set('date_filter', tableDateFilter);
+        params.set('status', statusFilter);
+        params.set('search', debouncedSearchTerm);
         params.set('page', String(matPage));
-        params.set('pageSize', matPageSize === Infinity ? 'all' : String(matPageSize));
-        if (matDateFilter === 'range') {
-            params.set('start_date', matStartDate);
-            params.set('end_date', matEndDate);
+        params.set('pageSize', pageSize === Infinity ? 'all' : String(pageSize));
+        if (tableDateFilter === 'range') {
+            params.set('start_date', tableStartDate);
+            params.set('end_date', tableEndDate);
         }
         fetch(`/pembelian/purchase-order/data-by-material?${params.toString()}`, {
             headers: { Accept: 'application/json' },
@@ -461,6 +461,7 @@ export default function PurchaseOrderIndex({
     };
 
     useEffect(() => {
+        if (activeTab !== 'po') return;
         if (tableDateFilter === 'range' && (!tableStartDate || !tableEndDate)) {
             setPoData([]);
             setTableTotalRows(0);
@@ -469,6 +470,7 @@ export default function PurchaseOrderIndex({
         fetchPurchaseOrders();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
+        activeTab,
         tableDateFilter,
         tableStartDate,
         tableEndDate,
@@ -871,6 +873,7 @@ export default function PurchaseOrderIndex({
 
     useEffect(() => {
         setCurrentPage(1);
+        setMatPage(1);
     }, [
         pageSize,
         debouncedSearchTerm,
@@ -880,15 +883,11 @@ export default function PurchaseOrderIndex({
         tableEndDate,
     ]);
 
-    useEffect(() => {
-        setMatPage(1);
-    }, [matPageSize, matDebouncedSearch, matStatusFilter, matDateFilter, matStartDate, matEndDate]);
-
     // Fetch Tab 2 data only when it is the active tab and a relevant filter changes.
     // Using matHasFetched to also trigger on the first tab-click.
     useEffect(() => {
         if (activeTab !== 'material') return;
-        if (matDateFilter === 'range' && (!matStartDate || !matEndDate)) {
+        if (tableDateFilter === 'range' && (!tableStartDate || !tableEndDate)) {
             setMatData([]);
             setMatTotalRows(0);
             return;
@@ -897,13 +896,13 @@ export default function PurchaseOrderIndex({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
         activeTab,
-        matDateFilter,
-        matStartDate,
-        matEndDate,
-        matStatusFilter,
-        matDebouncedSearch,
+        tableDateFilter,
+        tableStartDate,
+        tableEndDate,
+        statusFilter,
+        debouncedSearchTerm,
         matPage,
-        matPageSize,
+        pageSize,
     ]);
 
     useEffect(() => {
@@ -1175,19 +1174,7 @@ export default function PurchaseOrderIndex({
                                     <select
                                         className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
                                         value={statusFilter}
-                                        onChange={(event) => {
-                                            const nextStatus = event.target.value;
-                                            setStatusFilter(nextStatus);
-                                            if (
-                                                [
-                                                    'outstanding',
-                                                    'partial',
-                                                    'sisa_ir',
-                                                ].includes(nextStatus)
-                                            ) {
-                                                setTableDateFilter('all');
-                                            }
-                                        }}
+                                        onChange={handleStatusFilterChange}
                                     >
                                         <option value="outstanding">
                                             PO Outstanding
@@ -1443,11 +1430,8 @@ export default function PurchaseOrderIndex({
                                     Tampilkan
                                     <select
                                         className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
-                                        value={matPageSize === Infinity ? 'all' : matPageSize}
-                                        onChange={(e) => {
-                                            setMatPageSize(e.target.value === 'all' ? Infinity : Number(e.target.value));
-                                            setMatPage(1);
-                                        }}
+                                        value={pageSize === Infinity ? 'all' : pageSize}
+                                        onChange={handlePageSizeChange}
                                     >
                                         <option value={5}>5</option>
                                         <option value={10}>10</option>
@@ -1460,14 +1444,8 @@ export default function PurchaseOrderIndex({
                                     Status
                                     <select
                                         className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
-                                        value={matStatusFilter}
-                                        onChange={(e) => {
-                                            setMatStatusFilter(e.target.value);
-                                            if (['outstanding', 'partial', 'sisa_ir'].includes(e.target.value)) {
-                                                setMatDateFilter('all');
-                                            }
-                                            setMatPage(1);
-                                        }}
+                                        value={statusFilter}
+                                        onChange={handleStatusFilterChange}
                                     >
                                         <option value="outstanding">PO Outstanding</option>
                                         <option value="partial">PO Sisa GR</option>
@@ -1480,8 +1458,8 @@ export default function PurchaseOrderIndex({
                                     Tanggal
                                     <select
                                         className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
-                                        value={matDateFilter}
-                                        onChange={(e) => { setMatDateFilter(e.target.value); setMatPage(1); }}
+                                        value={tableDateFilter}
+                                        onChange={(e) => setTableDateFilter(e.target.value)}
                                     >
                                         <option value="today">Hari Ini</option>
                                         <option value="this_week">Minggu Ini</option>
@@ -1491,15 +1469,15 @@ export default function PurchaseOrderIndex({
                                         <option value="all">Semua Data</option>
                                     </select>
                                 </label>
-                                {matDateFilter === 'range' && (
+                                {tableDateFilter === 'range' && (
                                     <>
                                         <label className="text-sm text-muted-foreground">
                                             Dari
                                             <input
                                                 type="date"
                                                 className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
-                                                value={matStartDate}
-                                                onChange={(e) => { setMatStartDate(e.target.value); setMatPage(1); }}
+                                                value={tableStartDate}
+                                                onChange={(e) => setTableStartDate(e.target.value)}
                                             />
                                         </label>
                                         <label className="text-sm text-muted-foreground">
@@ -1507,8 +1485,8 @@ export default function PurchaseOrderIndex({
                                             <input
                                                 type="date"
                                                 className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-1 py-2 text-sm"
-                                                value={matEndDate}
-                                                onChange={(e) => { setMatEndDate(e.target.value); setMatPage(1); }}
+                                                value={tableEndDate}
+                                                onChange={(e) => setTableEndDate(e.target.value)}
                                             />
                                         </label>
                                     </>
@@ -1519,9 +1497,9 @@ export default function PurchaseOrderIndex({
                                 <input
                                     type="search"
                                     className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
-                                    placeholder="Cari no PO atau material..."
-                                    value={matSearch}
-                                    onChange={(e) => setMatSearch(e.target.value)}
+                                    placeholder="Cari no PO, vendor, customer, atau material..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
                                 />
                             </label>
                         </div>
@@ -1598,13 +1576,13 @@ export default function PurchaseOrderIndex({
                         </div>
 
                         {(() => {
-                            const matTotalPages = matPageSize === Infinity ? 1 : Math.max(1, Math.ceil(matTotalRows / matPageSize));
-                            return matPageSize !== Infinity && matTotalRows > 0 ? (
+                            const matTotalPages = pageSize === Infinity ? 1 : Math.max(1, Math.ceil(matTotalRows / pageSize));
+                            return pageSize !== Infinity && matTotalRows > 0 ? (
                                 <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                                     <span>
                                         Menampilkan{' '}
-                                        {Math.min((matPage - 1) * matPageSize + 1, matTotalRows)}-
-                                        {Math.min(matPage * matPageSize, matTotalRows)} dari {matTotalRows} data
+                                        {Math.min((matPage - 1) * pageSize + 1, matTotalRows)}-
+                                        {Math.min(matPage * pageSize, matTotalRows)} dari {matTotalRows} data
                                     </span>
                                     <div className="flex items-center gap-2">
                                         <Button
