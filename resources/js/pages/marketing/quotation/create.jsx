@@ -147,7 +147,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         nama: '',
         satuan: '',
         quantity: '1',
-        hargaModal: '1',
+        hargaModal: '',
         hargaPenawaran: '',
         remark: '',
     });
@@ -207,6 +207,30 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         const margin = ((penawaran - modal) / modal) * 100;
         return Number.isFinite(margin) ? margin.toFixed(2) : '';
     }, [materialForm.hargaModal, materialForm.hargaPenawaran]);
+
+    const isMaterialFormValid = useMemo(() => {
+        const nama = String(materialForm.nama ?? '').trim();
+        const satuan = String(materialForm.satuan ?? '').trim();
+        const qtyStr = String(materialForm.quantity ?? '').trim();
+        const modalStr = String(materialForm.hargaModal ?? '').trim();
+        const penawaranStr = String(materialForm.hargaPenawaran ?? '').trim();
+
+        return (
+            nama !== '' &&
+            satuan !== '' &&
+            qtyStr !== '' &&
+            parseNumber(qtyStr) > 0 &&
+            modalStr !== '' &&
+            modalStr !== '...' &&
+            penawaranStr !== ''
+        );
+    }, [
+        materialForm.nama,
+        materialForm.satuan,
+        materialForm.quantity,
+        materialForm.hargaModal,
+        materialForm.hargaPenawaran,
+    ]);
 
     useEffect(() => {
         resizeTextareaToContent(namaMaterialRef.current);
@@ -331,6 +355,11 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
             satuan: renderValue(item.unit),
             hargaModal: '...',
         }));
+        setMaterialFormErrors((prev) => ({
+            ...prev,
+            nama: '',
+            satuan: '',
+        }));
         setMaterialModalOpen(false);
         focusHargaPenawaran();
 
@@ -345,10 +374,20 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
 
             setMaterialForm((prev) => ({
                 ...prev,
-                hargaModal: data.harga > 0 ? String(data.harga) : '1',
+                hargaModal: data.harga > 0 ? String(data.harga) : '',
             }));
+            if (data.harga > 0) {
+                setMaterialFormErrors((prev) => ({
+                    ...prev,
+                    hargaModal: '',
+                }));
+            }
         } catch (error) {
             console.error('Gagal mengambil harga terakhir:', error);
+            setMaterialForm((prev) => ({
+                ...prev,
+                hargaModal: prev.hargaModal === '...' ? '' : prev.hargaModal,
+            }));
         }
     };
 
@@ -436,20 +475,58 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         }
     };
 
-    const handleAddMaterial = async () => {
+    const validateMaterialForm = () => {
         const nextErrors = {};
+
+        if (!String(materialForm.nama ?? '').trim()) {
+            nextErrors.nama = 'Nama material wajib diisi.';
+        }
+
+        if (!String(materialForm.satuan ?? '').trim()) {
+            nextErrors.satuan = 'Satuan wajib diisi.';
+        }
+
+        const qtyStr = String(materialForm.quantity ?? '').trim();
+        if (!qtyStr) {
+            nextErrors.quantity = 'Quantity wajib diisi.';
+        } else if (parseNumber(qtyStr) <= 0) {
+            nextErrors.quantity = 'Quantity tidak boleh 0.';
+        }
+
+        const modalStr = String(materialForm.hargaModal ?? '').trim();
+        if (!modalStr || modalStr === '...') {
+            nextErrors.hargaModal = 'Harga modal wajib diisi.';
+        }
+
         if (!String(materialForm.hargaPenawaran ?? '').trim()) {
             nextErrors.hargaPenawaran = 'Harga penawaran wajib diisi.';
         }
 
         setMaterialFormErrors(nextErrors);
+
         if (Object.keys(nextErrors).length > 0) {
+            if (nextErrors.nama) {
+                namaMaterialRef.current?.focus();
+            } else if (nextErrors.satuan) {
+                document.getElementById('satuan')?.focus();
+            } else if (nextErrors.quantity) {
+                document.getElementById('quantity')?.focus();
+            } else if (nextErrors.hargaModal) {
+                document.getElementById('harga_modal')?.focus();
+            } else if (nextErrors.hargaPenawaran) {
+                hargaPenawaranRef.current?.focus();
+            }
+            return false;
+        }
+
+        return true;
+    };
+
+    const handleAddMaterial = async () => {
+        if (!validateMaterialForm()) {
             return;
         }
 
-        if (!materialForm.nama || !materialForm.quantity) {
-            return;
-        }
         if (parseNumber(marginValue) < 0) {
             const result = await Swal.fire({
                 title: 'Margin Minus',
@@ -481,7 +558,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
             nama: '',
             satuan: '',
             quantity: '1',
-            hargaModal: '1',
+            hargaModal: '',
             hargaPenawaran: '',
             remark: '',
         });
@@ -846,23 +923,36 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
                                 <div className="grid gap-2 md:col-span-2 xl:col-span-5">
                                     <Label htmlFor="nama_material">
-                                        Nama Material
+                                        Nama Material <span className="text-destructive">*</span>
                                     </Label>
                                     <div className="flex flex-row gap-2">
                                         <textarea
                                             id="nama_material"
                                             ref={namaMaterialRef}
                                             rows={1}
-                                            className="min-h-10 min-w-0 flex-1 resize-none overflow-hidden rounded-md border border-input bg-background px-3 py-2 text-sm [overflow-wrap:anywhere]"
+                                            className={`min-h-10 min-w-0 flex-1 resize-none overflow-hidden rounded-md border bg-background px-3 py-2 text-sm [overflow-wrap:anywhere] ${
+                                                materialFormErrors.nama
+                                                    ? 'border-destructive focus-visible:ring-destructive/20'
+                                                    : 'border-input'
+                                            }`}
                                             value={materialForm.nama}
                                             onChange={(event) => {
                                                 resizeTextareaToContent(
                                                     event.currentTarget,
                                                 );
+                                                const value = event.target.value;
                                                 setMaterialForm((prev) => ({
                                                     ...prev,
-                                                    nama: event.target.value,
+                                                    nama: value,
                                                 }));
+                                                if (value.trim()) {
+                                                    setMaterialFormErrors(
+                                                        (prev) => ({
+                                                            ...prev,
+                                                            nama: '',
+                                                        }),
+                                                    );
+                                                }
                                             }}
                                         />
                                         <Button
@@ -877,64 +967,153 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                             Cari Material
                                         </Button>
                                     </div>
-                                </div>
-                                <div className="grid gap-2">
-                                    <Label htmlFor="satuan">Satuan</Label>
-                                    <Input
-                                        id="satuan"
-                                        value={materialForm.satuan}
-                                        onChange={(event) =>
-                                            setMaterialForm((prev) => ({
-                                                ...prev,
-                                                satuan: event.target.value,
-                                            }))
-                                        }
+                                    <InputError
+                                        message={materialFormErrors.nama}
                                     />
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label htmlFor="quantity">Quantity</Label>
+                                    <Label htmlFor="satuan">
+                                        Satuan <span className="text-destructive">*</span>
+                                    </Label>
+                                    <Input
+                                        id="satuan"
+                                        aria-invalid={
+                                            !!materialFormErrors.satuan
+                                        }
+                                        className={
+                                            materialFormErrors.satuan
+                                                ? 'border-destructive focus-visible:ring-destructive/20'
+                                                : ''
+                                        }
+                                        value={materialForm.satuan}
+                                        onChange={(event) => {
+                                            const value = event.target.value;
+                                            setMaterialForm((prev) => ({
+                                                ...prev,
+                                                satuan: value,
+                                            }));
+                                            if (value.trim()) {
+                                                setMaterialFormErrors(
+                                                    (prev) => ({
+                                                        ...prev,
+                                                        satuan: '',
+                                                    }),
+                                                );
+                                            }
+                                        }}
+                                    />
+                                    <InputError
+                                        message={materialFormErrors.satuan}
+                                    />
+                                </div>
+                                <div className="grid gap-2">
+                                    <Label htmlFor="quantity">
+                                        Quantity <span className="text-destructive">*</span>
+                                    </Label>
                                     <Input
                                         id="quantity"
                                         type="number"
+                                        aria-invalid={
+                                            !!materialFormErrors.quantity
+                                        }
+                                        className={
+                                            materialFormErrors.quantity
+                                                ? 'border-destructive focus-visible:ring-destructive/20'
+                                                : ''
+                                        }
                                         value={materialForm.quantity}
-                                        onChange={(event) =>
+                                        onChange={(event) => {
+                                            const value = event.target.value;
                                             setMaterialForm((prev) => ({
                                                 ...prev,
-                                                quantity: event.target.value,
-                                            }))
-                                        }
+                                                quantity: value,
+                                            }));
+                                            if (
+                                                value.trim() &&
+                                                parseNumber(value) > 0
+                                            ) {
+                                                setMaterialFormErrors(
+                                                    (prev) => ({
+                                                        ...prev,
+                                                        quantity: '',
+                                                    }),
+                                                );
+                                            } else if (
+                                                value.trim() &&
+                                                parseNumber(value) <= 0
+                                            ) {
+                                                setMaterialFormErrors(
+                                                    (prev) => ({
+                                                        ...prev,
+                                                        quantity:
+                                                            'Quantity tidak boleh 0.',
+                                                    }),
+                                                );
+                                            }
+                                        }}
+                                    />
+                                    <InputError
+                                        message={materialFormErrors.quantity}
                                     />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="harga_modal">
-                                        Harga Modal
+                                        Harga Modal <span className="text-destructive">*</span>
                                     </Label>
                                     <Input
                                         id="harga_modal"
                                         type="text"
+                                        aria-invalid={
+                                            !!materialFormErrors.hargaModal
+                                        }
+                                        className={
+                                            materialFormErrors.hargaModal
+                                                ? 'border-destructive focus-visible:ring-destructive/20'
+                                                : ''
+                                        }
                                         value={formatRupiahInput(
                                             materialForm.hargaModal,
                                         )}
-                                        onChange={(event) =>
+                                        onChange={(event) => {
+                                            const value =
+                                                event.target.value.replace(
+                                                    /\D/g,
+                                                    '',
+                                                );
                                             setMaterialForm((prev) => ({
                                                 ...prev,
-                                                hargaModal:
-                                                    event.target.value.replace(
-                                                        /\D/g,
-                                                        '',
-                                                    ),
-                                            }))
-                                        }
+                                                hargaModal: value,
+                                            }));
+                                            if (value) {
+                                                setMaterialFormErrors(
+                                                    (prev) => ({
+                                                        ...prev,
+                                                        hargaModal: '',
+                                                    }),
+                                                );
+                                            }
+                                        }}
+                                    />
+                                    <InputError
+                                        message={materialFormErrors.hargaModal}
                                     />
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="harga_penawaran">
-                                        Harga Penawaran
+                                        Harga Penawaran <span className="text-destructive">*</span>
                                     </Label>
                                     <Input
                                         id="harga_penawaran"
                                         ref={hargaPenawaranRef}
                                         type="text"
+                                        aria-invalid={
+                                            !!materialFormErrors.hargaPenawaran
+                                        }
+                                        className={
+                                            materialFormErrors.hargaPenawaran
+                                                ? 'border-destructive focus-visible:ring-destructive/20'
+                                                : ''
+                                        }
                                         value={formatRupiahInput(
                                             materialForm.hargaPenawaran,
                                         )}
@@ -993,6 +1172,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                             <div className="flex flex-wrap items-center gap-2">
                                 <Button
                                     type="button"
+                                    disabled={!isMaterialFormValid}
                                     onClick={handleAddMaterial}
                                 >
                                     Tambah Material
