@@ -12,6 +12,7 @@ import { Spinner } from '@/components/ui/spinner';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Pencil, Trash2 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 const buildBreadcrumbs = (noPenawaran) => [
@@ -1450,6 +1451,9 @@ export default function QuotationEdit({
                                                                     <Button
                                                                         type="button"
                                                                         variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-8 w-8 text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-blue-950/50"
+                                                                        title="Edit Material"
                                                                         onClick={() =>
                                                                             handleEditMaterial(
                                                                                 item,
@@ -1459,11 +1463,17 @@ export default function QuotationEdit({
                                                                             isDeleting
                                                                         }
                                                                     >
-                                                                        Edit
+                                                                        <Pencil className="h-4 w-4" />
+                                                                        <span className="sr-only">
+                                                                            Edit
+                                                                        </span>
                                                                     </Button>
                                                                     <Button
                                                                         type="button"
                                                                         variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                                        title="Hapus Material"
                                                                         onClick={() =>
                                                                             handleRemoveMaterial(
                                                                                 item.id,
@@ -1474,12 +1484,14 @@ export default function QuotationEdit({
                                                                             isDeleting
                                                                         }
                                                                     >
-                                                                        {isDeleting && (
-                                                                            <Spinner className="mr-2" />
+                                                                        {isDeleting ? (
+                                                                            <Spinner className="h-4 w-4" />
+                                                                        ) : (
+                                                                            <Trash2 className="h-4 w-4" />
                                                                         )}
-                                                                        {isDeleting
-                                                                            ? 'Menghapus...'
-                                                                            : 'Hapus'}
+                                                                        <span className="sr-only">
+                                                                            Hapus
+                                                                        </span>
                                                                     </Button>
                                                                 </>
                                                             )}

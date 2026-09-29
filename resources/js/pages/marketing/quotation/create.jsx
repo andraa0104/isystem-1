@@ -12,6 +12,7 @@ import { Spinner } from '@/components/ui/spinner';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link } from '@inertiajs/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Pencil, Trash2 } from 'lucide-react';
 import Swal from 'sweetalert2';
 
 const breadcrumbs = [
@@ -154,6 +155,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     const [materialFormErrors, setMaterialFormErrors] = useState({});
 
     const [materialItems, setMaterialItems] = useState([]);
+    const [editingMaterialId, setEditingMaterialId] = useState(null);
 
     const [customerSearch, setCustomerSearch] = useState('');
     const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState('');
@@ -566,6 +568,84 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
 
     const handleRemoveMaterial = (id) => {
         setMaterialItems((prev) => prev.filter((item) => item.id !== id));
+        if (editingMaterialId === id) {
+            handleCancelEditMaterial();
+        }
+    };
+
+    const handleEditMaterial = (item) => {
+        setEditingMaterialId(item.id);
+        setActiveStep(2);
+        setMaterialFormErrors({});
+        setMaterialForm({
+            nama: item.nama ?? '',
+            satuan: item.satuan ?? '',
+            quantity: item.quantity ?? '',
+            hargaModal: item.hargaModal ?? '',
+            hargaPenawaran: item.hargaPenawaran ?? '',
+            remark: item.remark ?? '',
+        });
+        window.requestAnimationFrame(() => {
+            namaMaterialRef.current?.focus();
+        });
+    };
+
+    const handleCancelEditMaterial = () => {
+        setEditingMaterialId(null);
+        setMaterialFormErrors({});
+        setMaterialForm({
+            nama: '',
+            satuan: '',
+            quantity: '1',
+            hargaModal: '',
+            hargaPenawaran: '',
+            remark: '',
+        });
+    };
+
+    const handleSaveMaterial = async () => {
+        const targetItem = materialItems.find(
+            (item) => item.id === editingMaterialId,
+        );
+        if (!targetItem) {
+            return;
+        }
+
+        if (!validateMaterialForm()) {
+            return;
+        }
+
+        const nextMaterial = {
+            ...targetItem,
+            nama: materialForm.nama,
+            satuan: materialForm.satuan,
+            quantity: materialForm.quantity,
+            hargaModal: materialForm.hargaModal,
+            hargaPenawaran: materialForm.hargaPenawaran,
+            margin: marginValue,
+            remark: materialForm.remark,
+        };
+
+        if (parseNumber(nextMaterial.margin) < 0) {
+            const result = await Swal.fire({
+                title: 'Margin Minus',
+                text: 'Margin material ini minus. Tetap lanjut simpan material?',
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonText: 'Ya, lanjut',
+                cancelButtonText: 'Batal',
+            });
+            if (!result.isConfirmed) {
+                return;
+            }
+        }
+
+        setMaterialItems((prev) =>
+            prev.map((item) =>
+                item.id === editingMaterialId ? nextMaterial : item,
+            ),
+        );
+        handleCancelEditMaterial();
     };
 
     const handleSubmit = (event) => {
@@ -1173,10 +1253,25 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                 <Button
                                     type="button"
                                     disabled={!isMaterialFormValid}
-                                    onClick={handleAddMaterial}
+                                    onClick={
+                                        editingMaterialId
+                                            ? handleSaveMaterial
+                                            : handleAddMaterial
+                                    }
                                 >
-                                    Tambah Material
+                                    {editingMaterialId
+                                        ? 'Simpan Perubahan'
+                                        : 'Tambah Material'}
                                 </Button>
+                                {editingMaterialId && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        onClick={handleCancelEditMaterial}
+                                    >
+                                        Batal Edit
+                                    </Button>
+                                )}
                             </div>
 
                             <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
@@ -1223,50 +1318,111 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                                 </td>
                                             </tr>
                                         )}
-                                        {materialItems.map((item, index) => (
-                                            <tr
-                                                key={item.id}
-                                                className="border-t border-sidebar-border/70"
-                                            >
-                                                <td className="px-4 py-3">
-                                                    {index + 1}
-                                                </td>
-                                                <td className="max-w-xs px-4 py-3 break-words whitespace-normal">
-                                                    {item.nama}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {item.satuan || '-'}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {item.quantity}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {item.hargaModal}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {item.hargaPenawaran}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {formatPercent(item.margin)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {item.remark || '-'}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <Button
-                                                        type="button"
-                                                        variant="ghost"
-                                                        onClick={() =>
-                                                            handleRemoveMaterial(
-                                                                item.id,
-                                                            )
-                                                        }
-                                                    >
-                                                        Hapus
-                                                    </Button>
-                                                </td>
-                                            </tr>
-                                        ))}
+                                        {materialItems.map((item, index) => {
+                                            const isEditing =
+                                                editingMaterialId === item.id;
+                                            return (
+                                                <tr
+                                                    key={item.id}
+                                                    className={`border-t border-sidebar-border/70 ${
+                                                        isEditing
+                                                            ? 'bg-muted/40'
+                                                            : ''
+                                                    }`}
+                                                >
+                                                    <td className="px-4 py-3">
+                                                        {index + 1}
+                                                    </td>
+                                                    <td className="max-w-xs px-4 py-3 break-words whitespace-normal">
+                                                        {item.nama}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {item.satuan || '-'}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {item.quantity}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {formatRupiahInput(
+                                                            item.hargaModal,
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {formatRupiahInput(
+                                                            item.hargaPenawaran,
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {formatPercent(
+                                                            item.margin,
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {item.remark || '-'}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <div className="flex items-center gap-1">
+                                                            {isEditing ? (
+                                                                <>
+                                                                    <span className="mr-1 text-xs font-medium text-primary">
+                                                                        Sedang
+                                                                        diedit
+                                                                    </span>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="sm"
+                                                                        className="h-8 px-2 text-xs"
+                                                                        onClick={
+                                                                            handleCancelEditMaterial
+                                                                        }
+                                                                    >
+                                                                        Batal
+                                                                    </Button>
+                                                                </>
+                                                            ) : (
+                                                                <>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-8 w-8 text-blue-600 hover:bg-blue-50 hover:text-blue-700 dark:hover:bg-blue-950/50"
+                                                                        title="Edit Material"
+                                                                        onClick={() =>
+                                                                            handleEditMaterial(
+                                                                                item,
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <Pencil className="h-4 w-4" />
+                                                                        <span className="sr-only">
+                                                                            Edit
+                                                                        </span>
+                                                                    </Button>
+                                                                    <Button
+                                                                        type="button"
+                                                                        variant="ghost"
+                                                                        size="icon"
+                                                                        className="h-8 w-8 text-destructive hover:bg-destructive/10 hover:text-destructive"
+                                                                        title="Hapus Material"
+                                                                        onClick={() =>
+                                                                            handleRemoveMaterial(
+                                                                                item.id,
+                                                                            )
+                                                                        }
+                                                                    >
+                                                                        <Trash2 className="h-4 w-4" />
+                                                                        <span className="sr-only">
+                                                                            Hapus
+                                                                        </span>
+                                                                    </Button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
                                     </tbody>
                                 </table>
                             </div>
