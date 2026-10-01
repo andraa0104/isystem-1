@@ -55,6 +55,23 @@ class QuotationService
     }
 
     /**
+     * Sanitize text to replace smart quotes and double primes with standard quotes
+     * to prevent database charset errors (e.g. latin1 doesn't support these).
+     */
+    private function sanitizeText(?string $text): ?string
+    {
+        if ($text === null) {
+            return null;
+        }
+        
+        return str_replace(
+            ["\xE2\x80\x9C", "\xE2\x80\x9D", "\xE2\x80\xB3", "\xE2\x80\x98", "\xE2\x80\x99", "\xE2\x80\xB2", '”', '“', '″', '‘', '’', '′'], 
+            ['"', '"', '"', "'", "'", "'", '"', '"', '"', "'", "'", "'"], 
+            $text
+        );
+    }
+
+    /**
      * Create a new Quotation with details, handling Counter increment securely.
      */
     public function createQuotation(array $data, string $prefix, int $maxAttempts = 10): bool
@@ -109,19 +126,19 @@ class QuotationService
                         'No_penawaran' => $noPenawaran,
                         'Tgl_penawaran' => $data['tgl_penawaran'] ?? Carbon::today()->toDateString(),
                         'Tgl_Posting' => Carbon::today()->toDateString(),
-                        'Customer' => $this->valueOrSpace($data['customer'] ?? null),
-                        'Alamat' => $this->valueOrSpace($data['alamat'] ?? null),
-                        'Telp' => $this->valueOrSpace($data['telp'] ?? null),
-                        'Fax' => $this->valueOrSpace($data['fax'] ?? null),
-                        'Email' => $this->valueOrSpace($data['email'] ?? null),
-                        'Attend' => $this->valueOrSpace($data['attend'] ?? null),
-                        'Payment' => $this->valueOrSpace($data['payment'] ?? null),
-                        'Validity' => $this->valueOrSpace($data['validity'] ?? null),
-                        'Delivery' => $this->valueOrSpace($data['delivery'] ?? null),
-                        'Franco' => $this->valueOrSpace($data['franco'] ?? null),
-                        'Note1' => $this->valueOrSpace($data['note1'] ?? null),
-                        'Note2' => $this->valueOrSpace($data['note2'] ?? null),
-                        'Note3' => $this->valueOrSpace($data['note3'] ?? null),
+                        'Customer' => $this->sanitizeText($this->valueOrSpace($data['customer'] ?? null)),
+                        'Alamat' => $this->sanitizeText($this->valueOrSpace($data['alamat'] ?? null)),
+                        'Telp' => $this->sanitizeText($this->valueOrSpace($data['telp'] ?? null)),
+                        'Fax' => $this->sanitizeText($this->valueOrSpace($data['fax'] ?? null)),
+                        'Email' => $this->sanitizeText($this->valueOrSpace($data['email'] ?? null)),
+                        'Attend' => $this->sanitizeText($this->valueOrSpace($data['attend'] ?? null)),
+                        'Payment' => $this->sanitizeText($this->valueOrSpace($data['payment'] ?? null)),
+                        'Validity' => $this->sanitizeText($this->valueOrSpace($data['validity'] ?? null)),
+                        'Delivery' => $this->sanitizeText($this->valueOrSpace($data['delivery'] ?? null)),
+                        'Franco' => $this->sanitizeText($this->valueOrSpace($data['franco'] ?? null)),
+                        'Note1' => $this->sanitizeText($this->valueOrSpace($data['note1'] ?? null)),
+                        'Note2' => $this->sanitizeText($this->valueOrSpace($data['note2'] ?? null)),
+                        'Note3' => $this->sanitizeText($this->valueOrSpace($data['note3'] ?? null)),
                     ]);
 
                     $noPenawaranColumn = $this->resolveColumn('tb_penawarandetail', ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
@@ -135,13 +152,13 @@ class QuotationService
                         }
                         $insertData[] = [
                             $noPenawaranColumn => $noPenawaran,
-                            'Material' => $item['material'] ?? null,
+                            'Material' => $this->sanitizeText($item['material'] ?? null),
                             'Qty' => $item['quantity'] ?? null,
                             'Harga' => $item['harga_penawaran'] ?? null,
                             $hargaModalColumn => $item['harga_modal'] ?? null,
                             'Satuan' => $item['satuan'] ?? null,
                             'Margin' => $marginInput,
-                            'Remark' => $this->valueOrSpace($item['remark'] ?? null),
+                            'Remark' => $this->sanitizeText($this->valueOrSpace($item['remark'] ?? null)),
                         ];
                     }
 
@@ -197,19 +214,19 @@ class QuotationService
                 ->where('No_penawaran', $noPenawaran)
                 ->update([
                     'Tgl_penawaran' => $data['tgl_penawaran'] ?? Carbon::today()->toDateString(),
-                    'Customer' => $this->valueOrSpace($data['customer'] ?? null),
-                    'Alamat' => $this->valueOrSpace($data['alamat'] ?? null),
-                    'Telp' => $this->valueOrSpace($data['telp'] ?? null),
-                    'Fax' => $this->valueOrSpace($data['fax'] ?? null),
-                    'Email' => $this->valueOrSpace($data['email'] ?? null),
-                    'Attend' => $this->valueOrSpace($data['attend'] ?? null),
-                    'Payment' => $this->valueOrSpace($data['payment'] ?? null),
-                    'Validity' => $this->valueOrSpace($data['validity'] ?? null),
-                    'Delivery' => $this->valueOrSpace($data['delivery'] ?? null),
-                    'Franco' => $this->valueOrSpace($data['franco'] ?? null),
-                    'Note1' => $this->valueOrSpace($data['note1'] ?? null),
-                    'Note2' => $this->valueOrSpace($data['note2'] ?? null),
-                    'Note3' => $this->valueOrSpace($data['note3'] ?? null),
+                    'Customer' => $this->sanitizeText($this->valueOrSpace($data['customer'] ?? null)),
+                    'Alamat' => $this->sanitizeText($this->valueOrSpace($data['alamat'] ?? null)),
+                    'Telp' => $this->sanitizeText($this->valueOrSpace($data['telp'] ?? null)),
+                    'Fax' => $this->sanitizeText($this->valueOrSpace($data['fax'] ?? null)),
+                    'Email' => $this->sanitizeText($this->valueOrSpace($data['email'] ?? null)),
+                    'Attend' => $this->sanitizeText($this->valueOrSpace($data['attend'] ?? null)),
+                    'Payment' => $this->sanitizeText($this->valueOrSpace($data['payment'] ?? null)),
+                    'Validity' => $this->sanitizeText($this->valueOrSpace($data['validity'] ?? null)),
+                    'Delivery' => $this->sanitizeText($this->valueOrSpace($data['delivery'] ?? null)),
+                    'Franco' => $this->sanitizeText($this->valueOrSpace($data['franco'] ?? null)),
+                    'Note1' => $this->sanitizeText($this->valueOrSpace($data['note1'] ?? null)),
+                    'Note2' => $this->sanitizeText($this->valueOrSpace($data['note2'] ?? null)),
+                    'Note3' => $this->sanitizeText($this->valueOrSpace($data['note3'] ?? null)),
                 ]);
 
             $noPenawaranColumn = $this->resolveColumn('tb_penawarandetail', ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
@@ -223,13 +240,13 @@ class QuotationService
             foreach ($materials as $item) {
                 $insertData[] = [
                     $noPenawaranColumn => $noPenawaran,
-                    'Material' => $item['material'] ?? null,
+                    'Material' => $this->sanitizeText($item['material'] ?? null),
                     'Qty' => $item['quantity'] ?? null,
                     'Harga' => $item['harga_penawaran'] ?? null,
                     $hargaModalColumn => $item['harga_modal'] ?? null,
                     'Satuan' => $item['satuan'] ?? null,
                     'Margin' => $item['margin'] ?? null,
-                    'Remark' => $this->valueOrSpace($item['remark'] ?? null),
+                    'Remark' => $this->sanitizeText($this->valueOrSpace($item['remark'] ?? null)),
                 ];
             }
             if (!empty($insertData)) {
@@ -287,13 +304,13 @@ class QuotationService
             ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [trim($noPenawaran)])
             ->where('ID', $detailId)
             ->update([
-                'Material' => $data['material'] ?? null,
+                'Material' => $this->sanitizeText($data['material'] ?? null),
                 'Qty' => $data['quantity'] ?? null,
                 'Harga' => $data['harga_penawaran'] ?? null,
                 $hargaModalColumn => $data['harga_modal'] ?? null,
                 'Satuan' => $data['satuan'] ?? null,
                 'Margin' => $data['margin'] ?? null,
-                'Remark' => $this->valueOrSpace($data['remark'] ?? null),
+                'Remark' => $this->sanitizeText($this->valueOrSpace($data['remark'] ?? null)),
             ]);
 
         Cache::tags(['quotation_data'])->flush();
