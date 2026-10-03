@@ -420,6 +420,7 @@ export default function PurchaseOrderInIndex({
     const materialRequestId = useRef(0);
     const isInitialTableLoad = useRef(true);
     const isInitialRealizedSummaryLoad = useRef(true);
+    const isInitialTotalSummaryLoad = useRef(true);
 
     const buildTableQueryParams = (params = {}) => {
         const queryParams = new URLSearchParams({
@@ -569,7 +570,12 @@ export default function PurchaseOrderInIndex({
         }
     };
 
-    const fetchPoInSummaryScope = async (scope, dateFilterVal = 'all') => {
+    const fetchPoInSummaryScope = async (
+        scope,
+        dateFilterVal = 'all',
+        startDateVal = '',
+        endDateVal = '',
+    ) => {
         if (scope === 'realized') {
             setSummaryLoading((prev) => ({
                 ...prev,
@@ -590,6 +596,11 @@ export default function PurchaseOrderInIndex({
                 summary_only: '1',
                 summary_scope: scope,
             });
+
+            if (dateFilterVal === 'range' && (startDateVal || endDateVal)) {
+                queryParams.set('start_date', startDateVal);
+                queryParams.set('end_date', endDateVal);
+            }
 
             const response = await fetch(
                 `/marketing/purchase-order-in/data?${queryParams.toString()}`,
@@ -626,8 +637,14 @@ export default function PurchaseOrderInIndex({
         ];
         scopesToFetch.forEach((scope) => {
             if (scope === 'realized' || scope === 'realized_pr' || scope === 'realized_do') {
-                // Actually `realizedPeriod` is accessible in this react component scope
                 fetchPoInSummaryScope(scope, realizedPeriod);
+            } else if (scope === 'total') {
+                fetchPoInSummaryScope(
+                    scope,
+                    dataPoInPeriod,
+                    dataPoInStart,
+                    dataPoInEnd,
+                );
             } else {
                 fetchPoInSummaryScope(scope, 'all');
             }
@@ -731,6 +748,20 @@ export default function PurchaseOrderInIndex({
         fetchPoInSummary(['realized']);
         // fetchModalData takes care of the actual rows separately because it reacts to realizedPeriod changes
     }, [realizedPeriod]);
+
+    // Re-fetch total summary count and amount when PO IN period filter changes
+    useEffect(() => {
+        if (isInitialTotalSummaryLoad.current) {
+            isInitialTotalSummaryLoad.current = false;
+            return;
+        }
+
+        if (dataPoInPeriod === 'range' && (!dataPoInStart || !dataPoInEnd)) {
+            return;
+        }
+
+        fetchPoInSummary(['total']);
+    }, [dataPoInPeriod, dataPoInStart, dataPoInEnd]);
 
     const modalStatus = useMemo(() => {
         if (activeModal === 'outstanding') {
@@ -887,9 +918,30 @@ export default function PurchaseOrderInIndex({
         return dataItemsByPeriod.length;
     }, [dataItemsByPeriod.length, dataPoInPeriod, summary]);
 
-    // dataPoInTotalAmount removed for performance
-
-    // dataPoInTotalAmount removed for performance
+    const dataPoInTotalAmount = useMemo(() => {
+        if (dataPoInPeriod === 'all') {
+            return Number(summary.total_amount ?? summary.data_amounts?.all ?? 0);
+        }
+        if (dataPoInPeriod === 'today') {
+            return Number(summary.data_amounts?.today ?? 0);
+        }
+        if (dataPoInPeriod === 'this_week') {
+            return Number(summary.data_amounts?.week ?? 0);
+        }
+        if (dataPoInPeriod === 'this_month') {
+            return Number(summary.data_amounts?.month ?? 0);
+        }
+        if (dataPoInPeriod === 'this_year') {
+            return Number(summary.data_amounts?.year ?? 0);
+        }
+        if (dataPoInPeriod === 'range' && summary.data_amounts?.range !== undefined) {
+            return Number(summary.data_amounts?.range ?? 0);
+        }
+        return dataItemsByPeriod.reduce(
+            (acc, it) => acc + Number(it.grand_total || 0),
+            0,
+        );
+    }, [dataItemsByPeriod, dataPoInPeriod, summary]);
 
     const modalItems =
         activeModal === 'outstanding'
@@ -1670,16 +1722,21 @@ export default function PurchaseOrderInIndex({
                                     dataPoInCount
                                 )}
                             </div>
-                            <p
+                            <div
                                 className={cn(
                                     'text-sm font-semibold',
                                     isDark
                                         ? 'text-slate-400'
                                         : 'text-slate-500',
                                 )}
-                            ></p>
+                            >
+                                {summaryLoading.total ? (
+                                    <Skeleton className="h-4 w-28" />
+                                ) : (
+                                    `Rp ${formatRupiah(dataPoInTotalAmount)}`
+                                )}
+                            </div>
                         </div>
-                        {/* Grand Total removed per user request for performance */}
                         <p
                             className={cn(
                                 'mt-2 text-[10px] font-medium',

@@ -483,12 +483,16 @@ class PurchaseOrderInController
             'purchaseOrderIns' => [],
             'summary' => [
                 'total' => 0,
+                'total_amount' => 0,
                 'outstanding' => 0,
                 'belum_pr' => 0,
                 'realized' => 0,
                 'data_counts' => [
                     'today' => 0, 'week' => 0, 'month' => 0, 'year' => 0,
-                ]
+                ],
+                'data_amounts' => [
+                    'today' => 0, 'week' => 0, 'month' => 0, 'year' => 0, 'all' => 0,
+                ],
             ],
             'outstandingPurchaseOrderIns' => [],
             'belumPrPurchaseOrderIns' => [],
@@ -766,28 +770,78 @@ class PurchaseOrderInController
         $prefix = '',
         $deadlineFilter = 'all'
     ) {
-        return (function () use ($search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly, $summaryScope, $rowsOnly, $paginationOnly, $dateFilter, $startDate, $endDate, $prefix, $deadlineFilter) {
-            // Kartu Total PO In hanya menghitung dokumen header. Jalankan
-            // sebelum statistik status dibuat agar query ini murni ke tb_poin.
+        return $this->safeClickhouseRead(function ($conn) use ($search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly, $summaryScope, $rowsOnly, $paginationOnly, $dateFilter, $startDate, $endDate, $prefix, $deadlineFilter) {
+            // Kartu Total PO In hanya menghitung dokumen header dan grand total. Jalankan
+            // sebelum statistik status dibuat agar query ini murni ke tb_poin memakai index.
             if ($summaryOnly && $summaryScope === 'total') {
                 $now = now();
-                $periodCounts = DB::table('tb_poin')
-                    ->where('kode_poin', 'like', $prefix . '.POIN-%')
+                $startToday = $now->copy()->startOfDay()->toDateTimeString();
+                $startWeek = $now->copy()->startOfWeek()->toDateTimeString();
+                $startMonth = $now->copy()->startOfMonth()->toDateTimeString();
+                $startYear = $now->copy()->startOfYear()->toDateTimeString();
+
+                $query = $conn->table('tb_poin')
+                    ->where('kode_poin', 'like', $prefix . '.POIN-%');
+
+                if ($dateFilter === 'range' && $startDate !== '' && $endDate !== '') {
+                    $periodCounts = (clone $query)
+                        ->whereDate('created_at', '>=', $startDate)
+                        ->whereDate('created_at', '<=', $endDate)
+                        ->selectRaw('count(*) as count, coalesce(sum(grand_total), 0) as total_amount')
+                        ->first();
+
+                    return [
+                        'summary' => [
+                            'total' => (int) ($periodCounts->count ?? 0),
+                            'total_amount' => (float) ($periodCounts->total_amount ?? 0),
+                            'data_counts' => [
+                                'today' => 0,
+                                'week' => 0,
+                                'month' => 0,
+                                'year' => 0,
+                                'range' => (int) ($periodCounts->count ?? 0),
+                            ],
+                            'data_amounts' => [
+                                'today' => 0,
+                                'week' => 0,
+                                'month' => 0,
+                                'year' => 0,
+                                'range' => (float) ($periodCounts->total_amount ?? 0),
+                                'all' => (float) ($periodCounts->total_amount ?? 0),
+                            ],
+                        ],
+                    ];
+                }
+
+                $periodCounts = (clone $query)
                     ->selectRaw('count(*) as total')
-                    ->selectRaw('count(case when created_at >= ? then 1 end) as today', [$now->copy()->startOfDay()->toDateTimeString()])
-                    ->selectRaw('count(case when created_at >= ? then 1 end) as week', [$now->copy()->startOfWeek()->toDateTimeString()])
-                    ->selectRaw('count(case when created_at >= ? then 1 end) as month', [$now->copy()->startOfMonth()->toDateTimeString()])
-                    ->selectRaw('count(case when created_at >= ? then 1 end) as year', [$now->copy()->startOfYear()->toDateTimeString()])
+                    ->selectRaw('coalesce(sum(grand_total), 0) as total_amount')
+                    ->selectRaw('count(case when created_at >= ? then 1 end) as today', [$startToday])
+                    ->selectRaw('coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_today', [$startToday])
+                    ->selectRaw('count(case when created_at >= ? then 1 end) as week', [$startWeek])
+                    ->selectRaw('coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_week', [$startWeek])
+                    ->selectRaw('count(case when created_at >= ? then 1 end) as month', [$startMonth])
+                    ->selectRaw('coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_month', [$startMonth])
+                    ->selectRaw('count(case when created_at >= ? then 1 end) as year', [$startYear])
+                    ->selectRaw('coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_year', [$startYear])
                     ->first();
 
                 return [
                     'summary' => [
                         'total' => (int) ($periodCounts->total ?? 0),
+                        'total_amount' => (float) ($periodCounts->total_amount ?? 0),
                         'data_counts' => [
                             'today' => (int) ($periodCounts->today ?? 0),
                             'week' => (int) ($periodCounts->week ?? 0),
                             'month' => (int) ($periodCounts->month ?? 0),
                             'year' => (int) ($periodCounts->year ?? 0),
+                        ],
+                        'data_amounts' => [
+                            'today' => (float) ($periodCounts->amount_today ?? 0),
+                            'week' => (float) ($periodCounts->amount_week ?? 0),
+                            'month' => (float) ($periodCounts->amount_week ?? 0),
+                            'year' => (float) ($periodCounts->amount_year ?? 0),
+                            'all' => (float) ($periodCounts->total_amount ?? 0),
                         ],
                     ],
                 ];
@@ -806,7 +860,7 @@ class PurchaseOrderInController
 
             if ($statusFilter === 'all' && !$summaryOnly) {
                 $now = now();
-                $query = DB::table('tb_poin as p')
+                $query = $conn->table('tb_poin as p')
                     ->where(function ($q) use ($prefix) {
                         $q->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                             ->orWhere('p.kode_poin', 'like', '%.POIN-%')
@@ -892,7 +946,7 @@ class PurchaseOrderInController
                 ];
             }
 
-            $detailStats = DB::table('tb_detailpoin')
+            $detailStats = $conn->table('tb_detailpoin')
                 ->where('kode_poin', 'like', $prefix . '.POIN-%')
                 ->select('kode_poin')
                 ->selectRaw('count(*) as total_items')
@@ -907,14 +961,14 @@ class PurchaseOrderInController
                 ->selectRaw("sum(coalesce(cast(nullif(trim(sisa_qtydo), '') as decimal(18,4)), coalesce(cast(nullif(trim(qty), '') as decimal(18,4)), 0))) as do_remaining_qty")
                 ->groupBy('kode_poin');
 
-            $doStats = DB::table('tb_kddo as kdo')
+            $doStats = $conn->table('tb_kddo as kdo')
                 ->selectRaw('lower(trim(kdo.ref_po)) as ref_po_key')
                 ->selectRaw('count(*) as do_count')
                 ->selectRaw("max(str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y')) as last_do_date")
                 ->whereRaw("trim(coalesce(kdo.ref_po, '')) <> ''")
                 ->groupByRaw('lower(trim(kdo.ref_po))');
 
-            $prStats = DB::table('tb_poin as pr_p')->where('pr_p.kode_poin', 'like', $prefix . '.POIN-%')
+            $prStats = $conn->table('tb_poin as pr_p')->where('pr_p.kode_poin', 'like', $prefix . '.POIN-%')
                 ->join('tb_detailpoin as dp', 'dp.kode_poin', '=', 'pr_p.kode_poin')
                 ->join('tb_detailpr as dpr', function ($join) {
                     $join->on('dpr.ref_po', '=', DB::raw('CONVERT(dp.no_poin USING latin1)'));
@@ -940,7 +994,7 @@ class PurchaseOrderInController
                     $isOverdueExpr = "{$deadlineDateExpr} <= current_date()";
                     $isSoonExpr = "{$deadlineDateExpr} > current_date() and {$deadlineDateExpr} <= date_add(current_date(), interval 5 day)";
                     
-                    $row = DB::table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
+                    $row = $conn->table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                         ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                         ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_pr")
                         ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and ds.kode_poin is not null and {$isSoonExpr} then 1 end) as outstanding_pr_soon")
@@ -970,7 +1024,7 @@ class PurchaseOrderInController
                     $isOverdueExpr = "{$deadlineDateExpr} <= current_date()";
                     $isSoonExpr = "{$deadlineDateExpr} > current_date() and {$deadlineDateExpr} <= date_add(current_date(), interval 5 day)";
 
-                    $row = DB::table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
+                    $row = $conn->table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                         ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                         ->selectRaw("count(case when (coalesce(ds.sisa_pr_items, 0) > 0 or (coalesce(ds.changed_count, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0)) then 1 end) as sisa_pr")
                         ->selectRaw("count(case when (coalesce(ds.sisa_pr_items, 0) > 0 or (coalesce(ds.changed_count, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0)) and {$isSoonExpr} then 1 end) as sisa_pr_soon")
@@ -999,7 +1053,7 @@ class PurchaseOrderInController
                     $summary = [];
 
                     if ($summaryScope === 'realized' || $summaryScope === 'realized_do') {
-                        $doCountsQuery = DB::table('tb_kddo as kdo')
+                        $doCountsQuery = $conn->table('tb_kddo as kdo')
                             ->join('tb_poin as p', function ($join) use ($prefix) {
                                 $join->where('p.kode_poin', 'like', $prefix . '.POIN-%');
                                 $join->whereRaw('lower(trim(kdo.ref_po)) = lower(trim(CONVERT(p.no_poin USING latin1)))');
@@ -1031,7 +1085,7 @@ class PurchaseOrderInController
                     if ($summaryScope === 'realized' || $summaryScope === 'realized_pr') {
                         $prDateExpression = "case when trim(dpr.date) like '__.__.____' then str_to_date(trim(dpr.date), '%d.%m.%Y') else str_to_date(trim(dpr.date), '%Y-%m-%d') end";
 
-                        $prCountsQuery = DB::table('tb_detailpr as dpr')
+                        $prCountsQuery = $conn->table('tb_detailpr as dpr')
                             ->join('tb_poin as p', function ($join) use ($prefix) {
                                 $join->where('p.kode_poin', 'like', $prefix . '.POIN-%');
                                 $join->whereRaw('lower(trim(dpr.ref_po)) = lower(trim(CONVERT(p.no_poin USING latin1)))');
@@ -1070,7 +1124,7 @@ class PurchaseOrderInController
 
             if ($statusFilter === 'realized_do') {
                 $doDateExpression = "str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y')";
-                $query = DB::table('tb_kddo as kdo')
+                $query = $conn->table('tb_kddo as kdo')
                     ->join('tb_poin as p', function ($join) use ($prefix) {
                         $join->where('p.kode_poin', 'like', $prefix . '.POIN-%');
                         $join->whereRaw('lower(trim(kdo.ref_po)) = lower(trim(CONVERT(p.no_poin USING latin1)))');
@@ -1115,7 +1169,7 @@ class PurchaseOrderInController
 
                 $applyDeadlineFilter($query);
 
-                $total = ($rowsOnly && $isPartial) ? null : DB::query()->fromSub(clone $query, 'realized_do_rows')->count();
+                $total = ($rowsOnly && $isPartial) ? null : $conn->query()->fromSub(clone $query, 'realized_do_rows')->count();
                 $rows = ($paginationOnly && $isPartial)
                     ? collect()
                     : ($perPage === null
@@ -1149,7 +1203,7 @@ class PurchaseOrderInController
             if ($statusFilter === 'realized_pr') {
                 $prDateExpression = "case when trim(dpr.date) like '__.__.____' then str_to_date(trim(dpr.date), '%d.%m.%Y') else str_to_date(trim(dpr.date), '%Y-%m-%d') end";
 
-                $query = DB::table('tb_detailpr as dpr')
+                $query = $conn->table('tb_detailpr as dpr')
                     ->join('tb_poin as p', function ($join) use ($prefix) {
                         $join->where(function ($q) use ($prefix) {
                             $q->where('p.kode_poin', 'like', $prefix . '.POIN-%')
@@ -1200,7 +1254,7 @@ class PurchaseOrderInController
 
                 $applyDeadlineFilter($query);
 
-                $total = ($rowsOnly && $isPartial) ? null : DB::query()->fromSub(clone $query, 'realized_pr_rows')->count();
+                $total = ($rowsOnly && $isPartial) ? null : $conn->query()->fromSub(clone $query, 'realized_pr_rows')->count();
                 $rows = ($paginationOnly && $isPartial)
                     ? collect()
                     : ($perPage === null
@@ -1231,7 +1285,7 @@ class PurchaseOrderInController
                 ];
             }
 
-            $query = DB::table('tb_poin as p')
+            $query = $conn->table('tb_poin as p')
                 ->where(function ($q) use ($prefix) {
                     $q->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                         ->orWhere('p.kode_poin', 'like', '%.POIN-%')
@@ -1342,7 +1396,7 @@ class PurchaseOrderInController
             $isOverdueExpr = "{$deadlineDateExpr} <= current_date()";
             $isSoonExpr = "{$deadlineDateExpr} > current_date() and {$deadlineDateExpr} <= date_add(current_date(), interval 5 day)";
 
-            $statusData = DB::table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
+            $statusData = $conn->table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                 ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                 ->leftJoinSub($doStats, 'dos', function ($join) {
                     $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
@@ -1376,15 +1430,22 @@ class PurchaseOrderInController
                 ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_year", [$startYear, $endYear])
                 ->first();
 
-            $periodCounts = DB::table('tb_poin')->where('kode_poin', 'like', $prefix . '.POIN-%')
+            $periodCounts = $conn->table('tb_poin')->where('kode_poin', 'like', $prefix . '.POIN-%')
+                ->selectRaw("count(*) as total")
+                ->selectRaw("coalesce(sum(grand_total), 0) as total_amount")
                 ->selectRaw("count(case when created_at >= ? then 1 end) as today", [$startToday])
+                ->selectRaw("coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_today", [$startToday])
                 ->selectRaw("count(case when created_at >= ? then 1 end) as week", [$startWeek])
+                ->selectRaw("coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_week", [$startWeek])
                 ->selectRaw("count(case when created_at >= ? then 1 end) as month", [$startMonth])
+                ->selectRaw("coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_month", [$startMonth])
                 ->selectRaw("count(case when created_at >= ? then 1 end) as year", [$startYear])
+                ->selectRaw("coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_year", [$startYear])
                 ->first();
 
             $summary = [
                 'total'      => (int) $statusData->total,
+                'total_amount' => (float) ($periodCounts->total_amount ?? 0),
                 'outstanding' => (int) $statusData->outstanding,
                 'belum_pr'   => (int) $statusData->belum_pr,
                 'realized'   => (int) $statusData->realized,
@@ -1421,7 +1482,14 @@ class PurchaseOrderInController
                     'week'  => (int) $periodCounts->week,
                     'month' => (int) $periodCounts->month,
                     'year'  => (int) $periodCounts->year,
-                ]
+                ],
+                'data_amounts' => [
+                    'today' => (float) ($periodCounts->amount_today ?? 0),
+                    'week'  => (float) ($periodCounts->amount_week ?? 0),
+                    'month' => (float) ($periodCounts->amount_month ?? 0),
+                    'year'  => (float) ($periodCounts->amount_year ?? 0),
+                    'all'   => (float) ($periodCounts->total_amount ?? 0),
+                ],
             ];
 
             $base = DB::table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
