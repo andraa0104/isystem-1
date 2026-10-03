@@ -770,7 +770,7 @@ class PurchaseOrderInController
         $prefix = '',
         $deadlineFilter = 'all'
     ) {
-        return $this->safeClickhouseRead(function ($conn) use ($search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly, $summaryScope, $rowsOnly, $paginationOnly, $dateFilter, $startDate, $endDate, $prefix, $deadlineFilter) {
+        return (function () use ($search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly, $summaryScope, $rowsOnly, $paginationOnly, $dateFilter, $startDate, $endDate, $prefix, $deadlineFilter) {
             // Kartu Total PO In hanya menghitung dokumen header dan grand total. Jalankan
             // sebelum statistik status dibuat agar query ini murni ke tb_poin memakai index.
             if ($summaryOnly && $summaryScope === 'total') {
@@ -780,71 +780,73 @@ class PurchaseOrderInController
                 $startMonth = $now->copy()->startOfMonth()->toDateTimeString();
                 $startYear = $now->copy()->startOfYear()->toDateTimeString();
 
-                $query = $conn->table('tb_poin')
-                    ->where('kode_poin', 'like', $prefix . '.POIN-%');
+                return $this->safeClickhouseRead(function ($conn) use ($prefix, $dateFilter, $startDate, $endDate, $startToday, $startWeek, $startMonth, $startYear) {
+                    $query = $conn->table('tb_poin')
+                        ->where('kode_poin', 'like', $prefix . '.POIN-%');
 
-                if ($dateFilter === 'range' && $startDate !== '' && $endDate !== '') {
+                    if ($dateFilter === 'range' && $startDate !== '' && $endDate !== '') {
+                        $periodCounts = (clone $query)
+                            ->where('created_at', '>=', $startDate . ' 00:00:00')
+                            ->where('created_at', '<=', $endDate . ' 23:59:59')
+                            ->selectRaw('count(*) as count, coalesce(sum(grand_total), 0) as total_amount')
+                            ->first();
+
+                        return [
+                            'summary' => [
+                                'total' => (int) ($periodCounts->count ?? 0),
+                                'total_amount' => (float) ($periodCounts->total_amount ?? 0),
+                                'data_counts' => [
+                                    'today' => 0,
+                                    'week' => 0,
+                                    'month' => 0,
+                                    'year' => 0,
+                                    'range' => (int) ($periodCounts->count ?? 0),
+                                ],
+                                'data_amounts' => [
+                                    'today' => 0,
+                                    'week' => 0,
+                                    'month' => 0,
+                                    'year' => 0,
+                                    'range' => (float) ($periodCounts->total_amount ?? 0),
+                                    'all' => (float) ($periodCounts->total_amount ?? 0),
+                                ],
+                            ],
+                        ];
+                    }
+
                     $periodCounts = (clone $query)
-                        ->whereDate('created_at', '>=', $startDate)
-                        ->whereDate('created_at', '<=', $endDate)
-                        ->selectRaw('count(*) as count, coalesce(sum(grand_total), 0) as total_amount')
+                        ->selectRaw('count(*) as total')
+                        ->selectRaw('coalesce(sum(grand_total), 0) as total_amount')
+                        ->selectRaw('count(case when created_at >= ? then 1 end) as today', [$startToday])
+                        ->selectRaw('coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_today', [$startToday])
+                        ->selectRaw('count(case when created_at >= ? then 1 end) as week', [$startWeek])
+                        ->selectRaw('coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_week', [$startWeek])
+                        ->selectRaw('count(case when created_at >= ? then 1 end) as month', [$startMonth])
+                        ->selectRaw('coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_month', [$startMonth])
+                        ->selectRaw('count(case when created_at >= ? then 1 end) as year', [$startYear])
+                        ->selectRaw('coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_year', [$startYear])
                         ->first();
 
                     return [
                         'summary' => [
-                            'total' => (int) ($periodCounts->count ?? 0),
+                            'total' => (int) ($periodCounts->total ?? 0),
                             'total_amount' => (float) ($periodCounts->total_amount ?? 0),
                             'data_counts' => [
-                                'today' => 0,
-                                'week' => 0,
-                                'month' => 0,
-                                'year' => 0,
-                                'range' => (int) ($periodCounts->count ?? 0),
+                                'today' => (int) ($periodCounts->today ?? 0),
+                                'week' => (int) ($periodCounts->week ?? 0),
+                                'month' => (int) ($periodCounts->month ?? 0),
+                                'year' => (int) ($periodCounts->year ?? 0),
                             ],
                             'data_amounts' => [
-                                'today' => 0,
-                                'week' => 0,
-                                'month' => 0,
-                                'year' => 0,
-                                'range' => (float) ($periodCounts->total_amount ?? 0),
+                                'today' => (float) ($periodCounts->amount_today ?? 0),
+                                'week' => (float) ($periodCounts->amount_week ?? 0),
+                                'month' => (float) ($periodCounts->amount_week ?? 0),
+                                'year' => (float) ($periodCounts->amount_year ?? 0),
                                 'all' => (float) ($periodCounts->total_amount ?? 0),
                             ],
                         ],
                     ];
-                }
-
-                $periodCounts = (clone $query)
-                    ->selectRaw('count(*) as total')
-                    ->selectRaw('coalesce(sum(grand_total), 0) as total_amount')
-                    ->selectRaw('count(case when created_at >= ? then 1 end) as today', [$startToday])
-                    ->selectRaw('coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_today', [$startToday])
-                    ->selectRaw('count(case when created_at >= ? then 1 end) as week', [$startWeek])
-                    ->selectRaw('coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_week', [$startWeek])
-                    ->selectRaw('count(case when created_at >= ? then 1 end) as month', [$startMonth])
-                    ->selectRaw('coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_month', [$startMonth])
-                    ->selectRaw('count(case when created_at >= ? then 1 end) as year', [$startYear])
-                    ->selectRaw('coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_year', [$startYear])
-                    ->first();
-
-                return [
-                    'summary' => [
-                        'total' => (int) ($periodCounts->total ?? 0),
-                        'total_amount' => (float) ($periodCounts->total_amount ?? 0),
-                        'data_counts' => [
-                            'today' => (int) ($periodCounts->today ?? 0),
-                            'week' => (int) ($periodCounts->week ?? 0),
-                            'month' => (int) ($periodCounts->month ?? 0),
-                            'year' => (int) ($periodCounts->year ?? 0),
-                        ],
-                        'data_amounts' => [
-                            'today' => (float) ($periodCounts->amount_today ?? 0),
-                            'week' => (float) ($periodCounts->amount_week ?? 0),
-                            'month' => (float) ($periodCounts->amount_week ?? 0),
-                            'year' => (float) ($periodCounts->amount_year ?? 0),
-                            'all' => (float) ($periodCounts->total_amount ?? 0),
-                        ],
-                    ],
-                ];
+                });
             }
 
             // Filter "Semua Data" tidak membutuhkan status turunan dari detail,
