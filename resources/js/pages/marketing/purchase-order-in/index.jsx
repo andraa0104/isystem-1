@@ -1722,29 +1722,42 @@ export default function PurchaseOrderInIndex({
                                     dataPoInCount
                                 )}
                             </div>
+                            <span
+                                className={cn(
+                                    'text-xs font-medium',
+                                    isDark ? 'text-slate-400' : 'text-slate-500',
+                                )}
+                            >
+                                Document
+                            </span>
+                        </div>
+                        <div
+                            className={cn(
+                                'mt-2.5 border-t pt-2 flex flex-col gap-0.5',
+                                isDark ? 'border-slate-800' : 'border-slate-200/80',
+                            )}
+                        >
+                            <span
+                                className={cn(
+                                    'text-[10px] font-bold uppercase tracking-wider',
+                                    isDark ? 'text-slate-400' : 'text-slate-500',
+                                )}
+                            >
+                                Total Nominal PO IN
+                            </span>
                             <div
                                 className={cn(
-                                    'text-sm font-semibold',
-                                    isDark
-                                        ? 'text-slate-400'
-                                        : 'text-slate-500',
+                                    'text-sm font-bold',
+                                    isDark ? 'text-emerald-400' : 'text-emerald-600',
                                 )}
                             >
                                 {summaryLoading.total ? (
-                                    <Skeleton className="h-4 w-28" />
+                                    <Skeleton className="h-5 w-32" />
                                 ) : (
                                     `Rp ${formatRupiah(dataPoInTotalAmount)}`
                                 )}
                             </div>
                         </div>
-                        <p
-                            className={cn(
-                                'mt-2 text-[10px] font-medium',
-                                isDark ? 'text-slate-500' : 'text-slate-500',
-                            )}
-                        >
-                            Laporan Keseluruhan PO IN
-                        </p>
                     </article>
                 </section>
 

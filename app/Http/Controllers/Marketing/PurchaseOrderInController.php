@@ -840,7 +840,7 @@ class PurchaseOrderInController
                             'data_amounts' => [
                                 'today' => (float) ($periodCounts->amount_today ?? 0),
                                 'week' => (float) ($periodCounts->amount_week ?? 0),
-                                'month' => (float) ($periodCounts->amount_week ?? 0),
+                                'month' => (float) ($periodCounts->amount_month ?? 0),
                                 'year' => (float) ($periodCounts->amount_year ?? 0),
                                 'all' => (float) ($periodCounts->total_amount ?? 0),
                             ],
@@ -862,7 +862,7 @@ class PurchaseOrderInController
 
             if ($statusFilter === 'all' && !$summaryOnly) {
                 $now = now();
-                $query = $conn->table('tb_poin as p')
+                $query = DB::table('tb_poin as p')
                     ->where(function ($q) use ($prefix) {
                         $q->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                             ->orWhere('p.kode_poin', 'like', '%.POIN-%')
