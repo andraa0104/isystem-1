@@ -1,5 +1,5 @@
-import { Head } from '@inertiajs/react';
 import { FormattedRemark } from '@/components/rich-text-editor';
+import { Head } from '@inertiajs/react';
 import { useMemo } from 'react';
 
 const formatNumber = (value) => {
@@ -43,6 +43,12 @@ const formatDate = (value) => {
 const renderValue = (value) =>
     value === null || value === undefined || value === '' ? '-' : value;
 
+const getCellText = (value) =>
+    String(value ?? '')
+        .replace(/<[^>]*>/g, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+
 export default function QuotationPrint({
     quotation,
     quotationDetails = [],
@@ -85,6 +91,48 @@ export default function QuotationPrint({
         }
         return lines;
     }, [company.address, company.kota, company.email, company.phone]);
+
+    const detailColumnWidths = useMemo(() => {
+        const remarkLengths = quotationDetails
+            .map((detail) => getCellText(detail.Remark).length)
+            .filter(Boolean);
+        const longestDescription = Math.max(
+            0,
+            ...quotationDetails.map(
+                (detail) => getCellText(detail.Material).length,
+            ),
+        );
+        const longestPrice = Math.max(
+            0,
+            ...quotationDetails.map(
+                (detail) => formatNumber(detail.Harga).length,
+            ),
+        );
+        const longestRemark = Math.max(0, ...remarkLengths);
+        let priceWidth = 12;
+        if (longestPrice <= 7) {
+            priceWidth = 9;
+        } else if (longestPrice <= 10) {
+            priceWidth = 10;
+        }
+
+        let remarkWidth = 28;
+        if (remarkLengths.length === 0) {
+            remarkWidth = 10;
+        } else if (longestRemark <= 20 || longestRemark <= longestDescription) {
+            remarkWidth = 18;
+        }
+        const descriptionWidth = 100 - 4 - 4 - 7 - priceWidth - remarkWidth;
+
+        return [
+            '4%',
+            `${descriptionWidth}%`,
+            '4%',
+            '7%',
+            `${priceWidth}%`,
+            `${remarkWidth}%`,
+        ];
+    }, [quotationDetails]);
 
     return (
         <div className="min-h-screen bg-white text-black">
@@ -146,12 +194,9 @@ export default function QuotationPrint({
                 <div className="mt-3">
                     <table className="w-full table-fixed border-collapse border border-black text-[11px]">
                         <colgroup>
-                            <col className="w-[4%]" />
-                            <col className="w-[40%]" />
-                            <col className="w-[5%]" />
-                            <col className="w-[6%]" />
-                            <col className="w-[10%]" />
-                            <col className="w-[19%]" />
+                            {detailColumnWidths.map((width, index) => (
+                                <col key={index} style={{ width }} />
+                            ))}
                         </colgroup>
                         <thead>
                             <tr className="border-b border-black">
