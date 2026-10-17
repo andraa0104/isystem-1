@@ -1,4 +1,5 @@
 import InputError from '@/components/input-error';
+import RichTextEditor from '@/components/rich-text-editor';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -1235,15 +1236,13 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                 </div>
                                 <div className="grid gap-2 md:col-span-2 xl:col-span-5">
                                     <Label htmlFor="remark">Remark</Label>
-                                    <textarea
+                                    <RichTextEditor
                                         id="remark"
-                                        rows={3}
-                                        className="rounded-md border border-sidebar-border/70 bg-background px-3 py-2 text-sm"
                                         value={materialForm.remark}
-                                        onChange={(event) =>
+                                        onChange={(remark) =>
                                             setMaterialForm((prev) => ({
                                                 ...prev,
-                                                remark: event.target.value,
+                                                remark,
                                             }))
                                         }
                                     />

@@ -1,4 +1,5 @@
 import { Head } from '@inertiajs/react';
+import { FormattedRemark } from '@/components/rich-text-editor';
 import { useMemo } from 'react';
 
 const formatNumber = (value) => {
@@ -206,7 +207,9 @@ export default function QuotationPrint({
                                         {formatNumber(detail.Harga)}
                                     </td>
                                     <td className="px-1 py-1 align-top">
-                                        {renderValue(detail.Remark)}
+                                        <FormattedRemark
+                                            value={detail.Remark}
+                                        />
                                     </td>
                                 </tr>
                             ))}

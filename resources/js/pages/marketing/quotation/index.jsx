@@ -1,4 +1,5 @@
 import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
+import { FormattedRemark } from '@/components/rich-text-editor';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -853,7 +854,7 @@ export default function QuotationIndex({
                                                     <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Harga</th>
                                                     <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Modal</th>
                                                     <th className="w-1 whitespace-nowrap px-2 py-2 text-left">Margin</th>
-                                                    <th className="w-[18rem] whitespace-nowrap px-2 py-2 text-left">Remark</th>
+                                                    <th className="w-full min-w-[14rem] px-2 py-2 text-left">Remark</th>
                                                 </tr>
                                             </thead>
                                             <tbody>
@@ -882,10 +883,11 @@ export default function QuotationIndex({
                                                             <td className="w-1 whitespace-nowrap px-2 py-2">{formatNumber(detail.Harga)}</td>
                                                             <td className="w-1 whitespace-nowrap px-2 py-2">{formatNumber(detail.Harga_Modal)}</td>
                                                             <td className="w-1 whitespace-nowrap px-2 py-2">{detail.Margin}</td>
-                                                            <td className="w-[18rem] max-w-[18rem] px-2 py-2">
-                                                                <div className="truncate" title={detail.Remark}>
-                                                                    {detail.Remark}
-                                                                </div>
+                                                            <td className="w-full min-w-[14rem] px-2 py-2 align-top">
+                                                                <FormattedRemark
+                                                                    value={detail.Remark}
+                                                                    className="break-words"
+                                                                />
                                                             </td>
                                                         </tr>
                                                     ))
