@@ -1,0 +1,233 @@
+<?php
+
+namespace App\Services\Marketing;
+
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
+use Symfony\Component\Process\Process;
+
+class PurchaseRequirementInsightService
+{
+    public function stock(): array
+    {
+        return $this->run('stock', [
+            'sales' => $this->salesHistory(),
+            'costs' => $this->costHistory(),
+            'stocks' => $this->stockInventory(),
+        ]);
+    }
+
+    public function opex(): array
+    {
+        return $this->run('opex', [
+            'opex' => $this->opexHistory(),
+            'stocks' => $this->stockInventory(),
+        ]);
+    }
+
+    private function run(string $mode, array $payload): array
+    {
+        $script = base_path('app/Intelligence/PurchaseRequirementInsight.py');
+        if (!is_file($script)) {
+            return ['success' => false, 'message' => 'Engine insight Python tidak ditemukan.', 'recommendations' => []];
+        }
+
+        try {
+            $process = new Process([env('PYTHON_BINARY', 'python3'), $script, "--mode={$mode}"]);
+            $process->setInput(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
+            $process->setTimeout(25);
+            $process->run();
+
+            if (!$process->isSuccessful()) {
+                Log::warning('Purchase requirement insight Python failed.', ['mode' => $mode, 'error' => $process->getErrorOutput()]);
+                return ['success' => false, 'message' => 'Gagal memproses insight AI.', 'recommendations' => []];
+            }
+
+            $result = json_decode(trim($process->getOutput()), true);
+            return is_array($result)
+                ? $result + ['success' => true]
+                : ['success' => false, 'message' => 'Respons engine insight tidak valid.', 'recommendations' => []];
+        } catch (\Throwable $exception) {
+            Log::warning('Purchase requirement insight exception.', ['mode' => $mode, 'error' => $exception->getMessage()]);
+            return ['success' => false, 'message' => 'Engine insight tidak dapat dijalankan.', 'recommendations' => []];
+        }
+    }
+
+    private function salesHistory(): array
+    {
+        if (!Schema::hasTable('tb_fakturpenjualan') || !Schema::hasTable('tb_do')) return [];
+
+        $date = "coalesce(date(f.tgl_doc), str_to_date(f.tgl_doc, '%Y-%m-%d'), str_to_date(f.tgl_doc, '%d.%m.%Y'), str_to_date(f.tgl_doc, '%d/%m/%Y'))";
+        return DB::table('tb_fakturpenjualan as f')
+            ->join('tb_do as d', 'f.no_do', '=', 'd.no_do')
+            ->whereRaw("{$date} >= date_sub(current_date(), interval 180 day)")
+            ->whereNotNull('d.mat')
+            ->whereRaw("trim(d.mat) <> ''")
+            ->get([
+                'd.kd_mat as material_code', 'd.mat as material', 'd.unit', 'd.qty',
+                'f.no_fakturpenjualan as invoice_no', DB::raw("{$date} as date"),
+            ])
+            ->map(fn ($row) => (array) $row)
+            ->all();
+    }
+
+    private function costHistory(): array
+    {
+        if (!Schema::hasTable('tb_detailpo')) return [];
+
+        $materialColumn = $this->firstExistingColumn('tb_detailpo', [
+            'material', 'nama_material', 'mat', 'nama_barang', 'nm_barang',
+        ]);
+        if (!$materialColumn) return [];
+
+        $details = DB::table('tb_detailpo')
+            ->whereNotNull('kd_mat')
+            ->whereRaw("trim(kd_mat) <> ''")
+            ->orderByDesc('tgl')
+            ->limit(5000)
+            ->get([
+                'no_po', 'kd_mat as material_code', DB::raw("`{$materialColumn}` as material"),
+                'unit', 'qty', 'price', 'franco_loco', 'tgl',
+            ])
+            ->map(fn ($row) => (array) $row)
+            ->all();
+
+        $shipping = $this->shippingByPo();
+        $poValues = [];
+        foreach ($details as $detail) {
+            $po = trim((string) ($detail['no_po'] ?? ''));
+            $poValues[$po] = ($poValues[$po] ?? 0) + max(0, (float) ($detail['qty'] ?? 0)) * max(0, (float) ($detail['price'] ?? 0));
+        }
+
+        return array_map(function (array $detail) use ($shipping, $poValues): array {
+            $po = trim((string) ($detail['no_po'] ?? ''));
+            $lineValue = max(0, (float) ($detail['qty'] ?? 0)) * max(0, (float) ($detail['price'] ?? 0));
+            $francoLoco = Str::lower(trim((string) ($detail['franco_loco'] ?? '')));
+            // Franco: ongkir ditanggung vendor. Loco/kosong: biaya kirim aktual
+            // dari tb_biayakirimdetail dibebankan proporsional nilai material.
+            $shippingApplies = !str_contains($francoLoco, 'franco') || str_contains($francoLoco, 'loco');
+            $shippingShare = $shippingApplies && ($poValues[$po] ?? 0) > 0
+                ? (($shipping[$po] ?? 0) * $lineValue / $poValues[$po])
+                : 0;
+            $detail['shipping_allocated'] = $shippingShare;
+            return $detail;
+        }, $details);
+    }
+
+    private function shippingByPo(): array
+    {
+        if (!Schema::hasTable('tb_biayakirimdetail')) return [];
+
+        $poColumn = $this->firstExistingColumn('tb_biayakirimdetail', ['no_po', 'ref_po', 'no_pembelian']);
+        $costColumn = $this->firstExistingColumn('tb_biayakirimdetail', ['biaya_kirim', 'total_biaya_kirim', 'biaya', 'total_biaya', 'total', 'nominal', 'amount', 'harga']);
+        if (!$poColumn || !$costColumn) return [];
+
+        return DB::table('tb_biayakirimdetail')
+            ->select($poColumn, DB::raw("sum(coalesce(cast(`{$costColumn}` as decimal(18,4)), 0)) as shipping_total"))
+            ->groupBy($poColumn)
+            ->pluck('shipping_total', $poColumn)
+            ->map(fn ($value) => (float) $value)
+            ->all();
+    }
+
+    private function firstExistingColumn(string $table, array $candidates): ?string
+    {
+        $columns = Schema::getColumnListing($table);
+        foreach ($candidates as $candidate) {
+            foreach ($columns as $column) {
+                if (strtolower($column) === strtolower($candidate)) {
+                    return $column;
+                }
+            }
+        }
+        return null;
+    }
+
+    private function stockInventory(): array
+    {
+        if (!Schema::hasTable('tb_barang')) return [];
+
+        $codeCol = $this->firstExistingColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode']) ?? 'kd_material';
+        $matCol = $this->firstExistingColumn('tb_barang', ['material', 'nama_material', 'mat', 'nama_barang']) ?? 'material';
+        $unitCol = $this->firstExistingColumn('tb_barang', ['unit', 'satuan']) ?? 'unit';
+        $catCol = $this->firstExistingColumn('tb_barang', ['katagori_stok1', 'kategori_stok1']) ?? 'katagori_stok1';
+
+        $stockColumns = array_filter(['stok_g1', 'stok_g2', 'stok_g3', 'stok_g4'], fn ($col) => Schema::hasColumn('tb_barang', $col));
+        $stockExpr = !empty($stockColumns)
+            ? implode(' + ', array_map(fn ($c) => "coalesce(cast(`{$c}` as decimal(18,4)), 0)", $stockColumns))
+            : (Schema::hasColumn('tb_barang', 'stok') ? "coalesce(cast(`stok` as decimal(18,4)), 0)" : '0');
+
+        $selects = [
+            DB::raw("`{$codeCol}` as material_code"),
+            DB::raw("`{$matCol}` as material"),
+            DB::raw("`{$unitCol}` as unit"),
+            DB::raw("({$stockExpr}) as current_stock"),
+        ];
+
+        if ($catCol) {
+            $selects[] = DB::raw("`{$catCol}` as category");
+        } else {
+            $selects[] = DB::raw("'' as category");
+        }
+
+        return DB::table('tb_barang')
+            ->select($selects)
+            ->get()
+            ->map(fn ($row) => [
+                'material_code' => (string) ($row->material_code ?? ''),
+                'material' => (string) ($row->material ?? ''),
+                'unit' => (string) ($row->unit ?? ''),
+                'category' => (string) ($row->category ?? ''),
+                'current_stock' => (float) ($row->current_stock ?? 0),
+            ])
+            ->all();
+    }
+
+    private function opexHistory(): array
+    {
+        if (!Schema::hasTable('tb_detailpr')) return [];
+
+        $hasPrTable = Schema::hasTable('tb_pr');
+        $query = DB::table('tb_detailpr as d');
+
+        if ($hasPrTable) {
+            $query->leftJoin('tb_pr as pr', 'd.no_pr', '=', 'pr.no_pr');
+            $query->where(function ($q) {
+                $q->whereRaw("lower(coalesce(d.jenis_pr, '')) like '%opex%'")
+                  ->orWhereRaw("lower(coalesce(pr.jenis_pr, '')) like '%opex%'")
+                  ->orWhereRaw("lower(coalesce(pr.for_customer, '')) like '%kantor%'")
+                  ->orWhereRaw("lower(coalesce(pr.for_customer, '')) like '%dapur%'")
+                  ->orWhereRaw("lower(coalesce(pr.for_customer, '')) like '%operasional%'")
+                  ->orWhereRaw("lower(coalesce(pr.for_customer, '')) like '%perlengkapan%'")
+                  ->orWhereRaw("lower(coalesce(d.for_customer, '')) like '%kantor%'")
+                  ->orWhereRaw("lower(coalesce(d.for_customer, '')) like '%dapur%'")
+                  ->orWhereRaw("lower(coalesce(d.for_customer, '')) like '%operasional%'");
+            });
+        } else {
+            $query->where(function ($q) {
+                $q->whereRaw("lower(coalesce(d.jenis_pr, '')) like '%opex%'")
+                  ->orWhereRaw("lower(coalesce(d.for_customer, '')) like '%kantor%'")
+                  ->orWhereRaw("lower(coalesce(d.for_customer, '')) like '%dapur%'")
+                  ->orWhereRaw("lower(coalesce(d.for_customer, '')) like '%operasional%'");
+            });
+        }
+
+        return $query
+            ->whereNotNull('d.material')
+            ->whereRaw("trim(d.material) <> ''")
+            ->orderBy('d.date')
+            ->get([
+                'd.kd_material as material_code',
+                'd.material',
+                'd.unit',
+                'd.qty',
+                'd.date',
+                DB::raw($hasPrTable ? "coalesce(pr.jenis_pr, d.jenis_pr, '') as jenis_pr" : "coalesce(d.jenis_pr, '') as jenis_pr"),
+                DB::raw($hasPrTable ? "coalesce(pr.for_customer, d.for_customer, '') as for_customer" : "coalesce(d.for_customer, '') as for_customer"),
+            ])
+            ->map(fn ($row) => (array) $row)
+            ->all();
+    }
+}

@@ -305,6 +305,10 @@ Route::get('marketing/purchase-requirement/poin-details', [PurchaseRequirementCo
     ->name('marketing.purchase-requirement.poin-details');
 Route::get('marketing/purchase-requirement/data', [PurchaseRequirementController::class, 'data'])
     ->name('marketing.purchase-requirement.data');
+Route::get('marketing/purchase-requirement/insights/stock', [PurchaseRequirementController::class, 'stockInsights'])
+    ->name('marketing.purchase-requirement.insights.stock');
+Route::get('marketing/purchase-requirement/insights/opex', [PurchaseRequirementController::class, 'opexInsights'])
+    ->name('marketing.purchase-requirement.insights.opex');
 Route::get('marketing/purchase-requirement/overdue-invoices', [PurchaseRequirementController::class, 'overdueInvoices'])
     ->name('marketing.purchase-requirement.overdue-invoices');
 Route::get('marketing/purchase-requirement/details', [PurchaseRequirementController::class, 'details'])

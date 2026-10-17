@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Marketing;
 
+use App\Services\Marketing\PurchaseRequirementInsightService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -114,6 +115,22 @@ class PurchaseRequirementController
                 'harga' => 0
             ], 200); // Status 200 agar React tidak mendeteksi crash/AxiosError merah
         }
+    }
+
+    /**
+     * Lazy-loaded AI recommendations for stock procurement.
+     */
+    public function stockInsights(PurchaseRequirementInsightService $insights)
+    {
+        return response()->json($insights->stock());
+    }
+
+    /**
+     * Lazy-loaded AI recommendations for routine operational procurement.
+     */
+    public function opexInsights(PurchaseRequirementInsightService $insights)
+    {
+        return response()->json($insights->opex());
     }
 
     public function index(Request $request)

@@ -21,6 +21,7 @@ import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
 import {
     AlertCircle,
+    BrainCircuit,
     ClipboardCheck,
     Eye,
     Pencil,
@@ -78,6 +79,210 @@ const formatNumber = (value) => {
     if (Number.isNaN(number)) return '-';
     return new Intl.NumberFormat('id-ID').format(number);
 };
+
+function InsightRecommendationPanel({
+    title,
+    description,
+    data = [],
+    loading,
+    error,
+    onRetry,
+    type,
+}) {
+    const [pageSize, setPageSize] = useState(5);
+    const [currentPage, setCurrentPage] = useState(1);
+
+    const totalItems = data.length;
+    const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+
+    const displayedData = useMemo(() => {
+        const start = (currentPage - 1) * pageSize;
+        return data.slice(start, start + pageSize);
+    }, [data, currentPage, pageSize]);
+
+    return (
+        <Card className="flex flex-col overflow-hidden">
+            <CardHeader className="border-b bg-muted/20">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <CardTitle className="flex items-center gap-2 text-base">
+                            <BrainCircuit className="size-4" />
+                            {title}
+                        </CardTitle>
+                        <CardDescription>{description}</CardDescription>
+                    </div>
+                    {!loading && !error && totalItems > 0 && (
+                        <div className="flex items-center gap-2 self-start text-xs text-muted-foreground sm:self-center">
+                            <span>Tampilkan</span>
+                            <select
+                                className="rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-xs"
+                                value={pageSize}
+                                onChange={(e) => {
+                                    setPageSize(Number(e.target.value));
+                                    setCurrentPage(1);
+                                }}
+                            >
+                                <option value={5}>5</option>
+                                <option value={10}>10</option>
+                                <option value={25}>25</option>
+                                <option value={50}>50</option>
+                                <option value={100}>100</option>
+                            </select>
+                        </div>
+                    )}
+                </div>
+            </CardHeader>
+            <CardContent className="flex-1 p-0">
+                {loading && (
+                    <div className="space-y-3 p-4">
+                        <Skeleton className="h-16 w-full" />
+                        <Skeleton className="h-16 w-full" />
+                    </div>
+                )}
+                {!loading && error && (
+                    <div className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm text-destructive">
+                        <span>{error}</span>
+                        <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={onRetry}
+                        >
+                            Coba lagi
+                        </Button>
+                    </div>
+                )}
+                {!loading && !error && totalItems === 0 && (
+                    <p className="p-4 text-sm text-muted-foreground">
+                        Belum ada histori yang cukup untuk membuat rekomendasi.
+                    </p>
+                )}
+                {!loading && !error && totalItems > 0 && (
+                    <>
+                        <div className="divide-y">
+                            {displayedData.map((item, index) => (
+                                <div
+                                    key={`${type}-${item.material_code ?? item.material}-${(currentPage - 1) * pageSize + index}`}
+                                    className="grid gap-2 p-4 sm:grid-cols-[1fr_auto]"
+                                >
+                                    <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                            <p className="font-medium break-words">
+                                                {item.material}
+                                            </p>
+                                            {item.current_stock !== undefined && (
+                                                <span
+                                                    className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                                                        item.current_stock <= 0
+                                                            ? 'bg-destructive/10 text-destructive'
+                                                            : (item.days_of_inventory !== undefined && item.days_of_inventory <= 15)
+                                                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                                                            : 'bg-muted text-muted-foreground'
+                                                    }`}
+                                                >
+                                                    Stok Gudang: {formatNumber(item.current_stock)} {item.unit}
+                                                </span>
+                                            )}
+                                        </div>
+                                        <p className="mt-1 text-xs text-muted-foreground">
+                                            {(item.reasons ?? []).join(' • ')}
+                                        </p>
+                                        {type === 'stock' &&
+                                            item.latest_landed_cost > 0 && (
+                                                <p className="mt-1 text-xs text-muted-foreground">
+                                                    Landed cost:{' '}
+                                                    {formatRupiah(
+                                                        item.latest_landed_cost,
+                                                    )}
+                                                    {item.saving_percent > 0
+                                                        ? ` · ${item.saving_percent}% di bawah median`
+                                                        : ''}
+                                                </p>
+                                            )}
+                                        {type === 'opex' && item.predicted_date && (
+                                            <p
+                                                className={`mt-1 text-xs ${
+                                                    item.days_until < 0
+                                                        ? 'font-medium text-destructive'
+                                                        : item.days_until <= 7
+                                                        ? 'font-medium text-amber-600 dark:text-amber-400'
+                                                        : 'text-muted-foreground'
+                                                }`}
+                                            >
+                                                {item.days_until < 0
+                                                    ? `Terlewat ${Math.abs(item.days_until)} hari dari siklus (${item.predicted_date})`
+                                                    : item.days_until === 0
+                                                    ? `Jatuh tempo HARI INI (${item.predicted_date})`
+                                                    : `Prediksi kebutuhan: ${item.predicted_date} (${item.days_until} hari lagi)`}
+                                            </p>
+                                        )}
+                                    </div>
+                                    <div className="flex items-start gap-2 sm:flex-col sm:items-end">
+                                        <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
+                                            Skor {item.score}
+                                        </span>
+                                        <span className="text-sm font-semibold whitespace-nowrap">
+                                            Saran:{' '}
+                                            {formatNumber(item.suggested_qty)}{' '}
+                                            {item.unit}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/10 p-3 text-xs text-muted-foreground">
+                            <span>
+                                Menampilkan{' '}
+                                {Math.min(
+                                    (currentPage - 1) * pageSize + 1,
+                                    totalItems,
+                                )}
+                                -
+                                {Math.min(
+                                    currentPage * pageSize,
+                                    totalItems,
+                                )}{' '}
+                                dari {totalItems} data
+                            </span>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 px-2 text-xs"
+                                    onClick={() =>
+                                        setCurrentPage((prev) =>
+                                            Math.max(1, prev - 1),
+                                        )
+                                    }
+                                    disabled={currentPage === 1}
+                                >
+                                    Sebelumnya
+                                </Button>
+                                <span>
+                                    Halaman {currentPage} dari {totalPages}
+                                </span>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 px-2 text-xs"
+                                    onClick={() =>
+                                        setCurrentPage((prev) =>
+                                            Math.min(totalPages, prev + 1),
+                                        )
+                                    }
+                                    disabled={currentPage >= totalPages}
+                                >
+                                    Selanjutnya
+                                </Button>
+                            </div>
+                        </div>
+                    </>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
 
 const parseFlexibleDate = (value) => {
     const text = String(value ?? '').trim();
@@ -179,6 +384,13 @@ export default function PurchaseRequirementIndex({
 }) {
     const [searchTerm, setSearchTerm] = useState('');
     const [activeTab, setActiveTab] = useState('customer');
+    const [stockInsights, setStockInsights] = useState([]);
+    const [opexInsights, setOpexInsights] = useState([]);
+    const [stockInsightLoading, setStockInsightLoading] = useState(false);
+    const [opexInsightLoading, setOpexInsightLoading] = useState(false);
+    const [stockInsightError, setStockInsightError] = useState('');
+    const [opexInsightError, setOpexInsightError] = useState('');
+    const insightLoadedRef = useRef({ stock: false, opex: false });
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
 
     const [purchaseRequirementsList, setPurchaseRequirementsList] = useState(
@@ -261,6 +473,42 @@ export default function PurchaseRequirementIndex({
     const [overdueDialogLoading, setOverdueDialogLoading] = useState(false);
     const [selectedInvoiceNo, setSelectedInvoiceNo] = useState('');
     const [invoiceDetailOpen, setInvoiceDetailOpen] = useState(false);
+
+    const loadInsights = useCallback(async (type, force = false) => {
+        if (insightLoadedRef.current[type] && !force) return;
+
+        const isStock = type === 'stock';
+        const setLoading = isStock
+            ? setStockInsightLoading
+            : setOpexInsightLoading;
+        const setError = isStock ? setStockInsightError : setOpexInsightError;
+        const setData = isStock ? setStockInsights : setOpexInsights;
+
+        setLoading(true);
+        setError('');
+        try {
+            const response = await fetch(
+                `/marketing/purchase-requirement/insights/${type}`,
+                { headers: { Accept: 'application/json' } },
+            );
+            const result = await response.json();
+            if (!response.ok || result.success === false) {
+                throw new Error(result.message || 'Gagal memuat rekomendasi.');
+            }
+            setData(result.recommendations ?? []);
+            insightLoadedRef.current[type] = true;
+        } catch (error) {
+            setError(error.message || 'Gagal memuat rekomendasi.');
+        } finally {
+            setLoading(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (activeTab !== 'insight') return;
+        loadInsights('stock');
+        loadInsights('opex');
+    }, [activeTab, loadInsights]);
 
     const handleOpenOverdueDialog = useCallback(async (customer) => {
         const normalizedCustomer = String(customer ?? '').trim();
@@ -466,9 +714,13 @@ export default function PurchaseRequirementIndex({
                     if (newPeriod === 'range' && startDate && endDate) {
                         materialUrl += `&start_date=${startDate}&end_date=${endDate}`;
                     }
-                    const materialResponse = await fetch(materialUrl, { headers: { Accept: 'application/json' } });
+                    const materialResponse = await fetch(materialUrl, {
+                        headers: { Accept: 'application/json' },
+                    });
                     const materialData = await materialResponse.json();
-                    setPurchaseRequirementsList(materialData.purchaseRequirements || []);
+                    setPurchaseRequirementsList(
+                        materialData.purchaseRequirements || [],
+                    );
                     setTableLoading(false);
                     return;
                 }
@@ -484,7 +736,8 @@ export default function PurchaseRequirementIndex({
                         {
                             headers: {
                                 Accept: 'application/json',
-                                'Cache-Control': 'no-cache, no-store, must-revalidate',
+                                'Cache-Control':
+                                    'no-cache, no-store, must-revalidate',
                             },
                             cache: 'no-store',
                         },
@@ -576,6 +829,10 @@ export default function PurchaseRequirementIndex({
     // Effect 2: Mengurus Data Tabel (Akan Fetch saat Tanggal ATAU Status diubah)
     const isTableMounted = useRef(false);
     useEffect(() => {
+        if (activeTab === 'insight') {
+            return;
+        }
+
         if (!isTableMounted.current) {
             isTableMounted.current = true;
             if (
@@ -723,7 +980,7 @@ export default function PurchaseRequirementIndex({
                 item.no_pr,
                 item.date,
                 item.for_customer,
-            item.ref_po,
+                item.ref_po,
             ];
             return values.some((value) =>
                 String(value ?? '')
@@ -1494,14 +1751,41 @@ export default function PurchaseRequirementIndex({
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div className="flex w-full gap-1 rounded-lg border border-sidebar-border/70 bg-muted/30 p-1">
-                        <button type="button" onClick={() => setActiveTab('customer')} className={`rounded-md px-3 py-2 text-sm font-semibold ${activeTab === 'customer' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}>
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('customer')}
+                            className={`rounded-md px-3 py-2 text-sm font-semibold ${activeTab === 'customer' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+                        >
                             Data PR Customer
                         </button>
-                        <button type="button" onClick={() => setActiveTab('material')} className={`rounded-md px-3 py-2 text-sm font-semibold ${activeTab === 'material' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}>
+                        <button
+                            type="button"
+                            onClick={() => setActiveTab('material')}
+                            className={`rounded-md px-3 py-2 text-sm font-semibold ${activeTab === 'material' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+                        >
                             Data PR Material
                         </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                if (!insightLoadedRef.current.stock) {
+                                    setStockInsightLoading(true);
+                                }
+                                if (!insightLoadedRef.current.opex) {
+                                    setOpexInsightLoading(true);
+                                }
+                                setActiveTab('insight');
+                            }}
+                            className={`rounded-md px-3 py-2 text-sm font-semibold ${activeTab === 'insight' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
+                        >
+                            Insight & Recommendation
+                        </button>
                     </div>
-                    <div className="flex flex-wrap items-center gap-3">
+                    <div
+                        className={`flex flex-wrap items-center gap-3 ${
+                            activeTab === 'insight' ? 'hidden' : ''
+                        }`}
+                    >
                         <label className="text-sm text-muted-foreground">
                             Tampilkan
                             <select
@@ -1585,12 +1869,20 @@ export default function PurchaseRequirementIndex({
                             </>
                         )}
                     </div>
-                    <label className="text-sm text-muted-foreground">
+                    <label
+                        className={`text-sm text-muted-foreground ${
+                            activeTab === 'insight' ? 'hidden' : ''
+                        }`}
+                    >
                         Cari
                         <input
                             type="search"
                             className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
-                            placeholder={activeTab === 'material' ? 'Cari material...' : 'Cari customer, no PR, ref PO...'}
+                            placeholder={
+                                activeTab === 'material'
+                                    ? 'Cari material...'
+                                    : 'Cari customer, no PR, ref PO...'
+                            }
                             value={searchTerm}
                             onChange={(event) =>
                                 setSearchTerm(event.target.value)
@@ -1599,153 +1891,236 @@ export default function PurchaseRequirementIndex({
                     </label>
                 </div>
 
-                <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                    <table className="w-full table-auto text-sm">
-                        <thead className="bg-muted/50 text-muted-foreground">
-                            <tr>
-                                <th className="w-px px-1 py-3 text-left whitespace-nowrap">
-                                    No PR
-                                </th>
-                                <th className="w-px px-1 py-3 text-left whitespace-nowrap">
-                                    Date
-                                </th>
-                                {activeTab === 'material' ? (
-                                    <>
-                                        <th className="px-1 py-3 text-left">Ref PO</th>
-                                        <th className="px-1 py-3 text-left">Customer</th>
-                                        <th className="px-1 py-3 text-left">Material</th>
-                                        <th className="px-1 py-3 text-right">Qty</th>
-                                        <th className="px-1 py-3 text-right">Sisa PR</th>
-                                    </>
-                                ) : (
-                                    <>
-                                        <th className="w-[40%] min-w-72 px-1 py-3 text-left">Customer</th>
-                                        <th className="w-max px-2 py-3 text-left whitespace-nowrap">Ref PO</th>
-                                        <th className="px-2 py-3 text-left">Jenis PR</th>
-                                        <th className="w-28 px-2 py-3 text-left">Action</th>
-                                    </>
-                                )}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <PlainTableStateRows
-                                columns={activeTab === 'material' ? 8 : 5}
-                                loading={
-                                    tableLoading &&
-                                    displayedPurchaseRequirements.length === 0
-                                }
-                                isEmpty={
-                                    !tableLoading &&
-                                    displayedPurchaseRequirements.length === 0
-                                }
-                                emptyMessage="Belum ada data PR."
-                            />
-                            {displayedPurchaseRequirements.map((item) => (
-                                <tr
-                                    key={`${activeTab}-${item.no_pr}-${item.material ?? ''}`}
-                                    className="border-t border-sidebar-border/70"
-                                >
-                                    <td className="w-px px-1 py-3 whitespace-nowrap">
-                                        {item.no_pr}
-                                    </td>
-                                    <td className="w-px px-1 py-3 whitespace-nowrap">
-                                        {item.date}
-                                    </td>
-                                    {activeTab === 'material' ? (
-                                        <>
-                                            <td className="px-1 py-3 whitespace-nowrap">{item.ref_po ?? '-'}</td>
-                                            <td className="px-1 py-3">
-                                                {renderCustomersWithOverdueMarkers(
-                                                    item.for_customer,
-                                                )}
-                                            </td>
-                                            <td className="px-1 py-3">{item.material ?? '-'}</td>
-                                            <td className="px-1 py-3 text-right whitespace-nowrap">{item.qty ?? 0} {item.unit ?? ''}</td>
-                                            <td className="px-1 py-3 text-right whitespace-nowrap">{item.sisa_pr ?? 0}</td>
-                                        </>
-                                    ) : <>
-                                    <td className="w-[40%] min-w-72 px-1 py-3 align-top [overflow-wrap:anywhere] whitespace-normal">
-                                        {renderCustomersWithOverdueMarkers(
-                                            item.for_customer,
-                                        )}
-                                    </td>
-                                    <td className="w-max px-2 py-3 align-top whitespace-nowrap">
-                                        {renderRefPoValues(item.ref_po)}
-                                    </td>
-                                    <td className="px-2 py-3 align-top text-sm [overflow-wrap:anywhere] whitespace-normal">
-                                        {item.jenis_pr ?? '-'}
-                                    </td>
-                                    <td className="w-28 px-2 py-3 align-top whitespace-nowrap">
-                                        <div className="flex min-w-max items-center gap-2">
-                                            <button
-                                                type="button"
-                                                onClick={() =>
-                                                    handleOpenModal(item)
-                                                }
-                                                className="text-muted-foreground transition hover:text-foreground"
-                                                title="Lihat"
-                                            >
-                                                <Eye className="size-4" />
-                                            </button>
-                                            <a
-                                                href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/print`}
-                                                className="text-muted-foreground transition hover:text-foreground"
-                                                title="Cetak"
-                                                target="_blank"
-                                                rel="noreferrer"
-                                            >
-                                                <Printer className="size-4" />
-                                            </a>
-                                        </div>
-                                    </td>
-                                    </>}
-                                </tr>
-                            ))}
-                        </tbody>
-                    </table>
-                </div>
-
-                {pageSize !== Infinity && totalItems > 0 && (
-                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                        <span>
-                            Menampilkan{' '}
-                            {Math.min(
-                                (currentPage - 1) * pageSize + 1,
-                                totalItems,
-                            )}
-                            -{Math.min(currentPage * pageSize, totalItems)} dari{' '}
-                            {totalItems} data
-                        </span>
-                        <div className="flex items-center gap-2">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                    setCurrentPage((page) =>
-                                        Math.max(1, page - 1),
-                                    )
-                                }
-                                disabled={currentPage === 1}
-                            >
-                                Sebelumnya
-                            </Button>
-                            <span className="text-sm text-muted-foreground">
-                                Halaman {currentPage} dari {totalPages}
-                            </span>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={() =>
-                                    setCurrentPage((page) =>
-                                        Math.min(totalPages, page + 1),
-                                    )
-                                }
-                                disabled={currentPage === totalPages}
-                            >
-                                Berikutnya
-                            </Button>
+                {activeTab === 'insight' ? (
+                    <section className="w-full space-y-4">
+                        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
+                            <h2 className="flex items-center gap-2 font-semibold">
+                                <BrainCircuit className="size-5 text-primary" />
+                                Rekomendasi Purchase Requirement
+                            </h2>
+                            <p className="mt-1 text-sm text-muted-foreground">
+                                Dihitung dari tren penjualan, landed cost PO
+                                termasuk alokasi biaya kirim, dan pola pembelian
+                                PR Opex.
+                            </p>
                         </div>
-                    </div>
+                        <div className="grid gap-4 xl:grid-cols-2">
+                            <InsightRecommendationPanel
+                                title="PR For Stock"
+                                description="Material berpeluang dijadikan stok berdasarkan demand dan landed cost."
+                                data={stockInsights}
+                                loading={stockInsightLoading}
+                                error={stockInsightError}
+                                onRetry={() => loadInsights('stock', true)}
+                                type="stock"
+                            />
+                            <InsightRecommendationPanel
+                                title="PR For Opex"
+                                description="Prediksi kebutuhan operasional dari pola interval pembelian Opex."
+                                data={opexInsights}
+                                loading={opexInsightLoading}
+                                error={opexInsightError}
+                                onRetry={() => loadInsights('opex', true)}
+                                type="opex"
+                            />
+                        </div>
+                    </section>
+                ) : (
+                    <>
+                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                            <table className="w-full table-auto text-sm">
+                                <thead className="bg-muted/50 text-muted-foreground">
+                                    <tr>
+                                        <th className="w-px px-1 py-3 text-left whitespace-nowrap">
+                                            No PR
+                                        </th>
+                                        <th className="w-px px-1 py-3 text-left whitespace-nowrap">
+                                            Date
+                                        </th>
+                                        {activeTab === 'material' ? (
+                                            <>
+                                                <th className="px-1 py-3 text-left">
+                                                    Ref PO
+                                                </th>
+                                                <th className="px-1 py-3 text-left">
+                                                    Customer
+                                                </th>
+                                                <th className="px-1 py-3 text-left">
+                                                    Material
+                                                </th>
+                                                <th className="px-1 py-3 text-right">
+                                                    Qty
+                                                </th>
+                                                <th className="px-1 py-3 text-right">
+                                                    Sisa PR
+                                                </th>
+                                            </>
+                                        ) : (
+                                            <>
+                                                <th className="w-[40%] min-w-72 px-1 py-3 text-left">
+                                                    Customer
+                                                </th>
+                                                <th className="w-max px-2 py-3 text-left whitespace-nowrap">
+                                                    Ref PO
+                                                </th>
+                                                <th className="px-2 py-3 text-left">
+                                                    Jenis PR
+                                                </th>
+                                                <th className="w-28 px-2 py-3 text-left">
+                                                    Action
+                                                </th>
+                                            </>
+                                        )}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <PlainTableStateRows
+                                        columns={
+                                            activeTab === 'material' ? 8 : 5
+                                        }
+                                        loading={
+                                            tableLoading &&
+                                            displayedPurchaseRequirements.length ===
+                                                0
+                                        }
+                                        isEmpty={
+                                            !tableLoading &&
+                                            displayedPurchaseRequirements.length ===
+                                                0
+                                        }
+                                        emptyMessage="Belum ada data PR."
+                                    />
+                                    {displayedPurchaseRequirements.map(
+                                        (item) => (
+                                            <tr
+                                                key={`${activeTab}-${item.no_pr}-${item.material ?? ''}`}
+                                                className="border-t border-sidebar-border/70"
+                                            >
+                                                <td className="w-px px-1 py-3 whitespace-nowrap">
+                                                    {item.no_pr}
+                                                </td>
+                                                <td className="w-px px-1 py-3 whitespace-nowrap">
+                                                    {item.date}
+                                                </td>
+                                                {activeTab === 'material' ? (
+                                                    <>
+                                                        <td className="px-1 py-3 whitespace-nowrap">
+                                                            {item.ref_po ?? '-'}
+                                                        </td>
+                                                        <td className="px-1 py-3">
+                                                            {renderCustomersWithOverdueMarkers(
+                                                                item.for_customer,
+                                                            )}
+                                                        </td>
+                                                        <td className="px-1 py-3">
+                                                            {item.material ??
+                                                                '-'}
+                                                        </td>
+                                                        <td className="px-1 py-3 text-right whitespace-nowrap">
+                                                            {item.qty ?? 0}{' '}
+                                                            {item.unit ?? ''}
+                                                        </td>
+                                                        <td className="px-1 py-3 text-right whitespace-nowrap">
+                                                            {item.sisa_pr ?? 0}
+                                                        </td>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <td className="w-[40%] min-w-72 px-1 py-3 align-top [overflow-wrap:anywhere] whitespace-normal">
+                                                            {renderCustomersWithOverdueMarkers(
+                                                                item.for_customer,
+                                                            )}
+                                                        </td>
+                                                        <td className="w-max px-2 py-3 align-top whitespace-nowrap">
+                                                            {renderRefPoValues(
+                                                                item.ref_po,
+                                                            )}
+                                                        </td>
+                                                        <td className="px-2 py-3 align-top text-sm [overflow-wrap:anywhere] whitespace-normal">
+                                                            {item.jenis_pr ??
+                                                                '-'}
+                                                        </td>
+                                                        <td className="w-28 px-2 py-3 align-top whitespace-nowrap">
+                                                            <div className="flex min-w-max items-center gap-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() =>
+                                                                        handleOpenModal(
+                                                                            item,
+                                                                        )
+                                                                    }
+                                                                    className="text-muted-foreground transition hover:text-foreground"
+                                                                    title="Lihat"
+                                                                >
+                                                                    <Eye className="size-4" />
+                                                                </button>
+                                                                <a
+                                                                    href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/print`}
+                                                                    className="text-muted-foreground transition hover:text-foreground"
+                                                                    title="Cetak"
+                                                                    target="_blank"
+                                                                    rel="noreferrer"
+                                                                >
+                                                                    <Printer className="size-4" />
+                                                                </a>
+                                                            </div>
+                                                        </td>
+                                                    </>
+                                                )}
+                                            </tr>
+                                        ),
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+
+                        {pageSize !== Infinity && totalItems > 0 && (
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                <span>
+                                    Menampilkan{' '}
+                                    {Math.min(
+                                        (currentPage - 1) * pageSize + 1,
+                                        totalItems,
+                                    )}
+                                    -
+                                    {Math.min(
+                                        currentPage * pageSize,
+                                        totalItems,
+                                    )}{' '}
+                                    dari {totalItems} data
+                                </span>
+                                <div className="flex items-center gap-2">
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setCurrentPage((page) =>
+                                                Math.max(1, page - 1),
+                                            )
+                                        }
+                                        disabled={currentPage === 1}
+                                    >
+                                        Sebelumnya
+                                    </Button>
+                                    <span className="text-sm text-muted-foreground">
+                                        Halaman {currentPage} dari {totalPages}
+                                    </span>
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() =>
+                                            setCurrentPage((page) =>
+                                                Math.min(totalPages, page + 1),
+                                            )
+                                        }
+                                        disabled={currentPage === totalPages}
+                                    >
+                                        Berikutnya
+                                    </Button>
+                                </div>
+                            </div>
+                        )}
+                    </>
                 )}
 
                 <Dialog
@@ -2831,7 +3206,9 @@ export default function PurchaseRequirementIndex({
                                                     {item.no_pr}
                                                 </td>
                                                 <td className="w-1 px-2 py-2 whitespace-nowrap">
-                                                    {item.date || item.pr_date || '-'}
+                                                    {item.date ||
+                                                        item.pr_date ||
+                                                        '-'}
                                                 </td>
                                                 <td className="w-full min-w-0 px-2 py-2 whitespace-nowrap">
                                                     <div className="min-w-0">

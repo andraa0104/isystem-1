@@ -49,6 +49,64 @@ const getCellText = (value) =>
         .replace(/\s+/g, ' ')
         .trim();
 
+const clamp = (value, minimum, maximum) =>
+    Math.min(Math.max(value, minimum), maximum);
+
+const getDetailColumnWidths = (details) => {
+    const descriptionLengths = details.map(
+        (detail) => getCellText(detail.Material).length,
+    );
+    const remarkLengths = details.map(
+        (detail) => getCellText(detail.Remark).length,
+    );
+    const longestDescription = Math.max(0, ...descriptionLengths);
+    const longestRemark = Math.max(0, ...remarkLengths);
+    const longestPrice = Math.max(
+        0,
+        ...details.map((detail) => formatNumber(detail.Harga).length),
+    );
+    const longestUnit = Math.max(
+        'Unit'.length,
+        ...details.map((detail) => getCellText(detail.Satuan).length),
+    );
+
+    // Kolom tetap: No. 4%, Qty 4%. Unit dan Price mengikuti isi data.
+    const unitWidth = clamp(3 + Math.ceil(longestUnit / 4), 5, 7);
+    const priceWidth = clamp(7 + Math.ceil(longestPrice / 4), 8, 14);
+    const availableWidth = 100 - 4 - 4 - unitWidth - priceWidth;
+    const minimumDescription = 30;
+    const minimumRemark = longestRemark ? 9 : 6;
+    const flexibleWidth = availableWidth - minimumDescription - minimumRemark;
+    const averageDescription =
+        descriptionLengths.reduce((total, length) => total + length, 0) /
+        Math.max(descriptionLengths.length, 1);
+    const averageRemark =
+        remarkLengths.reduce((total, length) => total + length, 0) /
+        Math.max(remarkLengths.length, 1);
+    const descriptionScore = Math.max(
+        longestDescription * 0.9 + averageDescription * 0.1,
+        1,
+    );
+    // Remark diberi bobot lebih karena spesifikasi biasanya berupa beberapa
+    // baris; ini mencegah ruang kosong Description saat Remark masih membungkus.
+    const remarkScore = Math.max(longestRemark * 1.5 + averageRemark * 0.25, 0);
+    const totalScore = descriptionScore + remarkScore;
+    const remarkExtra = totalScore
+        ? Math.round(flexibleWidth * (remarkScore / totalScore))
+        : 0;
+    const remarkWidth = clamp(minimumRemark + remarkExtra, minimumRemark, 42);
+    const descriptionWidth = availableWidth - remarkWidth;
+
+    return [
+        '4%',
+        `${descriptionWidth}%`,
+        '4%',
+        `${unitWidth}%`,
+        `${priceWidth}%`,
+        `${remarkWidth}%`,
+    ];
+};
+
 export default function QuotationPrint({
     quotation,
     quotationDetails = [],
@@ -92,47 +150,10 @@ export default function QuotationPrint({
         return lines;
     }, [company.address, company.kota, company.email, company.phone]);
 
-    const detailColumnWidths = useMemo(() => {
-        const remarkLengths = quotationDetails
-            .map((detail) => getCellText(detail.Remark).length)
-            .filter(Boolean);
-        const longestDescription = Math.max(
-            0,
-            ...quotationDetails.map(
-                (detail) => getCellText(detail.Material).length,
-            ),
-        );
-        const longestPrice = Math.max(
-            0,
-            ...quotationDetails.map(
-                (detail) => formatNumber(detail.Harga).length,
-            ),
-        );
-        const longestRemark = Math.max(0, ...remarkLengths);
-        let priceWidth = 12;
-        if (longestPrice <= 7) {
-            priceWidth = 9;
-        } else if (longestPrice <= 10) {
-            priceWidth = 10;
-        }
-
-        let remarkWidth = 28;
-        if (remarkLengths.length === 0) {
-            remarkWidth = 10;
-        } else if (longestRemark <= 20 || longestRemark <= longestDescription) {
-            remarkWidth = 18;
-        }
-        const descriptionWidth = 100 - 4 - 4 - 7 - priceWidth - remarkWidth;
-
-        return [
-            '4%',
-            `${descriptionWidth}%`,
-            '4%',
-            '7%',
-            `${priceWidth}%`,
-            `${remarkWidth}%`,
-        ];
-    }, [quotationDetails]);
+    const detailColumnWidths = useMemo(
+        () => getDetailColumnWidths(quotationDetails),
+        [quotationDetails],
+    );
 
     return (
         <div className="min-h-screen bg-white text-black">
