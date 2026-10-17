@@ -112,28 +112,12 @@ def stock(payload):
         cost_date = date(row.get('tgl')) or today
         costs.setdefault(item_key, []).append((cost_date, landed, qty))
 
-    # 3. Include fast moving items from tb_barang even if no recent sales in 180 days
-    all_keys = set(groups.keys())
-    for s_row in stocks_payload:
-        cat = str(s_row.get('category') or '').upper()
-        cur_stock = number(s_row.get('current_stock'))
-        s_code = str(s_row.get('material_code') or '').strip()
-        s_mat = str(s_row.get('material') or '').strip()
-        s_key = s_code or s_mat
-        if s_key and 'FAST' in cat and cur_stock <= 2:
-            all_keys.add(s_key)
+    # 3. Only evaluate materials with actual sales history (tren penjualan riil)
+    all_keys = [k for k, g in groups.items() if g.get('total_qty', 0) > 0 and len(g.get('dates', [])) > 0]
 
     result = []
     for item_key in all_keys:
-        item = groups.get(item_key, {
-            'material_code': item_key if item_key.isdigit() else '',
-            'material': item_key,
-            'unit': '',
-            'total_qty': 0.0,
-            'invoices': set(),
-            'dates': [],
-            'qtys': [],
-        })
+        item = groups[item_key]
 
         # Match with tb_barang stock
         stock_info = lookup_stock(stock_by_code, stock_by_name, item.get('material_code'), item.get('material'))
@@ -143,11 +127,11 @@ def stock(payload):
         mat_name = stock_info.get('material') or item.get('material') or item_key
         mat_code = stock_info.get('material_code') or item.get('material_code') or ''
 
-        # Calculate sales demand
+        # Calculate sales demand based on sales trend
         dates = item.get('dates', [])
         invoice_count = len(item.get('invoices', []))
 
-        # Recent sales window
+        # Recent sales window (tren 30, 90, 180 hari)
         qty_30 = sum(q for d, q in zip(dates, item.get('qtys', [])) if (today - d).days <= 30)
         qty_90 = sum(q for d, q in zip(dates, item.get('qtys', [])) if (today - d).days <= 90)
         qty_180 = item.get('total_qty', 0.0)
@@ -158,19 +142,15 @@ def stock(payload):
         median_landed = statistics.median([row[1] for row in history]) if history else 0.0
         saving = ((median_landed - latest_landed) / median_landed * 100) if median_landed > 0 else 0.0
 
-        # Estimated 30-day demand (D30)
-        if qty_180 > 0:
-            if qty_30 > 0:
-                demand_30 = max(qty_30, round(0.6 * (qty_90 / 3.0) + 0.4 * (qty_180 / 6.0)))
-            else:
-                demand_30 = max(1.0, round(qty_180 / 6.0))
-        elif 'FAST' in category.upper():
-            po_qtys = [row[2] for row in history if row[2] > 0]
-            demand_30 = max(1.0, round(statistics.median(po_qtys))) if po_qtys else 2.0
+        # Estimated 30-day demand (D30) strictly from sales trend
+        if qty_30 > 0:
+            # Tren penjualan aktif dalam 30 hari terakhir
+            demand_30 = max(qty_30, round(0.6 * (qty_90 / 3.0) + 0.4 * (qty_180 / 6.0)))
         else:
-            continue
+            # Penjualan dalam rentang 180 hari
+            demand_30 = max(1.0, round(qty_180 / 6.0))
 
-        # Days of Inventory (DOI) based on tb_barang current_stock
+        # Days of Inventory (DOI) based on tb_barang current_stock vs sales burn rate
         daily_burn = demand_30 / 30.0
         if current_stock <= 0:
             days_of_inventory = 0
@@ -197,29 +177,28 @@ def stock(payload):
             continue
 
         # Multi-factor score (0 - 100)
-        # 1. Stock Urgency from tb_barang (max 45 pts)
+        # 1. Tren Penjualan & Velocity (Bobot utama: maks 45 pts)
+        # Rutinitas invoice penjualan + volume demand
+        sales_trend_score = min(25, invoice_count * 5) + min(20, round(demand_30 / 1.5))
+
+        # 2. Urgensi Stok Gudang (Maks 35 pts)
         if current_stock <= 0:
-            urgency_score = 45
+            urgency_score = 35
         elif days_of_inventory <= 7:
-            urgency_score = 40
+            urgency_score = 30
         elif days_of_inventory <= 15:
-            urgency_score = 32
-        elif days_of_inventory <= 30:
             urgency_score = 22
+        elif days_of_inventory <= 30:
+            urgency_score = 15
         elif days_of_inventory <= 45:
-            urgency_score = 12
+            urgency_score = 8
         else:
             urgency_score = 0
 
-        # 2. Demand Velocity & Regularity (max 35 pts)
-        velocity_score = min(20, invoice_count * 4) + min(10, round(demand_30 / 2))
-        if 'FAST' in category.upper():
-            velocity_score += 5
-
-        # 3. Cost Saving / Arbitrage (max 20 pts)
+        # 3. Cost Saving / Peluang Harga PO (Maks 20 pts)
         cost_score = min(20, round(saving * 0.6)) if saving >= 5 else 0
 
-        total_score = urgency_score + velocity_score + cost_score
+        total_score = sales_trend_score + urgency_score + cost_score
         if days_of_inventory > 45:
             total_score -= 25
         score = min(100, max(5, round(total_score)))
@@ -233,13 +212,7 @@ def stock(payload):
         else:
             reasons.append(f"Stok Gudang: {current_stock:g} {unit_label} (cukup ±{days_of_inventory} hari)")
 
-        if invoice_count > 0:
-            reasons.append(f"{invoice_count} invoice (180 hr), proyeksi kebutuhan 30 hr: {demand_30:.0f} {unit_label}")
-        elif 'FAST' in category.upper():
-            reasons.append(f"Kategori FAST MOVING (estimasi siklus: {demand_30:.0f} {unit_label})")
-
-        if category:
-            reasons.append(f"Kategori: {category}")
+        reasons.append(f"Tren penjualan: {invoice_count} invoice (180 hr), proyeksi kebutuhan 30 hr: {demand_30:.0f} {unit_label}")
 
         if saving >= 5:
             reasons.append(f"Landed cost terbaru {saving:.1f}% di bawah median historis")
