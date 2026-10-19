@@ -75,7 +75,24 @@ const getDetailColumnWidths = (details) => {
     const priceWidth = clamp(7 + Math.ceil(longestPrice / 4), 8, 14);
     const availableWidth = 100 - 4 - 4 - unitWidth - priceWidth;
     const minimumDescription = 30;
-    const minimumRemark = longestRemark ? 9 : 6;
+    const minimumRemark = longestRemark ? 9 : 15;
+
+    // Saat tidak ada remark, batasi Description agar tidak mengambil hampir
+    // seluruh lebar tabel. Ruang yang tersisa tetap disediakan untuk kolom
+    // Remark sehingga komposisi tabel terlihat seimbang saat dicetak.
+    if (!longestRemark) {
+        const descriptionWidth = Math.min(60, availableWidth - minimumRemark);
+
+        return [
+            '4%',
+            `${descriptionWidth}%`,
+            '4%',
+            `${unitWidth}%`,
+            `${priceWidth}%`,
+            `${availableWidth - descriptionWidth}%`,
+        ];
+    }
+
     const flexibleWidth = availableWidth - minimumDescription - minimumRemark;
     const averageDescription =
         descriptionLengths.reduce((total, length) => total + length, 0) /
