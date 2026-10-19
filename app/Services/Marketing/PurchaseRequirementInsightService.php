@@ -35,7 +35,9 @@ class PurchaseRequirementInsightService
         }
 
         try {
-            $process = new Process([env('PYTHON_BINARY', 'python3'), $script, "--mode={$mode}"]);
+            $pythonBinary = config('services.purchase_requirement_python_binary')
+                ?: (PHP_OS_FAMILY === 'Windows' ? 'python' : 'python3');
+            $process = new Process([$pythonBinary, $script, "--mode={$mode}"]);
             $process->setInput(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
             $process->setTimeout(25);
             $process->run();
@@ -159,8 +161,6 @@ class PurchaseRequirementInsightService
         $codeCol = $this->firstExistingColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode']) ?? 'kd_material';
         $matCol = $this->firstExistingColumn('tb_barang', ['material', 'nama_material', 'mat', 'nama_barang']) ?? 'material';
         $unitCol = $this->firstExistingColumn('tb_barang', ['unit', 'satuan']) ?? 'unit';
-        $catCol = $this->firstExistingColumn('tb_barang', ['katagori_stok1', 'kategori_stok1']) ?? 'katagori_stok1';
-
         $stockColumns = array_filter(['stok_g1', 'stok_g2', 'stok_g3', 'stok_g4'], fn ($col) => Schema::hasColumn('tb_barang', $col));
         $stockExpr = !empty($stockColumns)
             ? implode(' + ', array_map(fn ($c) => "coalesce(cast(`{$c}` as decimal(18,4)), 0)", $stockColumns))
@@ -173,23 +173,79 @@ class PurchaseRequirementInsightService
             DB::raw("({$stockExpr}) as current_stock"),
         ];
 
-        if ($catCol) {
-            $selects[] = DB::raw("`{$catCol}` as category");
-        } else {
-            $selects[] = DB::raw("'' as category");
-        }
-
-        return DB::table('tb_barang')
+        $rows = DB::table('tb_barang')
             ->select($selects)
             ->get()
             ->map(fn ($row) => [
                 'material_code' => (string) ($row->material_code ?? ''),
                 'material' => (string) ($row->material ?? ''),
                 'unit' => (string) ($row->unit ?? ''),
-                'category' => (string) ($row->category ?? ''),
                 'current_stock' => (float) ($row->current_stock ?? 0),
             ])
             ->all();
+
+        $metrics = $this->stockMetricsByMaterial(array_column($rows, 'material_code'));
+
+        return array_map(function (array $row) use ($metrics): array {
+            $key = strtolower(trim($row['material_code']));
+            $extra = $metrics[$key] ?? [];
+            $physical = $row['current_stock'];
+            $available = max(0, $physical
+                + ($extra['mib'] ?? 0)
+                + ($extra['mis'] ?? 0)
+                + ($extra['mibs'] ?? 0)
+                + ($extra['pr_outstanding'] ?? 0)
+                + ($extra['po_outstanding'] ?? 0)
+                - ($extra['do_outstanding'] ?? 0));
+
+            return $row + $extra + ['available_stock' => $available];
+        }, $rows);
+    }
+
+    /**
+     * Match the inventory-position calculation already used by the PR material
+     * selector, while keeping the physical balance sourced from tb_barang.
+     */
+    private function stockMetricsByMaterial(array $materialCodes): array
+    {
+        $codes = array_values(array_unique(array_filter(array_map(
+            fn ($code) => trim((string) $code),
+            $materialCodes,
+        ))));
+        if (!$codes) return [];
+
+        $metrics = [];
+        $add = function (string $table, string $codeColumn, string $metric, string $expression) use (&$metrics, $codes): void {
+            if (!Schema::hasTable($table)
+                || !Schema::hasColumn($table, $codeColumn)) {
+                return;
+            }
+            $columns = Schema::getColumnListing($table);
+            preg_match_all('/[a-zA-Z_][a-zA-Z0-9_]*/', $expression, $matches);
+            foreach ($matches[0] as $column) {
+                if (in_array(strtolower($column), ['sum', 'coalesce', 'cast', 'decimal'], true)) continue;
+                if (!in_array(strtolower($column), array_map('strtolower', $columns), true)) return;
+            }
+
+            $rows = DB::table($table)
+                ->whereIn($codeColumn, $codes)
+                ->selectRaw("{$codeColumn} as material_code, sum({$expression}) as metric_value")
+                ->groupBy($codeColumn)
+                ->get();
+            foreach ($rows as $row) {
+                $key = strtolower(trim((string) $row->material_code));
+                $metrics[$key][$metric] = (float) ($row->metric_value ?? 0);
+            }
+        };
+
+        $add('tb_mi', 'kd_mat', 'mib', 'coalesce(cast(mib as decimal(18,4)), 0)');
+        $add('tb_mi', 'kd_mat', 'mis', 'coalesce(cast(mis as decimal(18,4)), 0)');
+        $add('tb_mib', 'kd_mat', 'mibs', 'coalesce(cast(qty as decimal(18,4)), 0) - coalesce(cast(transfer as decimal(18,4)), 0)');
+        $add('tb_detailpr', 'kd_material', 'pr_outstanding', 'coalesce(cast(sisa_pr as decimal(18,4)), 0)');
+        $add('tb_detailpo', 'kd_mat', 'po_outstanding', 'coalesce(cast(gr_mat as decimal(18,4)), 0)');
+        $add('tb_detailpoin', 'kd_material', 'do_outstanding', 'coalesce(cast(sisa_qtydo as decimal(18,4)), 0)');
+
+        return $metrics;
     }
 
     private function opexHistory(): array

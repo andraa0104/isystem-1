@@ -2,6 +2,11 @@
 
 return [
 
+    'purchase_requirement_python_binary' => env(
+        'PYTHON_BINARY',
+        PHP_OS_FAMILY === 'Windows' ? 'python' : 'python3',
+    ),
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

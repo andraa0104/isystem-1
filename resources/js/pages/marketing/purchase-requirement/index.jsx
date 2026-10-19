@@ -183,6 +183,18 @@ function InsightRecommendationPanel({
                                                     Stok Gudang: {formatNumber(item.current_stock)} {item.unit}
                                                 </span>
                                             )}
+                                            {item.available_stock !== undefined && (
+                                                <span
+                                                    title={
+                                                        item.stock_breakdown
+                                                            ? `Fisik ${item.stock_breakdown.physical}; MIB ${item.stock_breakdown.mib}; MIS ${item.stock_breakdown.mis}; MIBS ${item.stock_breakdown.mibs}; PR ${item.stock_breakdown.pr_outstanding}; PO ${item.stock_breakdown.po_outstanding}; DO ${item.stock_breakdown.do_outstanding}`
+                                                            : undefined
+                                                    }
+                                                    className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary"
+                                                >
+                                                    Stok tersedia: {formatNumber(item.available_stock)} {item.unit}
+                                                </span>
+                                            )}
                                         </div>
                                         <p className="mt-1 text-xs text-muted-foreground">
                                             {(item.reasons ?? []).join(' • ')}
@@ -236,8 +248,9 @@ function InsightRecommendationPanel({
                                         )}
                                         <span className="text-sm font-semibold whitespace-nowrap">
                                             Saran:{' '}
-                                            {formatNumber(item.suggested_qty)}{' '}
-                                            {item.unit}
+                                            {item.suggested_qty === null || item.suggested_qty === undefined
+                                                ? 'Perlu ditinjau'
+                                                : `${formatNumber(item.suggested_qty)} ${item.unit}`}
                                         </span>
                                     </div>
                                 </div>
