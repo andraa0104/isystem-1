@@ -221,6 +221,19 @@ function InsightRecommendationPanel({
                                         <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
                                             Skor {item.score}
                                         </span>
+                                        {item.confidence && (
+                                            <span
+                                                className={`rounded-full px-2 py-1 text-xs font-medium ${
+                                                    item.confidence === 'Tinggi'
+                                                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                                                        : item.confidence === 'Sedang'
+                                                          ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                                                          : 'bg-muted text-muted-foreground'
+                                                }`}
+                                            >
+                                                Keyakinan {item.confidence}
+                                            </span>
+                                        )}
                                         <span className="text-sm font-semibold whitespace-nowrap">
                                             Saran:{' '}
                                             {formatNumber(item.suggested_qty)}{' '}

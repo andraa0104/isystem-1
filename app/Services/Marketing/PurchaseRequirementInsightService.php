@@ -62,13 +62,20 @@ class PurchaseRequirementInsightService
         $date = "coalesce(date(f.tgl_doc), str_to_date(f.tgl_doc, '%Y-%m-%d'), str_to_date(f.tgl_doc, '%d.%m.%Y'), str_to_date(f.tgl_doc, '%d/%m/%Y'))";
         return DB::table('tb_fakturpenjualan as f')
             ->join('tb_do as d', 'f.no_do', '=', 'd.no_do')
-            ->whereRaw("{$date} >= date_sub(current_date(), interval 180 day)")
+            // Keep multiple seasonal cycles where available; the forecasting engine
+            // will backtest only the history each material actually has.
+            ->whereRaw("{$date} >= date_sub(current_date(), interval 3 year)")
+            ->whereRaw("{$date} <= current_date()")
             ->whereNotNull('d.mat')
             ->whereRaw("trim(d.mat) <> ''")
-            ->get([
-                'd.kd_mat as material_code', 'd.mat as material', 'd.unit', 'd.qty',
-                'f.no_fakturpenjualan as invoice_no', DB::raw("{$date} as date"),
+            ->select([
+                DB::raw('d.kd_mat as material_code'), DB::raw('d.mat as material'), 'd.unit',
+                DB::raw('sum(coalesce(cast(d.qty as decimal(18,4)), 0)) as qty'),
+                DB::raw("{$date} as date"),
             ])
+            ->groupBy('d.kd_mat', 'd.mat', 'd.unit')
+            ->groupByRaw($date)
+            ->get()
             ->map(fn ($row) => (array) $row)
             ->all();
     }
