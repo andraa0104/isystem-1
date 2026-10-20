@@ -46,7 +46,10 @@ def index_stocks(rows):
             'unit': str(row.get('unit') or '').strip(),
             'current_stock': number(row.get('current_stock')),
             'available_stock': number(row.get('available_stock', row.get('current_stock'))),
+            'stock_matched': True,
         }
+        for metric in ('mib', 'mis', 'mibs', 'pr_outstanding', 'po_outstanding', 'do_outstanding'):
+            entry[metric] = number(row.get(metric))
         if entry['material_code']:
             by_code[key(entry['material_code'])] = entry
         if entry['material']:
@@ -56,11 +59,15 @@ def index_stocks(rows):
 
 def find_stock(indexes, code, material):
     by_code, by_name = indexes
-    return (by_code.get(key(code)) or by_name.get(key(material)) or {
+    if code and key(code) in by_code:
+        return by_code[key(code)]
+    if not code and key(material) in by_name:
+        return by_name[key(material)]
+    return {
         'material_code': str(code or '').strip(), 'material': str(material or '').strip(),
-        'unit': '', 'current_stock': 0.0,
+        'unit': '', 'current_stock': 0.0, 'stock_matched': False,
         'available_stock': 0.0,
-    })
+    }
 
 
 def croston_sba(values, alpha=0.1):
@@ -98,13 +105,51 @@ def model_rates(values):
         return sum(seq) / len(seq) if seq else 0.0
     candidates = {
         'recent_average': mean(values[-30:]),
+        'recent_60_average': mean(values[-60:]),
         'weighted_average': 0.6 * mean(values[-30:]) + 0.4 * mean(values[-90:]),
     }
+    recent = mean(values[-30:])
+    previous = mean(values[-60:-30]) if len(values) > 30 else recent
+    candidates['damped_trend'] = max(0.0, min(recent * 1.5, recent + 0.5 * (recent - previous)))
+    # Compare the same calendar window a year earlier when it exists.
+    candidates['seasonal_year'] = (
+        mean(values[-395:-365]) if len(values) >= 395
+        else candidates['weighted_average']
+    )
     for alpha in (0.1, 0.2):
         candidates[f'croston_sba_a{alpha}'] = croston_sba(values, alpha)
         for beta in (0.1, 0.2):
             candidates[f'tsb_a{alpha}_b{beta}'] = tsb(values, alpha, beta)
     return candidates
+
+
+def model_description(name, context=None):
+    if name.startswith('croston_sba_'):
+        return 'Metode untuk barang dengan permintaan yang jarang atau tidak rutin'
+    if name.startswith('tsb_'):
+        return 'Metode yang memperhitungkan peluang dan jumlah permintaan tidak rutin'
+    if name.startswith('median_recent_'):
+        count = name[len('median_recent_'):]
+        subject = 'jumlah' if context == 'quantity' else 'jarak antar pembelian'
+        return f'Nilai tengah {subject} dari {count} transaksi terakhir'
+    if name == 'median_all':
+        subject = 'jumlah' if context == 'quantity' else 'jarak antar pembelian'
+        return f'Nilai tengah {subject} dari seluruh histori'
+    if name == 'exponential_smoothing':
+        return (
+            'Rata-rata jumlah pembelian dengan bobot lebih besar pada data terbaru'
+            if context == 'quantity'
+            else 'Perkiraan jarak pembelian dengan bobot lebih besar pada data terbaru'
+        )
+    descriptions = {
+        'recent_average': 'Rata-rata penjualan 30 hari terakhir',
+        'recent_60_average': 'Rata-rata penjualan 60 hari terakhir',
+        'weighted_average': 'Gabungan penjualan terbaru dengan bobot lebih besar pada data baru',
+        'damped_trend': 'Tren penjualan terbaru dengan kenaikan atau penurunan yang dibatasi',
+        'seasonal_year': 'Penjualan pada waktu yang sama tahun lalu',
+        'insufficient_history': 'Histori penjualan belum cukup untuk memilih metode',
+    }
+    return descriptions.get(name, 'Metode perkiraan berdasarkan histori')
 
 
 def percentile(values, fraction):
@@ -166,7 +211,7 @@ def select_recurrence_forecast(values):
 def forecast_rate(values):
     """Select the lowest-error candidate using expanding-window 30-day tests."""
     if len(values) <= HORIZON_DAYS:
-        return 0.0, 'insufficient_history', None, 0, None, 0.0
+        return 0.0, 'insufficient_history', None, 0, None, 0.0, None
     possible = list(range(max(30, len(values) - MAX_BACKTEST_ORIGINS * HORIZON_DAYS),
                           len(values) - HORIZON_DAYS + 1, HORIZON_DAYS))
     if len(possible) > MAX_BACKTEST_ORIGINS:
@@ -185,7 +230,7 @@ def forecast_rate(values):
             scale = sum(actual for _, actual in pairs)
             scores[name] = absolute / max(scale, 1.0)
     if not scores:
-        return max(0.0, model_rates(values)['weighted_average'] * HORIZON_DAYS), 'weighted_average', None, 0, None, 0.0
+        return max(0.0, model_rates(values)['weighted_average'] * HORIZON_DAYS), 'weighted_average', None, 0, None, 0.0, None
     selected = min(scores, key=scores.get)
 
     # Nested chronological validation: each held-out window is predicted by
@@ -212,6 +257,15 @@ def forecast_rate(values):
     baseline_scale = sum(actual for _, actual in baseline_errors)
     nested_baseline_wape = sum(abs(predicted - actual) for predicted, actual in baseline_errors) / max(baseline_scale, 1.0)
     under_forecasts = [max(0.0, actual - predicted) for predicted, actual in outer_errors]
+    evaluation = {
+        'actual_units': round(sum(actual for _, actual in outer_errors), 2),
+        'under_units': round(sum(max(0.0, actual - predicted) for predicted, actual in outer_errors), 2),
+        'over_units': round(sum(max(0.0, predicted - actual) for predicted, actual in outer_errors), 2),
+        'under_periods': sum(actual > predicted for predicted, actual in outer_errors),
+        'over_periods': sum(predicted > actual for predicted, actual in outer_errors),
+        'baseline_under_units': round(sum(max(0.0, actual - predicted) for predicted, actual in baseline_errors), 2),
+        'baseline_over_units': round(sum(max(0.0, predicted - actual) for predicted, actual in baseline_errors), 2),
+    }
     return (
         max(0.0, model_rates(values)[selected] * HORIZON_DAYS),
         selected,
@@ -219,6 +273,7 @@ def forecast_rate(values):
         len(outer_errors),
         nested_baseline_wape,
         percentile(under_forecasts, 0.8),
+        evaluation,
     )
 
 
@@ -235,6 +290,16 @@ def confidence_label(history_days, events, wape):
 def stock_forecast(payload):
     today = dt.date.today()
     indexes = index_stocks(payload.get('stocks'))
+    historical_prs = {}
+    for row in payload.get('stock_prs', []):
+        code = key(row.get('material_code'))
+        requested = parse_date(row.get('date'))
+        qty = number(row.get('qty'))
+        if not code or not requested or requested > today or qty <= 0:
+            continue
+        pr_key = (str(row.get('no_pr') or '').strip(), requested, key(row.get('unit')))
+        events = historical_prs.setdefault(code, {})
+        events[pr_key] = events.get(pr_key, 0.0) + qty
     groups = {}
     for row in payload.get('sales', []):
         code = str(row.get('material_code') or '').strip()
@@ -267,17 +332,32 @@ def stock_forecast(payload):
         # Daily zeros are essential for identifying intermittent demand.
         series = [item['sales'].get(today - dt.timedelta(days=offset), 0.0)
                   for offset in range(days - 1, -1, -1)]
-        demand_30, model, wape, folds, baseline_wape, error_buffer = forecast_rate(series)
+        demand_30, model, wape, folds, baseline_wape, error_buffer, evaluation = forecast_rate(series)
         indexes_for_stock = find_stock(indexes, item['material_code'], item['material'])
         current_stock = max(0.0, number(indexes_for_stock['current_stock']))
         available_stock = max(0.0, number(indexes_for_stock.get('available_stock', current_stock)))
         unit = item['unit'] or indexes_for_stock.get('unit') or 'PCS'
         material = indexes_for_stock.get('material') or item['material'] or item_key
         code = indexes_for_stock.get('material_code') or item['material_code']
+        pr_events = [
+            (date, qty) for (_, date, pr_unit), qty in historical_prs.get(key(code), {}).items()
+            if pr_unit == key(unit) and min(item['sales']) <= date <= today - dt.timedelta(days=HORIZON_DAYS)
+        ]
+        pr_sales = sum(
+            sum(qty for sold, qty in item['sales'].items()
+                if requested < sold <= requested + dt.timedelta(days=HORIZON_DAYS))
+            for requested, _ in pr_events
+        )
+        pr_history = {
+            'events': len(pr_events),
+            'requested_units': round(sum(qty for _, qty in pr_events), 2),
+            'sales_next_30d_units': round(pr_sales, 2),
+        }
         event_count = sum(1 for qty in series if qty > 0)
         history_days = len(series)
         enough_history = (
-            history_days >= 365
+            indexes_for_stock['stock_matched']
+            and history_days >= 365
             and event_count >= 12
             and folds >= 4
             and wape is not None
@@ -306,30 +386,41 @@ def stock_forecast(payload):
         median = statistics.median(price for _, price in history) if history else 0.0
         saving = (median - latest) / median * 100 if median > 0 else 0.0
         reasons = [
-            f"Model terpilih dari uji historis: {model}",
+            f"Metode perkiraan terpilih dari uji data: {model_description(model)}",
             f"Perkiraan kebutuhan 30 hari: {demand_30:.1f} {unit}",
-            f"Galat forecast permintaan WAPE: {wape * 100:.1f}% ({folds} periode uji)" if wape is not None else 'Histori belum cukup untuk memvalidasi galat forecast permintaan',
-            f"Baseline rata-rata terbaru WAPE: {baseline_wape * 100:.1f}%" if baseline_wape is not None else 'Baseline belum dapat divalidasi dengan histori ini',
-            f"Buffer stok dari persentil ke-80 kesalahan prediksi: {error_buffer:.1f} {unit}",
-            f"Stok fisik {current_stock:g} {unit}; stok tersedia setelah komitmen {available_stock:g} {unit}",
-            f"Cakupan stok tersedia sekitar {doi} hari" if doi < 999 else 'Belum ada laju permintaan untuk menghitung cakupan stok',
+            f"Selisih prediksi dengan penjualan aktual: {wape * 100:.1f}% ({folds} pengujian)" if wape is not None else 'Histori belum cukup untuk memeriksa ketepatan perkiraan penjualan',
+            f"Pembanding sederhana (rata-rata penjualan terbaru) memiliki selisih {baseline_wape * 100:.1f}%" if baseline_wape is not None else 'Histori belum cukup untuk membuat pembanding sederhana',
+            f"Tambahan stok pengaman berdasarkan kesalahan prediksi sebelumnya: {error_buffer:.1f} {unit}",
+            f"Stok gudang saat ini {current_stock:g} {unit}",
+            'Perhitungan saran juga mempertimbangkan PR/PO yang berjalan dan barang yang akan dikirim',
+            f"Perkiraan stok mencukupi sekitar {doi} hari (termasuk komitmen)" if doi < 999 else 'Belum ada laju permintaan untuk memperkirakan cakupan stok',
         ]
         if not enough_history:
-            if history_days < 365 or event_count < 12 or folds < 4:
-                reasons.append('Histori belum cukup panjang atau kejadian penjualannya terlalu sedikit untuk saran otomatis')
+            if not indexes_for_stock['stock_matched']:
+                reasons.append('Kode material tidak cocok dengan tb_barang; stok perlu diperiksa')
+            if history_days < 365:
+                reasons.append(f'Histori {history_days} hari; perlu minimal 365 hari')
+            if event_count < 12:
+                reasons.append(f'Hari dengan penjualan {event_count}; perlu minimal 12 hari')
+            if folds < 4:
+                reasons.append(f'Baru {folds} kali pengujian; perlu minimal 4 kali')
             if wape is not None and wape > 0.40:
-                reasons.append('Galat validasi di atas ambang kelayakan saran otomatis')
+                reasons.append(f'Prediksi belum cukup akurat untuk saran otomatis (selisih {wape * 100:.1f}%; batas 40%)')
             if wape is not None and baseline_wape is not None and wape > baseline_wape * 1.05:
-                reasons.append('Hasil model belum konsisten lebih baik daripada baseline rata-rata')
+                reasons.append('Perkiraan ini belum lebih akurat daripada pembanding rata-rata sederhana')
         if saving >= 5:
-            reasons.append(f"Landed cost terbaru {saving:.1f}% di bawah median historis")
+            reasons.append(f"Biaya pembelian terbaru {saving:.1f}% lebih rendah daripada nilai tengah historis")
         recommendations.append({
             'material_code': code, 'material': material, 'unit': unit, 'score': score,
             'suggested_qty': suggested, 'current_stock': round(current_stock, 2),
+            'stock_matched': indexes_for_stock['stock_matched'],
             'available_stock': round(available_stock, 2),
             'days_of_inventory': doi, 'forecast_30d': round(demand_30, 2),
             'forecast_model': model, 'backtest_wape': round(wape, 4) if wape is not None else None,
+            'backtest_periods': folds,
             'backtest_error_buffer': round(error_buffer, 2),
+            'backtest_inventory_proxy': evaluation,
+            'historical_stock_pr': pr_history,
             'baseline_wape': round(baseline_wape, 4) if baseline_wape is not None else None,
             'confidence': confidence, 'history_days': history_days, 'history_events': event_count,
             'stock_breakdown': {
@@ -363,10 +454,16 @@ def opex_forecast(payload):
         unit = str(row.get('unit') or '').strip()
         item_key = (code or key(material), key(unit))
         group = groups.setdefault(item_key, {
-            'material_code': code, 'material': material, 'unit': unit, 'events': {},
+            'material_code': code, 'material': material, 'unit': unit,
+            'events': {}, 'pr_references': set(), 'linked_references': set(),
         })
         event = group['events'].setdefault(purchased, 0.0)
         group['events'][purchased] = event + qty
+        pr_reference = str(row.get('no_pr') or '').strip()
+        if pr_reference:
+            group['pr_references'].add(pr_reference)
+            if number(row.get('has_po_reference')) > 0:
+                group['linked_references'].add(pr_reference)
 
     recommendations = []
     for item in groups.values():
@@ -391,9 +488,9 @@ def opex_forecast(payload):
         material = stock.get('material') or item['material']
         code = stock.get('material_code') or item['material_code']
         dispersion = statistics.pstdev(intervals) / statistics.mean(intervals) if len(intervals) > 1 and statistics.mean(intervals) > 0 else 1.0
-        confidence = 'Tinggi' if len(dates) >= 8 and dispersion <= 0.25 and error_days is not None and error_days <= max(3, interval * 0.2) else 'Sedang' if len(dates) >= 5 and dispersion <= 0.5 and error_days is not None else 'Rendah'
         enough_history = (
-            len(dates) >= 6
+            stock['stock_matched']
+            and len(dates) >= 6
             and interval_folds >= 3
             and quantity_folds >= 3
             and dispersion <= 0.35
@@ -402,21 +499,40 @@ def opex_forecast(payload):
             and quantity_error is not None
             and quantity_error <= max(1, typical_qty * 0.5)
         )
+        confidence = (
+            'Tinggi' if enough_history and len(dates) >= 8 and dispersion <= 0.25
+            and error_days <= max(3, interval * 0.2)
+            else 'Sedang' if enough_history else 'Rendah'
+        )
         suggested = max(0, math.ceil(typical_qty - available_stock)) if enough_history else None
         urgency = 45 if days_until <= 0 else 38 if days_until <= 7 else 30 if days_until <= 14 else 22 if days_until <= 30 else 8
         score = min(100, urgency + min(25, len(dates) * 3) + (15 if confidence == 'Tinggi' else 8 if confidence == 'Sedang' else 0) + (8 if suggested and suggested > 0 else 0))
         reasons = [
-            f"Median siklus pengadaan {interval} hari dari {len(dates)} kejadian",
-            f"Model siklus: {interval_model}; model kuantitas: {quantity_model}",
-            f"Prediksi tanggal berikutnya {due.isoformat()} ({days_until} hari)",
-            f"Galat validasi siklus: {error_days:.1f} hari; kuantitas: {quantity_error:.1f} {unit}" if error_days is not None and quantity_error is not None else 'Histori belum cukup untuk validasi siklus dan jumlah',
-            f"Stok fisik {current_stock:g} {unit}; stok tersedia setelah komitmen {available_stock:g} {unit}",
+            f"Jarak antar pembelian umumnya {interval} hari, berdasarkan {len(dates)} transaksi",
+            f"Dasar perkiraan waktu pembelian: {model_description(interval_model, 'interval')}; jumlah: {model_description(quantity_model, 'quantity')}",
+            f"Perkiraan tanggal pembelian berikutnya {due.isoformat()} ({days_until} hari lagi)",
+            f"Selisih yang umum pada pengujian: waktu {error_days:.1f} hari; jumlah {quantity_error:.1f} {unit}" if error_days is not None and quantity_error is not None else 'Histori pembelian belum cukup untuk memeriksa ketepatan perkiraan waktu dan jumlah',
+            f"Stok gudang saat ini {current_stock:g} {unit}",
+            'Perhitungan saran juga mempertimbangkan PR/PO yang berjalan dan barang yang akan dikirim',
+            f"{len(item['linked_references'])} dari {len(item['pr_references'])} PR sudah memiliki PO terkait",
         ]
         if not enough_history:
-            reasons.append('Histori siklus tipis atau tidak teratur; jumlah pembelian perlu ditinjau manual')
+            if not stock['stock_matched']:
+                reasons.append('Kode material tidak cocok dengan tb_barang; stok perlu diperiksa')
+            if len(dates) < 6:
+                reasons.append(f'Kejadian PR pada tanggal berbeda {len(dates)}; perlu minimal 6')
+            if interval_folds < 3 or quantity_folds < 3:
+                reasons.append(f'Periode uji siklus {interval_folds} dan jumlah {quantity_folds}; masing-masing perlu 3')
+            if dispersion > 0.35:
+                reasons.append(f'Variasi jeda PR {dispersion:.2f}; batas 0.35')
+            if error_days is not None and error_days > max(3, interval * 0.25):
+                reasons.append(f'Galat jeda {error_days:.1f} hari; batas {max(3, interval * 0.25):.1f} hari')
+            if quantity_error is not None and quantity_error > max(1, typical_qty * 0.5):
+                reasons.append(f'Galat jumlah {quantity_error:.1f} {unit}; batas {max(1, typical_qty * 0.5):.1f} {unit}')
         recommendations.append({
             'material_code': code, 'material': material, 'unit': unit, 'score': score,
             'suggested_qty': suggested, 'current_stock': round(current_stock, 2),
+            'stock_matched': stock['stock_matched'],
             'available_stock': round(available_stock, 2),
             'stock_breakdown': {
                 'physical': round(current_stock, 2),
@@ -431,6 +547,8 @@ def opex_forecast(payload):
             'days_until': days_until, 'confidence': confidence,
             'history_events': len(dates), 'interval_error_days': round(error_days, 1) if error_days is not None else None,
             'quantity_error': round(quantity_error, 2) if quantity_error is not None else None,
+            'pr_reference_count': len(item['pr_references']),
+            'linked_pr_reference_count': len(item['linked_references']),
             'forecast_model': f'{interval_model} / {quantity_model}', 'reasons': reasons,
         })
     recommendations.sort(key=lambda row: (-row['score'], row['days_until']))

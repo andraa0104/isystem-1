@@ -16,6 +16,7 @@ class PurchaseRequirementInsightService
             'sales' => $this->salesHistory(),
             'costs' => $this->costHistory(),
             'stocks' => $this->stockInventory(),
+            'stock_prs' => $this->stockPrHistory(),
         ]);
     }
 
@@ -78,6 +79,30 @@ class PurchaseRequirementInsightService
             ->groupBy('d.kd_mat', 'd.mat', 'd.unit')
             ->groupByRaw($date)
             ->get()
+            ->map(fn ($row) => (array) $row)
+            ->all();
+    }
+
+    private function stockPrHistory(): array
+    {
+        if (!Schema::hasTable('tb_pr') || !Schema::hasTable('tb_detailpr')) return [];
+
+        return DB::table('tb_detailpr as d')
+            ->join('tb_pr as pr', 'd.no_pr', '=', 'pr.no_pr')
+            ->where(function ($query) {
+                $type = "lower(coalesce(nullif(trim(pr.jenis_pr), ''), nullif(trim(d.jenis_pr), ''), ''))";
+                $query->whereRaw("{$type} like '%stock%' or {$type} like '%stok%'")
+                    ->orWhere(function ($legacy) {
+                        $legacy->whereRaw("coalesce(nullif(trim(pr.jenis_pr), ''), nullif(trim(d.jenis_pr), '')) is null")
+                            ->where(function ($reference) {
+                                $reference->whereRaw("lower(coalesce(pr.ref_po, '')) like '%stock%'")
+                                    ->orWhereRaw("lower(coalesce(pr.ref_po, '')) like '%stok%'");
+                            });
+                    });
+            })
+            ->whereNotNull('d.kd_material')
+            ->whereRaw("trim(d.kd_material) <> ''")
+            ->get(['d.no_pr', 'd.kd_material as material_code', 'd.unit', 'd.qty', 'd.date'])
             ->map(fn ($row) => (array) $row)
             ->all();
     }
@@ -257,16 +282,31 @@ class PurchaseRequirementInsightService
 
         if ($hasPrTable) {
             $query->leftJoin('tb_pr as pr', 'd.no_pr', '=', 'pr.no_pr');
+            // PO.ref_pr points to PR.no_pr. Keep one row per PR so multiple
+            // PO lines cannot multiply the demand recorded in detail PR.
+            if (Schema::hasTable('tb_detailpo') && Schema::hasColumn('tb_detailpo', 'ref_pr')) {
+                $poReferences = DB::table('tb_detailpo')
+                    ->whereNotNull('ref_pr')
+                    ->selectRaw('lower(trim(ref_pr)) as pr_key')
+                    ->groupByRaw('lower(trim(ref_pr))');
+                $query->leftJoinSub($poReferences, 'po_ref', function ($join) {
+                    $join->on(DB::raw('lower(trim(d.no_pr))'), '=', 'po_ref.pr_key');
+                });
+            }
             $query->where(function ($q) {
-                $q->whereRaw("lower(coalesce(d.jenis_pr, '')) like '%opex%'")
-                  ->orWhereRaw("lower(coalesce(pr.jenis_pr, '')) like '%opex%'")
-                  ->orWhereRaw("lower(coalesce(pr.for_customer, '')) like '%kantor%'")
-                  ->orWhereRaw("lower(coalesce(pr.for_customer, '')) like '%dapur%'")
-                  ->orWhereRaw("lower(coalesce(pr.for_customer, '')) like '%operasional%'")
-                  ->orWhereRaw("lower(coalesce(pr.for_customer, '')) like '%perlengkapan%'")
-                  ->orWhereRaw("lower(coalesce(d.for_customer, '')) like '%kantor%'")
-                  ->orWhereRaw("lower(coalesce(d.for_customer, '')) like '%dapur%'")
-                  ->orWhereRaw("lower(coalesce(d.for_customer, '')) like '%operasional%'");
+                $q->whereRaw("lower(coalesce(nullif(trim(pr.jenis_pr), ''), nullif(trim(d.jenis_pr), ''), '')) like '%opex%'")
+                  ->orWhere(function ($legacy) {
+                      $legacy->whereRaw("coalesce(nullif(trim(pr.jenis_pr), ''), nullif(trim(d.jenis_pr), '')) is null")
+                          ->whereRaw("lower(coalesce(pr.ref_po, '')) not like '%stock%'")
+                          ->whereRaw("lower(coalesce(pr.ref_po, '')) not like '%stok%'")
+                          ->where(function ($hint) {
+                              $hint->whereRaw("lower(coalesce(pr.ref_po, '')) like '%opex%'")
+                                  ->orWhereRaw("lower(coalesce(pr.for_customer, d.for_customer, '')) like '%kantor%'")
+                                  ->orWhereRaw("lower(coalesce(pr.for_customer, d.for_customer, '')) like '%dapur%'")
+                                  ->orWhereRaw("lower(coalesce(pr.for_customer, d.for_customer, '')) like '%operasional%'")
+                                  ->orWhereRaw("lower(coalesce(pr.for_customer, d.for_customer, '')) like '%perlengkapan%'");
+                          });
+                  });
             });
         } else {
             $query->where(function ($q) {
@@ -287,8 +327,10 @@ class PurchaseRequirementInsightService
                 'd.unit',
                 'd.qty',
                 'd.date',
+                'd.no_pr',
                 DB::raw($hasPrTable ? "coalesce(pr.jenis_pr, d.jenis_pr, '') as jenis_pr" : "coalesce(d.jenis_pr, '') as jenis_pr"),
                 DB::raw($hasPrTable ? "coalesce(pr.for_customer, d.for_customer, '') as for_customer" : "coalesce(d.for_customer, '') as for_customer"),
+                DB::raw($hasPrTable && isset($poReferences) ? 'case when po_ref.pr_key is null then 0 else 1 end as has_po_reference' : '0 as has_po_reference'),
             ])
             ->map(fn ($row) => (array) $row)
             ->all();

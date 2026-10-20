@@ -170,7 +170,12 @@ function InsightRecommendationPanel({
                                             <p className="font-medium break-words">
                                                 {item.material}
                                             </p>
-                                            {item.current_stock !== undefined && (
+                                            {item.stock_matched === false && (
+                                                <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                                                    Stok belum terverifikasi
+                                                </span>
+                                            )}
+                                            {item.stock_matched !== false && item.current_stock !== undefined && (
                                                 <span
                                                     className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
                                                         item.current_stock <= 0
@@ -183,22 +188,30 @@ function InsightRecommendationPanel({
                                                     Stok Gudang: {formatNumber(item.current_stock)} {item.unit}
                                                 </span>
                                             )}
-                                            {item.available_stock !== undefined && (
-                                                <span
-                                                    title={
-                                                        item.stock_breakdown
-                                                            ? `Fisik ${item.stock_breakdown.physical}; MIB ${item.stock_breakdown.mib}; MIS ${item.stock_breakdown.mis}; MIBS ${item.stock_breakdown.mibs}; PR ${item.stock_breakdown.pr_outstanding}; PO ${item.stock_breakdown.po_outstanding}; DO ${item.stock_breakdown.do_outstanding}`
-                                                            : undefined
-                                                    }
-                                                    className="rounded bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary"
-                                                >
-                                                    Stok tersedia: {formatNumber(item.available_stock)} {item.unit}
-                                                </span>
-                                            )}
                                         </div>
                                         <p className="mt-1 text-xs text-muted-foreground">
                                             {(item.reasons ?? []).join(' • ')}
                                         </p>
+                                        {type === 'stock' && item.backtest_inventory_proxy && (
+                                            <p
+                                                className="mt-1 text-xs text-muted-foreground"
+                                                title="Selisih prediksi dan penjualan nyata pada periode uji 30 hari. Ini bukan kejadian stok habis atau stok berlebih yang terukur."
+                                            >
+                                                Uji {item.backtest_periods} periode: kurang prediksi{' '}
+                                                {formatNumber(item.backtest_inventory_proxy.under_units)} {item.unit}; lebih prediksi{' '}
+                                                {formatNumber(item.backtest_inventory_proxy.over_units)} {item.unit}.
+                                            </p>
+                                        )}
+                                        {type === 'stock' && item.historical_stock_pr?.events > 0 && (
+                                            <p
+                                                className="mt-1 text-xs text-muted-foreground"
+                                                title="Jumlah PR stok dibanding penjualan 30 hari berikutnya. Stok fisik pada tanggal PR tidak tersedia."
+                                            >
+                                                PR stok historis {item.historical_stock_pr.events} kali: diminta{' '}
+                                                {formatNumber(item.historical_stock_pr.requested_units)} {item.unit}; terjual 30 hari berikutnya{' '}
+                                                {formatNumber(item.historical_stock_pr.sales_next_30d_units)} {item.unit}.
+                                            </p>
+                                        )}
                                         {type === 'stock' &&
                                             item.latest_landed_cost > 0 && (
                                                 <p className="mt-1 text-xs text-muted-foreground">
