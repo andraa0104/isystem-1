@@ -21,13 +21,18 @@ import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router } from '@inertiajs/react';
 import {
     AlertCircle,
+    AlertTriangle,
     BrainCircuit,
     ClipboardCheck,
     Eye,
+    LayoutGrid,
+    LayoutList,
     Pencil,
     Printer,
+    Search,
     ShieldCheck,
     Trash2,
+    X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
@@ -80,6 +85,34 @@ const formatNumber = (value) => {
     return new Intl.NumberFormat('id-ID').format(number);
 };
 
+// ─── Helpers untuk InsightRecommendationPanel ────────────────────────────────
+
+function getUrgencyBadge(type, item) {
+    if (type === 'stock') {
+        if (item.stock_matched !== false && item.current_stock !== undefined && item.current_stock <= 0) {
+            return { label: 'Stok Habis', color: 'bg-destructive text-destructive-foreground' };
+        }
+        if (item.days_of_inventory !== undefined && item.days_of_inventory > 0 && item.days_of_inventory <= 7) {
+            return { label: `Kritis ${item.days_of_inventory}h`, color: 'bg-destructive/10 text-destructive' };
+        }
+        if (item.days_of_inventory !== undefined && item.days_of_inventory > 0 && item.days_of_inventory <= 15) {
+            return { label: `Menipis ${item.days_of_inventory}h`, color: 'bg-amber-500/10 text-amber-700 dark:text-amber-400' };
+        }
+    }
+    if (type === 'opex' && item.predicted_date !== undefined) {
+        if (item.days_until < 0) {
+            return { label: `Terlewat ${Math.abs(item.days_until)}h`, color: 'bg-destructive text-destructive-foreground' };
+        }
+        if (item.days_until === 0) {
+            return { label: 'Hari Ini!', color: 'bg-destructive/10 text-destructive' };
+        }
+        if (item.days_until <= 7) {
+            return { label: `${item.days_until}h lagi`, color: 'bg-amber-500/10 text-amber-700 dark:text-amber-400' };
+        }
+    }
+    return null;
+}
+
 function InsightRecommendationPanel({
     title,
     description,
@@ -91,47 +124,225 @@ function InsightRecommendationPanel({
 }) {
     const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
+    const [search, setSearch] = useState('');
+    const [filterConfidence, setFilterConfidence] = useState('all');
+    const [filterUrgency, setFilterUrgency] = useState('all');
+    const [viewMode, setViewMode] = useState('card'); // 'card' | 'table'
 
-    const totalItems = data.length;
+    // ── 2 & 3: Filter + Search ───────────────────────────────────────────────
+    const filteredData = useMemo(() => {
+        let result = data;
+
+        // Pencarian nama/kode material
+        if (search.trim()) {
+            const q = search.trim().toLowerCase();
+            result = result.filter(
+                (item) =>
+                    String(item.material ?? '').toLowerCase().includes(q) ||
+                    String(item.material_code ?? '').toLowerCase().includes(q),
+            );
+        }
+
+        // Filter keyakinan
+        if (filterConfidence !== 'all') {
+            result = result.filter((item) => item.confidence === filterConfidence);
+        }
+
+        // Filter urgensi
+        if (filterUrgency !== 'all') {
+            if (type === 'stock') {
+                if (filterUrgency === 'critical') {
+                    result = result.filter(
+                        (item) =>
+                            (item.stock_matched !== false && item.current_stock !== undefined && item.current_stock <= 0) ||
+                            (item.days_of_inventory !== undefined && item.days_of_inventory > 0 && item.days_of_inventory <= 7),
+                    );
+                } else if (filterUrgency === 'low') {
+                    result = result.filter(
+                        (item) =>
+                            item.days_of_inventory !== undefined &&
+                            item.days_of_inventory > 7 &&
+                            item.days_of_inventory <= 15,
+                    );
+                }
+            }
+            if (type === 'opex') {
+                if (filterUrgency === 'critical') {
+                    result = result.filter(
+                        (item) => item.days_until !== undefined && item.days_until <= 0,
+                    );
+                } else if (filterUrgency === 'low') {
+                    result = result.filter(
+                        (item) => item.days_until !== undefined && item.days_until > 0 && item.days_until <= 7,
+                    );
+                }
+            }
+        }
+
+        return result;
+    }, [data, search, filterConfidence, filterUrgency, type]);
+
+    const totalItems = filteredData.length;
     const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+    const safePage = Math.min(currentPage, totalPages);
 
     const displayedData = useMemo(() => {
-        const start = (currentPage - 1) * pageSize;
-        return data.slice(start, start + pageSize);
-    }, [data, currentPage, pageSize]);
+        const start = (safePage - 1) * pageSize;
+        return filteredData.slice(start, start + pageSize);
+    }, [filteredData, safePage, pageSize]);
+
+    // ── 1: Estimasi Anggaran ─────────────────────────────────────────────────
+    const budgetSummary = useMemo(() => {
+        if (type !== 'stock') return null;
+        let total = 0;
+        let hasData = false;
+        for (const item of data) {
+            const qty = Number(item.suggested_qty);
+            const cost = Number(item.latest_landed_cost);
+            if (!Number.isNaN(qty) && qty > 0 && !Number.isNaN(cost) && cost > 0) {
+                total += qty * cost;
+                hasData = true;
+            }
+        }
+        return hasData ? total : null;
+    }, [data, type]);
+
+    const resetFilters = () => {
+        setSearch('');
+        setFilterConfidence('all');
+        setFilterUrgency('all');
+        setCurrentPage(1);
+    };
+
+    const hasActiveFilter = search.trim() || filterConfidence !== 'all' || filterUrgency !== 'all';
 
     return (
         <Card className="flex flex-col overflow-hidden">
             <CardHeader className="border-b bg-muted/20">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="min-w-0">
                         <CardTitle className="flex items-center gap-2 text-base">
-                            <BrainCircuit className="size-4" />
+                            <BrainCircuit className="size-4 shrink-0" />
                             {title}
                         </CardTitle>
                         <CardDescription>{description}</CardDescription>
+                        {/* ── 1: Total Estimasi Anggaran ── */}
+                        {budgetSummary !== null && (
+                            <p className="mt-1.5 text-xs font-medium text-primary">
+                                Estimasi total anggaran:{' '}
+                                <span className="font-semibold">{formatRupiah(budgetSummary)}</span>
+                                <span className="ml-1 font-normal text-muted-foreground">
+                                    (dari {data.filter((i) => Number(i.suggested_qty) > 0 && Number(i.latest_landed_cost) > 0).length} item)
+                                </span>
+                            </p>
+                        )}
                     </div>
-                    {!loading && !error && totalItems > 0 && (
-                        <div className="flex items-center gap-2 self-start text-xs text-muted-foreground sm:self-center">
-                            <span>Tampilkan</span>
-                            <select
-                                className="rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-xs"
-                                value={pageSize}
-                                onChange={(e) => {
-                                    setPageSize(Number(e.target.value));
-                                    setCurrentPage(1);
-                                }}
-                            >
-                                <option value={5}>5</option>
-                                <option value={10}>10</option>
-                                <option value={25}>25</option>
-                                <option value={50}>50</option>
-                                <option value={100}>100</option>
-                            </select>
-                        </div>
-                    )}
+                    <div className="flex shrink-0 items-center gap-2">
+                        {/* ── 4: Toggle View ── */}
+                        {!loading && !error && data.length > 0 && (
+                            <div className="flex overflow-hidden rounded-md border border-sidebar-border/70">
+                                <button
+                                    type="button"
+                                    title="Tampilan Kartu"
+                                    onClick={() => setViewMode('card')}
+                                    className={`p-1.5 text-xs transition-colors ${viewMode === 'card' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'}`}
+                                >
+                                    <LayoutGrid className="size-3.5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    title="Tampilan Tabel Ringkas"
+                                    onClick={() => setViewMode('table')}
+                                    className={`p-1.5 text-xs transition-colors ${viewMode === 'table' ? 'bg-primary text-primary-foreground' : 'bg-background text-muted-foreground hover:bg-muted'}`}
+                                >
+                                    <LayoutList className="size-3.5" />
+                                </button>
+                            </div>
+                        )}
+                        {!loading && !error && data.length > 0 && (
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <span>Tampilkan</span>
+                                <select
+                                    className="rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-xs"
+                                    value={pageSize}
+                                    onChange={(e) => {
+                                        setPageSize(Number(e.target.value));
+                                        setCurrentPage(1);
+                                    }}
+                                >
+                                    <option value={5}>5</option>
+                                    <option value={10}>10</option>
+                                    <option value={25}>25</option>
+                                    <option value={50}>50</option>
+                                    <option value={100}>100</option>
+                                </select>
+                            </div>
+                        )}
+                    </div>
                 </div>
+
+                {/* ── 2: Filter Bar ── */}
+                {!loading && !error && data.length > 0 && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                        {/* Search */}
+                        <div className="relative flex-1" style={{ minWidth: '160px' }}>
+                            <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                            <input
+                                type="search"
+                                placeholder="Cari material..."
+                                value={search}
+                                onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
+                                className="h-7 w-full rounded-md border border-sidebar-border/70 bg-background pl-7 pr-2 text-xs focus:outline-none focus:ring-1 focus:ring-primary"
+                            />
+                        </div>
+
+                        {/* Filter Keyakinan */}
+                        <select
+                            className="h-7 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs text-muted-foreground"
+                            value={filterConfidence}
+                            onChange={(e) => { setFilterConfidence(e.target.value); setCurrentPage(1); }}
+                        >
+                            <option value="all">Semua Keyakinan</option>
+                            <option value="Tinggi">Keyakinan Tinggi</option>
+                            <option value="Sedang">Keyakinan Sedang</option>
+                            <option value="Rendah">Keyakinan Rendah</option>
+                        </select>
+
+                        {/* Filter Urgensi */}
+                        <select
+                            className="h-7 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs text-muted-foreground"
+                            value={filterUrgency}
+                            onChange={(e) => { setFilterUrgency(e.target.value); setCurrentPage(1); }}
+                        >
+                            <option value="all">Semua Status</option>
+                            {type === 'stock' && <option value="critical">Kritis / Habis (≤7h)</option>}
+                            {type === 'stock' && <option value="low">Menipis (8–15h)</option>}
+                            {type === 'opex' && <option value="critical">Terlewat / Hari Ini</option>}
+                            {type === 'opex' && <option value="low">Segera (≤7h)</option>}
+                        </select>
+
+                        {/* Reset Filter */}
+                        {hasActiveFilter && (
+                            <button
+                                type="button"
+                                onClick={resetFilters}
+                                className="flex h-7 items-center gap-1 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs text-muted-foreground hover:bg-muted"
+                            >
+                                <X className="size-3" />
+                                Reset
+                            </button>
+                        )}
+
+                        {/* Badge hasil filter */}
+                        {hasActiveFilter && (
+                            <span className="text-xs text-muted-foreground">
+                                {totalItems} dari {data.length} item
+                            </span>
+                        )}
+                    </div>
+                )}
             </CardHeader>
+
             <CardContent className="flex-1 p-0">
                 {loading && (
                     <div className="space-y-3 p-4">
@@ -142,175 +353,286 @@ function InsightRecommendationPanel({
                 {!loading && error && (
                     <div className="flex flex-wrap items-center justify-between gap-3 p-4 text-sm text-destructive">
                         <span>{error}</span>
-                        <Button
-                            type="button"
-                            size="sm"
-                            variant="outline"
-                            onClick={onRetry}
-                        >
+                        <Button type="button" size="sm" variant="outline" onClick={onRetry}>
                             Coba lagi
                         </Button>
                     </div>
                 )}
-                {!loading && !error && totalItems === 0 && (
+                {!loading && !error && data.length === 0 && (
                     <p className="p-4 text-sm text-muted-foreground">
                         Belum ada histori yang cukup untuk membuat rekomendasi.
                     </p>
                 )}
+                {!loading && !error && data.length > 0 && totalItems === 0 && (
+                    <div className="flex flex-col items-center gap-2 p-6 text-center text-sm text-muted-foreground">
+                        <Search className="size-8 opacity-30" />
+                        <p>Tidak ada item yang cocok dengan filter.</p>
+                        <button type="button" onClick={resetFilters} className="text-xs text-primary underline underline-offset-2">
+                            Reset filter
+                        </button>
+                    </div>
+                )}
                 {!loading && !error && totalItems > 0 && (
                     <>
-                        <div className="divide-y">
-                            {displayedData.map((item, index) => (
-                                <div
-                                    key={`${type}-${item.material_code ?? item.material}-${(currentPage - 1) * pageSize + index}`}
-                                    className="grid gap-2 p-4 sm:grid-cols-[1fr_auto]"
-                                >
-                                    <div className="min-w-0">
-                                        <div className="flex flex-wrap items-center gap-2">
-                                            <p className="font-medium break-words">
-                                                {item.material}
-                                            </p>
-                                            {item.stock_matched === false && (
-                                                <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
-                                                    Stok belum terverifikasi
-                                                </span>
-                                            )}
-                                            {item.stock_matched !== false && item.current_stock !== undefined && (
-                                                <span
-                                                    className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
-                                                        item.current_stock <= 0
-                                                            ? 'bg-destructive/10 text-destructive'
-                                                            : (item.days_of_inventory !== undefined && item.days_of_inventory <= 15)
-                                                            ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
-                                                            : 'bg-muted text-muted-foreground'
-                                                    }`}
-                                                >
-                                                    Stok Gudang: {formatNumber(item.current_stock)} {item.unit}
-                                                </span>
-                                            )}
-                                        </div>
-                                        <p className="mt-1 text-xs text-muted-foreground">
-                                            {(item.reasons ?? []).join(' • ')}
-                                        </p>
-                                        {type === 'stock' && item.backtest_inventory_proxy && (
-                                            <p
-                                                className="mt-1 text-xs text-muted-foreground"
-                                                title="Selisih prediksi dan penjualan nyata pada periode uji 30 hari. Ini bukan kejadian stok habis atau stok berlebih yang terukur."
-                                            >
-                                                Uji {item.backtest_periods} periode: kurang prediksi{' '}
-                                                {formatNumber(item.backtest_inventory_proxy.under_units)} {item.unit}; lebih prediksi{' '}
-                                                {formatNumber(item.backtest_inventory_proxy.over_units)} {item.unit}.
-                                            </p>
-                                        )}
-                                        {type === 'stock' && item.historical_stock_pr?.events > 0 && (
-                                            <p
-                                                className="mt-1 text-xs text-muted-foreground"
-                                                title="Jumlah PR stok dibanding penjualan 30 hari berikutnya. Stok fisik pada tanggal PR tidak tersedia."
-                                            >
-                                                PR stok historis {item.historical_stock_pr.events} kali: diminta{' '}
-                                                {formatNumber(item.historical_stock_pr.requested_units)} {item.unit}; terjual 30 hari berikutnya{' '}
-                                                {formatNumber(item.historical_stock_pr.sales_next_30d_units)} {item.unit}.
-                                            </p>
-                                        )}
-                                        {type === 'stock' &&
-                                            item.latest_landed_cost > 0 && (
-                                                <p className="mt-1 text-xs text-muted-foreground">
-                                                    Landed cost:{' '}
-                                                    {formatRupiah(
-                                                        item.latest_landed_cost,
+                        {/* ── 4: Card View ── */}
+                        {viewMode === 'card' && (
+                            <div className="divide-y">
+                                {displayedData.map((item, index) => {
+                                    const urgency = getUrgencyBadge(type, item);
+                                    // ── 1: Estimasi biaya per item ──
+                                    const estCost = (type === 'stock' && Number(item.suggested_qty) > 0 && Number(item.latest_landed_cost) > 0)
+                                        ? Number(item.suggested_qty) * Number(item.latest_landed_cost)
+                                        : null;
+                                    return (
+                                        <div
+                                            key={`${type}-${item.material_code ?? item.material}-${(safePage - 1) * pageSize + index}`}
+                                            className="grid gap-2 p-4 sm:grid-cols-[1fr_auto]"
+                                        >
+                                            <div className="min-w-0">
+                                                <div className="flex flex-wrap items-center gap-2">
+                                                    <p className="font-medium break-words">{item.material}</p>
+
+                                                    {/* ── 3: Urgency badge ── */}
+                                                    {urgency && (
+                                                        <span className={`flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold ${urgency.color}`}>
+                                                            <AlertTriangle className="size-3 shrink-0" />
+                                                            {urgency.label}
+                                                        </span>
                                                     )}
-                                                    {item.saving_percent > 0
-                                                        ? ` · ${item.saving_percent}% di bawah median`
-                                                        : ''}
+
+                                                    {item.stock_matched === false && (
+                                                        <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
+                                                            Stok belum terverifikasi
+                                                        </span>
+                                                    )}
+                                                    {item.stock_matched !== false && item.current_stock !== undefined && (
+                                                        <span
+                                                            className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
+                                                                item.current_stock <= 0
+                                                                    ? 'bg-destructive/10 text-destructive'
+                                                                    : (item.days_of_inventory !== undefined && item.days_of_inventory <= 15)
+                                                                    ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
+                                                                    : 'bg-muted text-muted-foreground'
+                                                            }`}
+                                                        >
+                                                            Stok Gudang: {formatNumber(item.current_stock)} {item.unit}
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <p className="mt-1 text-xs text-muted-foreground">
+                                                    {(item.reasons ?? []).join(' • ')}
                                                 </p>
-                                            )}
-                                        {type === 'opex' && item.predicted_date && (
-                                            <p
-                                                className={`mt-1 text-xs ${
-                                                    item.days_until < 0
-                                                        ? 'font-medium text-destructive'
-                                                        : item.days_until <= 7
-                                                        ? 'font-medium text-amber-600 dark:text-amber-400'
-                                                        : 'text-muted-foreground'
-                                                }`}
-                                            >
-                                                {item.days_until < 0
-                                                    ? `Terlewat ${Math.abs(item.days_until)} hari dari siklus (${item.predicted_date})`
-                                                    : item.days_until === 0
-                                                    ? `Jatuh tempo HARI INI (${item.predicted_date})`
-                                                    : `Prediksi kebutuhan: ${item.predicted_date} (${item.days_until} hari lagi)`}
-                                            </p>
-                                        )}
-                                    </div>
-                                    <div className="flex items-start gap-2 sm:flex-col sm:items-end">
-                                        <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
-                                            Skor {item.score}
-                                        </span>
-                                        {item.confidence && (
-                                            <span
-                                                className={`rounded-full px-2 py-1 text-xs font-medium ${
-                                                    item.confidence === 'Tinggi'
-                                                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                                                        : item.confidence === 'Sedang'
-                                                          ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                                                          : 'bg-muted text-muted-foreground'
-                                                }`}
-                                            >
-                                                Keyakinan {item.confidence}
-                                            </span>
-                                        )}
-                                        <span className="text-sm font-semibold whitespace-nowrap">
-                                            Saran:{' '}
-                                            {item.suggested_qty === null || item.suggested_qty === undefined
-                                                ? 'Perlu ditinjau'
-                                                : `${formatNumber(item.suggested_qty)} ${item.unit}`}
-                                        </span>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
+                                                {type === 'stock' && item.backtest_inventory_proxy && (
+                                                    <p
+                                                        className="mt-1 text-xs text-muted-foreground"
+                                                        title="Selisih prediksi dan penjualan nyata pada periode uji 30 hari. Ini bukan kejadian stok habis atau stok berlebih yang terukur."
+                                                    >
+                                                        Uji {item.backtest_periods} periode: kurang prediksi{' '}
+                                                        {formatNumber(item.backtest_inventory_proxy.under_units)} {item.unit}; lebih prediksi{' '}
+                                                        {formatNumber(item.backtest_inventory_proxy.over_units)} {item.unit}.
+                                                    </p>
+                                                )}
+                                                {type === 'stock' && item.historical_stock_pr?.events > 0 && (
+                                                    <p
+                                                        className="mt-1 text-xs text-muted-foreground"
+                                                        title="Jumlah PR stok dibanding penjualan 30 hari berikutnya. Stok fisik pada tanggal PR tidak tersedia."
+                                                    >
+                                                        PR stok historis {item.historical_stock_pr.events} kali: diminta{' '}
+                                                        {formatNumber(item.historical_stock_pr.requested_units)} {item.unit}; terjual 30 hari berikutnya{' '}
+                                                        {formatNumber(item.historical_stock_pr.sales_next_30d_units)} {item.unit}.
+                                                    </p>
+                                                )}
+                                                {type === 'stock' && item.latest_landed_cost > 0 && (
+                                                    <p className="mt-1 text-xs text-muted-foreground">
+                                                        Landed cost: {formatRupiah(item.latest_landed_cost)}
+                                                        {item.saving_percent > 0 ? ` · ${item.saving_percent}% di bawah median` : ''}
+                                                        {/* ── 1: Estimasi biaya per item ── */}
+                                                        {estCost !== null && (
+                                                            <span className="ml-2 font-medium text-primary">
+                                                                → Est. {formatRupiah(estCost)}
+                                                            </span>
+                                                        )}
+                                                    </p>
+                                                )}
+                                                {type === 'opex' && item.predicted_date && (
+                                                    <p
+                                                        className={`mt-1 text-xs ${
+                                                            item.days_until < 0
+                                                                ? 'font-medium text-destructive'
+                                                                : item.days_until <= 7
+                                                                ? 'font-medium text-amber-600 dark:text-amber-400'
+                                                                : 'text-muted-foreground'
+                                                        }`}
+                                                    >
+                                                        {item.days_until < 0
+                                                            ? `Terlewat ${Math.abs(item.days_until)} hari dari siklus (${item.predicted_date})`
+                                                            : item.days_until === 0
+                                                            ? `Jatuh tempo HARI INI (${item.predicted_date})`
+                                                            : `Prediksi kebutuhan: ${item.predicted_date} (${item.days_until} hari lagi)`}
+                                                    </p>
+                                                )}
+                                            </div>
+                                            <div className="flex items-start gap-2 sm:flex-col sm:items-end">
+                                                <span className="rounded-full bg-primary/10 px-2 py-1 text-xs font-semibold text-primary">
+                                                    Skor {item.score}
+                                                </span>
+                                                {item.confidence && (
+                                                    <span
+                                                        className={`rounded-full px-2 py-1 text-xs font-medium ${
+                                                            item.confidence === 'Tinggi'
+                                                                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                                                                : item.confidence === 'Sedang'
+                                                                  ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                                                                  : 'bg-muted text-muted-foreground'
+                                                        }`}
+                                                    >
+                                                        Keyakinan {item.confidence}
+                                                    </span>
+                                                )}
+                                                <span className="text-sm font-semibold whitespace-nowrap">
+                                                    Saran:{' '}
+                                                    {item.suggested_qty === null || item.suggested_qty === undefined
+                                                        ? 'Perlu ditinjau'
+                                                        : `${formatNumber(item.suggested_qty)} ${item.unit}`}
+                                                </span>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+
+                        {/* ── 4: Table View ── */}
+                        {viewMode === 'table' && (
+                            <div className="overflow-x-auto">
+                                <table className="w-full table-auto text-xs">
+                                    <thead className="bg-muted/50 text-muted-foreground">
+                                        <tr>
+                                            <th className="px-3 py-2 text-left font-medium">Material</th>
+                                            {type === 'stock' && <th className="px-3 py-2 text-right font-medium whitespace-nowrap">Stok Gudang</th>}
+                                            {type === 'stock' && <th className="px-3 py-2 text-right font-medium whitespace-nowrap">Landed Cost</th>}
+                                            {type === 'opex' && <th className="px-3 py-2 text-center font-medium whitespace-nowrap">Prediksi Kebutuhan</th>}
+                                            <th className="px-3 py-2 text-right font-medium whitespace-nowrap">Saran Qty</th>
+                                            {type === 'stock' && <th className="px-3 py-2 text-right font-medium whitespace-nowrap">Est. Anggaran</th>}
+                                            <th className="px-3 py-2 text-center font-medium">Skor</th>
+                                            <th className="px-3 py-2 text-center font-medium">Keyakinan</th>
+                                            <th className="px-3 py-2 text-center font-medium">Urgensi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y">
+                                        {displayedData.map((item, index) => {
+                                            const urgency = getUrgencyBadge(type, item);
+                                            const estCost = (type === 'stock' && Number(item.suggested_qty) > 0 && Number(item.latest_landed_cost) > 0)
+                                                ? Number(item.suggested_qty) * Number(item.latest_landed_cost)
+                                                : null;
+                                            return (
+                                                <tr
+                                                    key={`${type}-tbl-${item.material_code ?? item.material}-${(safePage - 1) * pageSize + index}`}
+                                                    className="hover:bg-muted/30"
+                                                >
+                                                    <td className="max-w-[200px] px-3 py-2">
+                                                        <p className="truncate font-medium" title={item.material}>{item.material}</p>
+                                                        {item.material_code && (
+                                                            <p className="text-[10px] text-muted-foreground">{item.material_code}</p>
+                                                        )}
+                                                    </td>
+                                                    {type === 'stock' && (
+                                                        <td className={`px-3 py-2 text-right whitespace-nowrap ${item.current_stock <= 0 ? 'font-medium text-destructive' : ''}`}>
+                                                            {item.current_stock !== undefined
+                                                                ? `${formatNumber(item.current_stock)} ${item.unit}`
+                                                                : '-'}
+                                                        </td>
+                                                    )}
+                                                    {type === 'stock' && (
+                                                        <td className="px-3 py-2 text-right whitespace-nowrap text-muted-foreground">
+                                                            {item.latest_landed_cost > 0 ? formatRupiah(item.latest_landed_cost) : '-'}
+                                                        </td>
+                                                    )}
+                                                    {type === 'opex' && (
+                                                        <td className={`px-3 py-2 text-center whitespace-nowrap ${item.days_until < 0 ? 'font-medium text-destructive' : item.days_until <= 7 ? 'font-medium text-amber-600 dark:text-amber-400' : 'text-muted-foreground'}`}>
+                                                            {item.predicted_date
+                                                                ? item.days_until < 0
+                                                                    ? `Terlewat ${Math.abs(item.days_until)}h`
+                                                                    : item.days_until === 0
+                                                                    ? 'Hari Ini!'
+                                                                    : `${item.predicted_date} (${item.days_until}h)`
+                                                                : '-'}
+                                                        </td>
+                                                    )}
+                                                    <td className="px-3 py-2 text-right font-semibold whitespace-nowrap">
+                                                        {item.suggested_qty === null || item.suggested_qty === undefined
+                                                            ? 'Perlu ditinjau'
+                                                            : `${formatNumber(item.suggested_qty)} ${item.unit}`}
+                                                    </td>
+                                                    {type === 'stock' && (
+                                                        <td className="px-3 py-2 text-right font-medium text-primary whitespace-nowrap">
+                                                            {estCost !== null ? formatRupiah(estCost) : '-'}
+                                                        </td>
+                                                    )}
+                                                    <td className="px-3 py-2 text-center">
+                                                        <span className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary">
+                                                            {item.score}
+                                                        </span>
+                                                    </td>
+                                                    <td className="px-3 py-2 text-center">
+                                                        {item.confidence ? (
+                                                            <span
+                                                                className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                                                                    item.confidence === 'Tinggi'
+                                                                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                                                                        : item.confidence === 'Sedang'
+                                                                          ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                                                                          : 'bg-muted text-muted-foreground'
+                                                                }`}
+                                                            >
+                                                                {item.confidence}
+                                                            </span>
+                                                        ) : '-'}
+                                                    </td>
+                                                    <td className="px-3 py-2 text-center">
+                                                        {urgency ? (
+                                                            <span className={`inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-semibold ${urgency.color}`}>
+                                                                <AlertTriangle className="size-3 shrink-0" />
+                                                                {urgency.label}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-muted-foreground">–</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
 
                         <div className="flex flex-wrap items-center justify-between gap-3 border-t bg-muted/10 p-3 text-xs text-muted-foreground">
                             <span>
                                 Menampilkan{' '}
-                                {Math.min(
-                                    (currentPage - 1) * pageSize + 1,
-                                    totalItems,
-                                )}
-                                -
-                                {Math.min(
-                                    currentPage * pageSize,
-                                    totalItems,
-                                )}{' '}
+                                {Math.min((safePage - 1) * pageSize + 1, totalItems)}
+                                –
+                                {Math.min(safePage * pageSize, totalItems)}{' '}
                                 dari {totalItems} data
+                                {hasActiveFilter && ` (filter aktif dari ${data.length} total)`}
                             </span>
                             <div className="flex items-center gap-2">
                                 <Button
                                     variant="outline"
                                     size="sm"
                                     className="h-7 px-2 text-xs"
-                                    onClick={() =>
-                                        setCurrentPage((prev) =>
-                                            Math.max(1, prev - 1),
-                                        )
-                                    }
-                                    disabled={currentPage === 1}
+                                    onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
+                                    disabled={safePage === 1}
                                 >
                                     Sebelumnya
                                 </Button>
-                                <span>
-                                    Halaman {currentPage} dari {totalPages}
-                                </span>
+                                <span>Halaman {safePage} dari {totalPages}</span>
                                 <Button
                                     variant="outline"
                                     size="sm"
                                     className="h-7 px-2 text-xs"
-                                    onClick={() =>
-                                        setCurrentPage((prev) =>
-                                            Math.min(totalPages, prev + 1),
-                                        )
-                                    }
-                                    disabled={currentPage >= totalPages}
+                                    onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
+                                    disabled={safePage >= totalPages}
                                 >
                                     Selanjutnya
                                 </Button>
