@@ -14,7 +14,7 @@ import sys
 import time
 
 SCRIPT_START_TIME = time.time()
-MAX_EXECUTION_SECONDS = 18.0
+MAX_EXECUTION_SECONDS = 75.0
 
 # Graceful import: production VPS has numpy, pandas, and scikit-learn.
 # If unavailable in other environments, fallback to stdlib.
@@ -573,7 +573,7 @@ def gradient_boosting_forecast(values, start_date=None, performance_guard=False)
 # Model Candidates Aggregator & Descriptions
 # =====================================================================
 
-def model_rates(values, start_date=None, performance_guard=False):
+def model_rates(values, start_date=None, performance_guard=False, allow_heavy_ml=True):
     """Generate daily demand rate estimates across all active models."""
     n = len(values)
     mean_val = float(np.mean(values)) if HAS_ML else (sum(values) / max(n, 1))
@@ -619,11 +619,12 @@ def model_rates(values, start_date=None, performance_guard=False):
         hist_dates = [(start_date + dt.timedelta(days=i), values[i]) for i in range(n)]
         candidates['weekly_seasonal'] = weekly_seasonal_rate(hist_dates, start_date)
 
-    # Scikit-Learn ML models
+    # Scikit-Learn ML models: Ridge is very fast (analytic closed-form)
     if HAS_ML and n >= 14:
         candidates['ridge_regression'] = ridge_trend_forecast(values, start_date)
 
-    if HAS_ML and n >= 180 and not is_time_critical():
+    # Tree-based ML models: only run if heavy ML is allowed and not time-critical
+    if allow_heavy_ml and HAS_ML and n >= 180 and not is_time_critical():
         rf_rate = random_forest_forecast(values, start_date, performance_guard=performance_guard)
         if rf_rate is not None:
             candidates['random_forest'] = rf_rate
@@ -716,7 +717,7 @@ def forecast_rate(values, start_date=None, performance_guard=False):
 
     for origin in possible:
         actual = float(np.sum(values[origin:origin + HORIZON_DAYS])) if HAS_ML else sum(values[origin:origin + HORIZON_DAYS])
-        rates = model_rates(values[:origin], start_date=start_date, performance_guard=performance_guard)
+        rates = model_rates(values[:origin], start_date=start_date, performance_guard=performance_guard, allow_heavy_ml=False)
         for name, rate in rates.items():
             if name in ('ridge_regression', 'random_forest', 'gradient_boosting'):
                 ml_models_seen = True
@@ -730,7 +731,9 @@ def forecast_rate(values, start_date=None, performance_guard=False):
             scale = sum(actual for _, actual in pairs)
             scores[name] = absolute / max(scale, 1.0)
 
-    current_rates = model_rates(values, start_date=start_date, performance_guard=performance_guard)
+    current_rates = model_rates(values, start_date=start_date, performance_guard=performance_guard, allow_heavy_ml=True)
+    if any(k in current_rates for k in ('ridge_regression', 'random_forest', 'gradient_boosting')):
+        ml_models_seen = True
 
     if not scores:
         fallback_demand = max(0.0, current_rates.get('weighted_average', 0.0) * HORIZON_DAYS)
@@ -873,7 +876,7 @@ def stock_forecast(payload):
     # Load and aggregate sales data with pandas if available
     raw_sales = payload.get('sales', [])
     total_sales_rows = len(raw_sales)
-    performance_guard = total_sales_rows > 50000
+    performance_guard = total_sales_rows > 3000
 
     groups = {}
     if HAS_ML and raw_sales:
@@ -945,7 +948,7 @@ def stock_forecast(payload):
             item['min_date'] = min_date
             item['series'] = daily_series
 
-    if len(groups) > 500:
+    if len(groups) > 30:
         performance_guard = True
 
     recommendations = []

@@ -38,9 +38,10 @@ class PurchaseRequirementInsightService
         try {
             $pythonBinary = config('services.purchase_requirement_python_binary')
                 ?: (PHP_OS_FAMILY === 'Windows' ? 'python' : 'python3');
+            $timeout = (int) config('services.purchase_requirement_timeout', 90);
             $process = new Process([$pythonBinary, $script, "--mode={$mode}"]);
             $process->setInput(json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES));
-            $process->setTimeout(25);
+            $process->setTimeout($timeout);
             $process->run();
 
             if (!$process->isSuccessful()) {
