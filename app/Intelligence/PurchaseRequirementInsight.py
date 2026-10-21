@@ -21,7 +21,7 @@ MAX_EXECUTION_SECONDS = 75.0
 try:
     import numpy as np
     import pandas as pd
-    from sklearn.linear_model import Ridge
+    from sklearn.linear_model import Ridge, HuberRegressor
     from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
     from sklearn.preprocessing import StandardScaler
     HAS_ML = True
@@ -448,6 +448,56 @@ def ridge_trend_forecast(values, start_date=None):
         return float(np.mean(vals)) if len(vals) > 0 else 0.0
 
 
+def huber_trend_forecast(values, start_date=None, window_size=90):
+    """Huber Robust Regressor with cyclical calendar features (resilient to demand spikes)."""
+    if not HAS_ML or len(values) < 14:
+        return None
+    try:
+        y_train = np.asarray(values[-window_size:] if len(values) >= window_size else values, dtype=np.float64)
+        actual_window = len(y_train)
+
+        if start_date is not None:
+            first_train_date = start_date + dt.timedelta(days=len(values) - actual_window)
+            train_dates = [first_train_date + dt.timedelta(days=i) for i in range(actual_window)]
+        else:
+            today = dt.date.today()
+            first_train_date = today - dt.timedelta(days=actual_window)
+            train_dates = [first_train_date + dt.timedelta(days=i) for i in range(actual_window)]
+
+        day_index = np.arange(actual_window, dtype=np.float64)
+        weekdays = np.array([d.weekday() for d in train_dates], dtype=np.float64)
+        months = np.array([d.month for d in train_dates], dtype=np.float64)
+
+        w_sin = np.sin(2.0 * np.pi * weekdays / 7.0)
+        w_cos = np.cos(2.0 * np.pi * weekdays / 7.0)
+        m_sin = np.sin(2.0 * np.pi * (months - 1.0) / 12.0)
+        m_cos = np.cos(2.0 * np.pi * (months - 1.0) / 12.0)
+
+        X_train = np.column_stack([day_index, w_sin, w_cos, m_sin, m_cos])
+
+        model = HuberRegressor(max_iter=100)
+        model.fit(X_train, y_train)
+
+        last_train_date = train_dates[-1]
+        next_dates = [last_train_date + dt.timedelta(days=h) for h in range(1, HORIZON_DAYS + 1)]
+        next_day_index = np.arange(actual_window, actual_window + HORIZON_DAYS, dtype=np.float64)
+        next_weekdays = np.array([d.weekday() for d in next_dates], dtype=np.float64)
+        next_months = np.array([d.month for d in next_dates], dtype=np.float64)
+
+        X_next = np.column_stack([
+            next_day_index,
+            np.sin(2.0 * np.pi * next_weekdays / 7.0),
+            np.cos(2.0 * np.pi * next_weekdays / 7.0),
+            np.sin(2.0 * np.pi * (next_months - 1.0) / 12.0),
+            np.cos(2.0 * np.pi * (next_months - 1.0) / 12.0),
+        ])
+
+        preds = np.clip(model.predict(X_next), 0.0, None)
+        return float(np.mean(preds))
+    except Exception:
+        return None
+
+
 def _build_ml_features(values, start_date=None, max_history=365):
     """Build feature matrix for Random Forest & Gradient Boosting.
 
@@ -619,12 +669,15 @@ def model_rates(values, start_date=None, performance_guard=False, allow_heavy_ml
         hist_dates = [(start_date + dt.timedelta(days=i), values[i]) for i in range(n)]
         candidates['weekly_seasonal'] = weekly_seasonal_rate(hist_dates, start_date)
 
-    # Scikit-Learn ML models: Ridge is very fast (analytic closed-form)
+    # Scikit-Learn ML models: Ridge and Huber are ultra-fast (sub-millisecond)
     if HAS_ML and n >= 14:
         candidates['ridge_regression'] = ridge_trend_forecast(values, start_date)
+        huber_rate = huber_trend_forecast(values, start_date)
+        if huber_rate is not None:
+            candidates['huber_regression'] = huber_rate
 
-    # Tree-based ML models: only run if heavy ML is allowed and not time-critical
-    if allow_heavy_ml and HAS_ML and n >= 180 and not is_time_critical():
+    # Tree-based ML models: only run if heavy ML is allowed, NOT guarded by dataset size, and not time-critical
+    if allow_heavy_ml and not performance_guard and HAS_ML and n >= 180 and not is_time_critical():
         rf_rate = random_forest_forecast(values, start_date, performance_guard=performance_guard)
         if rf_rate is not None:
             candidates['random_forest'] = rf_rate
@@ -672,7 +725,8 @@ def model_description(name, context=None):
         'theta_method': 'Metode Theta: dekomposisi tren linier dan komponen musiman residual',
         'adaptive_exp_smoothing': 'Pelunasan eksponensial adaptif dengan alfa yang menyesuaikan secara otomatis (Trigg & Leach)',
         'weekly_seasonal': 'Pola musiman mingguan berdasarkan hari kerja (Senin-Minggu)',
-        'ridge_regression': 'Regresi linier teratur Ridge berbasis hari dan pola musiman kalender',
+        'ridge_regression': 'Regresi linier teratur Ridge (Scikit-Learn) berbasis hari dan pola musiman kalender',
+        'huber_regression': 'Regresi Robus Huber (Scikit-Learn) yang kebal terhadap lonjakan penjualan ekstrem',
         'random_forest': 'Machine Learning Random Forest Regressor berbasis fitur lag dan rata-rata bergulir',
         'gradient_boosting': 'Machine Learning Gradient Boosting Regressor berbasis boosting pohon keputusan',
         'insufficient_history': 'Histori penjualan belum cukup untuk memilih metode',
@@ -719,7 +773,7 @@ def forecast_rate(values, start_date=None, performance_guard=False):
         actual = float(np.sum(values[origin:origin + HORIZON_DAYS])) if HAS_ML else sum(values[origin:origin + HORIZON_DAYS])
         rates = model_rates(values[:origin], start_date=start_date, performance_guard=performance_guard, allow_heavy_ml=False)
         for name, rate in rates.items():
-            if name in ('ridge_regression', 'random_forest', 'gradient_boosting'):
+            if name in ('ridge_regression', 'huber_regression', 'random_forest', 'gradient_boosting'):
                 ml_models_seen = True
             errors.setdefault(name, [])
             errors[name].append((rate * HORIZON_DAYS, actual))
@@ -732,7 +786,7 @@ def forecast_rate(values, start_date=None, performance_guard=False):
             scores[name] = absolute / max(scale, 1.0)
 
     current_rates = model_rates(values, start_date=start_date, performance_guard=performance_guard, allow_heavy_ml=True)
-    if any(k in current_rates for k in ('ridge_regression', 'random_forest', 'gradient_boosting')):
+    if any(k in current_rates for k in ('ridge_regression', 'huber_regression', 'random_forest', 'gradient_boosting')):
         ml_models_seen = True
 
     if not scores:
@@ -876,7 +930,7 @@ def stock_forecast(payload):
     # Load and aggregate sales data with pandas if available
     raw_sales = payload.get('sales', [])
     total_sales_rows = len(raw_sales)
-    performance_guard = total_sales_rows > 3000
+    performance_guard = total_sales_rows > 1000
 
     groups = {}
     if HAS_ML and raw_sales:
@@ -948,7 +1002,7 @@ def stock_forecast(payload):
             item['min_date'] = min_date
             item['series'] = daily_series
 
-    if len(groups) > 30:
+    if len(groups) > 10:
         performance_guard = True
 
     recommendations = []
