@@ -961,9 +961,17 @@ def stock_forecast(payload):
             df_sales['material'].str.lower()
         )
 
+        cutoff_active_date = today - dt.timedelta(days=180)
+
         for item_key_val, grp in df_sales.groupby('item_key'):
-            first_row = grp.iloc[0]
             s_by_date = grp.groupby('date')['qty'].sum()
+            max_date = s_by_date.index.max()
+            # Lewati material yang tidak aktif: tidak ada penjualan dalam 180 hari terakhir
+            # atau hanya pernah terjual 1 kali dalam seluruh riwayat
+            if max_date < cutoff_active_date or len(s_by_date) < 2:
+                continue
+
+            first_row = grp.iloc[0]
             min_date = s_by_date.index.min()
             idx = pd.date_range(start=min_date, end=today, freq='D').date
             daily_arr = s_by_date.reindex(idx, fill_value=0.0).to_numpy(dtype=np.float64)
@@ -994,8 +1002,14 @@ def stock_forecast(payload):
             })
             group['sales_by_date'][sold] = group['sales_by_date'].get(sold, 0.0) + qty
 
-        for item_key_val, item in groups.items():
-            min_date = min(item['sales_by_date'])
+        cutoff_active_date = today - dt.timedelta(days=180)
+        for item_key_val, item in list(groups.items()):
+            dates = item['sales_by_date'].keys()
+            max_date = max(dates)
+            if max_date < cutoff_active_date or len(dates) < 2:
+                del groups[item_key_val]
+                continue
+            min_date = min(dates)
             days = (today - min_date).days + 1
             daily_series = [item['sales_by_date'].get(today - dt.timedelta(days=offset), 0.0)
                             for offset in range(days - 1, -1, -1)]
