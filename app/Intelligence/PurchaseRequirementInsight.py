@@ -21,7 +21,7 @@ MAX_EXECUTION_SECONDS = 75.0
 try:
     import numpy as np
     import pandas as pd
-    from sklearn.linear_model import Ridge, HuberRegressor
+    from sklearn.linear_model import Ridge
     from sklearn.ensemble import RandomForestRegressor, GradientBoostingRegressor
     from sklearn.preprocessing import StandardScaler
     HAS_ML = True
@@ -448,8 +448,8 @@ def ridge_trend_forecast(values, start_date=None):
         return float(np.mean(vals)) if len(vals) > 0 else 0.0
 
 
-def huber_trend_forecast(values, start_date=None, window_size=90):
-    """Huber Robust Regressor with cyclical calendar features (resilient to demand spikes)."""
+def ridge_smooth_forecast(values, start_date=None, window_size=90):
+    """Ridge Regressor with stronger regularization (alpha=10.0) for stable trend smoothing."""
     if not HAS_ML or len(values) < 14:
         return None
     try:
@@ -475,7 +475,7 @@ def huber_trend_forecast(values, start_date=None, window_size=90):
 
         X_train = np.column_stack([day_index, w_sin, w_cos, m_sin, m_cos])
 
-        model = HuberRegressor(max_iter=100)
+        model = Ridge(alpha=10.0)
         model.fit(X_train, y_train)
 
         last_train_date = train_dates[-1]
@@ -669,12 +669,12 @@ def model_rates(values, start_date=None, performance_guard=False, allow_heavy_ml
         hist_dates = [(start_date + dt.timedelta(days=i), values[i]) for i in range(n)]
         candidates['weekly_seasonal'] = weekly_seasonal_rate(hist_dates, start_date)
 
-    # Scikit-Learn ML models: Ridge and Huber are ultra-fast (sub-millisecond)
+    # Scikit-Learn ML models: Closed-form Ridge regressions (sub-millisecond)
     if HAS_ML and n >= 14:
         candidates['ridge_regression'] = ridge_trend_forecast(values, start_date)
-        huber_rate = huber_trend_forecast(values, start_date)
-        if huber_rate is not None:
-            candidates['huber_regression'] = huber_rate
+        smooth_rate = ridge_smooth_forecast(values, start_date)
+        if smooth_rate is not None:
+            candidates['ridge_smooth'] = smooth_rate
 
     # Tree-based ML models: only run if heavy ML is allowed, NOT guarded by dataset size, and not time-critical
     if allow_heavy_ml and not performance_guard and HAS_ML and n >= 180 and not is_time_critical():
@@ -725,8 +725,8 @@ def model_description(name, context=None):
         'theta_method': 'Metode Theta: dekomposisi tren linier dan komponen musiman residual',
         'adaptive_exp_smoothing': 'Pelunasan eksponensial adaptif dengan alfa yang menyesuaikan secara otomatis (Trigg & Leach)',
         'weekly_seasonal': 'Pola musiman mingguan berdasarkan hari kerja (Senin-Minggu)',
-        'ridge_regression': 'Regresi linier teratur Ridge (Scikit-Learn) berbasis hari dan pola musiman kalender',
-        'huber_regression': 'Regresi Robus Huber (Scikit-Learn) yang kebal terhadap lonjakan penjualan ekstrem',
+        'ridge_regression': 'Regresi linier teratur Ridge (Scikit-Learn alpha=1.0) berbasis kalender',
+        'ridge_smooth': 'Regresi linier teratur Ridge (Scikit-Learn alpha=10.0) dengan peredaman tren',
         'random_forest': 'Machine Learning Random Forest Regressor berbasis fitur lag dan rata-rata bergulir',
         'gradient_boosting': 'Machine Learning Gradient Boosting Regressor berbasis boosting pohon keputusan',
         'insufficient_history': 'Histori penjualan belum cukup untuk memilih metode',
@@ -773,7 +773,7 @@ def forecast_rate(values, start_date=None, performance_guard=False):
         actual = float(np.sum(values[origin:origin + HORIZON_DAYS])) if HAS_ML else sum(values[origin:origin + HORIZON_DAYS])
         rates = model_rates(values[:origin], start_date=start_date, performance_guard=performance_guard, allow_heavy_ml=False)
         for name, rate in rates.items():
-            if name in ('ridge_regression', 'huber_regression', 'random_forest', 'gradient_boosting'):
+            if name in ('ridge_regression', 'ridge_smooth', 'random_forest', 'gradient_boosting'):
                 ml_models_seen = True
             errors.setdefault(name, [])
             errors[name].append((rate * HORIZON_DAYS, actual))
@@ -786,7 +786,7 @@ def forecast_rate(values, start_date=None, performance_guard=False):
             scores[name] = absolute / max(scale, 1.0)
 
     current_rates = model_rates(values, start_date=start_date, performance_guard=performance_guard, allow_heavy_ml=True)
-    if any(k in current_rates for k in ('ridge_regression', 'huber_regression', 'random_forest', 'gradient_boosting')):
+    if any(k in current_rates for k in ('ridge_regression', 'ridge_smooth', 'random_forest', 'gradient_boosting')):
         ml_models_seen = True
 
     if not scores:
