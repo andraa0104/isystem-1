@@ -211,6 +211,7 @@ const isInPeriod = (value, period, startCustom, endCustom) => {
 const SummaryMetric = ({
     label,
     value,
+    grandTotal,
     loading,
     onClick,
     icon,
@@ -232,6 +233,20 @@ const SummaryMetric = ({
         <div className="mt-1 text-xl font-bold">
             {loading ? <Skeleton className="h-6 w-10" /> : value}
         </div>
+        {grandTotal !== undefined && (
+            <div className="mt-2">
+                <p className="text-[10px] font-bold tracking-wide text-muted-foreground uppercase">
+                    Grand Total
+                </p>
+                <div className="mt-1 text-sm font-semibold break-words tabular-nums">
+                    {loading ? (
+                        <Skeleton className="h-5 w-24" />
+                    ) : (
+                        `Rp ${formatRupiah(grandTotal)}`
+                    )}
+                </div>
+            </div>
+        )}
         {(soonCount !== undefined || overdueCount !== undefined) && (
             <div className="mt-2 space-y-1 border-t border-sidebar-border/50 pt-2 text-[14px]">
                 {soonCount !== undefined && (
@@ -1411,6 +1426,7 @@ export default function PurchaseOrderInIndex({
                             <SummaryMetric
                                 label="Belum PR"
                                 value={summary.outstanding_pr ?? 0}
+                                grandTotal={summary.outstanding_pr_amount ?? 0}
                                 loading={summaryLoading.outstanding_pr}
                                 soonCount={summary.outstanding_pr_soon}
                                 overdueCount={summary.outstanding_pr_overdue}
@@ -1425,6 +1441,7 @@ export default function PurchaseOrderInIndex({
                             <SummaryMetric
                                 label="Belum DO"
                                 value={summary.outstanding_do ?? 0}
+                                grandTotal={summary.outstanding_do_amount ?? 0}
                                 loading={summaryLoading.outstanding_do}
                                 soonCount={summary.outstanding_do_soon}
                                 overdueCount={summary.outstanding_do_overdue}
@@ -1486,6 +1503,7 @@ export default function PurchaseOrderInIndex({
                             <SummaryMetric
                                 label="Sisa PR"
                                 value={summary.sisa_pr ?? 0}
+                                grandTotal={summary.sisa_pr_amount ?? 0}
                                 loading={summaryLoading.sisa_pr}
                                 soonCount={summary.sisa_pr_soon}
                                 overdueCount={summary.sisa_pr_overdue}
@@ -1500,6 +1518,7 @@ export default function PurchaseOrderInIndex({
                             <SummaryMetric
                                 label="Sisa DO"
                                 value={summary.sisa_do ?? 0}
+                                grandTotal={summary.sisa_do_amount ?? 0}
                                 loading={summaryLoading.sisa_do}
                                 soonCount={summary.sisa_do_soon}
                                 overdueCount={summary.sisa_do_overdue}
