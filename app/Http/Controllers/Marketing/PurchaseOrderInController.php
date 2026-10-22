@@ -41,7 +41,8 @@ class PurchaseOrderInController
             $dateFilter,
             $startDate,
             $endDate,
-            $prefix
+            $prefix,
+            $deadlineFilter
         );
 
         $kodePoins = collect($data['purchaseOrderIns'] ?? [])->pluck('kode_poin')->filter()->values();
@@ -948,6 +949,9 @@ class PurchaseOrderInController
                 ];
             }
 
+            $sisaPrCondition = "(coalesce(ds.sisa_pr_items, 0) > 0 or (coalesce(ds.changed_count, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0))";
+            $sisaDoCondition = "(coalesce(ds.sisa_do_items, 0) > 0 or (coalesce(ds.do_changed_count, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0))";
+
             $detailStats = DB::table('tb_detailpoin')
                 ->where('kode_poin', 'like', $prefix . '.POIN-%')
                 ->select('kode_poin')
@@ -1034,14 +1038,14 @@ class PurchaseOrderInController
 
                     $row = DB::table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                         ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
-                        ->selectRaw("count(case when (coalesce(ds.sisa_pr_items, 0) > 0 or (coalesce(ds.changed_count, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0)) then 1 end) as sisa_pr")
-                        ->selectRaw("coalesce(sum(case when (coalesce(ds.sisa_pr_items, 0) > 0 or (coalesce(ds.changed_count, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0)) then ds.pr_remaining_amount else 0 end), 0) as sisa_pr_amount")
-                        ->selectRaw("count(case when (coalesce(ds.sisa_pr_items, 0) > 0 or (coalesce(ds.changed_count, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0)) and {$isSoonExpr} then 1 end) as sisa_pr_soon")
-                        ->selectRaw("count(case when (coalesce(ds.sisa_pr_items, 0) > 0 or (coalesce(ds.changed_count, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0)) and {$isOverdueExpr} then 1 end) as sisa_pr_overdue")
-                        ->selectRaw("count(case when (coalesce(ds.sisa_do_items, 0) > 0 or (coalesce(ds.do_changed_count, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0)) then 1 end) as sisa_do")
-                        ->selectRaw("coalesce(sum(case when (coalesce(ds.sisa_do_items, 0) > 0 or (coalesce(ds.do_changed_count, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0)) then ds.do_remaining_amount else 0 end), 0) as sisa_do_amount")
-                        ->selectRaw("count(case when (coalesce(ds.sisa_do_items, 0) > 0 or (coalesce(ds.do_changed_count, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0)) and {$isSoonExpr} then 1 end) as sisa_do_soon")
-                        ->selectRaw("count(case when (coalesce(ds.sisa_do_items, 0) > 0 or (coalesce(ds.do_changed_count, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0)) and {$isOverdueExpr} then 1 end) as sisa_do_overdue")
+                        ->selectRaw("count(case when {$sisaPrCondition} then 1 end) as sisa_pr")
+                        ->selectRaw("coalesce(sum(case when {$sisaPrCondition} then ds.pr_remaining_amount else 0 end), 0) as sisa_pr_amount")
+                        ->selectRaw("count(case when {$sisaPrCondition} and {$isSoonExpr} then 1 end) as sisa_pr_soon")
+                        ->selectRaw("count(case when {$sisaPrCondition} and {$isOverdueExpr} then 1 end) as sisa_pr_overdue")
+                        ->selectRaw("count(case when {$sisaDoCondition} then 1 end) as sisa_do")
+                        ->selectRaw("coalesce(sum(case when {$sisaDoCondition} then ds.do_remaining_amount else 0 end), 0) as sisa_do_amount")
+                        ->selectRaw("count(case when {$sisaDoCondition} and {$isSoonExpr} then 1 end) as sisa_do_soon")
+                        ->selectRaw("count(case when {$sisaDoCondition} and {$isOverdueExpr} then 1 end) as sisa_do_overdue")
                         ->first();
 
                     $summary = [];
@@ -1342,9 +1346,9 @@ class PurchaseOrderInController
                 $query->whereRaw('coalesce(ds.changed_count, 0) = 0')
                     ->whereRaw('coalesce(ds.total_items, 0) > 0');
             } elseif ($statusFilter === 'sisa_pr') {
-                $query->whereRaw('(coalesce(ds.sisa_pr_items, 0) > 0 or (coalesce(ds.changed_count, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0))');
+                $query->whereRaw("{$sisaPrCondition}");
             } elseif ($statusFilter === 'sisa_do') {
-                $query->whereRaw('(coalesce(ds.sisa_do_items, 0) > 0 or (coalesce(ds.do_changed_count, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0))');
+                $query->whereRaw("{$sisaDoCondition}");
             } elseif ($statusFilter === 'realized' || $statusFilter === 'realized_do') {
                 $query->whereRaw('coalesce(ds.total_items, 0) > 0')
                     ->whereRaw('coalesce(ds.do_unrealized_items, 0) = 0');
@@ -1426,14 +1430,14 @@ class PurchaseOrderInController
                 ->selectRaw("coalesce(sum(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then p.grand_total else 0 end), 0) as outstanding_do_amount")
                 ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null and {$isSoonExpr} then 1 end) as outstanding_do_soon")
                 ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null and {$isOverdueExpr} then 1 end) as outstanding_do_overdue")
-                ->selectRaw("count(case when coalesce(ds.sisa_pr_items, 0) > 0 then 1 end) as sisa_pr")
-                ->selectRaw("coalesce(sum(case when coalesce(ds.sisa_pr_items, 0) > 0 then ds.pr_remaining_amount else 0 end), 0) as sisa_pr_amount")
-                ->selectRaw("count(case when coalesce(ds.sisa_pr_items, 0) > 0 and {$isSoonExpr} then 1 end) as sisa_pr_soon")
-                ->selectRaw("count(case when coalesce(ds.sisa_pr_items, 0) > 0 and {$isOverdueExpr} then 1 end) as sisa_pr_overdue")
-                ->selectRaw("count(case when coalesce(ds.sisa_do_items, 0) > 0 then 1 end) as sisa_do")
-                ->selectRaw("coalesce(sum(case when coalesce(ds.sisa_do_items, 0) > 0 then ds.do_remaining_amount else 0 end), 0) as sisa_do_amount")
-                ->selectRaw("count(case when coalesce(ds.sisa_do_items, 0) > 0 and {$isSoonExpr} then 1 end) as sisa_do_soon")
-                ->selectRaw("count(case when coalesce(ds.sisa_do_items, 0) > 0 and {$isOverdueExpr} then 1 end) as sisa_do_overdue")
+                ->selectRaw("count(case when {$sisaPrCondition} then 1 end) as sisa_pr")
+                ->selectRaw("coalesce(sum(case when {$sisaPrCondition} then ds.pr_remaining_amount else 0 end), 0) as sisa_pr_amount")
+                ->selectRaw("count(case when {$sisaPrCondition} and {$isSoonExpr} then 1 end) as sisa_pr_soon")
+                ->selectRaw("count(case when {$sisaPrCondition} and {$isOverdueExpr} then 1 end) as sisa_pr_overdue")
+                ->selectRaw("count(case when {$sisaDoCondition} then 1 end) as sisa_do")
+                ->selectRaw("coalesce(sum(case when {$sisaDoCondition} then ds.do_remaining_amount else 0 end), 0) as sisa_do_amount")
+                ->selectRaw("count(case when {$sisaDoCondition} and {$isSoonExpr} then 1 end) as sisa_do_soon")
+                ->selectRaw("count(case when {$sisaDoCondition} and {$isOverdueExpr} then 1 end) as sisa_do_overdue")
                 ->selectRaw("count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date is not null then 1 end) as realized_pr")
                 ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and coalesce(dos.do_count, 0) > 0 then 1 end) as realized_do")
                 ->selectRaw("count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_today", [$startToday, $endToday])

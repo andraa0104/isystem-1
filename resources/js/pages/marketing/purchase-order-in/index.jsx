@@ -9,14 +9,17 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAppearance } from '@/hooks/use-appearance';
 import AppLayout from '@/layouts/app-layout';
+import { createLatestRequest, getBusinessDate, getPaginationRange, readPoInResponse } from '@/lib/purchase-order-in';
 import { cn } from '@/lib/utils';
 import { Head, router, usePage } from '@inertiajs/react';
 import {
     AlertCircle,
     ClipboardCheck,
     Eye,
+    Info,
     Pencil,
     Printer,
     Search,
@@ -35,6 +38,22 @@ const breadcrumbs = [
 
 const formatRupiah = (value) =>
     `${new Intl.NumberFormat('id-ID').format(Number(value || 0))}`;
+
+const SUMMARY_SCOPE_METRICS = {
+    outstanding: ['outstanding_pr', 'outstanding_do'],
+    sisa: ['sisa_pr', 'sisa_do'],
+    realized: ['realized_pr', 'realized_do'],
+    total: ['total'],
+};
+
+const SUMMARY_AMOUNT_HINTS = {
+    outstanding:
+        'Jumlah grand total dokumen PO yang belum diproses, termasuk PPN sesuai dokumen.',
+    sisa_pr:
+        'Jumlah sisa kuantitas PR × harga material pada detail PO IN, tanpa tambahan PPN.',
+    sisa_do:
+        'Jumlah sisa kuantitas DO × harga material pada detail PO IN, tanpa tambahan PPN.',
+};
 
 const toastSuccess = (message) => {
     Swal.fire({
@@ -147,146 +166,140 @@ const toDate = (value) => {
     return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const isInPeriod = (value, period, startCustom, endCustom) => {
-    const date = toDate(value);
-    if (!date) {
-        return false;
-    }
-
-    if (period === 'all') {
-        return true;
-    }
-
-    const now = new Date();
-    const startOfToday = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate(),
-    );
-    const startOfDate = new Date(
-        date.getFullYear(),
-        date.getMonth(),
-        date.getDate(),
-    );
-
-    if (period === 'today') {
-        return startOfDate.getTime() === startOfToday.getTime();
-    }
-
-    if (period === 'this_week') {
-        const day = now.getDay();
-        const diffToMonday = day === 0 ? 6 : day - 1;
-        const weekStart = new Date(startOfToday);
-        weekStart.setDate(startOfToday.getDate() - diffToMonday);
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
-        return startOfDate >= weekStart && startOfDate <= weekEnd;
-    }
-
-    if (period === 'this_month') {
-        return (
-            date.getMonth() === now.getMonth() &&
-            date.getFullYear() === now.getFullYear()
-        );
-    }
-
-    if (period === 'this_year') {
-        return date.getFullYear() === now.getFullYear();
-    }
-
-    if (period === 'range') {
-        const s = toDate(startCustom);
-        const e = toDate(endCustom);
-        if (!s || !e) {
-            return true;
-        }
-        const start = new Date(s.getFullYear(), s.getMonth(), s.getDate());
-        const end = new Date(e.getFullYear(), e.getMonth(), e.getDate());
-        return startOfDate >= start && startOfDate <= end;
-    }
-
-    return true;
-};
+const SummaryLoadError = ({ label, onRetry, message = 'Gagal memuat' }) => (
+    <div className="space-y-2" role="alert">
+        <p className="text-sm font-medium text-destructive">{message}</p>
+        <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-auto max-w-full py-1 text-xs whitespace-normal"
+            aria-label={`Coba lagi memuat ${label}`}
+            onClick={(event) => {
+                event.stopPropagation();
+                onRetry?.();
+            }}
+        >
+            Coba lagi
+        </Button>
+    </div>
+);
 
 const SummaryMetric = ({
     label,
     value,
     grandTotal,
+    grandTotalHint,
     loading,
+    error,
+    onRetry,
     onClick,
     icon,
     soonCount,
     overdueCount,
-}) => (
-    <button
-        type="button"
-        className="rounded-lg border border-sidebar-border/70 px-3 py-2 text-left transition hover:border-primary/50 hover:bg-muted/40"
-        onClick={(event) => {
-            event.stopPropagation();
-            onClick?.();
-        }}
-    >
-        <p className="flex items-center gap-1 text-[10px] font-bold tracking-wide text-muted-foreground uppercase">
-            {label}
-            {icon}
-        </p>
-        <div className="mt-1 text-xl font-bold">
-            {loading ? <Skeleton className="h-6 w-10" /> : value}
-        </div>
-        {grandTotal !== undefined && (
-            <div className="mt-2">
-                <p className="text-[10px] font-bold tracking-wide text-muted-foreground uppercase">
-                    Grand Total
-                </p>
-                <div className="mt-1 text-sm font-semibold break-words tabular-nums">
-                    {loading ? (
-                        <Skeleton className="h-5 w-24" />
-                    ) : (
-                        `Rp ${formatRupiah(grandTotal)}`
+}) => {
+    const metricButton = (
+        <button
+            type="button"
+            className="w-full min-w-0 rounded-lg px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            aria-busy={loading}
+            onClick={(event) => {
+                event.stopPropagation();
+                onClick?.();
+            }}
+        >
+            <p className="flex items-center gap-1 text-[10px] font-bold tracking-wide text-muted-foreground uppercase">
+                {label}
+                {icon}
+            </p>
+            {error && !loading ? (
+                <span className="sr-only">Gagal memuat ringkasan</span>
+            ) : (
+                <>
+                    <div className="mt-1 text-xl font-bold">
+                        {loading ? <Skeleton className="h-6 w-10" /> : value}
+                    </div>
+                    {grandTotal !== undefined && (
+                        <div className="mt-2">
+                            <p className="flex items-center gap-1 text-[10px] font-bold tracking-wide text-muted-foreground uppercase">
+                                Grand Total
+                                {grandTotalHint && (
+                                    <Info
+                                        className="size-3 shrink-0"
+                                        aria-hidden="true"
+                                    />
+                                )}
+                            </p>
+                            <div className="mt-1 text-sm font-semibold break-words tabular-nums">
+                                {loading ? (
+                                    <Skeleton className="h-5 w-24" />
+                                ) : (
+                                    `Rp ${formatRupiah(grandTotal)}`
+                                )}
+                            </div>
+                        </div>
                     )}
+                    {(soonCount !== undefined ||
+                        overdueCount !== undefined) && (
+                        <div className="mt-2 space-y-1 border-t border-sidebar-border/50 pt-2 text-[14px]">
+                            {soonCount !== undefined && (
+                                <div className="flex justify-between text-amber-600 dark:text-amber-500">
+                                    <span>≤ 5 Hari:</span>
+                                    <span className="font-bold">
+                                        {loading ? '-' : soonCount}
+                                    </span>
+                                </div>
+                            )}
+                            {overdueCount !== undefined && (
+                                <div className="flex justify-between text-rose-600 dark:text-rose-500">
+                                    <span>Lewat:</span>
+                                    <span className="font-bold">
+                                        {loading ? '-' : overdueCount}
+                                    </span>
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </>
+            )}
+        </button>
+    );
+
+    return (
+        <div className="min-w-0 rounded-lg border border-sidebar-border/70 transition hover:border-primary/50 hover:bg-muted/40">
+            {grandTotalHint ? (
+                <Tooltip>
+                    <TooltipTrigger asChild>{metricButton}</TooltipTrigger>
+                    <TooltipContent className="max-w-64">
+                        {grandTotalHint}
+                    </TooltipContent>
+                </Tooltip>
+            ) : (
+                metricButton
+            )}
+            {error && !loading && (
+                <div className="px-3 pb-2">
+                    <SummaryLoadError label={label} onRetry={onRetry} />
                 </div>
-            </div>
-        )}
-        {(soonCount !== undefined || overdueCount !== undefined) && (
-            <div className="mt-2 space-y-1 border-t border-sidebar-border/50 pt-2 text-[14px]">
-                {soonCount !== undefined && (
-                    <div className="flex justify-between text-amber-600 dark:text-amber-500">
-                        <span>≤ 5 Hari:</span>
-                        <span className="font-bold">
-                            {loading ? '-' : soonCount}
-                        </span>
-                    </div>
-                )}
-                {overdueCount !== undefined && (
-                    <div className="flex justify-between text-rose-600 dark:text-rose-500">
-                        <span>Lewat:</span>
-                        <span className="font-bold">
-                            {loading ? '-' : overdueCount}
-                        </span>
-                    </div>
-                )}
-            </div>
-        )}
-    </button>
-);
+            )}
+        </div>
+    );
+};
 
 export default function PurchaseOrderInIndex({
     purchaseOrderIns: initialPurchaseOrderIns = [],
-    outstandingPurchaseOrderIns: initialOutstandingPoIns = [],
-    belumPrPurchaseOrderIns: initialBelumPrPoIns = [],
-    realizedPurchaseOrderIns: initialRealizedPoIns = [],
-    allPurchaseOrderIns: initialAllPoIns = [],
     summary: initialSummary = {},
     filters = {},
     pagination: initialPagination = {},
 }) {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = getBusinessDate();
     const monthStart = `${today.slice(0, 8)}01`;
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [exportStartDate, setExportStartDate] = useState(monthStart);
     const [exportEndDate, setExportEndDate] = useState(today);
     const [exportStatus, setExportStatus] = useState('all');
     const [exportDateFilter, setExportDateFilter] = useState('today');
+    const [exportDeadlineFilter, setExportDeadlineFilter] = useState('all');
     const { auth } = usePage().props;
     const { resolvedAppearance } = useAppearance();
     const isDark = resolvedAppearance === 'dark';
@@ -376,7 +389,11 @@ export default function PurchaseOrderInIndex({
     const [materialLoading, setMaterialLoading] = useState(false);
     const [tableLoading, setTableLoading] = useState(false);
     const [paginationLoading, setPaginationLoading] = useState(false);
+    const [tableError, setTableError] = useState('');
+    const [paginationError, setPaginationError] = useState('');
+    const [materialError, setMaterialError] = useState('');
     const [summary, setSummary] = useState(initialSummary);
+    const [summaryErrors, setSummaryErrors] = useState({});
     const [summaryLoading, setSummaryLoading] = useState({
         outstanding_pr: true,
         outstanding_do: true,
@@ -386,25 +403,15 @@ export default function PurchaseOrderInIndex({
         realized_do: true,
         total: true,
     });
-    const [outstandingPurchaseOrderIns, setOutstandingPurchaseOrderIns] =
-        useState(initialOutstandingPoIns);
-    const [outstandingDoPurchaseOrderIns, setOutstandingDoPurchaseOrderIns] =
-        useState([]);
-    const [belumPrPurchaseOrderIns, setBelumPrPurchaseOrderIns] =
-        useState(initialBelumPrPoIns);
-    const [sisaDoPurchaseOrderIns, setSisaDoPurchaseOrderIns] = useState([]);
-    const [realizedPurchaseOrderIns, setRealizedPurchaseOrderIns] =
-        useState(initialRealizedPoIns);
-    const [realizedDoPurchaseOrderIns, setRealizedDoPurchaseOrderIns] =
-        useState([]);
-    const [allPurchaseOrderIns, setAllPurchaseOrderIns] =
-        useState(initialAllPoIns);
     const [pagination, setPagination] = useState(initialPagination);
 
     const [modalSearch, setModalSearch] = useState('');
     const [modalPageSize, setModalPageSize] = useState(5);
     const [modalPage, setModalPage] = useState(1);
     const [modalLoading, setModalLoading] = useState(false);
+    const [modalError, setModalError] = useState('');
+    const [modalRows, setModalRows] = useState([]);
+    const [modalPagination, setModalPagination] = useState({ total: 0, total_pages: 1 });
     const [modalDeadlineFilter, setModalDeadlineFilter] = useState('all');
 
     useEffect(() => {
@@ -433,6 +440,11 @@ export default function PurchaseOrderInIndex({
     const rowsRequestId = useRef(0);
     const paginationRequestId = useRef(0);
     const materialRequestId = useRef(0);
+    const summaryRequestIds = useRef({});
+    const modalRequest = useRef(createLatestRequest());
+    const detailRequest = useRef(createLatestRequest());
+    const lastTableParams = useRef({});
+    const lastMaterialParams = useRef({});
     const isInitialTableLoad = useRef(true);
     const isInitialRealizedSummaryLoad = useRef(true);
     const isInitialTotalSummaryLoad = useRef(true);
@@ -476,6 +488,8 @@ export default function PurchaseOrderInIndex({
         const requestId = ++rowsRequestId.current;
         const nextParams = { ...params, isPartial: true };
         setTableLoading(true);
+        setTableError('');
+        setPurchaseOrderIns([]);
 
         try {
             const queryParams = buildTableQueryParams(nextParams);
@@ -487,7 +501,13 @@ export default function PurchaseOrderInIndex({
                     headers: { Accept: 'application/json' },
                 },
             );
-            const data = await response.json();
+            const data = await readPoInResponse(
+                response,
+                'Gagal memuat data PO In.',
+            );
+            if (!Array.isArray(data.purchaseOrderIns)) {
+                throw new Error('Respons data PO In tidak lengkap.');
+            }
 
             if (
                 requestId === rowsRequestId.current &&
@@ -496,7 +516,9 @@ export default function PurchaseOrderInIndex({
                 setPurchaseOrderIns(data.purchaseOrderIns || []);
             }
         } catch (error) {
-            console.error('Error fetching PO In rows:', error);
+            if (requestId === rowsRequestId.current) {
+                setTableError(error?.message || 'Gagal memuat data PO In.');
+            }
         } finally {
             if (requestId === rowsRequestId.current) {
                 setTableLoading(false);
@@ -508,6 +530,7 @@ export default function PurchaseOrderInIndex({
         const requestId = ++paginationRequestId.current;
         const nextParams = { ...params, isPartial: true };
         setPaginationLoading(true);
+        setPaginationError('');
 
         try {
             const queryParams = buildTableQueryParams(nextParams);
@@ -519,7 +542,15 @@ export default function PurchaseOrderInIndex({
                     headers: { Accept: 'application/json' },
                 },
             );
-            const data = await response.json();
+            const data = await readPoInResponse(
+                response,
+                'Gagal memuat jumlah dan halaman PO In.',
+            );
+            if (
+                !(data.pagination && Number.isFinite(Number(data.pagination.total)))
+            ) {
+                throw new Error('Respons data PO In tidak lengkap.');
+            }
 
             if (
                 requestId === paginationRequestId.current &&
@@ -528,7 +559,11 @@ export default function PurchaseOrderInIndex({
                 setPagination(data.pagination || {});
             }
         } catch (error) {
-            console.error('Error fetching PO In pagination:', error);
+            if (requestId === paginationRequestId.current) {
+                setPaginationError(
+                    error?.message || 'Gagal memuat jumlah dan halaman PO In.',
+                );
+            }
         } finally {
             if (requestId === paginationRequestId.current) {
                 setPaginationLoading(false);
@@ -537,13 +572,20 @@ export default function PurchaseOrderInIndex({
     };
 
     const fetchPoInData = (params = {}) => {
-        fetchPoInRows(params);
-        fetchPoInPagination(params);
+        lastTableParams.current = {
+            ...params,
+            page: params.page ?? pagination.page ?? 1,
+        };
+        fetchPoInRows(lastTableParams.current);
+        fetchPoInPagination(lastTableParams.current);
     };
 
     const fetchMaterialData = async (params = {}) => {
         const requestId = ++materialRequestId.current;
+        lastMaterialParams.current = params;
         setMaterialLoading(true);
+        setMaterialError('');
+        setMaterialRows([]);
 
         try {
             const queryParams = new URLSearchParams({
@@ -551,8 +593,7 @@ export default function PurchaseOrderInIndex({
                 per_page: params.per_page ?? materialPerPage,
                 status: params.status ?? materialStatusFilter,
                 date_filter: params.dateFilter ?? materialDateFilter,
-                deadline_filter:
-                    params.deadlineFilter ?? materialDeadlineFilter,
+                deadline_filter: params.deadlineFilter ?? materialDeadlineFilter,
                 page: params.page ?? 1,
                 _request: `${Date.now()}-${Math.random()}`,
             });
@@ -568,16 +609,23 @@ export default function PurchaseOrderInIndex({
                 `/marketing/purchase-order-in/material-data?${queryParams.toString()}`,
                 { cache: 'no-store', headers: { Accept: 'application/json' } },
             );
-            const data = await response.json();
-            if (!response.ok) {
-                throw new Error('Gagal memuat data material PO In.');
+            const data = await readPoInResponse(
+                response,
+                'Gagal memuat data material PO In.',
+            );
+            if (!Array.isArray(data.materials) || !data.pagination) {
+                throw new Error('Respons data material PO In tidak lengkap.');
             }
             if (requestId === materialRequestId.current) {
                 setMaterialRows(data.materials || []);
                 setMaterialPagination(data.pagination || {});
             }
         } catch (error) {
-            console.error('Error fetching PO In material rows:', error);
+            if (requestId === materialRequestId.current) {
+                setMaterialError(
+                    error?.message || 'Gagal memuat data material PO In.',
+                );
+            }
         } finally {
             if (requestId === materialRequestId.current) {
                 setMaterialLoading(false);
@@ -591,15 +639,16 @@ export default function PurchaseOrderInIndex({
         startDateVal = '',
         endDateVal = '',
     ) => {
-        if (scope === 'realized') {
-            setSummaryLoading((prev) => ({
-                ...prev,
-                realized_pr: true,
-                realized_do: true,
-            }));
-        } else {
-            setSummaryLoading((prev) => ({ ...prev, [scope]: true }));
-        }
+        const metrics = SUMMARY_SCOPE_METRICS[scope] ?? [scope];
+        const requestId = (summaryRequestIds.current[scope] ?? 0) + 1;
+        summaryRequestIds.current[scope] = requestId;
+        const isCurrentRequest = () =>
+            summaryRequestIds.current[scope] === requestId;
+        const metricFlags = (value) =>
+            Object.fromEntries(metrics.map((metric) => [metric, value]));
+
+        setSummaryLoading((prev) => ({ ...prev, ...metricFlags(true) }));
+        setSummaryErrors((prev) => ({ ...prev, ...metricFlags(false) }));
 
         try {
             const queryParams = new URLSearchParams({
@@ -624,34 +673,61 @@ export default function PurchaseOrderInIndex({
                     headers: { Accept: 'application/json' },
                 },
             );
+            if (!response.ok) {
+                throw new Error(`Summary request failed: ${response.status}`);
+            }
             const data = await response.json();
-            setSummary((prev) => ({ ...prev, ...(data.summary || {}) }));
+            const requiredFields = [...metrics];
+            if (scope === 'outstanding' || scope === 'sisa') {
+                requiredFields.push(
+                    ...metrics.map((metric) => `${metric}_amount`),
+                );
+            } else if (scope === 'total') {
+                requiredFields.push('total_amount');
+            }
+            if (
+                !data?.summary ||
+                !requiredFields.every((field) => {
+                    const value = data.summary[field];
+                    return (
+                        (typeof value === 'number' ||
+                            (typeof value === 'string' &&
+                                value.trim() !== '')) &&
+                        Number.isFinite(Number(value))
+                    );
+                })
+            ) {
+                throw new Error('Invalid PO IN summary response');
+            }
+            if (isCurrentRequest()) {
+                setSummary((prev) => ({ ...prev, ...data.summary }));
+            }
         } catch (error) {
-            console.error(`Error fetching PO In ${scope} summary:`, error);
+            if (isCurrentRequest()) {
+                setSummaryErrors((prev) => ({ ...prev, ...metricFlags(true) }));
+                console.error(`Error fetching PO In ${scope} summary:`, error);
+            }
         } finally {
-            if (scope === 'realized') {
+            if (isCurrentRequest()) {
                 setSummaryLoading((prev) => ({
                     ...prev,
-                    realized_pr: false,
-                    realized_do: false,
+                    ...metricFlags(false),
                 }));
-            } else {
-                setSummaryLoading((prev) => ({ ...prev, [scope]: false }));
             }
         }
     };
 
     const fetchPoInSummary = (scopes) => {
-        const scopesToFetch = scopes || [
-            'outstanding_pr',
-            'outstanding_do',
-            'sisa_pr',
-            'sisa_do',
-            'realized',
-            'total',
-        ];
+        const scopesToFetch = new Set(
+            (scopes ?? ['outstanding', 'sisa', 'realized', 'total']).map(
+                (scope) =>
+                    Object.keys(SUMMARY_SCOPE_METRICS).find((group) =>
+                        SUMMARY_SCOPE_METRICS[group].includes(scope),
+                    ) ?? scope,
+            ),
+        );
         scopesToFetch.forEach((scope) => {
-            if (scope === 'realized' || scope === 'realized_pr' || scope === 'realized_do') {
+            if (scope === 'realized') {
                 fetchPoInSummaryScope(scope, realizedPeriod);
             } else if (scope === 'total') {
                 fetchPoInSummaryScope(
@@ -671,15 +747,30 @@ export default function PurchaseOrderInIndex({
     }, []);
 
     useEffect(() => {
+        const invalidateRequests = () => {
+            rowsRequestId.current += 1;
+            paginationRequestId.current += 1;
+            materialRequestId.current += 1;
+        };
+        invalidateRequests();
+        if (activeDataTab === 'material') {
+            setMaterialLoading(true);
+            setMaterialError('');
+            setMaterialRows([]);
+        } else {
+            setTableLoading(true);
+            setPaginationLoading(true);
+            setTableError('');
+            setPaginationError('');
+            setPurchaseOrderIns([]);
+        }
         const loadTable = () => {
             const isMaterialTab = activeDataTab === 'material';
             const params = {
                 search: isMaterialTab ? materialSearch : search,
                 per_page: isMaterialTab ? materialPerPage : perPage,
                 status: isMaterialTab ? materialStatusFilter : statusFilter,
-                dateFilter: isMaterialTab
-                    ? materialDateFilter
-                    : tableDateFilter,
+                dateFilter: isMaterialTab ? materialDateFilter : tableDateFilter,
                 startDate: isMaterialTab ? materialStartDate : tableStartDate,
                 endDate: isMaterialTab ? materialEndDate : tableEndDate,
                 deadlineFilter: isMaterialTab
@@ -700,14 +791,17 @@ export default function PurchaseOrderInIndex({
         if (isInitialTableLoad.current) {
             isInitialTableLoad.current = false;
             loadTable();
-            return undefined;
+            return invalidateRequests;
         }
 
         const timer = setTimeout(() => {
             loadTable();
         }, 250);
 
-        return () => clearTimeout(timer);
+        return () => {
+            clearTimeout(timer);
+            invalidateRequests();
+        };
     }, [
         search,
         materialSearch,
@@ -740,13 +834,6 @@ export default function PurchaseOrderInIndex({
             setMaterialDeadlineFilter('all');
         }
     }, [materialStatusFilter]);
-
-    const realizedPeriodKey = useMemo(() => {
-        if (realizedPeriod === 'this_week') return 'week';
-        if (realizedPeriod === 'this_month') return 'month';
-        if (realizedPeriod === 'this_year') return 'year';
-        return realizedPeriod;
-    }, [realizedPeriod]);
 
     const realizedPrCount = Number(summary.realized_pr ?? 0);
     const realizedDoCount = Number(summary.realized_do ?? 0);
@@ -795,75 +882,100 @@ export default function PurchaseOrderInIndex({
 
     const fetchModalData = async () => {
         if (!activeModal) return;
-
+        const { signal, isCurrent } = modalRequest.current.start();
         setModalLoading(true);
+        setModalError('');
+        setModalRows([]);
         try {
             const queryParams = new URLSearchParams({
                 search: modalSearch,
-                per_page: 'all',
-                status: activeModal === 'all_data' ? 'all' : modalStatus,
+                per_page:
+                    modalPageSize === Infinity ? 'all' : String(modalPageSize),
+                status: modalStatus,
                 date_filter:
                     activeModal === 'all_data'
                         ? dataPoInPeriod
                         : activeModal === 'realized'
-                            ? realizedPeriod
-                            : 'all',
-                page: '1',
+                          ? realizedPeriod
+                          : 'all',
+                deadline_filter: ['outstanding', 'sisa'].includes(activeModal)
+                    ? modalDeadlineFilter
+                    : 'all',
+                page: String(modalPage),
                 is_partial: '1',
             });
-
             if (activeModal === 'all_data' && dataPoInPeriod === 'range') {
                 queryParams.set('start_date', dataPoInStart);
                 queryParams.set('end_date', dataPoInEnd);
             }
-
             const response = await fetch(
                 `/marketing/purchase-order-in/data?${queryParams.toString()}`,
                 {
+                    signal,
                     cache: 'no-store',
                     headers: { Accept: 'application/json' },
                 },
             );
-            const data = await response.json();
-            const rows = data.purchaseOrderIns || [];
-
-            if (activeModal === 'all_data') {
-                setAllPurchaseOrderIns(rows);
-            } else if (modalStatus === 'outstanding_pr') {
-                setOutstandingPurchaseOrderIns(rows);
-            } else if (modalStatus === 'outstanding_do') {
-                setOutstandingDoPurchaseOrderIns(rows);
-            } else if (modalStatus === 'sisa_pr') {
-                setBelumPrPurchaseOrderIns(rows);
-            } else if (modalStatus === 'sisa_do') {
-                setSisaDoPurchaseOrderIns(rows);
-            } else if (modalStatus === 'realized_pr') {
-                setRealizedPurchaseOrderIns(rows);
-            } else if (modalStatus === 'realized_do') {
-                setRealizedDoPurchaseOrderIns(rows);
+            const data = await readPoInResponse(
+                response,
+                'Gagal memuat daftar PO In.',
+            );
+            if (!Array.isArray(data.purchaseOrderIns) || !data.pagination) {
+                throw new Error('Respons daftar PO In tidak lengkap.');
             }
+            if (!isCurrent()) return;
+            const totalPages = Math.max(
+                1,
+                Number(data.pagination.total_pages) || 1,
+            );
+            setModalPagination(data.pagination);
+            if (modalPage > totalPages) {
+                setModalPage(totalPages);
+                return;
+            }
+            setModalRows(data.purchaseOrderIns);
         } catch (error) {
-            console.error('Error fetching PO In modal data:', error);
+            if (isCurrent())
+                setModalError(error?.message || 'Gagal memuat daftar PO In.');
         } finally {
-            setModalLoading(false);
+            if (isCurrent()) setModalLoading(false);
         }
     };
 
     useEffect(() => {
+        modalRequest.current.cancel();
         if (!activeModal) return;
-        const timer = setTimeout(() => {
-            fetchModalData();
-        }, 250);
-        return () => clearTimeout(timer);
+        setModalLoading(true);
+        setModalRows([]);
+        setModalError('');
+        const timer = setTimeout(fetchModalData, 250);
+        return () => {
+            clearTimeout(timer);
+            modalRequest.current.cancel();
+        };
     }, [
         activeModal,
         activeModalTab,
         modalSearch,
+        modalPage,
+        modalPageSize,
+        modalDeadlineFilter,
         dataPoInPeriod,
         dataPoInStart,
         dataPoInEnd,
         realizedPeriod,
         modalStatus,
+    ]);
+
+    useEffect(() => {
+        setModalPage(1);
+    }, [
+        activeModal,
+        activeModalTab,
+        dataPoInPeriod,
+        dataPoInStart,
+        dataPoInEnd,
+        realizedPeriod,
     ]);
 
     const periodLabelMap = {
@@ -875,166 +987,34 @@ export default function PurchaseOrderInIndex({
         all: 'Semua Data',
     };
 
-    const outstandingItems = useMemo(
-        () => outstandingPurchaseOrderIns,
-        [outstandingPurchaseOrderIns],
-    );
-
-    const outstandingDoItems = useMemo(
-        () => outstandingDoPurchaseOrderIns,
-        [outstandingDoPurchaseOrderIns],
-    );
-
-    const belumPrItems = useMemo(
-        () => belumPrPurchaseOrderIns,
-        [belumPrPurchaseOrderIns],
-    );
-
-    const sisaDoItems = useMemo(
-        () => sisaDoPurchaseOrderIns,
-        [sisaDoPurchaseOrderIns],
-    );
-
-    // Data terealisasi sudah difilter backend memakai tanggal transaksi sumber
-    // (PR: last_pr_date, DO: tb_kddo.pos_tgl). Jangan filter ulang di browser
-    // agar isi modal selalu identik dengan angka summary card.
-    const realizedItemsByPeriod = realizedPurchaseOrderIns;
-    const realizedDoItemsByPeriod = realizedDoPurchaseOrderIns;
-
-    const dataItemsByPeriod = useMemo(
-        () =>
-            allPurchaseOrderIns.filter((item) =>
-                isInPeriod(
-                    item.created_at || item.date_poin,
-                    dataPoInPeriod,
-                    dataPoInStart,
-                    dataPoInEnd,
-                ),
-            ),
-        [allPurchaseOrderIns, dataPoInPeriod, dataPoInStart, dataPoInEnd],
-    );
-
     const dataPoInCount = useMemo(() => {
-        if (dataPoInPeriod === 'all') {
-            return Number(summary.total ?? 0);
-        }
-        if (dataPoInPeriod === 'today') {
-            return Number(summary.data_counts?.today ?? 0);
-        }
-        if (dataPoInPeriod === 'this_week') {
-            return Number(summary.data_counts?.week ?? 0);
-        }
-        if (dataPoInPeriod === 'this_month') {
-            return Number(summary.data_counts?.month ?? 0);
-        }
-        if (dataPoInPeriod === 'this_year') {
-            return Number(summary.data_counts?.year ?? 0);
-        }
-        return dataItemsByPeriod.length;
-    }, [dataItemsByPeriod.length, dataPoInPeriod, summary]);
+        if (dataPoInPeriod === 'all') return Number(summary.total ?? 0);
+        const period =
+            { this_week: 'week', this_month: 'month', this_year: 'year' }[
+                dataPoInPeriod
+            ] ?? dataPoInPeriod;
+        return Number(summary.data_counts?.[period] ?? 0);
+    }, [dataPoInPeriod, summary]);
 
     const dataPoInTotalAmount = useMemo(() => {
-        if (dataPoInPeriod === 'all') {
+        if (dataPoInPeriod === 'all')
             return Number(summary.total_amount ?? summary.data_amounts?.all ?? 0);
-        }
-        if (dataPoInPeriod === 'today') {
-            return Number(summary.data_amounts?.today ?? 0);
-        }
-        if (dataPoInPeriod === 'this_week') {
-            return Number(summary.data_amounts?.week ?? 0);
-        }
-        if (dataPoInPeriod === 'this_month') {
-            return Number(summary.data_amounts?.month ?? 0);
-        }
-        if (dataPoInPeriod === 'this_year') {
-            return Number(summary.data_amounts?.year ?? 0);
-        }
-        if (dataPoInPeriod === 'range' && summary.data_amounts?.range !== undefined) {
-            return Number(summary.data_amounts?.range ?? 0);
-        }
-        return dataItemsByPeriod.reduce(
-            (acc, it) => acc + Number(it.grand_total || 0),
-            0,
-        );
-    }, [dataItemsByPeriod, dataPoInPeriod, summary]);
+        const period =
+            { this_week: 'week', this_month: 'month', this_year: 'year' }[
+                dataPoInPeriod
+            ] ?? dataPoInPeriod;
+        return Number(summary.data_amounts?.[period] ?? 0);
+    }, [dataPoInPeriod, summary]);
 
-    const modalItems =
-        activeModal === 'outstanding'
-            ? activeModalTab === 'pr'
-                ? outstandingItems
-                : outstandingDoItems
-            : activeModal === 'sisa'
-                ? activeModalTab === 'pr'
-                    ? belumPrItems
-                    : sisaDoItems
-                : activeModal === 'realized'
-                    ? activeModalTab === 'pr'
-                        ? realizedItemsByPeriod
-                        : realizedDoItemsByPeriod
-                    : activeModal === 'all_data'
-                        ? dataItemsByPeriod
-                        : [];
-
-    const modalFilteredItems = useMemo(() => {
-        const term = modalSearch.trim().toLowerCase();
-        let filtered = !term
-            ? modalItems
-            : modalItems.filter((item) =>
-                [
-                    item.kode_poin,
-                    item.no_poin,
-                    item.customer_name,
-                    item.no_do,
-                    item.no_pr,
-                ].some(
-                    (value) =>
-                        String(value ?? '')
-                            .toLowerCase()
-                            .includes(term),
-                ),
-            );
-
-        if (!['outstanding', 'sisa'].includes(activeModal)) {
-            return filtered;
-        }
-
-        if (modalDeadlineFilter === 'overdue') {
-            filtered = filtered.filter(
-                (item) => getRowUrgency(item) === 'overdue',
-            );
-        } else if (modalDeadlineFilter === 'soon') {
-            filtered = filtered.filter(
-                (item) => getRowUrgency(item) === 'soon',
-            );
-        }
-
-        return [...filtered].sort((a, b) => {
-            const aDate =
-                toDate(a.delivery_date)?.getTime() ?? Number.POSITIVE_INFINITY;
-            const bDate =
-                toDate(b.delivery_date)?.getTime() ?? Number.POSITIVE_INFINITY;
-            return aDate - bDate;
-        });
-    }, [activeModal, modalItems, modalSearch, modalDeadlineFilter]);
-
-    const modalTotalItems = modalFilteredItems.length;
-    const modalTotalPages = useMemo(() => {
-        if (modalPageSize === Infinity) {
-            return 1;
-        }
-        return Math.max(1, Math.ceil(modalTotalItems / modalPageSize));
-    }, [modalTotalItems, modalPageSize]);
-
-    const modalDisplayedItems = useMemo(() => {
-        if (modalPageSize === Infinity) {
-            return modalFilteredItems;
-        }
-        const start = (modalPage - 1) * modalPageSize;
-        return modalFilteredItems.slice(start, start + modalPageSize);
-    }, [modalFilteredItems, modalPage, modalPageSize]);
+    const modalTotalItems = Number(modalPagination.total ?? 0);
+    const modalTotalPages = Math.max(1, Number(modalPagination.total_pages) || 1);
+    const modalDisplayedItems = modalRows;
+    const materialRange = getPaginationRange(materialPagination, materialPerPage);
 
     const loadDetailModal = async (kodePoin, opts = {}) => {
+        const { signal, isCurrent } = detailRequest.current.start();
         const isInitial = Boolean(opts.initial);
+        setDetailItems([]);
         if (isInitial) {
             setDetailLoading(true);
         } else {
@@ -1059,14 +1039,19 @@ export default function PurchaseOrderInIndex({
             const response = await fetch(
                 `/marketing/purchase-order-in/${encodeURIComponent(kodePoin)}/show?${params.toString()}`,
                 {
+                    signal,
                     cache: 'no-store',
                     headers: { Accept: 'application/json' },
                 },
             );
-            const data = await response.json();
-            if (!response.ok) {
-                throw new Error(data?.message || 'Gagal memuat detail PO In.');
+            const data = await readPoInResponse(
+                response,
+                'Gagal memuat detail PO In.',
+            );
+            if (!data.header || !Array.isArray(data.items) || !data.pagination) {
+                throw new Error('Respons detail PO In tidak lengkap.');
             }
+            if (!isCurrent()) return;
             setDetailHeader(data?.header ?? null);
             setDetailItems(Array.isArray(data?.items) ? data.items : []);
             setDetailPagination({
@@ -1078,17 +1063,18 @@ export default function PurchaseOrderInIndex({
                 total_pages: Number(data?.pagination?.total_pages ?? 1),
             });
         } catch (error) {
-            setDetailError(error?.message || 'Gagal memuat detail PO In.');
+            if (isCurrent())
+                setDetailError(error?.message || 'Gagal memuat detail PO In.');
         } finally {
-            if (isInitial) {
-                setDetailLoading(false);
-            } else {
-                setDetailTableLoading(false);
+            if (isCurrent()) {
+                if (isInitial) setDetailLoading(false);
+                else setDetailTableLoading(false);
             }
         }
     };
 
     const openDetailModal = (kodePoin) => {
+        detailRequest.current.cancel();
         setIsDetailModalOpen(true);
         setDetailHeader(null);
         setDetailItems([]);
@@ -1181,18 +1167,25 @@ export default function PurchaseOrderInIndex({
     };
 
     useEffect(() => {
-        if (!isDetailModalOpen || !detailKodePoin) {
-            return;
-        }
+        detailRequest.current.cancel();
+        if (!isDetailModalOpen || !detailKodePoin) return;
+        const initial = !detailHeader;
+        setDetailLoading(initial);
+        setDetailTableLoading(!initial);
+        setDetailItems([]);
+        setDetailError('');
         const timer = setTimeout(() => {
             loadDetailModal(detailKodePoin, {
                 page: detailPage,
                 perPage: detailPageSize,
                 search: detailSearch,
-                initial: !detailHeader,
+                initial,
             });
         }, 300);
-        return () => clearTimeout(timer);
+        return () => {
+            clearTimeout(timer);
+            detailRequest.current.cancel();
+        };
     }, [
         detailKodePoin,
         detailPage,
@@ -1251,6 +1244,18 @@ export default function PurchaseOrderInIndex({
                                 <option value="all">Semua Data</option>
                             </select>
                         </label>
+                        <label className="block space-y-2 text-sm">
+                            <span className="font-medium">Filter Deadline</span>
+                            <select
+                                className="h-10 w-full rounded-md border border-input bg-background px-3"
+                                value={exportDeadlineFilter}
+                                onChange={(event) => setExportDeadlineFilter(event.target.value)}
+                            >
+                                <option value="all">Semua Deadline</option>
+                                <option value="soon">≤ 5 Hari</option>
+                                <option value="overdue">Lewat Deadline</option>
+                            </select>
+                        </label>
                         {exportDateFilter === 'range' && (
                             <div className="flex gap-4">
                                 <label className="block flex-1 space-y-2 text-sm">
@@ -1303,6 +1308,7 @@ export default function PurchaseOrderInIndex({
                                     const params = new URLSearchParams({
                                         status: exportStatus,
                                         date_filter: exportDateFilter,
+                                        deadline_filter: exportDeadlineFilter,
                                     });
                                     if (exportDateFilter === 'range') {
                                         params.set(
@@ -1357,7 +1363,10 @@ export default function PurchaseOrderInIndex({
                                     backgroundColor: '#ffffff',
                                     color: '#0f172a',
                                 }}
-                                onClick={() => setIsExportModalOpen(true)}
+                                onClick={() => {
+                                    setExportDeadlineFilter(activeDataTab === 'material' ? materialDeadlineFilter : deadlineFilter);
+                                    setIsExportModalOpen(true);
+                                }}
                             >
                                 Export Data
                             </Button>
@@ -1427,7 +1436,14 @@ export default function PurchaseOrderInIndex({
                                 label="Belum PR"
                                 value={summary.outstanding_pr ?? 0}
                                 grandTotal={summary.outstanding_pr_amount ?? 0}
+                                grandTotalHint={
+                                    SUMMARY_AMOUNT_HINTS.outstanding
+                                }
                                 loading={summaryLoading.outstanding_pr}
+                                error={summaryErrors.outstanding_pr}
+                                onRetry={() =>
+                                    fetchPoInSummary(['outstanding'])
+                                }
                                 soonCount={summary.outstanding_pr_soon}
                                 overdueCount={summary.outstanding_pr_overdue}
                                 onClick={() => {
@@ -1442,7 +1458,14 @@ export default function PurchaseOrderInIndex({
                                 label="Belum DO"
                                 value={summary.outstanding_do ?? 0}
                                 grandTotal={summary.outstanding_do_amount ?? 0}
+                                grandTotalHint={
+                                    SUMMARY_AMOUNT_HINTS.outstanding
+                                }
                                 loading={summaryLoading.outstanding_do}
+                                error={summaryErrors.outstanding_do}
+                                onRetry={() =>
+                                    fetchPoInSummary(['outstanding'])
+                                }
                                 soonCount={summary.outstanding_do_soon}
                                 overdueCount={summary.outstanding_do_overdue}
                                 onClick={() => {
@@ -1504,7 +1527,10 @@ export default function PurchaseOrderInIndex({
                                 label="Sisa PR"
                                 value={summary.sisa_pr ?? 0}
                                 grandTotal={summary.sisa_pr_amount ?? 0}
+                                grandTotalHint={SUMMARY_AMOUNT_HINTS.sisa_pr}
                                 loading={summaryLoading.sisa_pr}
+                                error={summaryErrors.sisa_pr}
+                                onRetry={() => fetchPoInSummary(['sisa'])}
                                 soonCount={summary.sisa_pr_soon}
                                 overdueCount={summary.sisa_pr_overdue}
                                 onClick={() => {
@@ -1519,7 +1545,10 @@ export default function PurchaseOrderInIndex({
                                 label="Sisa DO"
                                 value={summary.sisa_do ?? 0}
                                 grandTotal={summary.sisa_do_amount ?? 0}
+                                grandTotalHint={SUMMARY_AMOUNT_HINTS.sisa_do}
                                 loading={summaryLoading.sisa_do}
+                                error={summaryErrors.sisa_do}
+                                onRetry={() => fetchPoInSummary(['sisa'])}
                                 soonCount={summary.sisa_do_soon}
                                 overdueCount={summary.sisa_do_overdue}
                                 onClick={() => {
@@ -1602,6 +1631,8 @@ export default function PurchaseOrderInIndex({
                                 label="PR Selesai"
                                 value={realizedPrCount}
                                 loading={summaryLoading.realized_pr}
+                                error={summaryErrors.realized_pr}
+                                onRetry={() => fetchPoInSummary(['realized'])}
                                 onClick={() => {
                                     setActiveModal('realized');
                                     setActiveModalTab('pr');
@@ -1614,6 +1645,8 @@ export default function PurchaseOrderInIndex({
                                 label="DO Selesai"
                                 value={realizedDoCount}
                                 loading={summaryLoading.realized_do}
+                                error={summaryErrors.realized_do}
+                                onRetry={() => fetchPoInSummary(['realized'])}
                                 onClick={() => {
                                     setActiveModal('realized');
                                     setActiveModalTab('do');
@@ -1733,50 +1766,69 @@ export default function PurchaseOrderInIndex({
                         >
                             Total Data PO IN
                         </p>
-                        <div className="mt-1 flex items-baseline gap-2">
-                            <div className="text-2xl font-bold">
-                                {summaryLoading.total ? (
-                                    <Skeleton className="h-8 w-12" />
-                                ) : (
-                                    dataPoInCount
-                                )}
+                        {summaryErrors.total && !summaryLoading.total ? (
+                            <div className="mt-2">
+                                <SummaryLoadError
+                                    label="Total Data PO IN"
+                                    onRetry={() => fetchPoInSummary(['total'])}
+                                />
                             </div>
-                            <span
-                                className={cn(
-                                    'text-xs font-medium',
-                                    isDark ? 'text-slate-400' : 'text-slate-500',
-                                )}
-                            >
-                                Document
-                            </span>
-                        </div>
-                        <div
-                            className={cn(
-                                'mt-2.5 border-t pt-2 flex flex-col gap-0.5',
-                                isDark ? 'border-slate-800' : 'border-slate-200/80',
-                            )}
-                        >
-                            <span
-                                className={cn(
-                                    'text-[10px] font-bold uppercase tracking-wider',
-                                    isDark ? 'text-slate-400' : 'text-slate-500',
-                                )}
-                            >
-                                Total Nominal PO IN
-                            </span>
-                            <div
-                                className={cn(
-                                    'text-sm font-bold',
-                                    isDark ? 'text-emerald-400' : 'text-emerald-600',
-                                )}
-                            >
-                                {summaryLoading.total ? (
-                                    <Skeleton className="h-5 w-32" />
-                                ) : (
-                                    `Rp ${formatRupiah(dataPoInTotalAmount)}`
-                                )}
-                            </div>
-                        </div>
+                        ) : (
+                            <>
+                                <div className="mt-1 flex items-baseline gap-2">
+                                    <div className="text-2xl font-bold">
+                                        {summaryLoading.total ? (
+                                            <Skeleton className="h-8 w-12" />
+                                        ) : (
+                                            dataPoInCount
+                                        )}
+                                    </div>
+                                    <span
+                                        className={cn(
+                                            'text-xs font-medium',
+                                            isDark
+                                                ? 'text-slate-400'
+                                                : 'text-slate-500',
+                                        )}
+                                    >
+                                        Document
+                                    </span>
+                                </div>
+                                <div
+                                    className={cn(
+                                        'mt-2.5 flex flex-col gap-0.5 border-t pt-2',
+                                        isDark
+                                            ? 'border-slate-800'
+                                            : 'border-slate-200/80',
+                                    )}
+                                >
+                                    <span
+                                        className={cn(
+                                            'text-[10px] font-bold tracking-wider uppercase',
+                                            isDark
+                                                ? 'text-slate-400'
+                                                : 'text-slate-500',
+                                        )}
+                                    >
+                                        Total Nominal PO IN
+                                    </span>
+                                    <div
+                                        className={cn(
+                                            'text-sm font-bold',
+                                            isDark
+                                                ? 'text-emerald-400'
+                                                : 'text-emerald-600',
+                                        )}
+                                    >
+                                        {summaryLoading.total ? (
+                                            <Skeleton className="h-5 w-32" />
+                                        ) : (
+                                            `Rp ${formatRupiah(dataPoInTotalAmount)}`
+                                        )}
+                                    </div>
+                                </div>
+                            </>
+                        )}
                     </article>
                 </section>
 
@@ -1986,7 +2038,10 @@ export default function PurchaseOrderInIndex({
                                 ))}
                             </>
                         )}
-                        {!tableLoading && purchaseOrderIns.length === 0 && (
+                        {!tableLoading && tableError && (
+                            <SummaryLoadError label="tabel PO IN" message={tableError} onRetry={() => fetchPoInData(lastTableParams.current)} />
+                        )}
+                        {!tableLoading && !tableError && purchaseOrderIns.length === 0 && (
                             <div className="rounded-xl border border-sidebar-border/70 px-4 py-8 text-center text-sm text-muted-foreground">
                                 Belum ada data PO In.
                             </div>
@@ -2169,6 +2224,8 @@ export default function PurchaseOrderInIndex({
                             </thead>
                             <tbody>
                                 <PlainTableStateRows
+                                    error={tableError}
+                                    onRetry={() => fetchPoInData(lastTableParams.current)}
                                     loading={
                                         tableLoading &&
                                         purchaseOrderIns.length === 0
@@ -2299,7 +2356,12 @@ export default function PurchaseOrderInIndex({
                             </tbody>
                         </table>
                     </div>
-                    {activeDataTab === 'customer' &&
+                    {activeDataTab === 'customer' && paginationError && !paginationLoading && (
+                        <div className="mt-3">
+                            <SummaryLoadError label="pagination PO IN" message={paginationError} onRetry={() => fetchPoInPagination(lastTableParams.current)} />
+                        </div>
+                    )}
+                    {activeDataTab === 'customer' && !paginationError && !tableError &&
                         String(pagination.per_page) !== 'all' &&
                         (paginationLoading ||
                             Number(pagination.total || 0) > 0) && (
@@ -2409,6 +2471,8 @@ export default function PurchaseOrderInIndex({
                                             <Skeleton className="mt-2 h-4 w-28" />
                                         </div>
                                     ))
+                                ) : materialError ? (
+                                    <SummaryLoadError label="tabel material PO IN" message={materialError} onRetry={() => fetchMaterialData(lastMaterialParams.current)} />
                                 ) : materialRows.length === 0 ? (
                                     <div className="rounded-xl border border-sidebar-border/70 px-4 py-8 text-center text-sm text-muted-foreground">
                                         Belum ada data material PO In.
@@ -2504,6 +2568,8 @@ export default function PurchaseOrderInIndex({
                                     </thead>
                                     <tbody>
                                         <PlainTableStateRows
+                                            error={materialError}
+                                            onRetry={() => fetchMaterialData(lastMaterialParams.current)}
                                             loading={materialLoading && materialRows.length === 0}
                                             columns={8}
                                             skeletonRows={materialPerPage === 'all' ? 5 : Number(materialPerPage)}
@@ -2581,17 +2647,17 @@ export default function PurchaseOrderInIndex({
                                     </tbody>
                                 </table>
                             </div>
-                            {String(materialPagination.per_page) !== 'all' &&
+                            {!materialError &&
                                 (materialLoading || Number(materialPagination.total || 0) > 0) && (
                                     <div className="mt-3 grid gap-3 text-sm text-muted-foreground sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                                         <span>
-                                            Menampilkan {Math.min((Number(materialPagination.page || 1) - 1) * Number(materialPagination.per_page || 5) + 1, Number(materialPagination.total || 0))}-{Math.min(Number(materialPagination.page || 1) * Number(materialPagination.per_page || 5), Number(materialPagination.total || 0))} dari {materialPagination.total} data
+                                            {materialLoading ? 'Memuat...' : `Menampilkan ${materialRange.from}-${materialRange.to} dari ${materialRange.total} data`}
                                         </span>
-                                        <div className="grid grid-cols-2 items-center gap-2 sm:flex">
+                                        {materialPerPage !== 'all' && (<div className="grid grid-cols-2 items-center gap-2 sm:flex">
                                             <Button type="button" variant="outline" size="sm" disabled={materialLoading || Number(materialPagination.page || 1) <= 1} onClick={() => fetchMaterialData({ page: Math.max(1, Number(materialPagination.page || 1) - 1) })}>Sebelumnya</Button>
                                             <span className="col-span-2 text-center sm:col-span-1">Halaman {materialPagination.page || 1} / {materialPagination.total_pages || 1}</span>
                                             <Button type="button" variant="outline" size="sm" disabled={materialLoading || Number(materialPagination.page || 1) >= Number(materialPagination.total_pages || 1)} onClick={() => fetchMaterialData({ page: Math.min(Number(materialPagination.total_pages || 1), Number(materialPagination.page || 1) + 1) })}>Berikutnya</Button>
-                                        </div>
+                                        </div>)}
                                     </div>
                                 )}
                         </>
@@ -2603,6 +2669,8 @@ export default function PurchaseOrderInIndex({
                     onOpenChange={(open) => {
                         setIsDetailModalOpen(open);
                         if (!open) {
+                            detailRequest.current.cancel();
+                            setDetailLoading(false);
                             setDetailHeader(null);
                             setDetailItems([]);
                             setDetailError('');
@@ -2635,8 +2703,8 @@ export default function PurchaseOrderInIndex({
                                 </div>
                             )}
                             {!detailLoading && detailError && (
-                                <div className="py-10 text-center text-sm text-rose-600">
-                                    {detailError}
+                                <div className="py-10 text-center">
+                                    <SummaryLoadError label="detail PO IN" message={detailError} onRetry={() => loadDetailModal(detailKodePoin, { initial: !detailHeader })} />
                                 </div>
                             )}
                             {!detailLoading && !detailError && detailHeader && (
@@ -3049,6 +3117,9 @@ export default function PurchaseOrderInIndex({
                     open={activeModal !== null}
                     onOpenChange={(open) => {
                         if (!open) {
+                            modalRequest.current.cancel();
+                            setModalLoading(false);
+                            setModalRows([]);
                             setActiveModal(null);
                         }
                     }}
@@ -3213,6 +3284,8 @@ export default function PurchaseOrderInIndex({
                                 </thead>
                                 <tbody>
                                     <PlainTableStateRows
+                                        error={modalError}
+                                        onRetry={fetchModalData}
                                         columns={7}
                                         loading={modalLoading}
                                         isEmpty={
@@ -3220,7 +3293,7 @@ export default function PurchaseOrderInIndex({
                                             modalDisplayedItems.length === 0
                                         }
                                         emptyTitle="Tidak ada data."
-                                        skeletonRows={modalPageSize}
+                                        skeletonRows={modalPageSize === Infinity ? 5 : modalPageSize}
                                     />
 
                                     {modalDisplayedItems.map((item, index) => (
@@ -3400,7 +3473,7 @@ export default function PurchaseOrderInIndex({
 
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm">
                             <p className="text-muted-foreground">
-                                Total {modalTotalItems} data
+                                {modalLoading ? 'Memuat...' : modalError ? 'Jumlah data belum tersedia' : `Total ${modalTotalItems} data`}
                             </p>
                             {modalPageSize !== Infinity && (
                                 <div className="flex items-center gap-2">
@@ -3408,7 +3481,7 @@ export default function PurchaseOrderInIndex({
                                         type="button"
                                         variant="outline"
                                         size="sm"
-                                        disabled={modalPage === 1}
+                                        disabled={modalLoading || Boolean(modalError) || modalPage === 1}
                                         onClick={() =>
                                             setModalPage((prev) =>
                                                 Math.max(1, prev - 1),
@@ -3424,7 +3497,7 @@ export default function PurchaseOrderInIndex({
                                         type="button"
                                         variant="outline"
                                         size="sm"
-                                        disabled={modalPage >= modalTotalPages}
+                                        disabled={modalLoading || Boolean(modalError) || modalPage >= modalTotalPages}
                                         onClick={() =>
                                             setModalPage((prev) =>
                                                 Math.min(
