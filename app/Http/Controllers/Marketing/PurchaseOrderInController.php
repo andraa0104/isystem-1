@@ -997,7 +997,7 @@ class PurchaseOrderInController
             $endYear = $now->copy()->endOfYear()->toDateString();
 
             if ($summaryOnly && $summaryScope !== 'all') {
-                if ($summaryScope === 'outstanding' || $summaryScope === 'outstanding_pr' || $summaryScope === 'outstanding_do') {
+                if ($summaryScope === 'operational' || $summaryScope === 'outstanding' || $summaryScope === 'outstanding_pr' || $summaryScope === 'outstanding_do') {
                     $deadlineDateExpr = "coalesce(str_to_date(trim(p.delivery_date), '%Y-%m-%d'), str_to_date(trim(p.delivery_date), '%d.%m.%Y'), str_to_date(trim(p.delivery_date), '%d/%m/%Y'))";
                     $isOverdueExpr = "{$deadlineDateExpr} <= current_date()";
                     $isSoonExpr = "{$deadlineDateExpr} > current_date() and {$deadlineDateExpr} <= date_add(current_date(), interval 5 day)";
@@ -1011,21 +1011,41 @@ class PurchaseOrderInController
                         ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_do")
                         ->selectRaw("coalesce(sum(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then p.grand_total else 0 end), 0) as outstanding_do_amount")
                         ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null and {$isSoonExpr} then 1 end) as outstanding_do_soon")
-                        ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null and {$isOverdueExpr} then 1 end) as outstanding_do_overdue")
-                        ->first();
+                        ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null and {$isOverdueExpr} then 1 end) as outstanding_do_overdue");
+
+                    if ($summaryScope === 'operational') {
+                        $row->selectRaw("count(case when {$sisaPrCondition} then 1 end) as sisa_pr")
+                            ->selectRaw("coalesce(sum(case when {$sisaPrCondition} then ds.pr_remaining_amount else 0 end), 0) as sisa_pr_amount")
+                            ->selectRaw("count(case when {$sisaPrCondition} and {$isSoonExpr} then 1 end) as sisa_pr_soon")
+                            ->selectRaw("count(case when {$sisaPrCondition} and {$isOverdueExpr} then 1 end) as sisa_pr_overdue")
+                            ->selectRaw("count(case when {$sisaDoCondition} then 1 end) as sisa_do")
+                            ->selectRaw("coalesce(sum(case when {$sisaDoCondition} then ds.do_remaining_amount else 0 end), 0) as sisa_do_amount")
+                            ->selectRaw("count(case when {$sisaDoCondition} and {$isSoonExpr} then 1 end) as sisa_do_soon")
+                            ->selectRaw("count(case when {$sisaDoCondition} and {$isOverdueExpr} then 1 end) as sisa_do_overdue");
+                    }
+
+                    $row = $row->first();
 
                     $summary = [];
-                    if ($summaryScope === 'outstanding' || $summaryScope === 'outstanding_pr') {
+                    if ($summaryScope === 'operational' || $summaryScope === 'outstanding' || $summaryScope === 'outstanding_pr') {
                         $summary['outstanding_pr'] = (int) ($row->outstanding_pr ?? 0);
                         $summary['outstanding_pr_amount'] = (float) ($row->outstanding_pr_amount ?? 0);
                         $summary['outstanding_pr_soon'] = (int) ($row->outstanding_pr_soon ?? 0);
                         $summary['outstanding_pr_overdue'] = (int) ($row->outstanding_pr_overdue ?? 0);
                     }
-                    if ($summaryScope === 'outstanding' || $summaryScope === 'outstanding_do') {
+                    if ($summaryScope === 'operational' || $summaryScope === 'outstanding' || $summaryScope === 'outstanding_do') {
                         $summary['outstanding_do'] = (int) ($row->outstanding_do ?? 0);
                         $summary['outstanding_do_amount'] = (float) ($row->outstanding_do_amount ?? 0);
                         $summary['outstanding_do_soon'] = (int) ($row->outstanding_do_soon ?? 0);
                         $summary['outstanding_do_overdue'] = (int) ($row->outstanding_do_overdue ?? 0);
+                    }
+                    if ($summaryScope === 'operational') {
+                        foreach (['sisa_pr', 'sisa_do'] as $metric) {
+                            $summary[$metric] = (int) ($row->{$metric} ?? 0);
+                            $summary["{$metric}_amount"] = (float) ($row->{"{$metric}_amount"} ?? 0);
+                            $summary["{$metric}_soon"] = (int) ($row->{"{$metric}_soon"} ?? 0);
+                            $summary["{$metric}_overdue"] = (int) ($row->{"{$metric}_overdue"} ?? 0);
+                        }
                     }
 
                     return ['summary' => $summary];
@@ -1724,11 +1744,11 @@ class PurchaseOrderInController
         $perPageInput = $request->query('per_page', 5);
         $page = max(1, (int) $request->query('page', 1));
         
-        $data = (function () use ($kodePoin, $search, $perPageInput, $page) {
-            $header = DB::table('tb_poin')->where('kode_poin', $kodePoin)->first();
+        $data = $this->safeClickhouseRead(function ($conn) use ($kodePoin, $search, $perPageInput, $page) {
+            $header = $conn->table('tb_poin')->where('kode_poin', $kodePoin)->first();
 
             if (!$header) {
-                return null; // Akan ditangani di bawah
+                return null;
             }
 
             $perPage = $perPageInput === 'all'
@@ -1738,7 +1758,7 @@ class PurchaseOrderInController
                 $perPage = 5;
             }
 
-            $query = DB::table('tb_detailpoin')->where('kode_poin', $kodePoin);
+            $query = $conn->table('tb_detailpoin')->where('kode_poin', $kodePoin);
             if ($search !== '') {
                 $like = '%'.strtolower($search).'%';
                 $query->whereRaw('lower(material) like ?', [$like]);
@@ -1762,7 +1782,7 @@ class PurchaseOrderInController
                     'total_pages' => $perPage === null ? 1 : max(1, (int) ceil($total / $perPage)),
                 ],
             ];
-        })();
+        });
 
         if (!$data) {
             return response()->json(['message' => 'Data PO In tidak ditemukan.'], 404);

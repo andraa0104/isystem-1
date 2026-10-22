@@ -20,8 +20,64 @@ import {
     ReceiptText,
     Trash2,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+    Profiler,
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    useSyncExternalStore,
+} from 'react';
 import Swal from 'sweetalert2';
+
+const MOBILE_QUERY = '(max-width: 767px)';
+
+const subscribeToMobileViewport = (onChange) => {
+    const mediaQuery = window.matchMedia(MOBILE_QUERY);
+    mediaQuery.addEventListener('change', onChange);
+    return () => mediaQuery.removeEventListener('change', onChange);
+};
+
+const getIsMobileViewport = () => window.matchMedia(MOBILE_QUERY).matches;
+const getServerMobileViewport = () => false;
+
+const isPerformanceLoggingEnabled = () =>
+    import.meta.env.DEV &&
+    typeof window !== 'undefined' &&
+    new URLSearchParams(window.location.search).has('poin_perf');
+
+const logPerformanceDuration = (label, startedAt) => {
+    if (!isPerformanceLoggingEnabled()) {
+        return;
+    }
+
+    console.info(
+        `[PO In create performance] ${label}: ${(performance.now() - startedAt).toFixed(1)} ms`,
+    );
+};
+
+const reportRenderProfile = (
+    id,
+    phase,
+    actualDuration,
+    baseDuration,
+    startTime,
+    commitTime,
+) => {
+    if (!isPerformanceLoggingEnabled()) {
+        return;
+    }
+
+    console.info('[PO In create render profile]', {
+        id,
+        phase,
+        actualDuration: Number(actualDuration.toFixed(1)),
+        baseDuration: Number(baseDuration.toFixed(1)),
+        startTime: Number(startTime.toFixed(1)),
+        commitTime: Number(commitTime.toFixed(1)),
+    });
+};
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -125,9 +181,15 @@ const isValidDmyDate = (value) => {
 };
 
 export default function PurchaseOrderInCreate({ defaults = {} }) {
+    const isMobileViewport = useSyncExternalStore(
+        subscribeToMobileViewport,
+        getIsMobileViewport,
+        getServerMobileViewport,
+    );
     const datePickerRef = useRef(null);
     const deliveryDatePickerRef = useRef(null);
     const qtyRef = useRef(null);
+    const predictRequestRef = useRef(null);
 
     // States for Material Modal
     const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
@@ -366,9 +428,12 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
     useEffect(() => {
         if (!form.customerCode) {
             setPicList([]);
+            setPicLoading(false);
             return;
         }
+        const controller = new AbortController();
         const loadPics = async () => {
+            const startedAt = performance.now();
             setPicLoading(true);
             try {
                 const params = new URLSearchParams();
@@ -380,20 +445,35 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                     {
                         cache: 'no-store',
                         headers: { Accept: 'application/json' },
+                        signal: controller.signal,
                     },
                 );
                 if (res.ok) {
                     const data = await res.json();
                     setPicList(Array.isArray(data?.pics) ? data.pics : []);
                 }
-            } catch {
-                setPicList([]);
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    setPicList([]);
+                }
             } finally {
-                setPicLoading(false);
+                if (!controller.signal.aborted) {
+                    setPicLoading(false);
+                    logPerformanceDuration('customer PIC request', startedAt);
+                }
             }
         };
         loadPics();
+        return () => controller.abort();
     }, [form.customerCode, picSearch]);
+
+    useEffect(
+        () => () => {
+            predictRequestRef.current?.abort();
+            predictRequestRef.current = null;
+        },
+        [],
+    );
 
     // Close PIC dropdown when clicking outside
     useEffect(() => {
@@ -661,79 +741,99 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         return formatRupiah(digits);
     };
 
-    const loadMaterials = async () => {
-        setMaterialLoading(true);
-        setMaterialError('');
-        try {
-            const params = new URLSearchParams();
-            params.set(
-                'per_page',
-                materialPageSize === Infinity
-                    ? 'all'
-                    : String(materialPageSize),
-            );
-            params.set('page', String(materialCurrentPage));
-            if (materialSearchTerm.trim()) {
-                params.set('search', materialSearchTerm.trim());
+    const loadMaterials = useCallback(
+        async (signal) => {
+            const startedAt = performance.now();
+            setMaterialLoading(true);
+            setMaterialError('');
+            try {
+                const params = new URLSearchParams();
+                params.set(
+                    'per_page',
+                    materialPageSize === Infinity
+                        ? 'all'
+                        : String(materialPageSize),
+                );
+                params.set('page', String(materialCurrentPage));
+                if (materialSearchTerm.trim()) {
+                    params.set('search', materialSearchTerm.trim());
+                }
+                params.set('_ts', String(Date.now()));
+                const response = await fetch(
+                    `/marketing/purchase-order-in/materials?${params.toString()}`,
+                    {
+                        cache: 'no-store',
+                        headers: { Accept: 'application/json' },
+                        signal,
+                    },
+                );
+                if (!response.ok) {
+                    throw new Error('Request failed');
+                }
+                const data = await response.json();
+                setMaterialList(
+                    Array.isArray(data?.materials) ? data.materials : [],
+                );
+                setMaterialTotal(Number(data?.total ?? 0));
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    setMaterialError('Gagal memuat data material.');
+                }
+            } finally {
+                if (!signal.aborted) {
+                    setMaterialLoading(false);
+                    logPerformanceDuration('material list request', startedAt);
+                }
             }
-            params.set('_ts', String(Date.now()));
-            const response = await fetch(
-                `/marketing/purchase-order-in/materials?${params.toString()}`,
-                {
-                    cache: 'no-store',
-                    headers: { Accept: 'application/json' },
-                },
-            );
-            if (!response.ok) {
-                throw new Error('Request failed');
-            }
-            const data = await response.json();
-            setMaterialList(
-                Array.isArray(data?.materials) ? data.materials : [],
-            );
-            setMaterialTotal(Number(data?.total ?? 0));
-        } catch (error) {
-            setMaterialError('Gagal memuat data material.');
-        } finally {
-            setMaterialLoading(false);
-        }
-    };
+        },
+        [materialCurrentPage, materialPageSize, materialSearchTerm],
+    );
 
-    const loadCustomers = async () => {
-        setCustomerLoading(true);
-        setCustomerError('');
-        try {
-            const params = new URLSearchParams();
-            params.set(
-                'per_page',
-                customerPageSize === Infinity ? 'all' : customerPageSize,
-            );
-            params.set('page', customerCurrentPage);
-            if (customerSearchTerm.trim()) {
-                params.set('search', customerSearchTerm.trim());
+    const loadCustomers = useCallback(
+        async (signal) => {
+            const startedAt = performance.now();
+            setCustomerLoading(true);
+            setCustomerError('');
+            try {
+                const params = new URLSearchParams();
+                params.set(
+                    'per_page',
+                    customerPageSize === Infinity ? 'all' : customerPageSize,
+                );
+                params.set('page', customerCurrentPage);
+                if (customerSearchTerm.trim()) {
+                    params.set('search', customerSearchTerm.trim());
+                }
+                params.set('_ts', String(Date.now()));
+                const response = await fetch(
+                    `/marketing/purchase-order-in/customers?${params.toString()}`,
+                    {
+                        cache: 'no-store',
+                        headers: { Accept: 'application/json' },
+                        signal,
+                    },
+                );
+                if (!response.ok) {
+                    throw new Error('Request failed');
+                }
+                const data = await response.json();
+                setCustomerList(
+                    Array.isArray(data?.customers) ? data.customers : [],
+                );
+                setCustomerTotal(Number(data?.total ?? 0));
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    setCustomerError('Gagal memuat data customer.');
+                }
+            } finally {
+                if (!signal.aborted) {
+                    setCustomerLoading(false);
+                    logPerformanceDuration('customer list request', startedAt);
+                }
             }
-            params.set('_ts', String(Date.now()));
-            const response = await fetch(
-                `/marketing/purchase-order-in/customers?${params.toString()}`,
-                {
-                    cache: 'no-store',
-                    headers: { Accept: 'application/json' },
-                },
-            );
-            if (!response.ok) {
-                throw new Error('Request failed');
-            }
-            const data = await response.json();
-            setCustomerList(
-                Array.isArray(data?.customers) ? data.customers : [],
-            );
-            setCustomerTotal(Number(data?.total ?? 0));
-        } catch (error) {
-            setCustomerError('Gagal memuat data customer.');
-        } finally {
-            setCustomerLoading(false);
-        }
-    };
+        },
+        [customerCurrentPage, customerPageSize, customerSearchTerm],
+    );
 
     const toast = (icon, title) => {
         Swal.fire({
@@ -826,6 +926,10 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
 
     const predictFields = async (customerName) => {
         if (!customerName) return;
+        predictRequestRef.current?.abort();
+        const controller = new AbortController();
+        predictRequestRef.current = controller;
+        const startedAt = performance.now();
         setIsPredicting(true);
         try {
             const token = document
@@ -844,6 +948,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                         'X-Requested-With': 'XMLHttpRequest',
                     },
                     body: JSON.stringify({ customer_name: customerName }),
+                    signal: controller.signal,
                 },
             );
 
@@ -862,9 +967,18 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 }
             }
         } catch (error) {
-            console.error('AI Prediction error:', error);
+            if (error.name !== 'AbortError') {
+                console.error('AI Prediction error:', error);
+            }
         } finally {
-            setIsPredicting(false);
+            if (predictRequestRef.current === controller) {
+                predictRequestRef.current = null;
+                setIsPredicting(false);
+                logPerformanceDuration(
+                    'customer prediction request',
+                    startedAt,
+                );
+            }
         }
     };
 
@@ -940,13 +1054,10 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         if (!isCustomerModalOpen) {
             return;
         }
-        loadCustomers();
-    }, [
-        isCustomerModalOpen,
-        customerCurrentPage,
-        customerPageSize,
-        customerSearchTerm,
-    ]);
+        const controller = new AbortController();
+        loadCustomers(controller.signal);
+        return () => controller.abort();
+    }, [isCustomerModalOpen, loadCustomers]);
 
     const customerTotalPages = useMemo(() => {
         if (customerPageSize === Infinity) {
@@ -963,13 +1074,10 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         if (!isMaterialModalOpen) {
             return;
         }
-        loadMaterials();
-    }, [
-        isMaterialModalOpen,
-        materialCurrentPage,
-        materialPageSize,
-        materialSearchTerm,
-    ]);
+        const controller = new AbortController();
+        loadMaterials(controller.signal);
+        return () => controller.abort();
+    }, [isMaterialModalOpen, loadMaterials]);
 
     const materialTotalItems = materialTotal;
     const materialTotalPages = useMemo(() => {
@@ -1794,175 +1902,34 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                             )}
                         </div>
 
-                        <div className="mt-4 grid gap-3 md:hidden">
-                            {items.length === 0 && (
-                                <div className="rounded-xl border border-sidebar-border/70 px-4 py-8 text-center text-sm text-muted-foreground">
-                                    Belum ada item material.
-                                </div>
-                            )}
-                            {items.map((item, index) => (
-                                <div
-                                    key={item.id}
-                                    className="rounded-xl border border-sidebar-border/70 p-3 text-sm"
-                                >
-                                    <div className="mb-3 flex items-start justify-between gap-3">
-                                        <div className="min-w-0">
-                                            <p className="text-xs text-muted-foreground">
-                                                #{index + 1} -{' '}
-                                                {item.kodeMaterial || '-'}
-                                            </p>
-                                            <p className="mt-1 font-semibold break-words">
-                                                {item.material}
-                                            </p>
-                                        </div>
-                                        <div className="flex shrink-0 items-center gap-2">
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() =>
-                                                    handleEditItem(item)
-                                                }
-                                                title="Edit"
-                                            >
-                                                <Pencil className="size-4" />
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() =>
-                                                    handleDeleteItem(item.id)
-                                                }
-                                                title="Hapus"
-                                            >
-                                                <Trash2 className="size-4" />
-                                            </Button>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <p className="text-xs text-muted-foreground">
-                                                Qty
-                                            </p>
-                                            <p className="font-medium">
-                                                {item.qty} {item.unit}
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <p className="text-xs text-muted-foreground">
-                                                Price
-                                            </p>
-                                            <p className="font-medium">
-                                                {formatRupiah(item.unitPrice)}
-                                            </p>
-                                        </div>
-                                        <div className="col-span-2">
-                                            <p className="text-xs text-muted-foreground">
-                                                Total
-                                            </p>
-                                            <p className="font-semibold">
-                                                {formatRupiah(
-                                                    toNumber(item.qty) *
-                                                        toNumber(
-                                                            item.unitPrice,
-                                                        ),
-                                                )}
-                                            </p>
-                                        </div>
-                                        <div className="col-span-2">
-                                            <p className="text-xs text-muted-foreground">
-                                                Remark
-                                            </p>
-                                            <p className="break-words">
-                                                {item.note || '-'}
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-
-                        <div className="mt-4 hidden overflow-x-auto rounded-xl border border-sidebar-border/70 md:block">
-                            <table className="w-full min-w-[900px] text-sm">
-                                <thead className="bg-muted/40 text-muted-foreground">
-                                    <tr>
-                                        <th className="px-4 py-3 text-left">
-                                            No
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Kode Material
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Material
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Qty
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Satuan
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Price PO In
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Total Price PO In
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Remark
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Aksi
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
+                        <Profiler
+                            id="PO IN create item list"
+                            onRender={reportRenderProfile}
+                        >
+                            {isMobileViewport && (
+                                <div className="mt-4 grid gap-3">
                                     {items.length === 0 && (
-                                        <tr>
-                                            <td
-                                                className="px-4 py-8 text-center text-muted-foreground"
-                                                colSpan={9}
-                                            >
-                                                Belum ada item material.
-                                            </td>
-                                        </tr>
+                                        <div className="rounded-xl border border-sidebar-border/70 px-4 py-8 text-center text-sm text-muted-foreground">
+                                            Belum ada item material.
+                                        </div>
                                     )}
                                     {items.map((item, index) => (
-                                        <tr
+                                        <div
                                             key={item.id}
-                                            className="border-t border-sidebar-border/70"
+                                            className="rounded-xl border border-sidebar-border/70 p-3 text-sm"
                                         >
-                                            <td className="px-4 py-3">
-                                                {index + 1}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {item.kodeMaterial || '-'}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {item.material}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {item.qty}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {item.unit}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {formatRupiah(item.unitPrice)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {formatRupiah(
-                                                    toNumber(item.qty) *
-                                                        toNumber(
-                                                            item.unitPrice,
-                                                        ),
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {item.note || '-'}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <div className="flex items-center gap-2">
+                                            <div className="mb-3 flex items-start justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <p className="text-xs text-muted-foreground">
+                                                        #{index + 1} -{' '}
+                                                        {item.kodeMaterial ||
+                                                            '-'}
+                                                    </p>
+                                                    <p className="mt-1 font-semibold break-words">
+                                                        {item.material}
+                                                    </p>
+                                                </div>
+                                                <div className="flex shrink-0 items-center gap-2">
                                                     <Button
                                                         type="button"
                                                         variant="outline"
@@ -1988,12 +1955,172 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                                         <Trash2 className="size-4" />
                                                     </Button>
                                                 </div>
-                                            </td>
-                                        </tr>
+                                            </div>
+                                            <div className="grid grid-cols-2 gap-3">
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Qty
+                                                    </p>
+                                                    <p className="font-medium">
+                                                        {item.qty} {item.unit}
+                                                    </p>
+                                                </div>
+                                                <div>
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Price
+                                                    </p>
+                                                    <p className="font-medium">
+                                                        {formatRupiah(
+                                                            item.unitPrice,
+                                                        )}
+                                                    </p>
+                                                </div>
+                                                <div className="col-span-2">
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Total
+                                                    </p>
+                                                    <p className="font-semibold">
+                                                        {formatRupiah(
+                                                            toNumber(item.qty) *
+                                                                toNumber(
+                                                                    item.unitPrice,
+                                                                ),
+                                                        )}
+                                                    </p>
+                                                </div>
+                                                <div className="col-span-2">
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Remark
+                                                    </p>
+                                                    <p className="break-words">
+                                                        {item.note || '-'}
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
                                     ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                </div>
+                            )}
+
+                            {!isMobileViewport && (
+                                <div className="mt-4 overflow-x-auto rounded-xl border border-sidebar-border/70">
+                                    <table className="w-full min-w-[900px] text-sm">
+                                        <thead className="bg-muted/40 text-muted-foreground">
+                                            <tr>
+                                                <th className="px-4 py-3 text-left">
+                                                    No
+                                                </th>
+                                                <th className="px-4 py-3 text-left">
+                                                    Kode Material
+                                                </th>
+                                                <th className="px-4 py-3 text-left">
+                                                    Material
+                                                </th>
+                                                <th className="px-4 py-3 text-left">
+                                                    Qty
+                                                </th>
+                                                <th className="px-4 py-3 text-left">
+                                                    Satuan
+                                                </th>
+                                                <th className="px-4 py-3 text-left">
+                                                    Price PO In
+                                                </th>
+                                                <th className="px-4 py-3 text-left">
+                                                    Total Price PO In
+                                                </th>
+                                                <th className="px-4 py-3 text-left">
+                                                    Remark
+                                                </th>
+                                                <th className="px-4 py-3 text-left">
+                                                    Aksi
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {items.length === 0 && (
+                                                <tr>
+                                                    <td
+                                                        className="px-4 py-8 text-center text-muted-foreground"
+                                                        colSpan={9}
+                                                    >
+                                                        Belum ada item material.
+                                                    </td>
+                                                </tr>
+                                            )}
+                                            {items.map((item, index) => (
+                                                <tr
+                                                    key={item.id}
+                                                    className="border-t border-sidebar-border/70"
+                                                >
+                                                    <td className="px-4 py-3">
+                                                        {index + 1}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {item.kodeMaterial ||
+                                                            '-'}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {item.material}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {item.qty}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {item.unit}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {formatRupiah(
+                                                            item.unitPrice,
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {formatRupiah(
+                                                            toNumber(item.qty) *
+                                                                toNumber(
+                                                                    item.unitPrice,
+                                                                ),
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {item.note || '-'}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        <div className="flex items-center gap-2">
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() =>
+                                                                    handleEditItem(
+                                                                        item,
+                                                                    )
+                                                                }
+                                                                title="Edit"
+                                                            >
+                                                                <Pencil className="size-4" />
+                                                            </Button>
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() =>
+                                                                    handleDeleteItem(
+                                                                        item.id,
+                                                                    )
+                                                                }
+                                                                title="Hapus"
+                                                            >
+                                                                <Trash2 className="size-4" />
+                                                            </Button>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </Profiler>
                         {validationErrors.materials && (
                             <p className="mt-2 text-xs text-red-500">
                                 {validationErrors.materials}

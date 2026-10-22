@@ -9,17 +9,20 @@ import {
     DialogTitle,
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAppearance } from '@/hooks/use-appearance';
 import AppLayout from '@/layouts/app-layout';
-import { createLatestRequest, getBusinessDate, getPaginationRange, readPoInResponse } from '@/lib/purchase-order-in';
+import {
+    createLatestRequest,
+    getBusinessDate,
+    getPaginationRange,
+    readPoInResponse,
+} from '@/lib/purchase-order-in';
 import { cn } from '@/lib/utils';
 import { Head, router, usePage } from '@inertiajs/react';
 import {
     AlertCircle,
     ClipboardCheck,
     Eye,
-    Info,
     Pencil,
     Printer,
     Search,
@@ -27,8 +30,72 @@ import {
     Trash2,
     X,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+    Profiler,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+    useSyncExternalStore,
+} from 'react';
 import Swal from 'sweetalert2';
+import {
+    formatRupiah,
+    SummaryLoadError,
+    SummaryMetric,
+} from './summary-metric';
+import TrackingDialog from './tracking-dialog';
+
+const MOBILE_QUERY = '(max-width: 767px)';
+
+const subscribeToMobileViewport = (onChange) => {
+    const mediaQuery = window.matchMedia(MOBILE_QUERY);
+    mediaQuery.addEventListener('change', onChange);
+    return () => mediaQuery.removeEventListener('change', onChange);
+};
+
+const getIsMobileViewport = () => window.matchMedia(MOBILE_QUERY).matches;
+const getServerMobileViewport = () => false;
+
+const logPerformanceDuration = (label, startedAt) => {
+    if (
+        !import.meta.env.DEV ||
+        typeof window === 'undefined' ||
+        !new URLSearchParams(window.location.search).has('poin_perf')
+    ) {
+        return;
+    }
+
+    console.info(
+        `[PO In performance] ${label}: ${(performance.now() - startedAt).toFixed(1)} ms`,
+    );
+};
+
+const reportRenderProfile = (
+    id,
+    phase,
+    actualDuration,
+    baseDuration,
+    startTime,
+    commitTime,
+) => {
+    if (
+        !import.meta.env.DEV ||
+        typeof window === 'undefined' ||
+        !new URLSearchParams(window.location.search).has('poin_perf')
+    ) {
+        return;
+    }
+
+    console.info('[PO In render profile]', {
+        id,
+        phase,
+        actualDuration: Number(actualDuration.toFixed(1)),
+        baseDuration: Number(baseDuration.toFixed(1)),
+        startTime: Number(startTime.toFixed(1)),
+        commitTime: Number(commitTime.toFixed(1)),
+    });
+};
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -36,10 +103,8 @@ const breadcrumbs = [
     { title: 'Purchase Order In', href: '/marketing/purchase-order-in' },
 ];
 
-const formatRupiah = (value) =>
-    `${new Intl.NumberFormat('id-ID').format(Number(value || 0))}`;
-
 const SUMMARY_SCOPE_METRICS = {
+    operational: ['outstanding_pr', 'outstanding_do', 'sisa_pr', 'sisa_do'],
     outstanding: ['outstanding_pr', 'outstanding_do'],
     sisa: ['sisa_pr', 'sisa_do'],
     realized: ['realized_pr', 'realized_do'],
@@ -166,126 +231,6 @@ const toDate = (value) => {
     return Number.isNaN(date.getTime()) ? null : date;
 };
 
-const SummaryLoadError = ({ label, onRetry, message = 'Gagal memuat' }) => (
-    <div className="space-y-2" role="alert">
-        <p className="text-sm font-medium text-destructive">{message}</p>
-        <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="h-auto max-w-full py-1 text-xs whitespace-normal"
-            aria-label={`Coba lagi memuat ${label}`}
-            onClick={(event) => {
-                event.stopPropagation();
-                onRetry?.();
-            }}
-        >
-            Coba lagi
-        </Button>
-    </div>
-);
-
-const SummaryMetric = ({
-    label,
-    value,
-    grandTotal,
-    grandTotalHint,
-    loading,
-    error,
-    onRetry,
-    onClick,
-    icon,
-    soonCount,
-    overdueCount,
-}) => {
-    const metricButton = (
-        <button
-            type="button"
-            className="w-full min-w-0 rounded-lg px-3 py-2 text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            aria-busy={loading}
-            onClick={(event) => {
-                event.stopPropagation();
-                onClick?.();
-            }}
-        >
-            <p className="flex items-center gap-1 text-[10px] font-bold tracking-wide text-muted-foreground uppercase">
-                {label}
-                {icon}
-            </p>
-            {error && !loading ? (
-                <span className="sr-only">Gagal memuat ringkasan</span>
-            ) : (
-                <>
-                    <div className="mt-1 text-xl font-bold">
-                        {loading ? <Skeleton className="h-6 w-10" /> : value}
-                    </div>
-                    {grandTotal !== undefined && (
-                        <div className="mt-2">
-                            <p className="flex items-center gap-1 text-[10px] font-bold tracking-wide text-muted-foreground uppercase">
-                                Grand Total
-                                {grandTotalHint && (
-                                    <Info
-                                        className="size-3 shrink-0"
-                                        aria-hidden="true"
-                                    />
-                                )}
-                            </p>
-                            <div className="mt-1 text-sm font-semibold break-words tabular-nums">
-                                {loading ? (
-                                    <Skeleton className="h-5 w-24" />
-                                ) : (
-                                    `Rp ${formatRupiah(grandTotal)}`
-                                )}
-                            </div>
-                        </div>
-                    )}
-                    {(soonCount !== undefined ||
-                        overdueCount !== undefined) && (
-                        <div className="mt-2 space-y-1 border-t border-sidebar-border/50 pt-2 text-[14px]">
-                            {soonCount !== undefined && (
-                                <div className="flex justify-between text-amber-600 dark:text-amber-500">
-                                    <span>≤ 5 Hari:</span>
-                                    <span className="font-bold">
-                                        {loading ? '-' : soonCount}
-                                    </span>
-                                </div>
-                            )}
-                            {overdueCount !== undefined && (
-                                <div className="flex justify-between text-rose-600 dark:text-rose-500">
-                                    <span>Lewat:</span>
-                                    <span className="font-bold">
-                                        {loading ? '-' : overdueCount}
-                                    </span>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </>
-            )}
-        </button>
-    );
-
-    return (
-        <div className="min-w-0 rounded-lg border border-sidebar-border/70 transition hover:border-primary/50 hover:bg-muted/40">
-            {grandTotalHint ? (
-                <Tooltip>
-                    <TooltipTrigger asChild>{metricButton}</TooltipTrigger>
-                    <TooltipContent className="max-w-64">
-                        {grandTotalHint}
-                    </TooltipContent>
-                </Tooltip>
-            ) : (
-                metricButton
-            )}
-            {error && !loading && (
-                <div className="px-3 pb-2">
-                    <SummaryLoadError label={label} onRetry={onRetry} />
-                </div>
-            )}
-        </div>
-    );
-};
-
 export default function PurchaseOrderInIndex({
     purchaseOrderIns: initialPurchaseOrderIns = [],
     summary: initialSummary = {},
@@ -293,6 +238,11 @@ export default function PurchaseOrderInIndex({
     pagination: initialPagination = {},
 }) {
     const today = getBusinessDate();
+    const isMobile = useSyncExternalStore(
+        subscribeToMobileViewport,
+        getIsMobileViewport,
+        getServerMobileViewport,
+    );
     const monthStart = `${today.slice(0, 8)}01`;
     const [isExportModalOpen, setIsExportModalOpen] = useState(false);
     const [exportStartDate, setExportStartDate] = useState(monthStart);
@@ -316,41 +266,9 @@ export default function PurchaseOrderInIndex({
     const [search, setSearch] = useState(filters.search ?? '');
     const [activeDataTab, setActiveDataTab] = useState('customer');
     const [materialSearch, setMaterialSearch] = useState('');
-    // Tracking PO Customer State
     const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
-    const [trackingSearchKeyword, setTrackingSearchKeyword] = useState('');
-    const [isTrackingLoading, setIsTrackingLoading] = useState(false);
-    const [trackingResults, setTrackingResults] = useState([]);
-
-    const handleSearchTracking = () => {
-        if (!trackingSearchKeyword.trim()) {
-            toastError('Silakan masukkan Ref PO');
-            return;
-        }
-        setIsTrackingLoading(true);
-        setTrackingResults([]);
-
-        fetch(
-            `/marketing/purchase-order-in/tracking?ref_po=${encodeURIComponent(trackingSearchKeyword.trim())}`,
-            {
-                headers: { Accept: 'application/json' },
-            },
-        )
-            .then((res) => res.json())
-            .then((res) => {
-                if (res.success) {
-                    setTrackingResults(res.data || []);
-                } else {
-                    toastError(res.message || 'Gagal memuat tracking data');
-                }
-            })
-            .catch(() => toastError('Gagal menghubungi server'))
-            .finally(() => setIsTrackingLoading(false));
-    };
 
     const handleOpenTrackingModal = () => {
-        setTrackingSearchKeyword('');
-        setTrackingResults([]);
         setIsTrackingModalOpen(true);
     };
     const [perPage, setPerPage] = useState(String(filters.per_page ?? '5'));
@@ -367,8 +285,7 @@ export default function PurchaseOrderInIndex({
     const [materialStartDate, setMaterialStartDate] = useState('');
     const [materialEndDate, setMaterialEndDate] = useState('');
     const [deadlineFilter, setDeadlineFilter] = useState('all');
-    const [materialDeadlineFilter, setMaterialDeadlineFilter] =
-        useState('all');
+    const [materialDeadlineFilter, setMaterialDeadlineFilter] = useState('all');
     const [realizedPeriod, setRealizedPeriod] = useState('today');
     const [dataPoInPeriod, setDataPoInPeriod] = useState('today');
     const [dataPoInStart, setDataPoInStart] = useState('');
@@ -411,7 +328,10 @@ export default function PurchaseOrderInIndex({
     const [modalLoading, setModalLoading] = useState(false);
     const [modalError, setModalError] = useState('');
     const [modalRows, setModalRows] = useState([]);
-    const [modalPagination, setModalPagination] = useState({ total: 0, total_pages: 1 });
+    const [modalPagination, setModalPagination] = useState({
+        total: 0,
+        total_pages: 1,
+    });
     const [modalDeadlineFilter, setModalDeadlineFilter] = useState('all');
 
     useEffect(() => {
@@ -448,6 +368,14 @@ export default function PurchaseOrderInIndex({
     const isInitialTableLoad = useRef(true);
     const isInitialRealizedSummaryLoad = useRef(true);
     const isInitialTotalSummaryLoad = useRef(true);
+
+    const openSummaryModal = (modal, tab = 'do') => {
+        setActiveModal(modal);
+        if (modal !== 'all_data') setActiveModalTab(tab);
+        setModalSearch('');
+        setModalPageSize(5);
+        setModalPage(1);
+    };
 
     const buildTableQueryParams = (params = {}) => {
         const queryParams = new URLSearchParams({
@@ -487,6 +415,7 @@ export default function PurchaseOrderInIndex({
     const fetchPoInRows = async (params = {}) => {
         const requestId = ++rowsRequestId.current;
         const nextParams = { ...params, isPartial: true };
+        const startedAt = performance.now();
         setTableLoading(true);
         setTableError('');
         setPurchaseOrderIns([]);
@@ -520,6 +449,7 @@ export default function PurchaseOrderInIndex({
                 setTableError(error?.message || 'Gagal memuat data PO In.');
             }
         } finally {
+            logPerformanceDuration('customer rows request', startedAt);
             if (requestId === rowsRequestId.current) {
                 setTableLoading(false);
             }
@@ -529,6 +459,7 @@ export default function PurchaseOrderInIndex({
     const fetchPoInPagination = async (params = {}) => {
         const requestId = ++paginationRequestId.current;
         const nextParams = { ...params, isPartial: true };
+        const startedAt = performance.now();
         setPaginationLoading(true);
         setPaginationError('');
 
@@ -547,7 +478,10 @@ export default function PurchaseOrderInIndex({
                 'Gagal memuat jumlah dan halaman PO In.',
             );
             if (
-                !(data.pagination && Number.isFinite(Number(data.pagination.total)))
+                !(
+                    data.pagination &&
+                    Number.isFinite(Number(data.pagination.total))
+                )
             ) {
                 throw new Error('Respons data PO In tidak lengkap.');
             }
@@ -565,6 +499,7 @@ export default function PurchaseOrderInIndex({
                 );
             }
         } finally {
+            logPerformanceDuration('customer pagination request', startedAt);
             if (requestId === paginationRequestId.current) {
                 setPaginationLoading(false);
             }
@@ -582,6 +517,7 @@ export default function PurchaseOrderInIndex({
 
     const fetchMaterialData = async (params = {}) => {
         const requestId = ++materialRequestId.current;
+        const startedAt = performance.now();
         lastMaterialParams.current = params;
         setMaterialLoading(true);
         setMaterialError('');
@@ -593,7 +529,8 @@ export default function PurchaseOrderInIndex({
                 per_page: params.per_page ?? materialPerPage,
                 status: params.status ?? materialStatusFilter,
                 date_filter: params.dateFilter ?? materialDateFilter,
-                deadline_filter: params.deadlineFilter ?? materialDeadlineFilter,
+                deadline_filter:
+                    params.deadlineFilter ?? materialDeadlineFilter,
                 page: params.page ?? 1,
                 _request: `${Date.now()}-${Math.random()}`,
             });
@@ -627,6 +564,10 @@ export default function PurchaseOrderInIndex({
                 );
             }
         } finally {
+            logPerformanceDuration(
+                'material rows and pagination request',
+                startedAt,
+            );
             if (requestId === materialRequestId.current) {
                 setMaterialLoading(false);
             }
@@ -640,6 +581,7 @@ export default function PurchaseOrderInIndex({
         endDateVal = '',
     ) => {
         const metrics = SUMMARY_SCOPE_METRICS[scope] ?? [scope];
+        const startedAt = performance.now();
         const requestId = (summaryRequestIds.current[scope] ?? 0) + 1;
         summaryRequestIds.current[scope] = requestId;
         const isCurrentRequest = () =>
@@ -678,9 +620,17 @@ export default function PurchaseOrderInIndex({
             }
             const data = await response.json();
             const requiredFields = [...metrics];
-            if (scope === 'outstanding' || scope === 'sisa') {
+            if (
+                scope === 'operational' ||
+                scope === 'outstanding' ||
+                scope === 'sisa'
+            ) {
                 requiredFields.push(
                     ...metrics.map((metric) => `${metric}_amount`),
+                    ...metrics.flatMap((metric) => [
+                        `${metric}_soon`,
+                        `${metric}_overdue`,
+                    ]),
                 );
             } else if (scope === 'total') {
                 requiredFields.push('total_amount');
@@ -708,6 +658,7 @@ export default function PurchaseOrderInIndex({
                 console.error(`Error fetching PO In ${scope} summary:`, error);
             }
         } finally {
+            logPerformanceDuration(`summary ${scope}`, startedAt);
             if (isCurrentRequest()) {
                 setSummaryLoading((prev) => ({
                     ...prev,
@@ -719,12 +670,16 @@ export default function PurchaseOrderInIndex({
 
     const fetchPoInSummary = (scopes) => {
         const scopesToFetch = new Set(
-            (scopes ?? ['outstanding', 'sisa', 'realized', 'total']).map(
-                (scope) =>
+            (scopes ?? ['operational', 'realized', 'total']).map((scope) => {
+                if (scope === 'outstanding' || scope === 'sisa') {
+                    return 'operational';
+                }
+                return (
                     Object.keys(SUMMARY_SCOPE_METRICS).find((group) =>
                         SUMMARY_SCOPE_METRICS[group].includes(scope),
-                    ) ?? scope,
-            ),
+                    ) ?? scope
+                );
+            }),
         );
         scopesToFetch.forEach((scope) => {
             if (scope === 'realized') {
@@ -770,7 +725,9 @@ export default function PurchaseOrderInIndex({
                 search: isMaterialTab ? materialSearch : search,
                 per_page: isMaterialTab ? materialPerPage : perPage,
                 status: isMaterialTab ? materialStatusFilter : statusFilter,
-                dateFilter: isMaterialTab ? materialDateFilter : tableDateFilter,
+                dateFilter: isMaterialTab
+                    ? materialDateFilter
+                    : tableDateFilter,
                 startDate: isMaterialTab ? materialStartDate : tableStartDate,
                 endDate: isMaterialTab ? materialEndDate : tableEndDate,
                 deadlineFilter: isMaterialTab
@@ -998,7 +955,9 @@ export default function PurchaseOrderInIndex({
 
     const dataPoInTotalAmount = useMemo(() => {
         if (dataPoInPeriod === 'all')
-            return Number(summary.total_amount ?? summary.data_amounts?.all ?? 0);
+            return Number(
+                summary.total_amount ?? summary.data_amounts?.all ?? 0,
+            );
         const period =
             { this_week: 'week', this_month: 'month', this_year: 'year' }[
                 dataPoInPeriod
@@ -1007,9 +966,15 @@ export default function PurchaseOrderInIndex({
     }, [dataPoInPeriod, summary]);
 
     const modalTotalItems = Number(modalPagination.total ?? 0);
-    const modalTotalPages = Math.max(1, Number(modalPagination.total_pages) || 1);
+    const modalTotalPages = Math.max(
+        1,
+        Number(modalPagination.total_pages) || 1,
+    );
     const modalDisplayedItems = modalRows;
-    const materialRange = getPaginationRange(materialPagination, materialPerPage);
+    const materialRange = getPaginationRange(
+        materialPagination,
+        materialPerPage,
+    );
 
     const loadDetailModal = async (kodePoin, opts = {}) => {
         const { signal, isCurrent } = detailRequest.current.start();
@@ -1048,7 +1013,11 @@ export default function PurchaseOrderInIndex({
                 response,
                 'Gagal memuat detail PO In.',
             );
-            if (!data.header || !Array.isArray(data.items) || !data.pagination) {
+            if (
+                !data.header ||
+                !Array.isArray(data.items) ||
+                !data.pagination
+            ) {
                 throw new Error('Respons detail PO In tidak lengkap.');
             }
             if (!isCurrent()) return;
@@ -1086,7 +1055,7 @@ export default function PurchaseOrderInIndex({
         setDetailLoading(true);
     };
 
-    const handleDeletePoIn = async () => {
+    const handleDeletePoIn = () => {
         if (!confirmDeleteKode) {
             return;
         }
@@ -1098,7 +1067,6 @@ export default function PurchaseOrderInIndex({
             return;
         }
 
-        let isSuccess = false;
         setIsDeleting(true);
         router.delete(
             `/marketing/purchase-order-in/${encodeURIComponent(confirmDeleteKode)}`,
@@ -1108,8 +1076,6 @@ export default function PurchaseOrderInIndex({
                     'X-Skip-Loading-Overlay': '1',
                 },
                 onSuccess: (page) => {
-                    isSuccess = true;
-                    setIsDeleting(false);
                     const flashError = page?.props?.flash?.error;
                     if (flashError) {
                         toastError(flashError);
@@ -1146,21 +1112,6 @@ export default function PurchaseOrderInIndex({
                 },
                 onFinish: () => {
                     setIsDeleting(false);
-                    if (!isSuccess) {
-                        toastSuccess('Data PO In berhasil dihapus.');
-                        setActiveModal(null);
-                        setIsConfirmDeleteOpen(false);
-                        setConfirmDeleteKode('');
-
-                        fetchPoInSummary();
-                        fetchPoInData({
-                            period: tableDateFilter,
-                            startDate: tableStartDate,
-                            endDate: tableEndDate,
-                            page: pagination.page || 1,
-                            isPartial: true,
-                        });
-                    }
                 },
             },
         );
@@ -1249,7 +1200,9 @@ export default function PurchaseOrderInIndex({
                             <select
                                 className="h-10 w-full rounded-md border border-input bg-background px-3"
                                 value={exportDeadlineFilter}
-                                onChange={(event) => setExportDeadlineFilter(event.target.value)}
+                                onChange={(event) =>
+                                    setExportDeadlineFilter(event.target.value)
+                                }
                             >
                                 <option value="all">Semua Deadline</option>
                                 <option value="soon">≤ 5 Hari</option>
@@ -1364,7 +1317,11 @@ export default function PurchaseOrderInIndex({
                                     color: '#0f172a',
                                 }}
                                 onClick={() => {
-                                    setExportDeadlineFilter(activeDataTab === 'material' ? materialDeadlineFilter : deadlineFilter);
+                                    setExportDeadlineFilter(
+                                        activeDataTab === 'material'
+                                            ? materialDeadlineFilter
+                                            : deadlineFilter,
+                                    );
                                     setIsExportModalOpen(true);
                                 }}
                             >
@@ -1399,20 +1356,13 @@ export default function PurchaseOrderInIndex({
                     {/* Card PO IN Outstanding */}
                     <article
                         className={cn(
-                            'cursor-pointer rounded-xl border p-4 shadow-sm transition hover:shadow-md',
+                            'rounded-xl border p-4 shadow-sm',
                             isDark
                                 ? 'border-slate-800 bg-[#1e293b] text-white hover:border-amber-400/50'
                                 : 'border-slate-200 bg-[#ffffff] text-slate-900 hover:border-amber-400/50',
                         )}
                         style={{
                             backgroundColor: isDark ? '#1e293b' : '#ffffff',
-                        }}
-                        onClick={() => {
-                            setActiveModal('outstanding');
-                            setActiveModalTab('do');
-                            setModalSearch('');
-                            setModalPageSize(5);
-                            setModalPage(1);
                         }}
                     >
                         <div
@@ -1423,14 +1373,25 @@ export default function PurchaseOrderInIndex({
                         >
                             <ClipboardCheck className="size-4 text-amber-600" />
                         </div>
+                        <div className="flex items-center justify-between gap-2">
                         <p
                             className={cn(
                                 'text-xs font-bold tracking-wide uppercase',
-                                isDark ? 'text-slate-400' : 'text-slate-600',
+                                    isDark
+                                        ? 'text-slate-400'
+                                        : 'text-slate-600',
                             )}
                         >
                             PO IN Outstanding
                         </p>
+                            <button
+                                type="button"
+                                className="rounded-sm text-xs font-semibold text-primary underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                onClick={() => openSummaryModal('outstanding')}
+                            >
+                                Lihat DO
+                            </button>
+                        </div>
                         <div className="mt-3 grid grid-cols-2 gap-2">
                             <SummaryMetric
                                 label="Belum PR"
@@ -1446,13 +1407,9 @@ export default function PurchaseOrderInIndex({
                                 }
                                 soonCount={summary.outstanding_pr_soon}
                                 overdueCount={summary.outstanding_pr_overdue}
-                                onClick={() => {
-                                    setActiveModal('outstanding');
-                                    setActiveModalTab('pr');
-                                    setModalSearch('');
-                                    setModalPageSize(5);
-                                    setModalPage(1);
-                                }}
+                                onClick={() =>
+                                    openSummaryModal('outstanding', 'pr')
+                                }
                             />
                             <SummaryMetric
                                 label="Belum DO"
@@ -1468,13 +1425,9 @@ export default function PurchaseOrderInIndex({
                                 }
                                 soonCount={summary.outstanding_do_soon}
                                 overdueCount={summary.outstanding_do_overdue}
-                                onClick={() => {
-                                    setActiveModal('outstanding');
-                                    setActiveModalTab('do');
-                                    setModalSearch('');
-                                    setModalPageSize(5);
-                                    setModalPage(1);
-                                }}
+                                onClick={() =>
+                                    openSummaryModal('outstanding', 'do')
+                                }
                             />
                         </div>
                         <p
@@ -1490,20 +1443,13 @@ export default function PurchaseOrderInIndex({
                     {/* Card PO IN Sisa */}
                     <article
                         className={cn(
-                            'cursor-pointer rounded-xl border p-4 shadow-sm transition hover:shadow-md',
+                            'rounded-xl border p-4 shadow-sm',
                             isDark
                                 ? 'border-slate-800 bg-[#1e293b] text-white hover:border-rose-400/50'
                                 : 'border-slate-200 bg-[#ffffff] text-slate-900 hover:border-rose-400/50',
                         )}
                         style={{
                             backgroundColor: isDark ? '#1e293b' : '#ffffff',
-                        }}
-                        onClick={() => {
-                            setActiveModal('sisa');
-                            setActiveModalTab('do');
-                            setModalSearch('');
-                            setModalPageSize(5);
-                            setModalPage(1);
                         }}
                     >
                         <div
@@ -1514,14 +1460,25 @@ export default function PurchaseOrderInIndex({
                         >
                             <AlertCircle className="size-4 text-rose-600" />
                         </div>
+                        <div className="flex items-center justify-between gap-2">
                         <p
                             className={cn(
                                 'text-xs font-bold tracking-wide uppercase',
-                                isDark ? 'text-slate-400' : 'text-slate-600',
+                                    isDark
+                                        ? 'text-slate-400'
+                                        : 'text-slate-600',
                             )}
                         >
                             PO IN Sisa
                         </p>
+                            <button
+                                type="button"
+                                className="rounded-sm text-xs font-semibold text-primary underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                onClick={() => openSummaryModal('sisa')}
+                            >
+                                Lihat DO
+                            </button>
+                        </div>
                         <div className="mt-3 grid grid-cols-2 gap-2">
                             <SummaryMetric
                                 label="Sisa PR"
@@ -1533,13 +1490,7 @@ export default function PurchaseOrderInIndex({
                                 onRetry={() => fetchPoInSummary(['sisa'])}
                                 soonCount={summary.sisa_pr_soon}
                                 overdueCount={summary.sisa_pr_overdue}
-                                onClick={() => {
-                                    setActiveModal('sisa');
-                                    setActiveModalTab('pr');
-                                    setModalSearch('');
-                                    setModalPageSize(5);
-                                    setModalPage(1);
-                                }}
+                                onClick={() => openSummaryModal('sisa', 'pr')}
                             />
                             <SummaryMetric
                                 label="Sisa DO"
@@ -1551,13 +1502,7 @@ export default function PurchaseOrderInIndex({
                                 onRetry={() => fetchPoInSummary(['sisa'])}
                                 soonCount={summary.sisa_do_soon}
                                 overdueCount={summary.sisa_do_overdue}
-                                onClick={() => {
-                                    setActiveModal('sisa');
-                                    setActiveModalTab('do');
-                                    setModalSearch('');
-                                    setModalPageSize(5);
-                                    setModalPage(1);
-                                }}
+                                onClick={() => openSummaryModal('sisa', 'do')}
                             />
                         </div>
                         <p
@@ -1573,20 +1518,13 @@ export default function PurchaseOrderInIndex({
                     {/* Card PO IN Terealisasi */}
                     <article
                         className={cn(
-                            'cursor-pointer rounded-xl border p-4 shadow-sm transition hover:shadow-md',
+                            'rounded-xl border p-4 shadow-sm',
                             isDark
                                 ? 'border-slate-800 bg-[#1e293b] text-white hover:border-emerald-400/50'
                                 : 'border-slate-200 bg-[#ffffff] text-slate-900 hover:border-emerald-400/50',
                         )}
                         style={{
                             backgroundColor: isDark ? '#1e293b' : '#ffffff',
-                        }}
-                        onClick={() => {
-                            setActiveModal('realized');
-                            setActiveModalTab('do');
-                            setModalSearch('');
-                            setModalPageSize(5);
-                            setModalPage(1);
                         }}
                     >
                         <div className="mb-3 flex items-center justify-between gap-2">
@@ -1606,7 +1544,6 @@ export default function PurchaseOrderInIndex({
                                         : 'border-slate-300 bg-[#ffffff] text-slate-900',
                                 )}
                                 value={realizedPeriod}
-                                onClick={(event) => event.stopPropagation()}
                                 onChange={(event) =>
                                     setRealizedPeriod(event.target.value)
                                 }
@@ -1618,14 +1555,25 @@ export default function PurchaseOrderInIndex({
                                 <option value="all">Semua Data</option>
                             </select>
                         </div>
+                        <div className="flex items-center justify-between gap-2">
                         <p
                             className={cn(
                                 'text-xs font-bold tracking-wide uppercase',
-                                isDark ? 'text-slate-400' : 'text-slate-600',
+                                    isDark
+                                        ? 'text-slate-400'
+                                        : 'text-slate-600',
                             )}
                         >
                             PO IN Terealisasi
                         </p>
+                            <button
+                                type="button"
+                                className="rounded-sm text-xs font-semibold text-primary underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                onClick={() => openSummaryModal('realized')}
+                            >
+                                Lihat DO
+                            </button>
+                        </div>
                         <div className="mt-3 grid grid-cols-2 gap-2">
                             <SummaryMetric
                                 label="PR Selesai"
@@ -1633,13 +1581,9 @@ export default function PurchaseOrderInIndex({
                                 loading={summaryLoading.realized_pr}
                                 error={summaryErrors.realized_pr}
                                 onRetry={() => fetchPoInSummary(['realized'])}
-                                onClick={() => {
-                                    setActiveModal('realized');
-                                    setActiveModalTab('pr');
-                                    setModalSearch('');
-                                    setModalPageSize(5);
-                                    setModalPage(1);
-                                }}
+                                onClick={() =>
+                                    openSummaryModal('realized', 'pr')
+                                }
                             />
                             <SummaryMetric
                                 label="DO Selesai"
@@ -1647,13 +1591,9 @@ export default function PurchaseOrderInIndex({
                                 loading={summaryLoading.realized_do}
                                 error={summaryErrors.realized_do}
                                 onRetry={() => fetchPoInSummary(['realized'])}
-                                onClick={() => {
-                                    setActiveModal('realized');
-                                    setActiveModalTab('do');
-                                    setModalSearch('');
-                                    setModalPageSize(5);
-                                    setModalPage(1);
-                                }}
+                                onClick={() =>
+                                    openSummaryModal('realized', 'do')
+                                }
                             />
                         </div>
                         <p
@@ -1670,19 +1610,13 @@ export default function PurchaseOrderInIndex({
                     {/* Card Data PO IN (Total) */}
                     <article
                         className={cn(
-                            'cursor-pointer rounded-xl border p-4 shadow-sm transition hover:shadow-md',
+                            'rounded-xl border p-4 shadow-sm',
                             isDark
                                 ? 'border-slate-800 bg-[#1e293b] text-white hover:border-blue-400/50'
                                 : 'border-slate-200 bg-[#ffffff] text-slate-900 hover:border-blue-400/50',
                         )}
                         style={{
                             backgroundColor: isDark ? '#1e293b' : '#ffffff',
-                        }}
-                        onClick={() => {
-                            setActiveModal('all_data');
-                            setModalSearch('');
-                            setModalPageSize(5);
-                            setModalPage(1);
                         }}
                     >
                         <div className="mb-3 flex items-center justify-between gap-2">
@@ -1702,7 +1636,6 @@ export default function PurchaseOrderInIndex({
                                         : 'border-slate-300 bg-[#ffffff] text-slate-900',
                                 )}
                                 value={dataPoInPeriod}
-                                onClick={(event) => event.stopPropagation()}
                                 onChange={(event) =>
                                     setDataPoInPeriod(event.target.value)
                                 }
@@ -1716,10 +1649,7 @@ export default function PurchaseOrderInIndex({
                             </select>
                         </div>
                         {dataPoInPeriod === 'range' && (
-                            <div
-                                className="mb-3 flex flex-wrap gap-2"
-                                onClick={(e) => e.stopPropagation()}
-                            >
+                            <div className="mb-3 flex flex-wrap gap-2">
                                 <div className="flex flex-1 flex-col gap-1">
                                     <label className="text-[10px] font-bold text-slate-500 uppercase">
                                         Dari
@@ -1758,14 +1688,25 @@ export default function PurchaseOrderInIndex({
                                 </div>
                             </div>
                         )}
+                        <div className="flex items-center justify-between gap-2">
                         <p
                             className={cn(
                                 'text-xs font-bold tracking-wide uppercase',
-                                isDark ? 'text-slate-400' : 'text-slate-600',
+                                    isDark
+                                        ? 'text-slate-400'
+                                        : 'text-slate-600',
                             )}
                         >
                             Total Data PO IN
                         </p>
+                            <button
+                                type="button"
+                                className="rounded-sm text-xs font-semibold text-primary underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                onClick={() => openSummaryModal('all_data')}
+                            >
+                                Lihat data
+                            </button>
+                        </div>
                         {summaryErrors.total && !summaryLoading.total ? (
                             <div className="mt-2">
                                 <SummaryLoadError
@@ -1892,7 +1833,9 @@ export default function PurchaseOrderInIndex({
                                 }
                                 onChange={(event) => {
                                     if (activeDataTab === 'material') {
-                                        setMaterialStatusFilter(event.target.value);
+                                        setMaterialStatusFilter(
+                                            event.target.value,
+                                        );
                                     } else {
                                         setStatusFilter(event.target.value);
                                     }
@@ -1916,7 +1859,9 @@ export default function PurchaseOrderInIndex({
                                 }
                                 onChange={(event) =>
                                     activeDataTab === 'material'
-                                        ? setMaterialDateFilter(event.target.value)
+                                        ? setMaterialDateFilter(
+                                              event.target.value,
+                                          )
                                         : setTableDateFilter(event.target.value)
                                 }
                             >
@@ -1941,8 +1886,12 @@ export default function PurchaseOrderInIndex({
                                         }
                                         onChange={(event) =>
                                             activeDataTab === 'material'
-                                                ? setMaterialDeadlineFilter(event.target.value)
-                                                : setDeadlineFilter(event.target.value)
+                                            ? setMaterialDeadlineFilter(
+                                                  event.target.value,
+                                              )
+                                            : setDeadlineFilter(
+                                                  event.target.value,
+                                              )
                                         }
                                     >
                                         <option value="all">Semua Deadline</option>
@@ -1968,8 +1917,12 @@ export default function PurchaseOrderInIndex({
                                             }
                                             onChange={(event) =>
                                                 activeDataTab === 'material'
-                                                    ? setMaterialStartDate(event.target.value)
-                                                    : setTableStartDate(event.target.value)
+                                                ? setMaterialStartDate(
+                                                      event.target.value,
+                                                  )
+                                                : setTableStartDate(
+                                                      event.target.value,
+                                                  )
                                             }
                                         />
                                         <input
@@ -1982,8 +1935,12 @@ export default function PurchaseOrderInIndex({
                                             }
                                             onChange={(event) =>
                                                 activeDataTab === 'material'
-                                                    ? setMaterialEndDate(event.target.value)
-                                                    : setTableEndDate(event.target.value)
+                                                ? setMaterialEndDate(
+                                                      event.target.value,
+                                                  )
+                                                : setTableEndDate(
+                                                      event.target.value,
+                                                  )
                                             }
                                         />
                                     </>
@@ -2019,7 +1976,9 @@ export default function PurchaseOrderInIndex({
                             activeDataTab !== 'customer' && '!hidden',
                         )}
                     >
-                        {tableLoading && purchaseOrderIns.length === 0 && (
+                        {isMobile &&
+                            tableLoading &&
+                            purchaseOrderIns.length === 0 && (
                             <>
                                 {Array.from({
                                     length:
@@ -2038,15 +1997,29 @@ export default function PurchaseOrderInIndex({
                                 ))}
                             </>
                         )}
-                        {!tableLoading && tableError && (
-                            <SummaryLoadError label="tabel PO IN" message={tableError} onRetry={() => fetchPoInData(lastTableParams.current)} />
+                        {isMobile && !tableLoading && tableError && (
+                            <SummaryLoadError
+                                label="tabel PO IN"
+                                message={tableError}
+                                onRetry={() =>
+                                    fetchPoInData(lastTableParams.current)
+                                }
+                            />
                         )}
-                        {!tableLoading && !tableError && purchaseOrderIns.length === 0 && (
+                        {isMobile &&
+                            !tableLoading &&
+                            !tableError &&
+                            purchaseOrderIns.length === 0 && (
                             <div className="rounded-xl border border-sidebar-border/70 px-4 py-8 text-center text-sm text-muted-foreground">
                                 Belum ada data PO In.
                             </div>
                         )}
-                        {purchaseOrderIns.map((item, index) =>
+                        <Profiler
+                            id="PO IN customer mobile rows"
+                            onRender={reportRenderProfile}
+                        >
+                            {isMobile &&
+                                purchaseOrderIns.map((item, index) =>
                             (() => {
                                 const urgency = getRowUrgency(item);
                                 return (
@@ -2098,7 +2071,8 @@ export default function PurchaseOrderInIndex({
                                                 </p>
                                                 <p className="break-words text-muted-foreground">
                                                     Ref PO:{' '}
-                                                    {item.no_poin || '-'}
+                                                            {item.no_poin ||
+                                                                '-'}
                                                 </p>
                                             </div>
                                             <div className="flex shrink-0 items-center gap-2">
@@ -2132,7 +2106,8 @@ export default function PurchaseOrderInIndex({
                                                     Customer
                                                 </p>
                                                 <p className="font-medium break-words">
-                                                    {item.customer_name || '-'}
+                                                            {item.customer_name ||
+                                                                '-'}
                                                     {urgency && (
                                                         <span
                                                             className={cn(
@@ -2143,7 +2118,8 @@ export default function PurchaseOrderInIndex({
                                                                     : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800',
                                                             )}
                                                         >
-                                                            Segera dikirim
+                                                                    Segera
+                                                                    dikirim
                                                         </span>
                                                     )}
                                                 </p>
@@ -2185,6 +2161,7 @@ export default function PurchaseOrderInIndex({
                                 );
                             })(),
                         )}
+                        </Profiler>
                     </div>
 
                     <div
@@ -2224,9 +2201,12 @@ export default function PurchaseOrderInIndex({
                             </thead>
                             <tbody>
                                 <PlainTableStateRows
-                                    error={tableError}
-                                    onRetry={() => fetchPoInData(lastTableParams.current)}
+                                    error={isMobile ? '' : tableError}
+                                    onRetry={() =>
+                                        fetchPoInData(lastTableParams.current)
+                                    }
                                     loading={
+                                        !isMobile &&
                                         tableLoading &&
                                         purchaseOrderIns.length === 0
                                     }
@@ -2235,22 +2215,34 @@ export default function PurchaseOrderInIndex({
                                         perPage === 'all' ? 5 : Number(perPage)
                                     }
                                     isEmpty={
+                                        !isMobile &&
                                         !tableLoading &&
                                         purchaseOrderIns.length === 0
                                     }
                                     emptyTitle="Belum ada data PO In."
                                 />
-                                {purchaseOrderIns.map((item, index) =>
+                                <Profiler
+                                    id="PO IN customer desktop rows"
+                                    onRender={reportRenderProfile}
+                                >
+                                    {!isMobile &&
+                                        purchaseOrderIns.map((item, index) =>
                                     (() => {
-                                        const urgency = getRowUrgency(item);
+                                                const urgency =
+                                                    getRowUrgency(item);
                                         return (
                                             <tr
-                                                key={item.id ?? item.no_poin}
+                                                        key={
+                                                            item.id ??
+                                                            item.no_poin
+                                                        }
                                                 className={cn(
                                                     'border-t',
-                                                    urgency === 'overdue'
+                                                            urgency ===
+                                                                'overdue'
                                                         ? 'border-red-500/40 bg-red-500/10'
-                                                        : urgency === 'soon'
+                                                                : urgency ===
+                                                                    'soon'
                                                             ? 'border-yellow-500/40 bg-yellow-500/10'
                                                             : 'border-sidebar-border/70',
                                                 )}
@@ -2314,7 +2306,8 @@ export default function PurchaseOrderInIndex({
                                                                     : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800',
                                                             )}
                                                         >
-                                                            Segera dikirim
+                                                                    Segera
+                                                                    dikirim
                                                         </span>
                                                     )}
                                                 </td>
@@ -2353,15 +2346,28 @@ export default function PurchaseOrderInIndex({
                                         );
                                     })(),
                                 )}
+                                </Profiler>
                             </tbody>
                         </table>
                     </div>
-                    {activeDataTab === 'customer' && paginationError && !paginationLoading && (
+                    {activeDataTab === 'customer' &&
+                        paginationError &&
+                        !paginationLoading && (
                         <div className="mt-3">
-                            <SummaryLoadError label="pagination PO IN" message={paginationError} onRetry={() => fetchPoInPagination(lastTableParams.current)} />
+                                <SummaryLoadError
+                                    label="pagination PO IN"
+                                    message={paginationError}
+                                    onRetry={() =>
+                                        fetchPoInPagination(
+                                            lastTableParams.current,
+                                        )
+                                    }
+                                />
                         </div>
                     )}
-                    {activeDataTab === 'customer' && !paginationError && !tableError &&
+                    {activeDataTab === 'customer' &&
+                        !paginationError &&
+                        !tableError &&
                         String(pagination.per_page) !== 'all' &&
                         (paginationLoading ||
                             Number(pagination.total || 0) > 0) && (
@@ -2455,7 +2461,9 @@ export default function PurchaseOrderInIndex({
                     {activeDataTab === 'material' && (
                         <>
                             <div className="grid gap-3 md:hidden">
-                                {materialLoading && materialRows.length === 0 ? (
+                                {isMobile &&
+                                materialLoading &&
+                                materialRows.length === 0 ? (
                                     Array.from({
                                         length:
                                             materialPerPage === 'all'
@@ -2471,70 +2479,146 @@ export default function PurchaseOrderInIndex({
                                             <Skeleton className="mt-2 h-4 w-28" />
                                         </div>
                                     ))
-                                ) : materialError ? (
-                                    <SummaryLoadError label="tabel material PO IN" message={materialError} onRetry={() => fetchMaterialData(lastMaterialParams.current)} />
-                                ) : materialRows.length === 0 ? (
+                                ) : isMobile && materialError ? (
+                                    <SummaryLoadError
+                                        label="tabel material PO IN"
+                                        message={materialError}
+                                        onRetry={() =>
+                                            fetchMaterialData(
+                                                lastMaterialParams.current,
+                                            )
+                                        }
+                                    />
+                                ) : isMobile && materialRows.length === 0 ? (
                                     <div className="rounded-xl border border-sidebar-border/70 px-4 py-8 text-center text-sm text-muted-foreground">
                                         Belum ada data material PO In.
                                     </div>
                                 ) : (
-                                    materialRows.map((item, index) => {
-                                        const urgency = Number(item.sisa_qtydo ?? 0) === 0
+                                    isMobile && (
+                                        <Profiler
+                                            id="PO IN material mobile rows"
+                                            onRender={reportRenderProfile}
+                                        >
+                                            {materialRows.map((item, index) => {
+                                                const urgency =
+                                                    Number(
+                                                        item.sisa_qtydo ?? 0,
+                                                    ) === 0
                                             ? null
                                             : getRowUrgency(item);
                                         return (
                                             <div
-                                                key={item.id ?? `${item.no_poin}-${index}`}
+                                                        key={
+                                                            item.id ??
+                                                            `${item.no_poin}-${index}`
+                                                        }
                                                 className={cn(
                                                     'rounded-xl border p-3 text-sm',
-                                                    urgency === 'overdue'
+                                                            urgency ===
+                                                                'overdue'
                                                         ? 'border-red-500/40 bg-red-500/10'
-                                                        : urgency === 'soon'
+                                                                : urgency ===
+                                                                    'soon'
                                                             ? 'border-yellow-500/40 bg-yellow-500/10'
                                                             : 'border-sidebar-border/70',
                                                 )}
                                             >
                                                 <p className="text-xs text-muted-foreground">
-                                                    #{(Number(materialPagination.page || 1) - 1) * Number(materialPagination.per_page || 5) + index + 1}
+                                                            #
+                                                            {(Number(
+                                                                materialPagination.page ||
+                                                                    1,
+                                                            ) -
+                                                                1) *
+                                                                Number(
+                                                                    materialPagination.per_page ||
+                                                                        5,
+                                                                ) +
+                                                                index +
+                                                                1}
                                                 </p>
                                                 <p className="mt-1 font-semibold break-words">
                                                     {urgency && (
                                                         <span
                                                             className={cn(
                                                                 'animate-attention-glow mr-2 inline-block size-4 rounded-full align-middle',
-                                                                urgency === 'overdue'
+                                                                        urgency ===
+                                                                            'overdue'
                                                                     ? 'bg-red-600 text-red-600'
                                                                     : 'bg-yellow-500 text-yellow-500',
                                                             )}
                                                         />
                                                     )}
-                                                    {item.material || '-'}
+                                                            {item.material ||
+                                                                '-'}
                                                 </p>
                                                 <p className="mt-2 break-words text-muted-foreground">
-                                                    Ref PO: {item.no_poin || '-'}
+                                                            Ref PO:{' '}
+                                                            {item.no_poin ||
+                                                                '-'}
                                                 </p>
                                                 <p className="mt-1 break-words text-muted-foreground">
-                                                    Customer: {item.customer_name || '-'}
+                                                            Customer:{' '}
+                                                            {item.customer_name ||
+                                                                '-'}
                                                     {urgency && (
                                                         <span
                                                             className={cn(
                                                                 'ml-2 inline-block rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold',
-                                                                urgency === 'overdue'
+                                                                        urgency ===
+                                                                            'overdue'
                                                                     ? 'border-red-600/40 bg-red-600/15 text-red-700'
                                                                     : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800',
                                                             )}
                                                         >
-                                                            Segera dikirim
+                                                                    Segera
+                                                                    dikirim
                                                         </span>
                                                     )}
                                                 </p>
                                                 <div className="mt-3 grid grid-cols-3 gap-2">
-                                                    <div><p className="text-xs text-muted-foreground">Qty</p><p className="font-medium">{item.qty ?? 0}</p></div>
-                                                    <div><p className="text-xs text-muted-foreground">Sisa PR</p><p className="font-medium">{item.sisa_qtypr ?? item.qty ?? 0}</p></div>
-                                                    <div><p className="text-xs text-muted-foreground">Sisa DO</p><p className="font-medium">{item.sisa_qtydo ?? item.qty ?? 0}</p></div>
+                                                            <div>
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    Qty
+                                                                </p>
+                                                                <p className="font-medium">
+                                                                    {item.qty ??
+                                                                        0}
+                                                                </p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    Sisa PR
+                                                                </p>
+                                                                <p className="font-medium">
+                                                                    {item.sisa_qtypr ??
+                                                                        item.qty ??
+                                                                        0}
+                                                                </p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-xs text-muted-foreground">
+                                                                    Sisa DO
+                                                                </p>
+                                                                <p className="font-medium">
+                                                                    {item.sisa_qtydo ??
+                                                                        item.qty ??
+                                                                        0}
+                                                                </p>
+                                                            </div>
                                                 </div>
                                                 <div className="mt-3 flex gap-2">
-                                                    <Button type="button" variant="outline" size="sm" onClick={() => openDetailModal(item.kode_poin)} title="Lihat">
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                onClick={() =>
+                                                                    openDetailModal(
+                                                                        item.kode_poin,
+                                                                    )
+                                                                }
+                                                                title="Lihat"
+                                                            >
                                                         <Eye className="size-4" />
                                                     </Button>
                                                     <a
@@ -2549,85 +2633,183 @@ export default function PurchaseOrderInIndex({
                                                 </div>
                                             </div>
                                         );
-                                    })
+                                            })}
+                                        </Profiler>
+                                    )
                                 )}
                             </div>
                             <div className="hidden overflow-x-auto rounded-xl border border-sidebar-border/70 md:block">
                                 <table className="w-full min-w-[860px] table-auto text-sm">
                                     <thead className="bg-muted/40 text-muted-foreground">
                                         <tr>
-                                            <th className="w-px px-2 py-2 text-left whitespace-nowrap">No</th>
-                                            <th className="px-2 py-2 text-left">Ref PO</th>
-                                            <th className="px-2 py-2 text-left">Customer</th>
-                                            <th className="px-2 py-2 text-left">Material</th>
-                                            <th className="w-28 px-2 py-2 text-right">Qty</th>
-                                            <th className="w-28 px-2 py-2 text-right">Sisa PR</th>
-                                            <th className="w-28 px-2 py-2 text-right">Sisa DO</th>
-                                            <th className="w-24 px-2 py-2 text-left">Action</th>
+                                            <th className="w-px px-2 py-2 text-left whitespace-nowrap">
+                                                No
+                                            </th>
+                                            <th className="px-2 py-2 text-left">
+                                                Ref PO
+                                            </th>
+                                            <th className="px-2 py-2 text-left">
+                                                Customer
+                                            </th>
+                                            <th className="px-2 py-2 text-left">
+                                                Material
+                                            </th>
+                                            <th className="w-28 px-2 py-2 text-right">
+                                                Qty
+                                            </th>
+                                            <th className="w-28 px-2 py-2 text-right">
+                                                Sisa PR
+                                            </th>
+                                            <th className="w-28 px-2 py-2 text-right">
+                                                Sisa DO
+                                            </th>
+                                            <th className="w-24 px-2 py-2 text-left">
+                                                Action
+                                            </th>
                                         </tr>
                                     </thead>
                                     <tbody>
                                         <PlainTableStateRows
-                                            error={materialError}
-                                            onRetry={() => fetchMaterialData(lastMaterialParams.current)}
-                                            loading={materialLoading && materialRows.length === 0}
+                                            error={
+                                                isMobile ? '' : materialError
+                                            }
+                                            onRetry={() =>
+                                                fetchMaterialData(
+                                                    lastMaterialParams.current,
+                                                )
+                                            }
+                                            loading={
+                                                !isMobile &&
+                                                materialLoading &&
+                                                materialRows.length === 0
+                                            }
                                             columns={8}
-                                            skeletonRows={materialPerPage === 'all' ? 5 : Number(materialPerPage)}
-                                            isEmpty={!materialLoading && materialRows.length === 0}
+                                            skeletonRows={
+                                                materialPerPage === 'all'
+                                                    ? 5
+                                                    : Number(materialPerPage)
+                                            }
+                                            isEmpty={
+                                                !isMobile &&
+                                                !materialLoading &&
+                                                materialRows.length === 0
+                                            }
                                             emptyTitle="Belum ada data material PO In."
                                         />
-                                        {materialRows.map((item, index) => {
-                                            const urgency = Number(item.sisa_qtydo ?? 0) === 0
+                                        <Profiler
+                                            id="PO IN material desktop rows"
+                                            onRender={reportRenderProfile}
+                                        >
+                                            {!isMobile &&
+                                                materialRows.map(
+                                                    (item, index) => {
+                                                        const urgency =
+                                                            Number(
+                                                                item.sisa_qtydo ??
+                                                                    0,
+                                                            ) === 0
                                                 ? null
-                                                : getRowUrgency(item);
+                                                                : getRowUrgency(
+                                                                      item,
+                                                                  );
                                             return (
                                                 <tr
-                                                    key={item.id ?? `${item.no_poin}-${index}`}
+                                                                key={
+                                                                    item.id ??
+                                                                    `${item.no_poin}-${index}`
+                                                                }
                                                     className={cn(
                                                         'border-t',
-                                                        urgency === 'overdue'
+                                                                    urgency ===
+                                                                        'overdue'
                                                             ? 'border-red-500/40 bg-red-500/10'
-                                                            : urgency === 'soon'
+                                                                        : urgency ===
+                                                                            'soon'
                                                                 ? 'border-yellow-500/40 bg-yellow-500/10'
                                                                 : 'border-sidebar-border/70',
                                                     )}
                                                 >
-                                                    <td className="px-2 py-2 whitespace-nowrap">{materialPagination.per_page === 'all' ? index + 1 : (Number(materialPagination.page || 1) - 1) * Number(materialPagination.per_page || 5) + index + 1}</td>
+                                                                <td className="px-2 py-2 whitespace-nowrap">
+                                                                    {materialPagination.per_page ===
+                                                                    'all'
+                                                                        ? index +
+                                                                          1
+                                                                        : (Number(
+                                                                              materialPagination.page ||
+                                                                                  1,
+                                                                          ) -
+                                                                              1) *
+                                                                              Number(
+                                                                                  materialPagination.per_page ||
+                                                                                      5,
+                                                                              ) +
+                                                                          index +
+                                                                          1}
+                                                                </td>
                                                     <td className="px-2 py-2 font-semibold whitespace-nowrap">
                                                         {urgency && (
                                                             <span
                                                                 className={cn(
                                                                     'animate-attention-glow mr-2 inline-block size-4 rounded-full align-middle',
-                                                                    urgency === 'overdue'
+                                                                                urgency ===
+                                                                                    'overdue'
                                                                         ? 'bg-red-600 text-red-600'
                                                                         : 'bg-yellow-500 text-yellow-500',
                                                                 )}
                                                             />
                                                         )}
-                                                        {item.no_poin || '-'}
+                                                                    {item.no_poin ||
+                                                                        '-'}
                                                     </td>
                                                     <td className="px-2 py-2">
-                                                        {item.customer_name || '-'}
+                                                                    {item.customer_name ||
+                                                                        '-'}
                                                         {urgency && (
                                                             <span
                                                                 className={cn(
                                                                     'ml-2 inline-block rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold',
-                                                                    urgency === 'overdue'
+                                                                                urgency ===
+                                                                                    'overdue'
                                                                         ? 'border-red-600/40 bg-red-600/15 text-red-700'
                                                                         : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800',
                                                                 )}
                                                             >
-                                                                Segera dikirim
+                                                                            Segera
+                                                                            dikirim
                                                             </span>
                                                         )}
                                                     </td>
-                                                    <td className="px-2 py-2">{item.material || '-'}</td>
-                                                    <td className="px-2 py-2 text-right whitespace-nowrap">{item.qty ?? 0}</td>
-                                                    <td className="px-2 py-2 text-right whitespace-nowrap">{item.sisa_qtypr ?? item.qty ?? 0}</td>
-                                                    <td className="px-2 py-2 text-right whitespace-nowrap">{item.sisa_qtydo ?? item.qty ?? 0}</td>
+                                                                <td className="px-2 py-2">
+                                                                    {item.material ||
+                                                                        '-'}
+                                                                </td>
+                                                                <td className="px-2 py-2 text-right whitespace-nowrap">
+                                                                    {item.qty ??
+                                                                        0}
+                                                                </td>
+                                                                <td className="px-2 py-2 text-right whitespace-nowrap">
+                                                                    {item.sisa_qtypr ??
+                                                                        item.qty ??
+                                                                        0}
+                                                                </td>
+                                                                <td className="px-2 py-2 text-right whitespace-nowrap">
+                                                                    {item.sisa_qtydo ??
+                                                                        item.qty ??
+                                                                        0}
+                                                                </td>
                                                     <td className="px-2 py-2">
                                                         <div className="flex items-center gap-2">
-                                                            <Button type="button" variant="outline" size="sm" onClick={() => openDetailModal(item.kode_poin)} title="Lihat">
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            onClick={() =>
+                                                                                openDetailModal(
+                                                                                    item.kode_poin,
+                                                                                )
+                                                                            }
+                                                                            title="Lihat"
+                                                                        >
                                                                 <Eye className="size-4" />
                                                             </Button>
                                                             <a
@@ -2643,21 +2825,91 @@ export default function PurchaseOrderInIndex({
                                                     </td>
                                                 </tr>
                                             );
-                                        })}
+                                                    },
+                                                )}
+                                        </Profiler>
                                     </tbody>
                                 </table>
                             </div>
                             {!materialError &&
-                                (materialLoading || Number(materialPagination.total || 0) > 0) && (
+                                (materialLoading ||
+                                    Number(materialPagination.total || 0) >
+                                        0) && (
                                     <div className="mt-3 grid gap-3 text-sm text-muted-foreground sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
                                         <span>
-                                            {materialLoading ? 'Memuat...' : `Menampilkan ${materialRange.from}-${materialRange.to} dari ${materialRange.total} data`}
+                                            {materialLoading
+                                                ? 'Memuat...'
+                                                : `Menampilkan ${materialRange.from}-${materialRange.to} dari ${materialRange.total} data`}
                                         </span>
-                                        {materialPerPage !== 'all' && (<div className="grid grid-cols-2 items-center gap-2 sm:flex">
-                                            <Button type="button" variant="outline" size="sm" disabled={materialLoading || Number(materialPagination.page || 1) <= 1} onClick={() => fetchMaterialData({ page: Math.max(1, Number(materialPagination.page || 1) - 1) })}>Sebelumnya</Button>
-                                            <span className="col-span-2 text-center sm:col-span-1">Halaman {materialPagination.page || 1} / {materialPagination.total_pages || 1}</span>
-                                            <Button type="button" variant="outline" size="sm" disabled={materialLoading || Number(materialPagination.page || 1) >= Number(materialPagination.total_pages || 1)} onClick={() => fetchMaterialData({ page: Math.min(Number(materialPagination.total_pages || 1), Number(materialPagination.page || 1) + 1) })}>Berikutnya</Button>
-                                        </div>)}
+                                        {materialPerPage !== 'all' && (
+                                            <div className="grid grid-cols-2 items-center gap-2 sm:flex">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    disabled={
+                                                        materialLoading ||
+                                                        Number(
+                                                            materialPagination.page ||
+                                                                1,
+                                                        ) <= 1
+                                                    }
+                                                    onClick={() =>
+                                                        fetchMaterialData({
+                                                            page: Math.max(
+                                                                1,
+                                                                Number(
+                                                                    materialPagination.page ||
+                                                                        1,
+                                                                ) - 1,
+                                                            ),
+                                                        })
+                                                    }
+                                                >
+                                                    Sebelumnya
+                                                </Button>
+                                                <span className="col-span-2 text-center sm:col-span-1">
+                                                    Halaman{' '}
+                                                    {materialPagination.page ||
+                                                        1}{' '}
+                                                    /{' '}
+                                                    {materialPagination.total_pages ||
+                                                        1}
+                                                </span>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    disabled={
+                                                        materialLoading ||
+                                                        Number(
+                                                            materialPagination.page ||
+                                                                1,
+                                                        ) >=
+                                                            Number(
+                                                                materialPagination.total_pages ||
+                                                                    1,
+                                                            )
+                                                    }
+                                                    onClick={() =>
+                                                        fetchMaterialData({
+                                                            page: Math.min(
+                                                                Number(
+                                                                    materialPagination.total_pages ||
+                                                                        1,
+                                                                ),
+                                                                Number(
+                                                                    materialPagination.page ||
+                                                                        1,
+                                                                ) + 1,
+                                                            ),
+                                                        })
+                                                    }
+                                                >
+                                                    Berikutnya
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
                                 )}
                         </>
@@ -2704,7 +2956,15 @@ export default function PurchaseOrderInIndex({
                             )}
                             {!detailLoading && detailError && (
                                 <div className="py-10 text-center">
-                                    <SummaryLoadError label="detail PO IN" message={detailError} onRetry={() => loadDetailModal(detailKodePoin, { initial: !detailHeader })} />
+                                    <SummaryLoadError
+                                        label="detail PO IN"
+                                        message={detailError}
+                                        onRetry={() =>
+                                            loadDetailModal(detailKodePoin, {
+                                                initial: !detailHeader,
+                                            })
+                                        }
+                                    />
                                 </div>
                             )}
                             {!detailLoading && !detailError && detailHeader && (
@@ -3293,7 +3553,11 @@ export default function PurchaseOrderInIndex({
                                             modalDisplayedItems.length === 0
                                         }
                                         emptyTitle="Tidak ada data."
-                                        skeletonRows={modalPageSize === Infinity ? 5 : modalPageSize}
+                                        skeletonRows={
+                                            modalPageSize === Infinity
+                                                ? 5
+                                                : modalPageSize
+                                        }
                                     />
 
                                     {modalDisplayedItems.map((item, index) => (
@@ -3322,9 +3586,11 @@ export default function PurchaseOrderInIndex({
                                                 {activeModal === 'realized' &&
                                                     activeModalTab === 'do'
                                                     ? item.no_do
-                                                    : activeModal === 'realized' &&
+                                                    : activeModal ===
+                                                            'realized' &&
                                                         activeModalTab === 'pr'
-                                                        ? item.no_pr || item.kode_poin
+                                                      ? item.no_pr ||
+                                                        item.kode_poin
                                                         : item.kode_poin}
                                             </td>
                                             <td className="px-2 py-2 font-semibold whitespace-nowrap">
@@ -3473,7 +3739,11 @@ export default function PurchaseOrderInIndex({
 
                         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm">
                             <p className="text-muted-foreground">
-                                {modalLoading ? 'Memuat...' : modalError ? 'Jumlah data belum tersedia' : `Total ${modalTotalItems} data`}
+                                {modalLoading
+                                    ? 'Memuat...'
+                                    : modalError
+                                      ? 'Jumlah data belum tersedia'
+                                      : `Total ${modalTotalItems} data`}
                             </p>
                             {modalPageSize !== Infinity && (
                                 <div className="flex items-center gap-2">
@@ -3481,7 +3751,11 @@ export default function PurchaseOrderInIndex({
                                         type="button"
                                         variant="outline"
                                         size="sm"
-                                        disabled={modalLoading || Boolean(modalError) || modalPage === 1}
+                                        disabled={
+                                            modalLoading ||
+                                            Boolean(modalError) ||
+                                            modalPage === 1
+                                        }
                                         onClick={() =>
                                             setModalPage((prev) =>
                                                 Math.max(1, prev - 1),
@@ -3497,7 +3771,11 @@ export default function PurchaseOrderInIndex({
                                         type="button"
                                         variant="outline"
                                         size="sm"
-                                        disabled={modalLoading || Boolean(modalError) || modalPage >= modalTotalPages}
+                                        disabled={
+                                            modalLoading ||
+                                            Boolean(modalError) ||
+                                            modalPage >= modalTotalPages
+                                        }
                                         onClick={() =>
                                             setModalPage((prev) =>
                                                 Math.min(
@@ -3559,70 +3837,11 @@ export default function PurchaseOrderInIndex({
                     </DialogContent>
                 </Dialog>
 
-                {/* MODAL TRACKING PO CUSTOMER */}
-                <Dialog
+                <TrackingDialog
                     open={isTrackingModalOpen}
                     onOpenChange={setIsTrackingModalOpen}
-                >
-                    <DialogContent className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-[700px]">
-                        <DialogHeader>
-                            <DialogTitle>Tracking PO Customer</DialogTitle>
-                            <DialogDescription>
-                                Anda bisa melacak status PO Customer dengan
-                                memasukkan Ref PO di bawah ini.
-                            </DialogDescription>
-                        </DialogHeader>
-                        <div className="flex min-h-0 flex-col gap-4 overflow-y-auto py-4">
-                            <div className="relative z-10 mb-2 flex w-full gap-2">
-                                <input
-                                    type="text"
-                                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-                                    placeholder="Masukkan Ref PO..."
-                                    value={trackingSearchKeyword}
-                                    onChange={(e) =>
-                                        setTrackingSearchKeyword(e.target.value)
-                                    }
-                                    onKeyDown={(e) =>
-                                        e.key === 'Enter' &&
-                                        handleSearchTracking()
-                                    }
+                    onError={toastError}
                                 />
-                                <Button
-                                    onClick={handleSearchTracking}
-                                    disabled={isTrackingLoading}
-                                >
-                                    {isTrackingLoading
-                                        ? 'Mencari...'
-                                        : 'Cari Data'}
-                                </Button>
-                            </div>
-
-                            {/* Tracking Results */}
-                            {trackingResults.length > 0 && (
-                                <div className="relative mt-4 ml-3 space-y-4 border-l-2 border-blue-500 pl-6">
-                                    {trackingResults.map((result, idx) => (
-                                        <div key={idx} className="relative">
-                                            {/* Node icon */}
-                                            <div className="absolute top-1 -left-[31px] z-10 h-4 w-4 rounded-full border-2 border-white bg-blue-500 dark:border-slate-900"></div>
-                                            <div className="rounded-md border bg-slate-100 p-3 text-sm shadow-sm dark:bg-slate-800">
-                                                {result}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {!isTrackingLoading &&
-                                trackingResults.length === 0 &&
-                                trackingSearchKeyword && (
-                                    <div className="mt-4 text-center text-sm text-muted-foreground">
-                                        Tidak ada data untuk ditampilkan
-                                        (Silakan tekan tombol Cari Data)
-                                    </div>
-                                )}
-                        </div>
-                    </DialogContent>
-                </Dialog>
             </div>
         </>
     );

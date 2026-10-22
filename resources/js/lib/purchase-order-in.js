@@ -61,3 +61,24 @@ export const readPoInResponse = async (response, failureMessage) => {
         throw new Error(failureMessage);
     }
 };
+
+export const readPoInTrackingResponse = async (
+    response,
+    failureMessage = 'Gagal memuat tracking data',
+) => {
+    const data = await readPoInResponse(response, failureMessage);
+    if (data.success !== true) {
+        throw new Error(
+            typeof data.message === 'string' && data.message.trim()
+                ? data.message
+                : failureMessage,
+        );
+    }
+    if (
+        !Array.isArray(data.data) ||
+        !data.data.every((item) => typeof item === 'string')
+    ) {
+        throw new Error(failureMessage);
+    }
+    return data.data;
+};

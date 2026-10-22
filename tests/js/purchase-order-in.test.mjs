@@ -5,6 +5,7 @@ import {
     getBusinessDate,
     getPaginationRange,
     readPoInResponse,
+    readPoInTrackingResponse,
 } from '../../resources/js/lib/purchase-order-in.js';
 
 test('tanggal bisnis mengikuti pergantian hari dan tahun di WITA', () => {
@@ -120,4 +121,46 @@ test('respons HTTP gagal dan JSON tidak valid menjadi error yang dapat dicoba la
         ),
         { purchaseOrderIns: [], pagination: { total: 0 } },
     );
+});
+
+test('respons tracking harus sukses dan berisi daftar status yang valid', async () => {
+    const response = (body, ok = true) => ({
+        ok,
+        json: async () => body,
+    });
+
+    assert.deepEqual(
+        await readPoInTrackingResponse(
+            response({ success: true, data: ['PO dibuat', 'DO diterima'] }),
+        ),
+        ['PO dibuat', 'DO diterima'],
+    );
+    await assert.rejects(
+        readPoInTrackingResponse(
+            response({ success: false, message: 'Ref PO tidak ditemukan' }),
+        ),
+        /Ref PO tidak ditemukan/,
+    );
+    await assert.rejects(
+        readPoInTrackingResponse(response({ success: true, data: {} })),
+        /Gagal memuat tracking data/,
+    );
+    await assert.rejects(
+        readPoInTrackingResponse(response({ success: true, data: [{}] })),
+        /Gagal memuat tracking data/,
+    );
+    await assert.rejects(
+        readPoInTrackingResponse(response({}, false)),
+        /Gagal memuat tracking data/,
+    );
+});
+
+test('request tracking terbaru tetap menang atas request sebelumnya', () => {
+    const requests = createLatestRequest();
+    const first = requests.start();
+    const second = requests.start();
+
+    assert.equal(first.signal.aborted, true);
+    assert.equal(first.isCurrent(), false);
+    assert.equal(second.isCurrent(), true);
 });
