@@ -1384,13 +1384,6 @@ export default function PurchaseOrderInIndex({
                         >
                             PO IN Outstanding
                         </p>
-                            <button
-                                type="button"
-                                className="rounded-sm text-xs font-semibold text-primary underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                onClick={() => openSummaryModal('outstanding')}
-                            >
-                                Lihat DO
-                            </button>
                         </div>
                         <div className="mt-3 grid grid-cols-2 gap-2">
                             <SummaryMetric
@@ -1471,13 +1464,6 @@ export default function PurchaseOrderInIndex({
                         >
                             PO IN Sisa
                         </p>
-                            <button
-                                type="button"
-                                className="rounded-sm text-xs font-semibold text-primary underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                onClick={() => openSummaryModal('sisa')}
-                            >
-                                Lihat DO
-                            </button>
                         </div>
                         <div className="mt-3 grid grid-cols-2 gap-2">
                             <SummaryMetric
@@ -1566,13 +1552,6 @@ export default function PurchaseOrderInIndex({
                         >
                             PO IN Terealisasi
                         </p>
-                            <button
-                                type="button"
-                                className="rounded-sm text-xs font-semibold text-primary underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                onClick={() => openSummaryModal('realized')}
-                            >
-                                Lihat DO
-                            </button>
                         </div>
                         <div className="mt-3 grid grid-cols-2 gap-2">
                             <SummaryMetric
@@ -1610,13 +1589,27 @@ export default function PurchaseOrderInIndex({
                     {/* Card Data PO IN (Total) */}
                     <article
                         className={cn(
-                            'rounded-xl border p-4 shadow-sm',
+                            'cursor-pointer rounded-xl border p-4 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring',
                             isDark
                                 ? 'border-slate-800 bg-[#1e293b] text-white hover:border-blue-400/50'
                                 : 'border-slate-200 bg-[#ffffff] text-slate-900 hover:border-blue-400/50',
                         )}
                         style={{
                             backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                        }}
+                        role="button"
+                        tabIndex={0}
+                        aria-label="Buka data PO IN"
+                        onClick={(event) => {
+                            if (event.target.closest('button, input, select, label, a')) return;
+                            openSummaryModal('all_data');
+                        }}
+                        onKeyDown={(event) => {
+                            if (event.target !== event.currentTarget) return;
+                            if (event.key === 'Enter' || event.key === ' ') {
+                                event.preventDefault();
+                                openSummaryModal('all_data');
+                            }
                         }}
                     >
                         <div className="mb-3 flex items-center justify-between gap-2">
@@ -1699,13 +1692,6 @@ export default function PurchaseOrderInIndex({
                         >
                             Total Data PO IN
                         </p>
-                            <button
-                                type="button"
-                                className="rounded-sm text-xs font-semibold text-primary underline underline-offset-4 outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                                onClick={() => openSummaryModal('all_data')}
-                            >
-                                Lihat data
-                            </button>
                         </div>
                         {summaryErrors.total && !summaryLoading.total ? (
                             <div className="mt-2">

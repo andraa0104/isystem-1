@@ -1,5 +1,6 @@
 import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 import InvoiceDetailDialog from '@/components/InvoiceDetailDialog';
+import PrOrderHistory from '@/components/pr-order-history';
 import OverdueInvoiceWarningDialog from '@/components/OverdueInvoiceWarningDialog';
 import { Button } from '@/components/ui/button';
 import {
@@ -18,7 +19,9 @@ import {
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/app-layout';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
+import { createLatestRequest, readPoInResponse } from '@/lib/purchase-order-in';
+import { getPrProgress, readPrFilters } from '@/lib/purchase-requirement';
 import {
     AlertCircle,
     AlertTriangle,
@@ -732,6 +735,48 @@ const isInDateFilter = (value, filter, startDate, endDate) => {
     return true;
 };
 
+function PrFulfillmentPanel({ details }) {
+    return (
+        <section className="space-y-3 rounded-xl border border-sidebar-border/70 p-3">
+            <h3 className="font-semibold">Progress PR ke PO</h3>
+            <p className="text-xs text-muted-foreground">
+                Kuantitas dipisahkan per material dan satuan. Progress mengikuti
+                sisa PR yang tercatat.
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+                {details.map((detail, index) => {
+                    const progress = getPrProgress(detail);
+                    return (
+                        <div
+                            key={`${detail.no}-${index}`}
+                            className="rounded-lg border p-3 text-sm"
+                        >
+                            <p className="font-medium">
+                                {detail.material || '-'}
+                            </p>
+                            <p>
+                                Diproses {formatNumber(progress.processed)} /{' '}
+                                {formatNumber(progress.qty)} {detail.unit} ?
+                                Sisa {formatNumber(progress.remaining)}{' '}
+                                {detail.unit}
+                            </p>
+                            <progress
+                                className="mt-2 h-2 w-full"
+                                value={progress.percent}
+                                max={100}
+                                aria-label={`Progress PO ${detail.material}`}
+                            />
+                            <p className="text-xs text-muted-foreground">
+                                {progress.percent}% diproses
+                            </p>
+                        </div>
+                    );
+                })}
+            </div>
+        </section>
+    );
+}
+
 export default function PurchaseRequirementIndex({
     purchaseRequirements = [],
     outstandingCount = 0,
@@ -741,9 +786,21 @@ export default function PurchaseRequirementIndex({
     sisaPoTotal = 0,
     realizedTotal = 0,
     period = 'today',
-    realizedDeferred = false,
 }) {
-    const [searchTerm, setSearchTerm] = useState('');
+    const { auth, tenant } = usePage().props;
+    const preferenceKey = `pr-filters:${tenant?.database ?? auth?.user?.database ?? 'default'}:${auth?.user?.kd_user ?? auth?.user?.username ?? 'user'}`;
+    const savedFilters = useMemo(() => {
+        try {
+            return readPrFilters(localStorage, preferenceKey);
+        } catch {
+            return {};
+        }
+    }, [preferenceKey]);
+    const requests = useRef(Object.fromEntries(['table', 'summary', 'detail', 'outstanding', 'sisa', 'realized'].map(key => [key, createLatestRequest()])));
+    const [tableError, setTableError] = useState('');
+    const [summaryError, setSummaryError] = useState('');
+    const [serverPages, setServerPages] = useState({});
+    const [searchTerm, setSearchTerm] = useState(String(savedFilters.search ?? ''));
     const [activeTab, setActiveTab] = useState('customer');
     const [stockInsights, setStockInsights] = useState([]);
     const [opexInsights, setOpexInsights] = useState([]);
@@ -758,10 +815,10 @@ export default function PurchaseRequirementIndex({
         [],
     );
 
-    const [statusFilter, setStatusFilter] = useState('outstanding');
-    const [tableDateFilter, setTableDateFilter] = useState('all');
-    const [tableStartDate, setTableStartDate] = useState('');
-    const [tableEndDate, setTableEndDate] = useState('');
+    const [statusFilter, setStatusFilter] = useState(['all', 'outstanding', 'sisa_po', 'realized'].includes(savedFilters.status) ? savedFilters.status : 'outstanding');
+    const [tableDateFilter, setTableDateFilter] = useState(['all', 'today', 'this_week', 'this_month', 'this_year', 'range'].includes(savedFilters.period) ? savedFilters.period : 'all');
+    const [tableStartDate, setTableStartDate] = useState(savedFilters.startDate ?? '');
+    const [tableEndDate, setTableEndDate] = useState(savedFilters.endDate ?? '');
     const [periodFilter, setPeriodFilter] = useState(period ?? 'today');
 
     const [outstandingCountState, setOutstandingCountState] =
@@ -775,13 +832,14 @@ export default function PurchaseRequirementIndex({
 
     const [tableLoading, setTableLoading] = useState(false);
     const [summaryLoading, setSummaryLoading] = useState(false);
-    const [isRealizedLoading, setIsRealizedLoading] = useState(false);
 
-    const [pageSize, setPageSize] = useState(5);
+    const [pageSize, setPageSize] = useState(savedFilters.size === 'all' ? Infinity : [5, 10, 25, 50, 100].includes(savedFilters.size) ? savedFilters.size : 5);
     const [currentPage, setCurrentPage] = useState(1);
 
     const [selectedPr, setSelectedPr] = useState(null);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const detailContext = useRef({});
+    detailContext.current = { noPr: selectedPr?.no_pr, open: isModalOpen };
     const [isOutstandingModalOpen, setIsOutstandingModalOpen] = useState(false);
     const [isSisaPoModalOpen, setIsSisaPoModalOpen] = useState(false);
     const [isRealizedModalOpen, setIsRealizedModalOpen] = useState(false);
@@ -1068,97 +1126,76 @@ export default function PurchaseRequirementIndex({
 
     const fetchTableData = useCallback(
         async (newPeriod, currentStatus, startDate = '', endDate = '') => {
+            const { signal, isCurrent } = requests.current.table.start();
             setTableLoading(true);
+            setTableError('');
+            setPurchaseRequirementsList([]);
             try {
-                if (activeTab === 'material') {
-                    let materialUrl = `/marketing/purchase-requirement/data?period=${newPeriod}&fetch_type=table&view=material&status=${currentStatus}&search=${encodeURIComponent(debouncedSearchTerm)}`;
-                    if (newPeriod === 'range' && startDate && endDate) {
-                        materialUrl += `&start_date=${startDate}&end_date=${endDate}`;
-                    }
-                    const materialResponse = await fetch(materialUrl, {
+                const params = new URLSearchParams({
+                    period: newPeriod,
+                    status: currentStatus,
+                    view: activeTab === 'material' ? 'material' : 'customer',
+                    fetch_type: 'table',
+                    search: debouncedSearchTerm,
+                    page: String(currentPage),
+                    per_page: pageSize === Infinity ? 'all' : String(pageSize),
+                });
+                if (newPeriod === 'range') {
+                    params.set('start_date', startDate);
+                    params.set('end_date', endDate);
+                }
+                const data = await readPoInResponse(
+                    await fetch(`/marketing/purchase-requirement/data?${params}`, {
+                        signal,
                         headers: { Accept: 'application/json' },
-                    });
-                    const materialData = await materialResponse.json();
-                    setPurchaseRequirementsList(
-                        materialData.purchaseRequirements || [],
-                    );
-                    setTableLoading(false);
-                    return;
-                }
-
-                // JIKA STATUS TEREALISASI, AMBIL LANGSUNG DARI ENDPOINT MILIK CARD!
-                if (currentStatus === 'realized') {
-                    const params = new URLSearchParams({
-                        period: newPeriod,
-                        _t: String(Date.now()),
-                    });
-                    const response = await fetch(
-                        `/marketing/purchase-requirement/realized?${params.toString()}`,
-                        {
-                            headers: {
-                                Accept: 'application/json',
-                                'Cache-Control':
-                                    'no-cache, no-store, must-revalidate',
-                            },
-                            cache: 'no-store',
-                        },
-                    );
-                    const data = await response.json();
-
-                    const list = Array.isArray(data?.purchaseRequirements)
-                        ? data.purchaseRequirements
-                        : [];
-                    const optimizedList = list.map((item) => {
-                        const parsed = parseFlexibleDate(item.date);
-                        return {
-                            ...item,
-                            _parsedDateTs: parsed ? parsed.getTime() : null,
-                        };
-                    });
-
-                    setPurchaseRequirementsList(optimizedList);
-                    setTableLoading(false);
-                    return;
-                }
-
-                // JIKA BUKAN TEREALISASI, AMBIL DARI ENDPOINT TABEL BIASA
-                let url = `/marketing/purchase-requirement/data?period=${newPeriod}&fetch_type=table&status=${currentStatus}`;
-                if (newPeriod === 'range' && startDate && endDate) {
-                    url += `&start_date=${startDate}&end_date=${endDate}`;
-                }
-
-                const response = await fetch(url, {
-                    headers: { Accept: 'application/json' },
-                });
-                const data = await response.json();
-
-                const rawList = data.purchaseRequirements || [];
-                const optimizedList = rawList.map((item) => {
-                    const parsed = parseFlexibleDate(item.date);
-                    return {
-                        ...item,
-                        _parsedDateTs: parsed ? parsed.getTime() : null,
-                    };
-                });
-
-                setPurchaseRequirementsList(optimizedList);
+                        cache: 'no-store',
+                    }),
+                    'Gagal memuat daftar PR.',
+                );
+                if (!Array.isArray(data.purchaseRequirements) || !data.pagination)
+                    throw new Error('Respons daftar PR tidak lengkap.');
+                if (!isCurrent()) return;
+                setPurchaseRequirementsList(data.purchaseRequirements);
+                setServerPages((prev) => ({ ...prev, table: data.pagination }));
+                if (Number(data.pagination.page) !== currentPage)
+                    setCurrentPage(Number(data.pagination.page));
             } catch (error) {
-                console.error('Error fetching PR Table data:', error);
+                if (isCurrent()) setTableError(error.message);
             } finally {
-                setTableLoading(false);
+                if (isCurrent()) setTableLoading(false);
             }
         },
-        [activeTab, debouncedSearchTerm],
+        [activeTab, debouncedSearchTerm, currentPage, pageSize],
     );
 
     const fetchSummaryData = useCallback(async (newPeriod) => {
+        const { signal, isCurrent } = requests.current.summary.start();
+        setSummaryError('');
         setSummaryLoading(true);
         try {
             const response = await fetch(
                 `/marketing/purchase-requirement/data?period=${newPeriod}&fetch_type=summary`,
-                { headers: { Accept: 'application/json' } },
+                { signal, headers: { Accept: 'application/json' } },
             );
-            const data = await response.json();
+            const data = await readPoInResponse(
+                response,
+                'Gagal memuat ringkasan PR.',
+            );
+            if (
+                ![
+                    'outstandingCount',
+                    'outstandingTotal',
+                    'sisaPoCount',
+                    'sisaPoTotal',
+                    'realizedCount',
+                    'realizedTotal',
+                ].every(
+                    (key) =>
+                        typeof data[key] === 'number' && Number.isFinite(data[key]),
+                )
+            )
+                throw new Error('Respons ringkasan PR tidak lengkap.');
+            if (!isCurrent()) return;
             setOutstandingCountState(data.outstandingCount || 0);
             setOutstandingTotalState(data.outstandingTotal || 0);
             setSisaPoCountState(data.sisaPoCount || 0);
@@ -1166,58 +1203,41 @@ export default function PurchaseRequirementIndex({
             setRealizedCountState(data.realizedCount || 0);
             setRealizedTotalState(data.realizedTotal || 0);
         } catch (error) {
-            console.error('Error fetching PR Summary data:', error);
+            if (isCurrent()) setSummaryError(error.message);
         } finally {
-            setSummaryLoading(false);
+            if (isCurrent()) setSummaryLoading(false);
         }
     }, []);
 
-    // --- PERBAIKAN: Hanya fetch sekali di awal, tidak di-trigger ulang oleh periodFilter dari card! ---
-    // Effect 1: Mengurus Summary Card bagian atas
-    const isInitialMount = useRef(true);
     useEffect(() => {
-        if (isInitialMount.current) {
-            isInitialMount.current = false;
-            if (!purchaseRequirements || purchaseRequirements.length === 0) {
-                setSummaryLoading(true);
-                fetchSummaryData(period ?? 'today');
-            }
-        } else {
-            fetchSummaryData(period ?? 'today');
-        }
-    }, [period, fetchSummaryData]);
+        fetchSummaryData(periodFilter);
+        return () => requests.current.summary.cancel();
+    }, [periodFilter, fetchSummaryData]);
 
-    // Effect 2: Mengurus Data Tabel (Akan Fetch saat Tanggal ATAU Status diubah)
-    const isTableMounted = useRef(false);
     useEffect(() => {
-        if (activeTab === 'insight') {
+        requests.current.table.cancel();
+        if (activeTab === 'insight') return;
+        if (searchTerm !== debouncedSearchTerm) {
+            setTableLoading(true);
+            setTableError('');
+            setPurchaseRequirementsList([]);
             return;
         }
-
-        if (!isTableMounted.current) {
-            isTableMounted.current = true;
-            if (
-                purchaseRequirements?.length > 0 &&
-                tableDateFilter === 'all' &&
-                statusFilter === 'outstanding'
-            ) {
-                return;
-            }
-        }
-
-        if (tableDateFilter === 'range' && (!tableStartDate || !tableEndDate)) {
+        if (
+            tableDateFilter === 'range' &&
+            (!tableStartDate || !tableEndDate || tableEndDate < tableStartDate)
+        ) {
+            setPurchaseRequirementsList([]);
+            setTableLoading(false);
+            setTableError('Pilih rentang tanggal yang valid.');
             return;
         }
-
-        // Memanggil data dengan menyertakan statusFilter!
-        fetchTableData(
-            tableDateFilter,
-            statusFilter,
-            tableStartDate,
-            tableEndDate,
-        );
+        fetchTableData(tableDateFilter, statusFilter, tableStartDate, tableEndDate);
+        return () => requests.current.table.cancel();
     }, [
         activeTab,
+        searchTerm,
+        debouncedSearchTerm,
         tableDateFilter,
         statusFilter,
         tableStartDate,
@@ -1226,22 +1246,36 @@ export default function PurchaseRequirementIndex({
     ]);
 
     useEffect(() => {
-        if (purchaseRequirements?.length > 0) {
-            const timer = setTimeout(() => {
-                const optimizedList = purchaseRequirements.map((item) => {
-                    const parsed = parseFlexibleDate(item.date);
-                    return {
-                        ...item,
-                        _parsedDateTs: parsed ? parsed.getTime() : null,
-                    };
-                });
-                setPurchaseRequirementsList(optimizedList);
-            }, 10);
-            return () => clearTimeout(timer);
-        } else {
-            setPurchaseRequirementsList([]);
+        try {
+            localStorage.setItem(
+                preferenceKey,
+                JSON.stringify({
+                    search: searchTerm,
+                    status: statusFilter,
+                    period: tableDateFilter,
+                    startDate: tableStartDate,
+                    endDate: tableEndDate,
+                    size: pageSize === Infinity ? 'all' : pageSize,
+                }),
+            );
+        } catch {
+            /* Storage may be unavailable. */
         }
-    }, [purchaseRequirements]);
+    }, [
+        preferenceKey,
+        searchTerm,
+        statusFilter,
+        tableDateFilter,
+        tableStartDate,
+        tableEndDate,
+        pageSize,
+    ]);
+
+    useEffect(
+        () => () =>
+            Object.values(requests.current).forEach((request) => request.cancel()),
+        [],
+    );
 
     useEffect(() => {
         setOutstandingCountState(outstandingCount);
@@ -1250,263 +1284,18 @@ export default function PurchaseRequirementIndex({
         setSisaPoTotalState(sisaPoTotal);
     }, [outstandingCount, outstandingTotal, sisaPoCount, sisaPoTotal]);
 
-    useEffect(() => {
-        if (!realizedDeferred) return;
-        loadRealized(periodFilter, true);
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [realizedDeferred]);
-
-    const dateFilterBounds = useMemo(() => {
-        if (tableDateFilter === 'all') return null;
-
-        const now = new Date();
-        const today = new Date(
-            now.getFullYear(),
-            now.getMonth(),
-            now.getDate(),
-        );
-        let start, end;
-
-        if (tableDateFilter === 'today') {
-            start = today;
-            end = new Date(today.getTime() + 24 * 60 * 60 * 1000 - 1);
-        } else if (tableDateFilter === 'this_week') {
-            const day = today.getDay();
-            const diffToMonday = day === 0 ? 6 : day - 1;
-            start = new Date(today);
-            start.setDate(today.getDate() - diffToMonday);
-            end = new Date(start.getTime() + 7 * 24 * 60 * 60 * 1000 - 1);
-        } else if (tableDateFilter === 'this_month') {
-            start = new Date(today.getFullYear(), today.getMonth(), 1);
-            end = new Date(
-                today.getFullYear(),
-                today.getMonth() + 1,
-                0,
-                23,
-                59,
-                59,
-                999,
-            );
-        } else if (tableDateFilter === 'this_year') {
-            start = new Date(today.getFullYear(), 0, 1);
-            end = new Date(today.getFullYear(), 11, 31, 23, 59, 59, 999);
-        } else if (tableDateFilter === 'range') {
-            const s = parseFlexibleDate(tableStartDate);
-            const e = parseFlexibleDate(tableEndDate);
-            if (!s || !e) return { start: Infinity, end: -Infinity };
-            start = new Date(s.getFullYear(), s.getMonth(), s.getDate());
-            end = new Date(
-                e.getFullYear(),
-                e.getMonth(),
-                e.getDate(),
-                23,
-                59,
-                59,
-                999,
-            );
-        }
-        return { start: start.getTime(), end: end.getTime() };
-    }, [tableDateFilter, tableStartDate, tableEndDate]);
-
-    const filteredPurchaseRequirements = useMemo(() => {
-        const term = debouncedSearchTerm.trim().toLowerCase();
-
-        const filtered = purchaseRequirementsList.filter((item) => {
-            // KEMBALIKAN FILTER TANGGAL: Agar bisa membaca data dari Card dengan benar
-            if (dateFilterBounds) {
-                if (!item._parsedDateTs) return false;
-                if (
-                    item._parsedDateTs < dateFilterBounds.start ||
-                    item._parsedDateTs > dateFilterBounds.end
-                ) {
-                    return false;
-                }
-            }
-
-            if (activeTab === 'material') return true;
-
-            const outstanding = Number(item.outstanding_count ?? 0) > 0;
-            const sisaPoStatus = Number(item.sisa_po_count ?? 0) > 0;
-
-            // LOGIKA KETAT TEREALISASI: 100% Sesuai Card (Semua material sudah tidak ada sisa PR)
-            const realized = !outstanding && !sisaPoStatus;
-
-            if (statusFilter === 'outstanding' && !outstanding) return false;
-            if (statusFilter === 'sisa_po' && !sisaPoStatus) return false;
-            if (statusFilter === 'realized' && !realized) return false;
-
-            if (!term) return true;
-
-            const values = [
-                item.no_pr,
-                item.date,
-                item.for_customer,
-                item.ref_po,
-            ];
-            return values.some((value) =>
-                String(value ?? '')
-                    .toLowerCase()
-                    .includes(term),
-            );
-        });
-
-        return filtered.sort((a, b) =>
-            String(b.no_pr ?? '').localeCompare(String(a.no_pr ?? '')),
-        );
-    }, [
-        purchaseRequirementsList,
-        debouncedSearchTerm,
-        statusFilter,
-        dateFilterBounds,
-        activeTab,
-    ]);
-
-    const totalItems = filteredPurchaseRequirements.length;
-    const totalPages = useMemo(() => {
-        if (pageSize === Infinity) return 1;
-        return Math.max(1, Math.ceil(totalItems / pageSize));
-    }, [pageSize, totalItems]);
-
-    const displayedPurchaseRequirements = useMemo(() => {
-        if (pageSize === Infinity) return filteredPurchaseRequirements;
-        const startIndex = (currentPage - 1) * pageSize;
-        return filteredPurchaseRequirements.slice(
-            startIndex,
-            startIndex + pageSize,
-        );
-    }, [currentPage, filteredPurchaseRequirements, pageSize]);
-
-    const outstandingPurchaseRequirements = useMemo(() => {
-        const term = debouncedOutstandingSearchTerm.trim().toLowerCase();
-        return outstandingList
-            .map((item) => ({
-                ...item,
-                _canDelete:
-                    Number(item.can_delete ?? item.canDelete ?? 0) === 1,
-            }))
-            .filter((item) => {
-                const outstanding = Number(item.outstanding_count ?? 0) > 0;
-                if (!outstanding) return false;
-                if (!term) return true;
-
-                const values = [
-                    item.no_pr,
-                    item.date,
-                    item.for_customer,
-                    item.ref_po,
-                ];
-                return values.some((value) =>
-                    String(value ?? '')
-                        .toLowerCase()
-                        .includes(term),
-                );
-            })
-            .sort((a, b) =>
-                String(b.no_pr ?? '').localeCompare(String(a.no_pr ?? '')),
-            );
-    }, [outstandingList, debouncedOutstandingSearchTerm]);
-
-    const outstandingTotalItems = outstandingPurchaseRequirements.length;
-    const outstandingTotalPages = useMemo(() => {
-        if (outstandingPageSize === Infinity) return 1;
-        return Math.max(
-            1,
-            Math.ceil(outstandingTotalItems / outstandingPageSize),
-        );
-    }, [outstandingPageSize, outstandingTotalItems]);
-
-    const displayedOutstandingPurchaseRequirements = useMemo(() => {
-        if (outstandingPageSize === Infinity)
-            return outstandingPurchaseRequirements;
-        const startIndex = (outstandingCurrentPage - 1) * outstandingPageSize;
-        return outstandingPurchaseRequirements.slice(
-            startIndex,
-            startIndex + outstandingPageSize,
-        );
-    }, [
-        outstandingCurrentPage,
-        outstandingPageSize,
-        outstandingPurchaseRequirements,
-    ]);
-
-    const sisaPoPurchaseRequirements = useMemo(() => {
-        const term = debouncedSisaPoSearchTerm.trim().toLowerCase();
-        return sisaPoList
-            .map((item) => ({
-                ...item,
-                _canDelete:
-                    Number(item.can_delete ?? item.canDelete ?? 0) === 1,
-            }))
-            .filter((item) => {
-                if (!term) return true;
-                const values = [
-                    item.no_pr,
-                    item.date,
-                    item.for_customer,
-                    item.ref_po,
-                ];
-                return values.some((value) =>
-                    String(value ?? '')
-                        .toLowerCase()
-                        .includes(term),
-                );
-            })
-            .sort((a, b) =>
-                String(b.no_pr ?? '').localeCompare(String(a.no_pr ?? '')),
-            );
-    }, [sisaPoList, debouncedSisaPoSearchTerm]);
-
-    const sisaPoTotalItems = sisaPoPurchaseRequirements.length;
-    const sisaPoTotalPages = useMemo(() => {
-        if (sisaPoPageSize === Infinity) return 1;
-        return Math.max(1, Math.ceil(sisaPoTotalItems / sisaPoPageSize));
-    }, [sisaPoPageSize, sisaPoTotalItems]);
-
-    const displayedSisaPoPurchaseRequirements = useMemo(() => {
-        if (sisaPoPageSize === Infinity) return sisaPoPurchaseRequirements;
-        const startIndex = (sisaPoCurrentPage - 1) * sisaPoPageSize;
-        return sisaPoPurchaseRequirements.slice(
-            startIndex,
-            startIndex + sisaPoPageSize,
-        );
-    }, [sisaPoCurrentPage, sisaPoPageSize, sisaPoPurchaseRequirements]);
-
-    const realizedPurchaseRequirements = useMemo(() => {
-        const term = debouncedRealizedSearchTerm.trim().toLowerCase();
-        return realizedList
-            .filter((item) => {
-                if (!term) return true;
-                const values = [
-                    item.no_pr,
-                    item.date,
-                    item.for_customer,
-                    item.ref_po,
-                ];
-                return values.some((value) =>
-                    String(value ?? '')
-                        .toLowerCase()
-                        .includes(term),
-                );
-            })
-            .sort((a, b) =>
-                String(b.no_pr ?? '').localeCompare(String(a.no_pr ?? '')),
-            );
-    }, [realizedList, debouncedRealizedSearchTerm]);
-
-    const realizedTotalItems = realizedPurchaseRequirements.length;
-    const realizedTotalPages = useMemo(() => {
-        if (realizedPageSize === Infinity) return 1;
-        return Math.max(1, Math.ceil(realizedTotalItems / realizedPageSize));
-    }, [realizedPageSize, realizedTotalItems]);
-
-    const displayedRealizedPurchaseRequirements = useMemo(() => {
-        if (realizedPageSize === Infinity) return realizedPurchaseRequirements;
-        const startIndex = (realizedCurrentPage - 1) * realizedPageSize;
-        return realizedPurchaseRequirements.slice(
-            startIndex,
-            startIndex + realizedPageSize,
-        );
-    }, [realizedCurrentPage, realizedPageSize, realizedPurchaseRequirements]);
+    const totalItems = Number(serverPages.table?.total ?? 0);
+    const totalPages = Number(serverPages.table?.total_pages ?? 1);
+    const displayedPurchaseRequirements = purchaseRequirementsList;
+    const outstandingTotalItems = Number(serverPages.outstanding?.total ?? 0);
+    const outstandingTotalPages = Number(serverPages.outstanding?.total_pages ?? 1);
+    const displayedOutstandingPurchaseRequirements = outstandingList.map(item => ({ ...item, _canDelete: Number(item.can_delete) === 1 }));
+    const sisaPoTotalItems = Number(serverPages.sisa?.total ?? 0);
+    const sisaPoTotalPages = Number(serverPages.sisa?.total_pages ?? 1);
+    const displayedSisaPoPurchaseRequirements = sisaPoList.map(item => ({ ...item, _canDelete: Number(item.can_delete) === 1 }));
+    const realizedTotalItems = Number(serverPages.realized?.total ?? 0);
+    const realizedTotalPages = Number(serverPages.realized?.total_pages ?? 1);
+    const displayedRealizedPurchaseRequirements = realizedList.map(item => ({ ...item, _canDelete: Number(item.can_delete) === 1 }));
 
     const materialTabs = useMemo(() => {
         if (!selectedDetails || selectedDetails.length === 0) return [];
@@ -1607,6 +1396,7 @@ export default function PurchaseRequirementIndex({
     }, [filteredMaterialDetails, materialCurrentPage, materialPageSize]);
 
     const handleOpenModal = (item) => {
+        const { signal, isCurrent } = requests.current.detail.start();
         setSelectedPr(item);
         setIsModalOpen(true);
         setSelectedDetails([]);
@@ -1620,6 +1410,7 @@ export default function PurchaseRequirementIndex({
 
         const params = new URLSearchParams({ no_pr: item.no_pr });
         fetch(`/marketing/purchase-requirement/details?${params.toString()}`, {
+            signal,
             headers: { Accept: 'application/json' },
         })
             .then((response) => {
@@ -1627,14 +1418,21 @@ export default function PurchaseRequirementIndex({
                 return response.json();
             })
             .then((data) => {
+                if (!isCurrent()) return;
+                if (!Array.isArray(data.purchaseRequirementDetails))
+                    throw new Error('Respons detail PR tidak lengkap.');
                 setSelectedDetails(
                     Array.isArray(data?.purchaseRequirementDetails)
                         ? data.purchaseRequirementDetails
                         : [],
                 );
             })
-            .catch(() => setDetailError('Gagal memuat detail PR.'))
-            .finally(() => setDetailLoading(false));
+            .catch(() => {
+                if (isCurrent()) setDetailError('Gagal memuat detail PR.');
+            })
+            .finally(() => {
+                if (isCurrent()) setDetailLoading(false);
+            });
     };
 
     const handleRemoveCustomerPo = (refPo) => {
@@ -1678,8 +1476,7 @@ export default function PurchaseRequirementIndex({
                     .then(({ status, data }) => {
                         if (status >= 400)
                             throw new Error(
-                                data.message ||
-                                    'Gagal menghapus Customer dari PR',
+                                data.message || 'Gagal menghapus Customer dari PR',
                             );
                         Swal.fire(
                             'Terhapus!',
@@ -1688,15 +1485,19 @@ export default function PurchaseRequirementIndex({
                         );
 
                         // Refetch details
-                        handleOpenModal(selectedPr);
-                        router.reload({
-                            only: [
-                                'purchaseRequirements',
-                                'purchaseRequirementsOutstanding',
-                                'purchaseRequirementsSisaPo',
-                                'purchaseRequirementsRealized',
-                            ],
-                        });
+                        if (
+                            detailContext.current.open &&
+                            detailContext.current.noPr === selectedPr.no_pr
+                        ) {
+                            handleOpenModal(selectedPr);
+                        }
+                        fetchSummaryData(periodFilter);
+                        fetchTableData(
+                            tableDateFilter,
+                            statusFilter,
+                            tableStartDate,
+                            tableEndDate,
+                        );
                     })
                     .catch((error) => {
                         Swal.fire('Gagal!', error.message, 'error');
@@ -1705,95 +1506,155 @@ export default function PurchaseRequirementIndex({
         });
     };
 
-    const loadOutstanding = (force = false) => {
-        if (outstandingLoading || (!force && outstandingList.length > 0))
-            return;
-
-        setOutstandingLoading(true);
-        setOutstandingError('');
-        fetch('/marketing/purchase-requirement/outstanding', {
-            headers: { Accept: 'application/json' },
-        })
-            .then((response) => {
-                if (!response.ok) throw new Error('Request failed');
-                return response.json();
-            })
-            .then((data) => {
-                setOutstandingList(
-                    Array.isArray(data?.purchaseRequirements)
-                        ? data.purchaseRequirements
-                        : [],
-                );
-            })
-            .catch(() =>
-                setOutstandingError('Gagal memuat data PR outstanding.'),
-            )
-            .finally(() => setOutstandingLoading(false));
-    };
-
-    const loadSisaPo = (force = false) => {
-        if (sisaPoLoading || (!force && sisaPoList.length > 0)) return;
-
-        setSisaPoLoading(true);
-        setSisaPoError('');
-        fetch('/marketing/purchase-requirement/sisa-po', {
-            headers: { Accept: 'application/json' },
-        })
-            .then((response) => {
-                if (!response.ok) throw new Error('Request failed');
-                return response.json();
-            })
-            .then((data) => {
-                setSisaPoList(
-                    Array.isArray(data?.purchaseRequirements)
-                        ? data.purchaseRequirements
-                        : [],
-                );
-            })
-            .catch(() => setSisaPoError('Gagal memuat data PR sisa PO.'))
-            .finally(() => setSisaPoLoading(false));
-    };
-
-    const loadRealized = (customPeriod, force = false) => {
-        const targetPeriod = customPeriod ?? periodFilter;
-        if (realizedLoading) return;
-        if (!force && realizedList.length > 0 && periodFilter === targetPeriod)
-            return;
-
-        setIsRealizedLoading(true);
-        setRealizedLoading(true);
-        setRealizedError('');
-
-        const params = new URLSearchParams({
-            period: targetPeriod,
-            _t: String(Date.now()),
-        });
-        fetch(`/marketing/purchase-requirement/realized?${params.toString()}`, {
-            headers: {
-                Accept: 'application/json',
-                'Cache-Control': 'no-cache, no-store, must-revalidate',
-            },
-            cache: 'no-store',
-        })
-            .then((response) => {
-                if (!response.ok) throw new Error('Request failed');
-                return response.json();
-            })
-            .then((data) => {
-                const list = Array.isArray(data?.purchaseRequirements)
-                    ? data.purchaseRequirements
-                    : [];
-                setRealizedList(list);
-                setRealizedCountState(list.length);
-                setRealizedTotalState(data?.realizedTotal ?? 0);
-                setPeriodFilter(targetPeriod);
-            })
-            .catch(() => setRealizedError('Gagal memuat data PR terealisasi.'))
-            .finally(() => {
-                setRealizedLoading(false);
-                setIsRealizedLoading(false);
+    const loadPrPage = async (
+        group,
+        status,
+        page,
+        size,
+        search,
+        targetPeriod = 'all',
+    ) => {
+        const { signal, isCurrent } = requests.current[group].start();
+        const setters = {
+            outstanding: [
+                setOutstandingLoading,
+                setOutstandingError,
+                setOutstandingList,
+                setOutstandingCurrentPage,
+            ],
+            sisa: [
+                setSisaPoLoading,
+                setSisaPoError,
+                setSisaPoList,
+                setSisaPoCurrentPage,
+            ],
+            realized: [
+                setRealizedLoading,
+                setRealizedError,
+                setRealizedList,
+                setRealizedCurrentPage,
+            ],
+        };
+        const [setLoading, setError, setList, setPage] = setters[group];
+        setLoading(true);
+        setError('');
+        setList([]);
+        try {
+            const params = new URLSearchParams({
+                fetch_type: 'table',
+                view: 'customer',
+                status,
+                period: targetPeriod,
+                page: String(page),
+                per_page: size === Infinity ? 'all' : String(size),
+                search,
             });
+            if (targetPeriod === 'range') {
+                params.set('start_date', tableStartDate);
+                params.set('end_date', tableEndDate);
+            }
+            const data = await readPoInResponse(
+                await fetch(`/marketing/purchase-requirement/data?${params}`, {
+                    signal,
+                    cache: 'no-store',
+                    headers: { Accept: 'application/json' },
+                }),
+                'Gagal memuat daftar PR.',
+            );
+            if (!Array.isArray(data.purchaseRequirements) || !data.pagination)
+                throw new Error('Respons daftar PR tidak lengkap.');
+            if (!isCurrent()) return;
+            setList(data.purchaseRequirements);
+            setServerPages((prev) => ({ ...prev, [group]: data.pagination }));
+            if (Number(data.pagination.page) !== page)
+                setPage(Number(data.pagination.page));
+        } catch (error) {
+            if (isCurrent()) setError(error.message);
+        } finally {
+            if (isCurrent()) {
+                setLoading(false);
+            }
+        }
     };
+    const loadOutstanding = () =>
+        loadPrPage(
+            'outstanding',
+            'outstanding',
+            outstandingCurrentPage,
+            outstandingPageSize,
+            debouncedOutstandingSearchTerm,
+        );
+    const loadSisaPo = () =>
+        loadPrPage(
+            'sisa',
+            'sisa_po',
+            sisaPoCurrentPage,
+            sisaPoPageSize,
+            debouncedSisaPoSearchTerm,
+        );
+    const loadRealized = (customPeriod) => {
+        const next = customPeriod ?? periodFilter;
+        return loadPrPage(
+            'realized',
+            'realized',
+            realizedCurrentPage,
+            realizedPageSize,
+            debouncedRealizedSearchTerm,
+            next,
+        );
+    };
+    useEffect(() => {
+        if (isOutstandingModalOpen && outstandingSearchTerm !== debouncedOutstandingSearchTerm) {
+            requests.current.outstanding.cancel();
+            setOutstandingLoading(true);
+            setOutstandingList([]);
+            return;
+        }
+        if (isOutstandingModalOpen) loadOutstanding();
+        return () => requests.current.outstanding.cancel();
+    }, [
+        isOutstandingModalOpen,
+        outstandingCurrentPage,
+        outstandingPageSize,
+        outstandingSearchTerm,
+        debouncedOutstandingSearchTerm,
+    ]);
+    useEffect(() => {
+        if (isSisaPoModalOpen && sisaPoSearchTerm !== debouncedSisaPoSearchTerm) {
+            requests.current.sisa.cancel();
+            setSisaPoLoading(true);
+            setSisaPoList([]);
+            return;
+        }
+        if (isSisaPoModalOpen) loadSisaPo();
+        return () => requests.current.sisa.cancel();
+    }, [
+        isSisaPoModalOpen,
+        sisaPoCurrentPage,
+        sisaPoPageSize,
+        sisaPoSearchTerm,
+        debouncedSisaPoSearchTerm,
+    ]);
+    useEffect(() => {
+        if (isRealizedModalOpen && realizedSearchTerm !== debouncedRealizedSearchTerm) {
+            requests.current.realized.cancel();
+            setRealizedLoading(true);
+            setRealizedList([]);
+            return;
+        }
+        if (isRealizedModalOpen) loadRealized(periodFilter);
+        return () => requests.current.realized.cancel();
+    }, [
+        isRealizedModalOpen,
+        realizedCurrentPage,
+        realizedPageSize,
+        realizedSearchTerm,
+        debouncedRealizedSearchTerm,
+        periodFilter,
+    ]);
+    useEffect(() => {
+        if (!isModalOpen) requests.current.detail.cancel();
+    }, [isModalOpen]);
 
     useEffect(() => {
         setCurrentPage(1);
@@ -1875,6 +1736,17 @@ export default function PurchaseRequirementIndex({
                             preserveScroll: true,
                             onStart: () => setIsDeleting(true),
                             onSuccess: (page) => {
+                                if (
+                                    page.props?.flash?.error ||
+                                    !page.props?.flash?.success
+                                ) {
+                                    Swal.showValidationMessage(
+                                        page.props?.flash?.error ||
+                                            'Server belum mengonfirmasi penghapusan PR.',
+                                    );
+                                    resolve(false);
+                                    return;
+                                }
                                 isSuccess = true;
                                 resolve(page.props);
                             },
@@ -1888,7 +1760,10 @@ export default function PurchaseRequirementIndex({
                             onFinish: () => {
                                 setIsDeleting(false);
                                 if (!isSuccess) {
-                                    resolve(true); // Failsafe to close modal and continue if backend redirect skipped onSuccess
+                                    Swal.showValidationMessage(
+                                        'Penghapusan belum dikonfirmasi server. Silakan coba lagi.',
+                                    );
+                                    resolve(false);
                                 }
                             },
                         },
@@ -1904,25 +1779,13 @@ export default function PurchaseRequirementIndex({
             setPurchaseRequirementsList((prev) =>
                 prev.filter((item) => item.no_pr !== noPr),
             );
-            setOutstandingCountState((prev) =>
-                Math.max(0, Number(prev || 0) - 1),
+            fetchSummaryData(periodFilter);
+            fetchTableData(
+                tableDateFilter,
+                statusFilter,
+                tableStartDate,
+                tableEndDate,
             );
-
-            router.reload({
-                only: [
-                    'purchaseRequirements',
-                    'outstandingCount',
-                    'sisaPoCount',
-                    'outstandingTotal',
-                    'sisaPoTotal',
-                ],
-                preserveScroll: true,
-                preserveState: true,
-                onSuccess: () => {
-                    loadOutstanding(true);
-                    loadSisaPo(true);
-                },
-            });
             showToast('PR berhasil dihapus.', 'success');
         });
     };
@@ -1930,6 +1793,7 @@ export default function PurchaseRequirementIndex({
     return (
         <>
             <Head title="Purchase Requirement" />
+            {summaryError && <div role="alert" className="m-4 rounded-lg border border-destructive/40 p-3 text-sm"><p>{summaryError}</p><Button variant="outline" size="sm" onClick={() => fetchSummaryData(periodFilter)}>Coba lagi ringkasan</Button></div>}
             <div className="flex h-full flex-1 flex-col gap-4 p-4">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
@@ -1957,7 +1821,6 @@ export default function PurchaseRequirementIndex({
                         type="button"
                         onClick={() => {
                             setIsOutstandingModalOpen(true);
-                            loadOutstanding();
                         }}
                         className="text-left"
                     >
@@ -1970,7 +1833,7 @@ export default function PurchaseRequirementIndex({
                                     PR Outstanding
                                 </CardDescription>
                                 <CardTitle className="text-2xl font-semibold">
-                                    {summaryLoading ? (
+                                    {summaryError ? '-' : summaryLoading ? (
                                         <Skeleton className="h-8 w-16" />
                                     ) : (
                                         outstandingCountState
@@ -1982,7 +1845,7 @@ export default function PurchaseRequirementIndex({
                                     Belum ada material dibuat PO
                                 </p>
                                 <div className="mt-1 text-sm font-semibold">
-                                    {summaryLoading ? (
+                                    {summaryError ? '-' : summaryLoading ? (
                                         <Skeleton className="h-5 w-24" />
                                     ) : (
                                         formatRupiah(outstandingTotalState || 0)
@@ -1996,7 +1859,6 @@ export default function PurchaseRequirementIndex({
                         type="button"
                         onClick={() => {
                             setIsSisaPoModalOpen(true);
-                            loadSisaPo();
                         }}
                         className="text-left"
                     >
@@ -2009,7 +1871,7 @@ export default function PurchaseRequirementIndex({
                                     PR Sisa PO
                                 </CardDescription>
                                 <CardTitle className="text-2xl font-semibold">
-                                    {summaryLoading ? (
+                                    {summaryError ? '-' : summaryLoading ? (
                                         <Skeleton className="h-8 w-16" />
                                     ) : (
                                         sisaPoCountState
@@ -2021,7 +1883,7 @@ export default function PurchaseRequirementIndex({
                                     Masih ada sisa material belum dibuat PO
                                 </p>
                                 <div className="mt-1 text-sm font-semibold">
-                                    {summaryLoading ? (
+                                    {summaryError ? '-' : summaryLoading ? (
                                         <Skeleton className="h-5 w-24" />
                                     ) : (
                                         formatRupiah(sisaPoTotalState || 0)
@@ -2035,7 +1897,6 @@ export default function PurchaseRequirementIndex({
                         className="cursor-pointer transition hover:border-emerald-500/60 hover:shadow-md"
                         onClick={() => {
                             setIsRealizedModalOpen(true);
-                            loadRealized(periodFilter, true);
                         }}
                     >
                         <CardHeader className="pb-2">
@@ -2048,14 +1909,14 @@ export default function PurchaseRequirementIndex({
                                         PR Terealisasi
                                     </CardDescription>
                                     <CardTitle className="text-2xl font-semibold">
-                                        {summaryLoading || isRealizedLoading ? (
+                                        {summaryError ? '-' : summaryLoading ? (
                                             <Skeleton className="h-8 w-16" />
                                         ) : (
                                             realizedCountState
                                         )}
                                     </CardTitle>
                                     <div className="mt-1 text-sm font-semibold">
-                                        {summaryLoading || isRealizedLoading ? (
+                                        {summaryError ? '-' : summaryLoading ? (
                                             <Skeleton className="h-5 w-24" />
                                         ) : (
                                             formatRupiah(realizedTotalState)
@@ -2072,7 +1933,7 @@ export default function PurchaseRequirementIndex({
                                         onChange={(e) => {
                                             const val = e.target.value;
                                             setPeriodFilter(val);
-                                            loadRealized(val, true);
+                                            setRealizedCurrentPage(1);
                                         }}
                                     >
                                         <option value="today">Hari Ini</option>
@@ -2093,8 +1954,7 @@ export default function PurchaseRequirementIndex({
                                         onClick={(e) => {
                                             e.stopPropagation();
                                             setIsRealizedModalOpen(true);
-                                            loadRealized(periodFilter, true);
-                                        }}
+                                                        }}
                                         title="Lihat daftar PR terealisasi"
                                     >
                                         <Eye className="h-4 w-4" />
@@ -2336,6 +2196,8 @@ export default function PurchaseRequirementIndex({
                                 </thead>
                                 <tbody>
                                     <PlainTableStateRows
+                                        error={tableError}
+                                        onRetry={() => fetchTableData(tableDateFilter, statusFilter, tableStartDate, tableEndDate)}
                                         columns={
                                             activeTab === 'material' ? 8 : 5
                                         }
@@ -2489,6 +2351,7 @@ export default function PurchaseRequirementIndex({
                     onOpenChange={(open) => {
                         setIsModalOpen(open);
                         if (!open) {
+                            requests.current.detail.cancel();
                             setSelectedPr(null);
                             setSelectedDetails([]);
                             setDetailError('');
@@ -2624,6 +2487,10 @@ export default function PurchaseRequirementIndex({
                                     <h3 className="text-base font-semibold">
                                         Data Material
                                     </h3>
+                                    {!detailLoading && !detailError && <>
+                                        <PrFulfillmentPanel details={displayedMaterialDetails} />
+                                        <PrOrderHistory key={selectedPr.no_pr} noPr={selectedPr.no_pr} />
+                                    </>}
                                     {materialTabs.length > 0 && (
                                         <div className="mt-2 mb-2 flex border-b border-sidebar-border/70">
                                             {materialTabs.map((tab) => (
@@ -2760,6 +2627,8 @@ export default function PurchaseRequirementIndex({
                                             </thead>
                                             <tbody>
                                                 <PlainTableStateRows
+                                                    error={detailError}
+                                                    onRetry={() => handleOpenModal(selectedPr)}
                                                     loading={detailLoading}
                                                     columns={9}
                                                     rows={5}
@@ -2974,9 +2843,7 @@ export default function PurchaseRequirementIndex({
                     open={isOutstandingModalOpen}
                     onOpenChange={(open) => {
                         setIsOutstandingModalOpen(open);
-                        if (open) {
-                            loadOutstanding();
-                        } else {
+                        if (!open) {
                             setOutstandingSearchTerm('');
                             setOutstandingPageSize(5);
                             setOutstandingCurrentPage(1);
@@ -3061,6 +2928,8 @@ export default function PurchaseRequirementIndex({
                                 </thead>
                                 <tbody>
                                     <PlainTableStateRows
+                                        error={outstandingError}
+                                        onRetry={loadOutstanding}
                                         loading={outstandingLoading}
                                         columns={5}
                                         rows={5}
@@ -3219,9 +3088,7 @@ export default function PurchaseRequirementIndex({
                     open={isSisaPoModalOpen}
                     onOpenChange={(open) => {
                         setIsSisaPoModalOpen(open);
-                        if (open) {
-                            loadSisaPo();
-                        } else {
+                        if (!open) {
                             setSisaPoSearchTerm('');
                             setSisaPoPageSize(5);
                             setSisaPoCurrentPage(1);
@@ -3304,6 +3171,8 @@ export default function PurchaseRequirementIndex({
                                 </thead>
                                 <tbody>
                                     <PlainTableStateRows
+                                        error={sisaPoError}
+                                        onRetry={loadSisaPo}
                                         loading={sisaPoLoading}
                                         columns={5}
                                         rows={5}
@@ -3457,9 +3326,7 @@ export default function PurchaseRequirementIndex({
                     open={isRealizedModalOpen}
                     onOpenChange={(open) => {
                         setIsRealizedModalOpen(open);
-                        if (open) {
-                            loadRealized(periodFilter, true);
-                        } else {
+                        if (!open) {
                             setRealizedSearchTerm('');
                             setRealizedPageSize(5);
                             setRealizedCurrentPage(1);
@@ -3544,6 +3411,8 @@ export default function PurchaseRequirementIndex({
                                 </thead>
                                 <tbody>
                                     <PlainTableStateRows
+                                        error={realizedError}
+                                        onRetry={() => loadRealized(periodFilter)}
                                         loading={realizedLoading}
                                         columns={6}
                                         rows={5}

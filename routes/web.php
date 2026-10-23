@@ -313,6 +313,8 @@ Route::get('marketing/purchase-requirement/overdue-invoices', [PurchaseRequireme
     ->name('marketing.purchase-requirement.overdue-invoices');
 Route::get('marketing/purchase-requirement/details', [PurchaseRequirementController::class, 'details'])
     ->name('marketing.purchase-requirement.details');
+Route::get('marketing/purchase-requirement/related-orders', [PurchaseRequirementController::class, 'relatedOrders'])
+    ->name('marketing.purchase-requirement.related-orders');
 Route::get('marketing/purchase-requirement/outstanding', [PurchaseRequirementController::class, 'outstanding'])
     ->name('marketing.purchase-requirement.outstanding');
 Route::get('marketing/purchase-requirement/realized', [PurchaseRequirementController::class, 'realized'])
