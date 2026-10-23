@@ -1395,7 +1395,7 @@ export default function PurchaseRequirementIndex({
         );
     }, [filteredMaterialDetails, materialCurrentPage, materialPageSize]);
 
-    const handleOpenModal = (item) => {
+    const handleOpenModal = (item, options = {}) => {
         const { signal, isCurrent } = requests.current.detail.start();
         setSelectedPr(item);
         setIsModalOpen(true);
@@ -1409,6 +1409,7 @@ export default function PurchaseRequirementIndex({
         setMaterialCurrentPage(1);
 
         const params = new URLSearchParams({ no_pr: item.no_pr });
+        if (options.fresh) params.set('source', 'mysql');
         fetch(`/marketing/purchase-requirement/details?${params.toString()}`, {
             signal,
             headers: { Accept: 'application/json' },
@@ -1489,7 +1490,7 @@ export default function PurchaseRequirementIndex({
                             detailContext.current.open &&
                             detailContext.current.noPr === selectedPr.no_pr
                         ) {
-                            handleOpenModal(selectedPr);
+                            handleOpenModal(selectedPr, { fresh: true });
                         }
                         fetchSummaryData(periodFilter);
                         fetchTableData(

@@ -450,20 +450,18 @@ class PurchaseRequirementController
 
     public function details(Request $request)
     {
+        $request->validate(['no_pr' => 'nullable|string|max:100', 'source' => 'nullable|in:clickhouse,mysql']);
         $noPr = $request->query('no_pr');
         if (!$noPr) {
             return response()->json(['purchaseRequirementDetails' => []]);
         }
 
-        $purchaseRequirementDetails = DB::table('tb_detailpr')
-            ->select('no_pr', 'no', 'kd_material', 'material', 'qty', 'unit', 'sisa_pr', 'payment', 'renmark', 'ref_po', 'for_customer', 'price_po', 'unit_price', 'margin', 'stok')
-            ->where('no_pr', $noPr)
-            ->orderBy('no')
-            ->get();
+        $result = app(\App\Services\Marketing\PurchaseRequirementDetailReader::class)
+            ->read($noPr, $request->query('source') === 'mysql');
 
         return response()->json([
-            'purchaseRequirementDetails' => $purchaseRequirementDetails,
-        ])->header('Cache-Control', 'no-store');
+            'purchaseRequirementDetails' => $result['rows'],
+        ])->header('Cache-Control', 'no-store')->header('X-Data-Source', $result['source']);
     }
 
     public function relatedOrders(Request $request)
