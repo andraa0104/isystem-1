@@ -450,17 +450,18 @@ class PurchaseRequirementController
 
     public function details(Request $request)
     {
-        $request->validate(['no_pr' => 'nullable|string|max:100', 'source' => 'nullable|in:clickhouse,mysql']);
-        $noPr = $request->query('no_pr');
-        if (!$noPr) {
-            return response()->json(['purchaseRequirementDetails' => []]);
-        }
-
+        $filters = $request->validate([
+            'no_pr' => 'required|string|max:100', 'source' => 'nullable|in:clickhouse,mysql',
+            'search' => 'nullable|string|max:200', 'ref_po' => 'nullable|string|max:200',
+            'page' => 'nullable|integer|min:1',
+            'per_page' => ['nullable', \Illuminate\Validation\Rule::in(['5', '10', '20', '25', '50', '100', 'all'])],
+        ]);
         $result = app(\App\Services\Marketing\PurchaseRequirementDetailReader::class)
-            ->read($noPr, $request->query('source') === 'mysql');
-
+            ->page($filters['no_pr'], $filters, $request->query('source') === 'mysql');
         return response()->json([
             'purchaseRequirementDetails' => $result['rows'],
+            'customers' => $result['customers'], 'payment' => $result['payment'],
+            'pagination' => $result['pagination'],
         ])->header('Cache-Control', 'no-store')->header('X-Data-Source', $result['source']);
     }
 

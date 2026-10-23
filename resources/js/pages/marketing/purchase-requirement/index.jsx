@@ -869,6 +869,9 @@ export default function PurchaseRequirementIndex({
     const [materialCurrentPage, setMaterialCurrentPage] = useState(1);
 
     const [selectedDetails, setSelectedDetails] = useState([]);
+    const [detailMeta, setDetailMeta] = useState({ customers: [], pagination: {}, payment: null });
+    const [detailReload, setDetailReload] = useState(0);
+    const detailFresh = useRef(false);
     const [activeMaterialTab, setActiveMaterialTab] = useState('All Data');
     const [detailLoading, setDetailLoading] = useState(false);
     const [detailError, setDetailError] = useState('');
@@ -1118,7 +1121,10 @@ export default function PurchaseRequirementIndex({
 
     useEffect(() => {
         const timer = setTimeout(
-            () => setDebouncedMaterialSearchTerm(materialSearchTerm),
+            () => {
+                setDebouncedMaterialSearchTerm(materialSearchTerm);
+                setMaterialCurrentPage(1);
+            },
             300,
         );
         return () => clearTimeout(timer);
@@ -1297,109 +1303,20 @@ export default function PurchaseRequirementIndex({
     const realizedTotalPages = Number(serverPages.realized?.total_pages ?? 1);
     const displayedRealizedPurchaseRequirements = realizedList.map(item => ({ ...item, _canDelete: Number(item.can_delete) === 1 }));
 
-    const materialTabs = useMemo(() => {
-        if (!selectedDetails || selectedDetails.length === 0) return [];
-        const refPos = [
-            ...new Set(selectedDetails.map((d) => d.ref_po).filter(Boolean)),
-        ];
-        if (refPos.length > 1) {
-            return ['All Data', ...refPos];
-        }
-        return [];
-    }, [selectedDetails]);
-
-    const uniqueCustomerPOs = useMemo(() => {
-        if (!selectedDetails || selectedDetails.length === 0) return [];
-        const map = new Map();
-        selectedDetails.forEach((d) => {
-            if (d.ref_po && !map.has(d.ref_po)) {
-                map.set(d.ref_po, d.for_customer);
-            }
-        });
-        return Array.from(map.entries()).map(([ref_po, customer]) => ({
-            ref_po,
-            customer,
-        }));
-    }, [selectedDetails]);
-
-    const processedDetails = useMemo(() => {
-        if (!selectedDetails || selectedDetails.length === 0) return [];
-        if (materialTabs.length > 0) {
-            if (activeMaterialTab === 'All Data') {
-                const map = new Map();
-                selectedDetails.forEach((d) => {
-                    const key = d.kd_material || d.material;
-                    if (!map.has(key)) {
-                        map.set(key, {
-                            ...d,
-                            ref_po: 'Multiple',
-                            for_customer: 'Multiple',
-                        });
-                    } else {
-                        const existing = map.get(key);
-                        existing.qty =
-                            (parseFloat(existing.qty) || 0) +
-                            (parseFloat(d.qty) || 0);
-                        existing.sisa_pr =
-                            (parseFloat(existing.sisa_pr) || 0) +
-                            (parseFloat(d.sisa_pr) || 0);
-                    }
-                });
-                return Array.from(map.values());
-            } else {
-                return selectedDetails.filter(
-                    (d) => d.ref_po === activeMaterialTab,
-                );
-            }
-        }
-        return selectedDetails;
-    }, [selectedDetails, materialTabs, activeMaterialTab]);
-
-    const filteredMaterialDetails = useMemo(() => {
-        const term = debouncedMaterialSearchTerm.trim().toLowerCase();
-        if (!term) return processedDetails;
-
-        return processedDetails.filter((detail) => {
-            const values = [
-                detail.material,
-                detail.Material,
-                detail.qty,
-                detail.Qty,
-                detail.satuan,
-                detail.Satuan,
-                detail.sisa_pr,
-                detail.Sisa_pr,
-                detail.remark,
-                detail.Remark,
-            ];
-            return values.some((value) =>
-                String(value ?? '')
-                    .toLowerCase()
-                    .includes(term),
-            );
-        });
-    }, [debouncedMaterialSearchTerm, processedDetails]);
-
-    const materialTotalItems = filteredMaterialDetails.length;
-    const materialTotalPages = useMemo(() => {
-        if (materialPageSize === Infinity) return 1;
-        return Math.max(1, Math.ceil(materialTotalItems / materialPageSize));
-    }, [materialPageSize, materialTotalItems]);
-
-    const displayedMaterialDetails = useMemo(() => {
-        if (materialPageSize === Infinity) return filteredMaterialDetails;
-        const startIndex = (materialCurrentPage - 1) * materialPageSize;
-        return filteredMaterialDetails.slice(
-            startIndex,
-            startIndex + materialPageSize,
-        );
-    }, [filteredMaterialDetails, materialCurrentPage, materialPageSize]);
+    const uniqueCustomerPOs = (detailMeta.customers ?? []).filter(row => row.ref_po).map(row => ({ ref_po: row.ref_po, customer: row.for_customer }));
+    const refs = [...new Set(uniqueCustomerPOs.map(row => row.ref_po).filter(Boolean))];
+    const materialTabs = refs.length > 1 ? ['All Data', ...refs] : [];
+    const materialTotalItems = Number(detailMeta.pagination?.total ?? 0);
+    const materialTotalPages = Number(detailMeta.pagination?.total_pages ?? 1);
+    const displayedMaterialDetails = selectedDetails;
 
     const handleOpenModal = (item, options = {}) => {
-        const { signal, isCurrent } = requests.current.detail.start();
+        requests.current.detail.cancel();
+        detailFresh.current = Boolean(options.fresh);
         setSelectedPr(item);
         setIsModalOpen(true);
         setSelectedDetails([]);
+        setDetailMeta({ customers: [], pagination: {}, payment: null });
         setActiveMaterialTab('All Data');
         setDetailError('');
         setDetailLoading(true);
@@ -1407,9 +1324,27 @@ export default function PurchaseRequirementIndex({
         setDebouncedMaterialSearchTerm('');
         setMaterialPageSize(5);
         setMaterialCurrentPage(1);
+        setDetailReload(value => value + 1);
+    };
 
-        const params = new URLSearchParams({ no_pr: item.no_pr });
-        if (options.fresh) params.set('source', 'mysql');
+    useEffect(() => {
+        if (!isModalOpen || !selectedPr) return;
+        if (materialSearchTerm !== debouncedMaterialSearchTerm) {
+            requests.current.detail.cancel();
+            setDetailLoading(true);
+            return;
+        }
+        const { signal, isCurrent } = requests.current.detail.start();
+        setDetailLoading(true);
+        setDetailError('');
+        const params = new URLSearchParams({
+            no_pr: selectedPr.no_pr,
+            page: String(materialCurrentPage),
+            per_page: materialPageSize === Infinity ? 'all' : String(materialPageSize),
+            search: debouncedMaterialSearchTerm,
+        });
+        if (activeMaterialTab !== 'All Data') params.set('ref_po', activeMaterialTab);
+        if (detailFresh.current) params.set('source', 'mysql');
         fetch(`/marketing/purchase-requirement/details?${params.toString()}`, {
             signal,
             headers: { Accept: 'application/json' },
@@ -1422,6 +1357,8 @@ export default function PurchaseRequirementIndex({
                 if (!isCurrent()) return;
                 if (!Array.isArray(data.purchaseRequirementDetails))
                     throw new Error('Respons detail PR tidak lengkap.');
+                setDetailMeta({ customers: data.customers ?? [], pagination: data.pagination ?? {}, payment: data.payment });
+                if (data.pagination?.page) setMaterialCurrentPage(data.pagination.page);
                 setSelectedDetails(
                     Array.isArray(data?.purchaseRequirementDetails)
                         ? data.purchaseRequirementDetails
@@ -1434,7 +1371,9 @@ export default function PurchaseRequirementIndex({
             .finally(() => {
                 if (isCurrent()) setDetailLoading(false);
             });
-    };
+        return () => requests.current.detail.cancel();
+    }, [isModalOpen, selectedPr?.no_pr, materialCurrentPage, materialPageSize, materialSearchTerm, debouncedMaterialSearchTerm, activeMaterialTab, detailReload]);
+
 
     const handleRemoveCustomerPo = (refPo) => {
         if (!selectedPr) return;
@@ -1692,10 +1631,7 @@ export default function PurchaseRequirementIndex({
         if (realizedCurrentPage > realizedTotalPages)
             setRealizedCurrentPage(realizedTotalPages);
     }, [realizedCurrentPage, realizedTotalPages]);
-    useEffect(() => {
-        if (materialCurrentPage > materialTotalPages)
-            setMaterialCurrentPage(materialTotalPages);
-    }, [materialCurrentPage, materialTotalPages]);
+
 
     const showToast = (message, variant = 'error') => {
         if (!message) return;
@@ -2473,7 +2409,7 @@ export default function PurchaseRequirementIndex({
                                                       'payment_term',
                                                   ])
                                                 : getValue(
-                                                      selectedDetails?.[0],
+                                                      { payment: detailMeta.payment },
                                                       [
                                                           'payment',
                                                           'Payment',

@@ -357,6 +357,16 @@ export default function PurchaseOrderInIndex({
     const [isConfirmDeleteOpen, setIsConfirmDeleteOpen] = useState(false);
     const [isDeleting, setIsDeleting] = useState(false);
 
+    const tableAbortControllers = useRef({});
+    const beginTableRequest = (key) => {
+        tableAbortControllers.current[key]?.abort();
+        const controller = new AbortController();
+        tableAbortControllers.current[key] = controller;
+        return controller.signal;
+    };
+    useEffect(() => () => {
+        Object.values(tableAbortControllers.current).forEach(controller => controller.abort());
+    }, []);
     const rowsRequestId = useRef(0);
     const paginationRequestId = useRef(0);
     const materialRequestId = useRef(0);
@@ -413,6 +423,7 @@ export default function PurchaseOrderInIndex({
     };
 
     const fetchPoInRows = async (params = {}) => {
+        const signal = beginTableRequest('rows');
         const requestId = ++rowsRequestId.current;
         const nextParams = { ...params, isPartial: true };
         const startedAt = performance.now();
@@ -427,6 +438,7 @@ export default function PurchaseOrderInIndex({
                 `/marketing/purchase-order-in/data?${queryParams.toString()}`,
                 {
                     cache: 'no-store',
+                    signal,
                     headers: { Accept: 'application/json' },
                 },
             );
@@ -445,6 +457,7 @@ export default function PurchaseOrderInIndex({
                 setPurchaseOrderIns(data.purchaseOrderIns || []);
             }
         } catch (error) {
+            if (signal.aborted) return;
             if (requestId === rowsRequestId.current) {
                 setTableError(error?.message || 'Gagal memuat data PO In.');
             }
@@ -457,6 +470,7 @@ export default function PurchaseOrderInIndex({
     };
 
     const fetchPoInPagination = async (params = {}) => {
+        const signal = beginTableRequest('pagination');
         const requestId = ++paginationRequestId.current;
         const nextParams = { ...params, isPartial: true };
         const startedAt = performance.now();
@@ -470,6 +484,7 @@ export default function PurchaseOrderInIndex({
                 `/marketing/purchase-order-in/data?${queryParams.toString()}`,
                 {
                     cache: 'no-store',
+                    signal,
                     headers: { Accept: 'application/json' },
                 },
             );
@@ -493,6 +508,7 @@ export default function PurchaseOrderInIndex({
                 setPagination(data.pagination || {});
             }
         } catch (error) {
+            if (signal.aborted) return;
             if (requestId === paginationRequestId.current) {
                 setPaginationError(
                     error?.message || 'Gagal memuat jumlah dan halaman PO In.',
@@ -516,6 +532,7 @@ export default function PurchaseOrderInIndex({
     };
 
     const fetchMaterialData = async (params = {}) => {
+        const signal = beginTableRequest('material');
         const requestId = ++materialRequestId.current;
         const startedAt = performance.now();
         lastMaterialParams.current = params;
@@ -544,7 +561,8 @@ export default function PurchaseOrderInIndex({
 
             const response = await fetch(
                 `/marketing/purchase-order-in/material-data?${queryParams.toString()}`,
-                { cache: 'no-store', headers: { Accept: 'application/json' } },
+                { cache: 'no-store',
+                    signal, headers: { Accept: 'application/json' } },
             );
             const data = await readPoInResponse(
                 response,
@@ -558,6 +576,7 @@ export default function PurchaseOrderInIndex({
                 setMaterialPagination(data.pagination || {});
             }
         } catch (error) {
+            if (signal.aborted) return;
             if (requestId === materialRequestId.current) {
                 setMaterialError(
                     error?.message || 'Gagal memuat data material PO In.',
@@ -580,6 +599,7 @@ export default function PurchaseOrderInIndex({
         startDateVal = '',
         endDateVal = '',
     ) => {
+        const signal = beginTableRequest(`summary:${scope}`);
         const metrics = SUMMARY_SCOPE_METRICS[scope] ?? [scope];
         const startedAt = performance.now();
         const requestId = (summaryRequestIds.current[scope] ?? 0) + 1;
@@ -612,6 +632,7 @@ export default function PurchaseOrderInIndex({
                 `/marketing/purchase-order-in/data?${queryParams.toString()}`,
                 {
                     cache: 'no-store',
+                    signal,
                     headers: { Accept: 'application/json' },
                 },
             );
@@ -653,6 +674,7 @@ export default function PurchaseOrderInIndex({
                 setSummary((prev) => ({ ...prev, ...data.summary }));
             }
         } catch (error) {
+            if (signal.aborted) return;
             if (isCurrentRequest()) {
                 setSummaryErrors((prev) => ({ ...prev, ...metricFlags(true) }));
                 console.error(`Error fetching PO In ${scope} summary:`, error);
@@ -703,6 +725,7 @@ export default function PurchaseOrderInIndex({
 
     useEffect(() => {
         const invalidateRequests = () => {
+            ['rows', 'pagination', 'material'].forEach(key => tableAbortControllers.current[key]?.abort());
             rowsRequestId.current += 1;
             paginationRequestId.current += 1;
             materialRequestId.current += 1;

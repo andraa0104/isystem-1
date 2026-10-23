@@ -126,18 +126,14 @@ class PurchaseOrderInController
             return DB::connection();
         }
 
-        try {
-            $connection = DB::connection('clickhouse');
-            if ($connection && $connection->getConfig('driver') === 'clickhouse') {
-                $connection->select('SELECT 1');
-                return $connection;
-            }
-        } catch (\Throwable $e) {
-            Log::info("PurchaseOrderInController: ClickHouse tidak tersedia, otomatis fallback ke MySQL: " . $e->getMessage());
+        if (config('purchase-requirement.clickhouse.enabled', true)) {
+            return new \App\Services\Marketing\ClickHouseReadConnection(DB::connection()->getDatabaseName());
         }
 
         return DB::connection();
     }
+
+    private string $readSource = 'mysql';
 
     private function safeClickhouseRead(callable $callback)
     {
@@ -145,10 +141,16 @@ class PurchaseOrderInController
         $isClickhouse = ($conn->getConfig('driver') === 'clickhouse');
 
         try {
-            return $callback($conn);
+            $result = $callback($conn);
+            if ($isClickhouse && $result === null) {
+                throw new \RuntimeException('Replica has no document yet.');
+            }
+            $this->readSource = $isClickhouse ? 'clickhouse' : 'mysql';
+            return $result;
         } catch (\Throwable $e) {
             if ($isClickhouse) {
-                Log::warning("PurchaseOrderInController ClickHouse query error, fallback ke MySQL: " . $e->getMessage());
+                Log::warning('PO IN ClickHouse read failed; using MySQL.', ['exception' => class_basename($e)]);
+                $this->readSource = 'mysql';
                 return $callback(DB::connection());
             }
             throw $e;
@@ -563,6 +565,7 @@ class PurchaseOrderInController
         return response()->json($data)->withHeaders([
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
             'Pragma' => 'no-cache',
+            'X-Data-Source' => $this->readSource,
         ]);
     }
 
@@ -599,6 +602,7 @@ class PurchaseOrderInController
         return response()->json($data)->withHeaders([
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
             'Pragma' => 'no-cache',
+            'X-Data-Source' => $this->readSource,
         ]);
     }
 
@@ -969,6 +973,53 @@ class PurchaseOrderInController
                 ->selectRaw("sum(coalesce(cast(nullif(trim(sisa_qtydo), '') as decimal(18,4)), cast(nullif(trim(qty), '') as decimal(18,4)), 0) * coalesce(cast(nullif(trim(price_po_in), '') as decimal(18,4)), 0)) as do_remaining_amount")
                 ->groupBy('kode_poin');
 
+            if (($isPartial && ! $summaryOnly) || ($summaryOnly && $summaryScope !== 'all')) {
+                $detailStats->columns = array_values(array_filter($detailStats->columns, function ($column) use ($summaryOnly, $summaryScope) {
+                    $sql = is_string($column) ? $column : $column->getValue(DB::connection()->getQueryGrammar());
+                    if (str_ends_with($sql, ' as started_items') || str_ends_with($sql, ' as do_started_items')) {
+                        return false;
+                    }
+                    if (! $summaryOnly && (str_ends_with($sql, ' as pr_remaining_amount') || str_ends_with($sql, ' as do_remaining_amount'))) {
+                        return false;
+                    }
+                    if ($summaryOnly && $summaryScope === 'realized' && (str_ends_with($sql, ' as pr_remaining_amount') || str_ends_with($sql, ' as do_remaining_amount'))) {
+                        return false;
+                    }
+                    return true;
+                }));
+            }
+
+            // Restrict aggregation to candidate headers before evaluating detail status.
+            // Realized filters use PR/DO dates, so must not use header-created dates.
+            if ($isPartial && ! $summaryOnly
+                && ($dateFilter !== 'all' || $deadlineFilter !== 'all')
+                && ! in_array($statusFilter, ['realized_pr', 'realized_do'], true)) {
+                $candidates = DB::table('tb_poin as p')->select('p.kode_poin');
+                if ($search !== '') {
+                    $like = '%'.strtolower($search).'%';
+                    $candidates->where(function ($q) use ($like) {
+                        $q->whereRaw('lower(p.kode_poin) like ?', [$like])
+                            ->orWhereRaw('lower(p.no_poin) like ?', [$like])
+                            ->orWhereRaw('lower(p.customer_name) like ?', [$like]);
+                    });
+                }
+                $nowForCandidates = now();
+                $bounds = match ($dateFilter) {
+                    'today' => [$nowForCandidates->copy()->startOfDay(), $nowForCandidates->copy()->endOfDay()],
+                    'this_week' => [$nowForCandidates->copy()->startOfWeek(), $nowForCandidates->copy()->endOfWeek()],
+                    'this_month' => [$nowForCandidates->copy()->startOfMonth(), $nowForCandidates->copy()->endOfMonth()],
+                    'this_year' => [$nowForCandidates->copy()->startOfYear(), $nowForCandidates->copy()->endOfYear()],
+                    'range' => $startDate !== '' && $endDate !== '' ? [$startDate.' 00:00:00', $endDate.' 23:59:59'] : null,
+                    default => null,
+                };
+                if ($bounds) {
+                    $exclusiveEnd = \Carbon\Carbon::parse($bounds[1])->addSecond()->startOfSecond();
+                    $candidates->where('p.created_at', '>=', $bounds[0])->where('p.created_at', '<', $exclusiveEnd);
+                }
+                $applyDeadlineFilter($candidates);
+                $detailStats->whereIn('kode_poin', $candidates);
+            }
+
             $doStats = DB::table('tb_kddo as kdo')
                 ->selectRaw('lower(trim(kdo.ref_po)) as ref_po_key')
                 ->selectRaw('count(*) as do_count')
@@ -1089,15 +1140,18 @@ class PurchaseOrderInController
                     $summary = [];
 
                     if ($summaryScope === 'realized' || $summaryScope === 'realized_do') {
-                        $doCountsQuery = DB::table('tb_kddo as kdo')
+                        $doReferences = DB::table('tb_kddo')
+                            ->whereRaw("trim(coalesce(ref_po, '')) <> ''")
+                            ->whereRaw("trim(coalesce(no_do, '')) <> ''")
+                            ->selectRaw('lower(trim(ref_po)) as ref_po_key, lower(trim(no_do)) as no_do, pos_tgl')->distinct();
+                        $doCountsQuery = DB::query()->fromSub($doReferences, 'kdo')
                             ->join('tb_poin as p', function ($join) use ($prefix) {
                                 $join->where('p.kode_poin', 'like', $prefix . '.POIN-%');
-                                $join->whereRaw('lower(trim(kdo.ref_po)) = lower(trim(CONVERT(p.no_poin USING latin1)))');
+                                $join->whereRaw('kdo.ref_po_key = lower(trim(CONVERT(p.no_poin USING latin1)))');
                             })
                             ->joinSub($detailStats, 'do_ds', function ($join) {
                                 $join->on('do_ds.kode_poin', '=', 'p.kode_poin');
                             })
-                            ->whereRaw("trim(coalesce(kdo.ref_po, '')) <> ''")
                             ->whereRaw("trim(coalesce(kdo.no_do, '')) <> ''")
                             ->whereRaw('coalesce(do_ds.total_items, 0) > 0')
                             ->whereRaw('coalesce(do_ds.do_unrealized_items, 0) = 0');
@@ -1121,16 +1175,18 @@ class PurchaseOrderInController
                     if ($summaryScope === 'realized' || $summaryScope === 'realized_pr') {
                         $prDateExpression = "case when trim(dpr.date) like '__.__.____' then str_to_date(trim(dpr.date), '%d.%m.%Y') else str_to_date(trim(dpr.date), '%Y-%m-%d') end";
 
-                        $prCountsQuery = DB::table('tb_detailpr as dpr')
+                        $prReferences = DB::table('tb_detailpr')
+                            ->whereRaw("trim(coalesce(ref_po, '')) <> ''")
+                            ->whereRaw("trim(coalesce(no_pr, '')) <> ''")
+                            ->selectRaw('lower(trim(ref_po)) as ref_po_key, date')->distinct();
+                        $prCountsQuery = DB::query()->fromSub($prReferences, 'dpr')
                             ->join('tb_poin as p', function ($join) use ($prefix) {
                                 $join->where('p.kode_poin', 'like', $prefix . '.POIN-%');
-                                $join->whereRaw('lower(trim(dpr.ref_po)) = lower(trim(CONVERT(p.no_poin USING latin1)))');
+                                $join->whereRaw('dpr.ref_po_key = lower(trim(CONVERT(p.no_poin USING latin1)))');
                             })
                             ->joinSub($detailStats, 'pr_ds', function ($join) {
                                 $join->on('pr_ds.kode_poin', '=', 'p.kode_poin');
                             })
-                            ->whereRaw("trim(coalesce(dpr.ref_po, '')) <> ''")
-                            ->whereRaw("trim(coalesce(dpr.no_pr, '')) <> ''")
                             ->whereRaw('coalesce(pr_ds.total_items, 0) > 0')
                             ->whereRaw('coalesce(pr_ds.unrealized_items, 0) = 0');
 
@@ -1788,7 +1844,7 @@ class PurchaseOrderInController
             return response()->json(['message' => 'Data PO In tidak ditemukan.'], 404);
         }
 
-        return response()->json($data);
+        return response()->json($data)->header('X-Data-Source', $this->readSource)->header('Cache-Control', 'no-store');
     }
 
     public function print($kodePoin)
@@ -1842,7 +1898,7 @@ class PurchaseOrderInController
         $unitColumn = $this->firstExistingColumn('tb_barang', ['unit', 'satuan'], 'unit');
         $stockTotal = $this->barangStockTotalExpression();
 
-        $query = $this->getClickhouseOrFallbackConnection()->table('tb_barang')->selectRaw("
+        $query = DB::connection()->table('tb_barang')->selectRaw("
             tb_barang.*,
             {$codeColumn} as kd_material,
             {$nameColumn} as material,
@@ -1907,7 +1963,7 @@ class PurchaseOrderInController
         $codeColumn = $this->firstExistingColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
         $nameColumn = $this->firstExistingColumn('tb_barang', ['material', 'nama_barang', 'nm_barang', 'barang'], 'material');
         $unitColumn = $this->firstExistingColumn('tb_barang', ['unit', 'satuan'], 'unit');
-        $lastKdMaterial = $this->getClickhouseOrFallbackConnection()->table('tb_barang')->max($codeColumn);
+        $lastKdMaterial = DB::connection()->table('tb_barang')->max($codeColumn);
         $nextKdMaterial = $lastKdMaterial
             ? (string) (((int) $lastKdMaterial) + 1)
             : '1000000001';
@@ -1937,7 +1993,7 @@ class PurchaseOrderInController
                 }
             }
 
-            $this->getClickhouseOrFallbackConnection()->table('tb_barang')->insert($insertData);
+            DB::connection()->table('tb_barang')->insert($insertData);
 
         } catch (Throwable $exception) {
             return response()->json(['message' => $exception->getMessage()], 500);
@@ -1973,7 +2029,7 @@ class PurchaseOrderInController
             $perPage = 5;
         }
 
-        $query = $this->getClickhouseOrFallbackConnection()->table('tb_cs')->select('kd_cs', 'nm_cs', 'kota_cs');
+        $query = DB::connection()->table('tb_cs')->select('kd_cs', 'nm_cs', 'kota_cs');
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
                 $like = '%'.strtolower($search).'%';
@@ -1997,7 +2053,7 @@ class PurchaseOrderInController
             ];
         }
 
-        return response()->json($data);
+        return response()->json($data)->header('X-Data-Source', $this->readSource)->header('Cache-Control', 'no-store');
     }
 
     public function customerPics(Request $request)
@@ -2038,7 +2094,7 @@ class PurchaseOrderInController
             'Attnd' => ['nullable', 'string', 'max:255'],
         ]);
 
-        $lastCode = $this->getClickhouseOrFallbackConnection()->table('tb_cs')
+        $lastCode = DB::connection()->table('tb_cs')
             ->where('kd_cs', 'like', 'CST%')
             ->orderBy('kd_cs', 'desc')
             ->value('kd_cs');
@@ -2047,7 +2103,7 @@ class PurchaseOrderInController
         $validated['kd_cs'] = $nextCode;
 
         try {
-            $this->getClickhouseOrFallbackConnection()->table('tb_cs')->insert($validated);
+            DB::connection()->table('tb_cs')->insert($validated);
 
         } catch (Throwable $exception) {
             return response()->json(['message' => $exception->getMessage()], 500);
