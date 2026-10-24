@@ -68,3 +68,23 @@ export const readPrFilters = (storage, key) => {
         return {};
     }
 };
+
+export const getPrPaginationKey = (params) => {
+    const key = new URLSearchParams(params);
+    ['page', 'known_total', 'fetch_type'].forEach((name) => key.delete(name));
+    key.sort();
+    return key.toString();
+};
+
+export const applyKnownPrTotal = (params, previousPage) => {
+    const page = Math.max(1, Number(params.get('page')) || 1);
+    const key = getPrPaginationKey(params);
+    if (
+        previousPage?.key === key &&
+        previousPage.page !== page &&
+        Number.isFinite(Number(previousPage.total))
+    ) {
+        params.set('known_total', String(Math.max(0, Number(previousPage.total))));
+    }
+    return key;
+};

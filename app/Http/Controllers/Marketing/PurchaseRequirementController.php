@@ -154,24 +154,12 @@ class PurchaseRequirementController
 
     public function data(Request $request)
     {
-        if ($request->query('fetch_type') === 'table' && $request->has('per_page')) {
+        if ($request->query('fetch_type') === 'table') {
             return $this->pagedRequirements($request);
         }
         $period = $request->query('period', 'today');
         $fetchType = $request->query('fetch_type');
-        $status = $request->query('status', 'all');
-        $view = $request->query('view', 'customer');
         $response = [];
-        if ($fetchType === 'table' && $view === 'material') {
-            $response['purchaseRequirements'] = $this->getPurchaseRequirementMaterialList(
-                $request->query('period', 'all'),
-                $status,
-                trim((string) $request->query('search', '')),
-                $request->query('start_date'),
-                $request->query('end_date')
-            );
-            return response()->json($response);
-        }
 
         if ($fetchType === 'summary' || !$fetchType) {
             $summary = $this->getPurchaseRequirementSummary($period);
@@ -182,10 +170,21 @@ class PurchaseRequirementController
             $response['sisaPoTotal'] = $summary['sisaPoTotal'];
             $response['realizedCount'] = $summary['realizedCount'];
             $response['realizedTotal'] = $summary['realizedTotal'];
+            $response['realizedSource'] = $summary['realizedSource'];
         }
 
-        if ($fetchType === 'table' || !$fetchType) {
-            $response['purchaseRequirements'] = $this->getPurchaseRequirementList($period, $status);
+        if (!$fetchType) {
+            $pageData = app(PurchaseRequirementPageQuery::class)->paginate([
+                'status' => $request->query('status', 'all'),
+                'period' => $period,
+                'view' => $request->query('view', 'customer'),
+                'per_page' => 'all',
+                'search' => trim((string) $request->query('search', '')),
+                'start_date' => $request->query('start_date'),
+                'end_date' => $request->query('end_date'),
+            ]);
+            $response['purchaseRequirements'] = $pageData['purchaseRequirements'];
+            $response['pagination'] = $pageData['pagination'];
         }
 
         return response()->json($response);
@@ -198,6 +197,7 @@ class PurchaseRequirementController
             'status' => 'nullable|in:all,outstanding,sisa_po,realized',
             'view' => 'nullable|in:customer,material',
             'page' => 'nullable|integer|min:1',
+            'known_total' => 'nullable|integer|min:0',
             'search' => 'nullable|string|max:200',
             'start_date' => 'required_if:period,range|nullable|date_format:Y-m-d',
             'end_date' => 'required_if:period,range|nullable|date_format:Y-m-d|after_or_equal:start_date',
@@ -208,49 +208,6 @@ class PurchaseRequirementController
         return response()->json($data)
             ->header('Cache-Control', 'no-store')
             ->header('X-Data-Source', $data['source']);
-    }
-
-    private function getPurchaseRequirementMaterialList($period, $status, $search, $startDate = null, $endDate = null)
-    {
-        if ($status === 'outstanding') {
-            return app(PurchaseRequirementPageQuery::class)->paginate([
-                'status' => $status, 'period' => $period, 'view' => 'material',
-                'search' => $search, 'per_page' => 'all',
-                'start_date' => $startDate, 'end_date' => $endDate,
-            ])['purchaseRequirements'];
-        }
-        if (!in_array($status, ['all', 'outstanding', 'sisa_po', 'realized'], true)) {
-            $status = 'all';
-        }
-        $query = DB::table('tb_detailpr as d')
-            ->select('d.no_pr', 'd.date', 'd.ref_po', 'd.for_customer', 'd.material', 'd.qty', 'd.unit', 'd.sisa_pr');
-
-        if ($search !== '') {
-            $query->where('d.material', 'like', '%' . $search . '%');
-        }
-
-        if ($status === 'outstanding') {
-            $query->whereRaw('coalesce(d.sisa_pr, 0) = coalesce(d.qty, 0)');
-        } elseif ($status === 'sisa_po') {
-            $query->whereRaw('coalesce(d.sisa_pr, 0) > 0 and coalesce(d.sisa_pr, 0) <> coalesce(d.qty, 0)');
-        } elseif ($status === 'realized') {
-            $query->whereRaw('coalesce(d.sisa_pr, 0) = 0');
-        }
-
-        $dateExpr = "coalesce(date(d.date), str_to_date(d.date, '%Y-%m-%d'), str_to_date(d.date, '%Y/%m/%d'), str_to_date(d.date, '%d.%m.%Y'), str_to_date(d.date, '%d/%m/%Y'), str_to_date(d.date, '%d-%m-%Y'))";
-        if ($period === 'today') {
-            $query->whereRaw("{$dateExpr} = current_date()");
-        } elseif ($period === 'this_week') {
-            $query->whereRaw("{$dateExpr} between date_sub(current_date(), interval weekday(current_date()) day) and date_add(current_date(), interval (6 - weekday(current_date())) day)");
-        } elseif ($period === 'this_month') {
-            $query->whereRaw("year({$dateExpr}) = year(current_date()) and month({$dateExpr}) = month(current_date())");
-        } elseif ($period === 'this_year') {
-            $query->whereRaw("year({$dateExpr}) = year(current_date())");
-        } elseif ($period === 'range' && $startDate && $endDate) {
-            $query->whereRaw("{$dateExpr} between ? and ?", [$startDate, $endDate]);
-        }
-
-        return $query->orderByDesc('d.no_pr')->get();
     }
 
     public function overdueInvoices(Request $request)
@@ -301,167 +258,44 @@ class PurchaseRequirementController
         ]);
     }
 
-    private function getCommonQueries($period)
+    private function getCommonQueries()
     {
-        $docDateExpr = "coalesce(date(tgl), str_to_date(tgl, '%Y-%m-%d'), str_to_date(tgl, '%Y/%m/%d'), str_to_date(tgl, '%d/%m/%Y'), str_to_date(tgl, '%d-%m-%Y'), str_to_date(tgl, '%d.%m.%Y'))";
-
         $detailAgg = DB::table('tb_detailpr')
             ->select(
                 'no_pr',
                 DB::raw('sum(coalesce(total_price, 0)) as total_price_sum'),
                 DB::raw('count(*) as total_items'),
                 DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), coalesce(cast(qty as decimal(18,4)), 0)) >= coalesce(cast(qty as decimal(18,4)), 0) and coalesce(cast(qty as decimal(18,4)), 0) > 0 then 1 else 0 end) as untouched_items'),
-                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), coalesce(cast(qty as decimal(18,4)), 0)) <> coalesce(cast(qty as decimal(18,4)), 0) then 1 else 0 end) as touched_items'),
                 DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), cast(qty as decimal(18,4)), 0) <= 0 then 1 else 0 end) as realized_items')
             )
             ->groupBy('no_pr');
 
-        $poAgg = DB::table('tb_detailpo')
-            ->select(
-                'ref_pr',
-                DB::raw("max({$docDateExpr}) as latest_po_date")
-            )
-            ->whereNotNull('ref_pr')
-            ->groupBy('ref_pr');
-
-        $now = now();
-        $startDate = null;
-        $endDate = null;
-
-        if ($period === 'today') {
-            $startDate = $endDate = $now->toDateString();
-        } elseif ($period === 'this_week') {
-            $startDate = $now->startOfWeek()->toDateString();
-            $endDate = $now->endOfWeek()->toDateString();
-        } elseif ($period === 'this_month') {
-            $startDate = $now->startOfMonth()->toDateString();
-            $endDate = $now->endOfMonth()->toDateString();
-        } elseif ($period === 'this_year') {
-            $startDate = $now->startOfYear()->toDateString();
-            $endDate = $now->endOfYear()->toDateString();
-        }
-
-        $periodFilterRaw = "1=1";
-        if ($startDate && $endDate) {
-            $periodFilterRaw = "latest_po_date between '{$startDate}' and '{$endDate}'";
-        }
-
-        return compact('detailAgg', 'poAgg', 'periodFilterRaw');
+        return $detailAgg;
     }
 
     private function getPurchaseRequirementSummary($period)
     {
-        $common = $this->getCommonQueries($period);
-        $detailAgg = $common['detailAgg'];
-        $poAgg = $common['poAgg'];
-        $periodFilterRaw = $common['periodFilterRaw'];
+        $outstanding = app(PurchaseRequirementPageQuery::class)->outstandingSummary();
+        $realized = app(PurchaseRequirementPageQuery::class)->realizedSummary($period);
+        $detailAgg = $this->getCommonQueries();
 
         $summaryData = DB::table($detailAgg, 'detail')
-            ->leftJoinSub($poAgg, 'po', 'detail.no_pr', '=', 'po.ref_pr')
             ->select(
-                DB::raw('sum(case when detail.total_items > 0 and detail.untouched_items = detail.total_items then 1 else 0 end) as outstanding_count'),
-                DB::raw('sum(case when detail.total_items > 0 and detail.untouched_items = detail.total_items then detail.total_price_sum else 0 end) as outstanding_total'),
                 DB::raw('sum(case when detail.total_items > 0 and detail.untouched_items < detail.total_items and detail.realized_items < detail.total_items then 1 else 0 end) as sisa_po_count'),
-                DB::raw('sum(case when detail.total_items > 0 and detail.untouched_items < detail.total_items and detail.realized_items < detail.total_items then detail.total_price_sum else 0 end) as sisa_po_total'),
-                DB::raw("sum(case when detail.total_items > 0 and detail.realized_items = detail.total_items and po.latest_po_date is not null and {$periodFilterRaw} then 1 else 0 end) as realized_count"),
-                DB::raw("sum(case when detail.total_items > 0 and detail.realized_items = detail.total_items and po.latest_po_date is not null and {$periodFilterRaw} then detail.total_price_sum else 0 end) as realized_total")
+                DB::raw('sum(case when detail.total_items > 0 and detail.untouched_items < detail.total_items and detail.realized_items < detail.total_items then detail.total_price_sum else 0 end) as sisa_po_total')
             )
             ->first();
 
         return [
-            'outstandingCount' => (int) ($summaryData->outstanding_count ?? 0),
-            'outstandingTotal' => (float) ($summaryData->outstanding_total ?? 0),
-            'outstandingSource' => 'mysql',
+            'outstandingCount' => $outstanding['outstandingCount'],
+            'outstandingTotal' => $outstanding['outstandingTotal'],
+            'outstandingSource' => $outstanding['source'],
             'sisaPoCount'      => (int) ($summaryData->sisa_po_count ?? 0),
             'sisaPoTotal'      => (float) ($summaryData->sisa_po_total ?? 0),
-            'realizedCount'    => (int) ($summaryData->realized_count ?? 0),
-            'realizedTotal'    => (float) ($summaryData->realized_total ?? 0),
+            'realizedCount'    => $realized['realizedCount'],
+            'realizedTotal'    => $realized['realizedTotal'],
+            'realizedSource'   => $realized['source'],
         ];
-    }
-
-    private function getPurchaseRequirementList($period, $status = 'all')
-    {
-        if ($status === 'outstanding') {
-            return app(PurchaseRequirementPageQuery::class)->paginate([
-                'status' => $status, 'period' => 'all', 'per_page' => 'all',
-            ])['purchaseRequirements'];
-        }
-        if (!in_array($status, ['all', 'outstanding', 'sisa_po', 'realized'], true)) {
-            $status = 'all';
-        }
-
-        $detailAgg = DB::table('tb_detailpr')
-                ->select(
-                    'no_pr',
-                    DB::raw('count(*) as total_items'),
-                    DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), coalesce(cast(qty as decimal(18,4)), 0)) >= coalesce(cast(qty as decimal(18,4)), 0) and coalesce(cast(qty as decimal(18,4)), 0) > 0 then 1 else 0 end) as untouched_items'),
-                    DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), cast(qty as decimal(18,4)), 0) <= 0 then 1 else 0 end) as realized_items')
-                )
-                ->groupBy('no_pr');
-
-            $needsPoDate = in_array($status, ['all', 'realized'], true);
-            $periodFilterRaw = '1=1';
-
-            if ($needsPoDate) {
-                $common = $this->getCommonQueries($period);
-                $poAgg = $common['poAgg'];
-                $periodFilterRaw = $common['periodFilterRaw'];
-            } else {
-                $poAgg = DB::table('tb_po')
-                    ->select('ref_pr')
-                    ->whereNotNull('ref_pr')
-                    ->groupBy('ref_pr');
-            }
-
-            $query = DB::table('tb_pr as pr')
-                ->leftJoinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
-                ->leftJoinSub($poAgg, 'po', 'pr.no_pr', '=', 'po.ref_pr')
-                ->select(
-                    'pr.no_pr',
-                    'pr.date',
-                    'pr.for_customer',
-                    'pr.ref_po',
-                    'pr.jenis_pr',
-                    'pr.payment as payment',
-                    DB::raw('detail.total_items, detail.untouched_items, detail.realized_items'),
-                    DB::raw('case when detail.no_pr is not null and detail.total_items > 0 and detail.untouched_items = detail.total_items then 1 else 0 end as outstanding_count'),
-                    DB::raw("case when detail.no_pr is not null and detail.total_items > 0 and detail.realized_items = detail.total_items and po.latest_po_date is not null and {$periodFilterRaw} then 1 else 0 end as realized_count"),
-                    DB::raw('case when detail.no_pr is not null and detail.total_items > 0 and detail.untouched_items < detail.total_items and detail.realized_items < detail.total_items then 1 else 0 end as sisa_po_count'),
-                    DB::raw('case when po.ref_pr is null then 1 else 0 end as can_delete')
-                );
-
-            if ($status === 'outstanding') {
-                $query->where('detail.total_items', '>', 0)
-                    ->whereColumn('detail.untouched_items', '=', 'detail.total_items');
-            } elseif ($status === 'sisa_po') {
-                $query->where('detail.total_items', '>', 0)
-                    ->whereColumn('detail.untouched_items', '<', 'detail.total_items')
-                    ->whereColumn('detail.realized_items', '<', 'detail.total_items');
-            } elseif ($status === 'realized') {
-                $query->where('detail.total_items', '>', 0)
-                    ->whereColumn('detail.realized_items', '=', 'detail.total_items');
-
-                if ($periodFilterRaw !== '1=1') {
-                    $query->whereRaw(str_replace('latest_po_date', 'po.latest_po_date', $periodFilterRaw));
-                }
-            }
-
-            $purchaseRequirements = $query
-                ->orderBy('pr.date', 'desc')
-                ->orderBy('pr.no_pr', 'desc')
-                ->get();
-
-            $purchaseRequirements->transform(function ($item) {
-                if ($item->date) {
-                    try {
-                        $item->date = \Carbon\Carbon::parse($item->date)->format('d.m.Y');
-                    } catch (\Throwable $e) {
-                    }
-                }
-                return $item;
-            });
-
-        return $purchaseRequirements;
     }
 
     public function details(Request $request)
@@ -601,87 +435,23 @@ class PurchaseRequirementController
 
     public function realized(Request $request)
     {
-        $period = $request->query('period', 'today');
+        $period = (string) $request->query('period', 'today');
+        abort_unless(in_array($period, ['all', 'today', 'this_week', 'this_month', 'this_year'], true), 422);
 
-        $docDateExpr = "coalesce(date(tgl), str_to_date(tgl, '%Y-%m-%d'), str_to_date(tgl, '%Y/%m/%d'), str_to_date(tgl, '%d/%m/%Y'), str_to_date(tgl, '%d-%m-%Y'), str_to_date(tgl, '%d.%m.%Y'))";
+        $reader = app(PurchaseRequirementPageQuery::class);
+        $data = $reader->paginate([
+            'status' => 'realized',
+            'period' => $period,
+            'view' => 'customer',
+            'per_page' => 'all',
+        ]);
+        $summary = $reader->realizedSummary($period);
 
-        $detailAgg = DB::table('tb_detailpr')
-            ->select(
-                'no_pr',
-                DB::raw('sum(coalesce(total_price, 0)) as total_price_sum'),
-                DB::raw('count(*) as total_items'),
-                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), cast(qty as decimal(18,4)), 0) <= 0 then 1 else 0 end) as realized_items')
-            )
-            ->groupBy('no_pr');
-
-        $poAgg = DB::table('tb_detailpo')
-            ->select('ref_pr', DB::raw("max({$docDateExpr}) as latest_po_date"))
-            ->whereNotNull('ref_pr')
-            ->groupBy('ref_pr');
-
-        $query = DB::table('tb_pr as pr')
-            ->joinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
-            ->joinSub($poAgg, 'po', 'pr.no_pr', '=', 'po.ref_pr')
-            ->where('detail.total_items', '>', 0)
-            ->whereColumn('detail.realized_items', '=', 'detail.total_items')
-            ->select(
-                'pr.no_pr',
-                'pr.date as date',
-                'pr.date as pr_date',
-                'po.latest_po_date',
-                'pr.for_customer',
-                'pr.ref_po',
-                'pr.jenis_pr',
-                'pr.payment as payment',
-                DB::raw('0 as outstanding_count'),
-                DB::raw('1 as realized_count'),
-                'detail.total_price_sum'
-            );
-
-        $now = now();
-        if ($period === 'today') {
-            $query->whereRaw("po.latest_po_date = ?", [$now->toDateString()]);
-        } elseif ($period === 'this_week') {
-            $query->whereRaw("po.latest_po_date between ? and ?", [
-                $now->startOfWeek()->toDateString(),
-                $now->endOfWeek()->toDateString(),
-            ]);
-        } elseif ($period === 'this_month') {
-            $query->whereRaw("month(po.latest_po_date) = ?", [$now->month])
-                ->whereRaw("year(po.latest_po_date) = ?", [$now->year]);
-        } elseif ($period === 'this_year') {
-            $query->whereRaw("year(po.latest_po_date) = ?", [$now->year]);
-        }
-
-        $purchaseRequirements = $query
-            ->orderBy('po.latest_po_date', 'desc')
-            ->orderBy('pr.no_pr', 'desc')
-            ->get();
-
-        $realizedTotal = $purchaseRequirements->sum('total_price_sum');
-
-        $purchaseRequirements->transform(function ($item) {
-            $rawDate = trim((string) ($item->date ?? ''));
-            if ($rawDate !== '') {
-                try {
-                    $item->date = \Carbon\Carbon::parse($rawDate)->format('d.m.Y');
-                } catch (\Throwable $e) {
-                    $item->date = $rawDate;
-                }
-            }
-            $item->pr_date = $item->date;
-            return $item;
-        });
-
-        $data = [
-            'purchaseRequirements' => $purchaseRequirements,
-            'realizedTotal' => (float) $realizedTotal,
-        ];
-
-        return response()->json($data)
-            ->header('Cache-Control', 'no-cache, no-store, must-revalidate')
-            ->header('Pragma', 'no-cache')
-            ->header('Expires', '0');
+        return response()->json([
+            'purchaseRequirements' => $data['purchaseRequirements'],
+            'realizedTotal' => $summary['realizedTotal'],
+        ])->header('Cache-Control', 'no-store')
+            ->header('X-Data-Source', $data['source']);
     }
 
     public function create()

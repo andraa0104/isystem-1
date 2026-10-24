@@ -3,14 +3,11 @@
 namespace App\Services\Marketing;
 
 use Illuminate\Database\Query\Builder;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
 class PurchaseRequirementPageQuery
 {
-    private const PO_DATE = "coalesce(date(tgl), str_to_date(tgl, '%Y-%m-%d'), str_to_date(tgl, '%Y/%m/%d'), str_to_date(tgl, '%d/%m/%Y'), str_to_date(tgl, '%d-%m-%Y'), str_to_date(tgl, '%d.%m.%Y'))";
-
     private function numberSql($connection, string $column): string
     {
         return $connection->getConfig('driver') === 'clickhouse'
@@ -18,14 +15,23 @@ class PurchaseRequirementPageQuery
             : "cast({$column} as decimal(18,4))";
     }
 
-    private function readOutstanding(callable $read): array
+    private function dateSql($connection, string $column): string
+    {
+        if ($connection->getConfig('driver') === 'clickhouse') {
+            return "coalesce(toDate(parseDateTimeBestEffortOrNull(nullIf(trimBoth(toString({$column})), ''))), toDateOrNull(concat(substring(toString({$column}), 7, 4), '-', substring(toString({$column}), 4, 2), '-', substring(toString({$column}), 1, 2))))";
+        }
+
+        return "coalesce(date({$column}), str_to_date({$column}, '%Y-%m-%d'), str_to_date({$column}, '%Y/%m/%d'), str_to_date({$column}, '%d/%m/%Y'), str_to_date({$column}, '%d-%m-%Y'), str_to_date({$column}, '%d.%m.%Y'))";
+    }
+
+    private function readAnalytics(string $status, callable $read): array
     {
         $mysql = DB::connection();
         if (config('purchase-requirement.clickhouse.enabled', true)) {
             try {
                 return $read(new ClickHouseReadConnection($mysql->getDatabaseName())) + ['source' => 'clickhouse'];
             } catch (\Throwable $error) {
-                Log::warning('PR outstanding ClickHouse read failed; using MySQL.', ['exception' => class_basename($error)]);
+                Log::warning("PR {$status} ClickHouse read failed; using MySQL.", ['exception' => class_basename($error)]);
             }
         }
         return $read($mysql) + ['source' => 'mysql'];
@@ -33,7 +39,7 @@ class PurchaseRequirementPageQuery
 
     public function outstandingSummary(): array
     {
-        return $this->readOutstanding(function ($connection) {
+        return $this->readAnalytics('outstanding', function ($connection) {
             $price = $this->numberSql($connection, 'total_price');
             $details = $this->statusQuery($connection)->selectRaw("sum(coalesce({$price}, 0)) as total_price_sum");
             $row = $connection->table('tb_pr as pr')
@@ -43,6 +49,47 @@ class PurchaseRequirementPageQuery
                 ->first();
             return ['outstandingCount' => (int) ($row->outstanding_count ?? 0),
                 'outstandingTotal' => (float) ($row->outstanding_total ?? 0)];
+        });
+    }
+
+    public function realizedSummary(string $period = 'today'): array
+    {
+        return $this->readAnalytics('realized', function ($connection) use ($period) {
+            $price = $this->numberSql($connection, 'total_price');
+            $details = $this->statusQuery($connection)->selectRaw("sum(coalesce({$price}, 0)) as total_price_sum");
+            $poDate = $this->dateSql($connection, 'tgl');
+            $poDates = $connection->table('tb_detailpo')
+                ->select('ref_pr')
+                ->selectRaw("max({$poDate}) as latest_po_date")
+                ->whereNotNull('ref_pr')
+                ->groupBy('ref_pr');
+            $query = $connection->table('tb_pr as pr')
+                ->joinSub($details, 'detail', 'detail.no_pr', '=', 'pr.no_pr')
+                ->joinSub($poDates, 'po', 'po.ref_pr', '=', 'pr.no_pr')
+                ->where('detail.total_items', '>', 0)
+                ->whereColumn('detail.realized_items', 'detail.total_items')
+                ->whereNotNull('po.latest_po_date');
+
+            if ($period !== 'all') {
+                $now = now();
+                [$start, $end] = match ($period) {
+                    'today' => [$now->toDateString(), $now->toDateString()],
+                    'this_week' => [$now->copy()->startOfWeek()->toDateString(), $now->copy()->endOfWeek()->toDateString()],
+                    'this_month' => [$now->copy()->startOfMonth()->toDateString(), $now->copy()->endOfMonth()->toDateString()],
+                    'this_year' => [$now->copy()->startOfYear()->toDateString(), $now->copy()->endOfYear()->toDateString()],
+                    default => [$now->toDateString(), $now->toDateString()],
+                };
+                $query->whereBetween('po.latest_po_date', [$start, $end]);
+            }
+
+            $row = $query
+                ->selectRaw('count(*) as realized_count, coalesce(sum(detail.total_price_sum), 0) as realized_total')
+                ->first();
+
+            return [
+                'realizedCount' => (int) ($row->realized_count ?? 0),
+                'realizedTotal' => (float) ($row->realized_total ?? 0),
+            ];
         });
     }
 
@@ -76,13 +123,6 @@ class PurchaseRequirementPageQuery
                 'pr.jenis_pr as jenis_pr',
                 'pr.payment as payment',
             );
-        if ($clickhouse) {
-            $linkedPo = $connection->table('tb_po')->select('ref_pr')->selectRaw('count(*) as linked_count')->groupBy('ref_pr');
-            $query->leftJoinSub($linkedPo, 'linked_po', 'linked_po.ref_pr', '=', 'pr.no_pr')
-                ->selectRaw('case when coalesce(linked_po.linked_count, 0) > 0 then 0 else 1 end as can_delete');
-        } else {
-            $query->selectRaw('case when exists (select 1 from tb_po linked_po where linked_po.ref_pr = pr.no_pr) then 0 else 1 end as can_delete');
-        }
         if ($material) {
             $query->join('tb_detailpr as d', 'd.no_pr', '=', 'pr.no_pr')
                 ->addSelect('d.no as no', 'd.material as material', 'd.qty as qty', 'd.unit as unit', 'd.sisa_pr as sisa_pr');
@@ -97,14 +137,16 @@ class PurchaseRequirementPageQuery
             } elseif ($status === 'realized') {
                 $query->whereRaw("{$remaining} <= 0");
             }
-        } elseif ($clickhouse && in_array($status, ['outstanding', 'sisa_po'], true)) {
+        } elseif ($clickhouse && in_array($status, ['outstanding', 'sisa_po', 'realized'], true)) {
             // ClickHouse columnar engine executes grouped subquery hash-joins fast in memory.
             $query->joinSub($this->statusQuery($connection), 'detail', 'detail.no_pr', '=', 'pr.no_pr');
             if ($status === 'outstanding') {
                 $query->whereColumn('detail.untouched_items', 'detail.total_items');
-            } else {
+            } elseif ($status === 'sisa_po') {
                 $query->whereColumn('detail.untouched_items', '<', 'detail.total_items')
                     ->whereColumn('detail.realized_items', '<', 'detail.total_items');
+            } else {
+                $query->whereColumn('detail.realized_items', 'detail.total_items');
             }
         } else {
             // MySQL: use correlated subqueries backed by composite index idx_detailpr_status (no_pr, sisa_pr, qty)
@@ -124,8 +166,10 @@ class PurchaseRequirementPageQuery
             }
         }
         if ($status === 'realized') {
-            $poDates = $connection->table('tb_detailpo')->select('ref_pr')->selectRaw('max('.self::PO_DATE.') as latest_po_date')->groupBy('ref_pr');
+            $poDate = $this->dateSql($connection, 'tgl');
+            $poDates = $connection->table('tb_detailpo')->select('ref_pr')->selectRaw("max({$poDate}) as latest_po_date")->groupBy('ref_pr');
             $query->leftJoinSub($poDates, 'po', 'po.ref_pr', '=', 'pr.no_pr');
+            $query->addSelect('pr.date as pr_date', 'po.latest_po_date as latest_po_date');
             if (! $material) {
                 $query->whereNotNull('po.latest_po_date');
             }
@@ -138,11 +182,7 @@ class PurchaseRequirementPageQuery
                 }
             });
         }
-        $date = $status === 'realized' ? 'po.latest_po_date'
-            : "coalesce(date(pr.date), str_to_date(pr.date, '%d.%m.%Y'), str_to_date(pr.date, '%d/%m/%Y'), str_to_date(pr.date, '%d-%m-%Y'))";
-        if ($clickhouse && $status === 'outstanding') {
-            $date = "coalesce(toDateOrNull(substring(toString(pr.date), 1, 10)), toDateOrNull(concat(substring(toString(pr.date), 7, 4), '-', substring(toString(pr.date), 4, 2), '-', substring(toString(pr.date), 1, 2))))";
-        }
+        $date = $status === 'realized' ? 'po.latest_po_date' : $this->dateSql($connection, 'pr.date');
         $period = $filters['period'] ?? 'all';
         if ($period !== 'all') {
             $now = now();
@@ -161,8 +201,9 @@ class PurchaseRequirementPageQuery
 
     public function paginate(array $filters): array
     {
-        if (($filters['status'] ?? 'all') === 'outstanding') {
-            return $this->readOutstanding(fn ($connection) => $this->queryPage($filters, $connection));
+        $status = $filters['status'] ?? 'all';
+        if (in_array($status, ['outstanding', 'realized'], true)) {
+            return $this->readAnalytics($status, fn ($connection) => $this->queryPage($filters, $connection));
         }
         return $this->queryPage($filters, DB::connection()) + ['source' => 'mysql'];
     }
@@ -172,10 +213,18 @@ class PurchaseRequirementPageQuery
         $query = $this->query($filters, $connection);
         $size = (string) ($filters['per_page'] ?? '5');
         $page = max(1, (int) ($filters['page'] ?? 1));
+        $knownTotal = isset($filters['known_total']) && is_numeric($filters['known_total'])
+            ? max(0, (int) $filters['known_total'])
+            : null;
         if ($size === 'all') {
             $rows = $query->get();
             $total = $rows->count();
             $pages = $page = 1;
+        } elseif ($knownTotal !== null) {
+            $total = $knownTotal;
+            $pages = max(1, (int) ceil($total / (int) $size));
+            $page = min($page, $pages);
+            $rows = $query->forPage($page, (int) $size)->get();
         } elseif ($page === 1) {
             $rows = (clone $query)->limit((int) $size + 1)->get();
             $total = $rows->count() <= (int) $size ? $rows->count() : (clone $query)->reorder()->count();
@@ -194,18 +243,31 @@ class PurchaseRequirementPageQuery
         }
         $ids = $rows->pluck('no_pr')->unique()->values()->all();
         if ($ids !== []) {
-            $knownStatus = ($filters['view'] ?? 'customer') !== 'material' && ($filters['status'] ?? 'all') !== 'all';
+            $linkedNumbers = collect();
+            foreach (array_chunk($ids, 500) as $chunk) {
+                $linkedNumbers = $linkedNumbers->merge(
+                    $connection->table('tb_po')
+                        ->whereIn('ref_pr', $chunk)
+                        ->whereNotNull('ref_pr')
+                        ->distinct()
+                        ->pluck('ref_pr')
+                );
+            }
+            $linkedNumbers = $linkedNumbers
+                ->map(fn ($number) => trim((string) $number))
+                ->filter()
+                ->flip();
+
+            $knownStatus = ($filters['status'] ?? 'all') !== 'all';
             $stats = collect();
             if (!$knownStatus) {
                 $statsQuery = $this->statusQuery($connection)->whereIn('no_pr', $ids);
-                // An outstanding material has positive remaining quantity, so its
-                // document cannot be fully realized. Avoid the legacy PO-date lookup.
-                $statsQuery->selectRaw(($filters['status'] ?? 'all') === 'outstanding'
-                    ? '0 as has_po_date'
-                    : 'case when exists (select 1 from tb_detailpo linked_detail_po where linked_detail_po.ref_pr = tb_detailpr.no_pr and '.self::PO_DATE.' is not null) then 1 else 0 end as has_po_date');
+                $linkedPoDate = $this->dateSql($connection, 'linked_detail_po.tgl');
+                $statsQuery->selectRaw('case when exists (select 1 from tb_detailpo linked_detail_po where linked_detail_po.ref_pr = tb_detailpr.no_pr and '.$linkedPoDate.' is not null) then 1 else 0 end as has_po_date');
                 $stats = $statsQuery->get()->keyBy('no_pr');
             }
             foreach ($rows as $row) {
+                $row->can_delete = $linkedNumbers->has(trim((string) $row->no_pr)) ? 0 : 1;
                 if ($knownStatus) {
                     $row->outstanding_count = (int) ($filters['status'] === 'outstanding');
                     $row->sisa_po_count = (int) ($filters['status'] === 'sisa_po');

@@ -21,7 +21,11 @@ import { Skeleton } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/app-layout';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { createLatestRequest, readPoInResponse } from '@/lib/purchase-order-in';
-import { getPrProgress, readPrFilters } from '@/lib/purchase-requirement';
+import {
+    applyKnownPrTotal,
+    getPrProgress,
+    readPrFilters,
+} from '@/lib/purchase-requirement';
 import {
     AlertCircle,
     AlertTriangle,
@@ -800,6 +804,7 @@ export default function PurchaseRequirementIndex({
     const [tableError, setTableError] = useState('');
     const [summaryError, setSummaryError] = useState('');
     const [serverPages, setServerPages] = useState({});
+    const paginationContexts = useRef({});
     const [searchTerm, setSearchTerm] = useState(String(savedFilters.search ?? ''));
     const [activeTab, setActiveTab] = useState('customer');
     const [stockInsights, setStockInsights] = useState([]);
@@ -1150,6 +1155,10 @@ export default function PurchaseRequirementIndex({
                     params.set('start_date', startDate);
                     params.set('end_date', endDate);
                 }
+                const paginationKey = applyKnownPrTotal(
+                    params,
+                    paginationContexts.current.table,
+                );
                 const data = await readPoInResponse(
                     await fetch(`/marketing/purchase-requirement/data?${params}`, {
                         signal,
@@ -1162,6 +1171,11 @@ export default function PurchaseRequirementIndex({
                     throw new Error('Respons daftar PR tidak lengkap.');
                 if (!isCurrent()) return;
                 setPurchaseRequirementsList(data.purchaseRequirements);
+                paginationContexts.current.table = {
+                    key: paginationKey,
+                    page: Number(data.pagination.page),
+                    total: Number(data.pagination.total),
+                };
                 setServerPages((prev) => ({ ...prev, table: data.pagination }));
                 if (Number(data.pagination.page) !== currentPage)
                     setCurrentPage(Number(data.pagination.page));
@@ -1493,6 +1507,10 @@ export default function PurchaseRequirementIndex({
                 params.set('start_date', tableStartDate);
                 params.set('end_date', tableEndDate);
             }
+            const paginationKey = applyKnownPrTotal(
+                params,
+                paginationContexts.current[group],
+            );
             const data = await readPoInResponse(
                 await fetch(`/marketing/purchase-requirement/data?${params}`, {
                     signal,
@@ -1505,6 +1523,11 @@ export default function PurchaseRequirementIndex({
                 throw new Error('Respons daftar PR tidak lengkap.');
             if (!isCurrent()) return;
             setList(data.purchaseRequirements);
+            paginationContexts.current[group] = {
+                key: paginationKey,
+                page: Number(data.pagination.page),
+                total: Number(data.pagination.total),
+            };
             setServerPages((prev) => ({ ...prev, [group]: data.pagination }));
             if (Number(data.pagination.page) !== page)
                 setPage(Number(data.pagination.page));

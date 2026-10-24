@@ -640,6 +640,100 @@ class PurchaseOrderInController
         }
     }
 
+    private function poinDateSql($connection, string $column): string
+    {
+        if ($connection->getConfig('driver') === 'clickhouse') {
+            return $column;
+        }
+
+        return "coalesce(date({$column}), str_to_date({$column}, '%Y-%m-%d'), str_to_date({$column}, '%Y/%m/%d'), str_to_date({$column}, '%d/%m/%Y'), str_to_date({$column}, '%d-%m-%Y'), str_to_date({$column}, '%d.%m.%Y'))";
+    }
+
+    private function applyRealizedDateFilter($query, string $dateExpression, string $filter, string $startDate, string $endDate): void
+    {
+        $now = now();
+        $bounds = match ($filter) {
+            'today' => [$now->copy()->toDateString(), $now->copy()->toDateString()],
+            'this_week' => [$now->copy()->startOfWeek()->toDateString(), $now->copy()->endOfWeek()->toDateString()],
+            'this_month' => [$now->copy()->startOfMonth()->toDateString(), $now->copy()->endOfMonth()->toDateString()],
+            'this_year' => [$now->copy()->startOfYear()->toDateString(), $now->copy()->endOfYear()->toDateString()],
+            'range' => $startDate !== '' && $endDate !== '' ? [$startDate, $endDate] : null,
+            default => null,
+        };
+
+        if ($bounds !== null) {
+            $query->whereRaw("{$dateExpression} between ? and ?", $bounds);
+        } elseif ($filter === 'range') {
+            $query->whereRaw('1 = 0');
+        }
+    }
+
+    private function getRealizedSummaryFromConnection(
+        $connection,
+        string $summaryScope,
+        string $dateFilter,
+        string $startDate,
+        string $endDate,
+        string $prefix,
+    ): array {
+        $qty = $this->poinNumericSql($connection, 'qty');
+        $sisaPr = $this->poinNumericSql($connection, 'sisa_qtypr');
+        $sisaDo = $this->poinNumericSql($connection, 'sisa_qtydo');
+        $detailStats = $connection->table('tb_detailpoin')
+            ->where('kode_poin', 'like', $prefix.'.POIN-%')
+            ->select('kode_poin')
+            ->selectRaw('count(*) as total_items')
+            ->selectRaw("sum(case when coalesce({$sisaPr}, {$qty}, 0) > 0 then 1 else 0 end) as unrealized_items")
+            ->selectRaw("sum(case when coalesce({$sisaDo}, {$qty}, 0) > 0 then 1 else 0 end) as do_unrealized_items")
+            ->groupBy('kode_poin');
+        $poinNumber = $connection->getConfig('driver') === 'clickhouse'
+            ? 'lower(trim(p.no_poin))'
+            : 'lower(trim(CONVERT(p.no_poin USING latin1)))';
+        $summary = [];
+
+        if (in_array($summaryScope, ['realized', 'realized_do'], true)) {
+            $doDate = $this->poinDateSql($connection, 'kdo.pos_tgl');
+            $doReferences = $connection->table('tb_kddo')
+                ->whereRaw("trim(coalesce(ref_po, '')) <> ''")
+                ->whereRaw("trim(coalesce(no_do, '')) <> ''")
+                ->selectRaw('lower(trim(ref_po)) as ref_po_key, lower(trim(no_do)) as no_do, pos_tgl')
+                ->distinct();
+            $query = $connection->query()->fromSub($doReferences, 'kdo')
+                ->join('tb_poin as p', function ($join) use ($prefix, $poinNumber) {
+                    $join->where('p.kode_poin', 'like', $prefix.'.POIN-%');
+                    $join->whereRaw("kdo.ref_po_key = {$poinNumber}");
+                })
+                ->joinSub($detailStats, 'do_ds', 'do_ds.kode_poin', '=', 'p.kode_poin')
+                ->whereRaw('coalesce(do_ds.total_items, 0) > 0')
+                ->whereRaw('coalesce(do_ds.do_unrealized_items, 0) = 0');
+            $this->applyRealizedDateFilter($query, $doDate, $dateFilter, $startDate, $endDate);
+            $row = $query->selectRaw('count(distinct lower(trim(kdo.no_do))) as realized_do')->first();
+            $summary['realized_do'] = (int) ($row->realized_do ?? 0);
+        }
+
+        if (in_array($summaryScope, ['realized', 'realized_pr'], true)) {
+            $prDate = $this->poinDateSql($connection, 'dpr.date');
+            $prReferences = $connection->table('tb_detailpr')
+                ->whereRaw("trim(coalesce(ref_po, '')) <> ''")
+                ->whereRaw("trim(coalesce(no_pr, '')) <> ''")
+                ->selectRaw('lower(trim(ref_po)) as ref_po_key, date')
+                ->distinct();
+            $query = $connection->query()->fromSub($prReferences, 'dpr')
+                ->join('tb_poin as p', function ($join) use ($prefix, $poinNumber) {
+                    $join->where('p.kode_poin', 'like', $prefix.'.POIN-%');
+                    $join->whereRaw("dpr.ref_po_key = {$poinNumber}");
+                })
+                ->joinSub($detailStats, 'pr_ds', 'pr_ds.kode_poin', '=', 'p.kode_poin')
+                ->whereRaw('coalesce(pr_ds.total_items, 0) > 0')
+                ->whereRaw('coalesce(pr_ds.unrealized_items, 0) = 0');
+            $this->applyRealizedDateFilter($query, $prDate, $dateFilter, $startDate, $endDate);
+            $row = $query->selectRaw('count(distinct lower(trim(p.kode_poin))) as realized_pr')->first();
+            $summary['realized_pr'] = (int) ($row->realized_pr ?? 0);
+        }
+
+        return ['summary' => $summary];
+    }
+
     private function getPurchaseOrderInMaterialData(
         string $search,
         ?int $perPage,
@@ -810,12 +904,13 @@ class PurchaseOrderInController
         $deadlineFilter = 'all',
         $readConnection = null
     ) {
-        $usesOutstandingReplica = ($summaryOnly && in_array($summaryScope, [
+        $usesClickhouseReplica = ($summaryOnly && in_array($summaryScope, [
             'operational', 'outstanding', 'outstanding_pr', 'outstanding_do',
+            'realized', 'realized_pr', 'realized_do',
         ], true)) || (!$summaryOnly && ($isPartial || $rowsOnly) && in_array($statusFilter, [
             'outstanding', 'outstanding_pr', 'outstanding_do',
         ], true));
-        if ($readConnection === null && $usesOutstandingReplica) {
+        if ($readConnection === null && $usesClickhouseReplica) {
             return $this->safeClickhouseRead(fn ($conn) => $this->getPurchaseOrderInData(
                 $search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly,
                 $summaryScope, $rowsOnly, $paginationOnly, $dateFilter, $startDate,
@@ -904,6 +999,17 @@ class PurchaseOrderInController
                         ],
                     ];
                 });
+            }
+
+            if ($summaryOnly && in_array($summaryScope, ['realized', 'realized_pr', 'realized_do'], true)) {
+                return $this->getRealizedSummaryFromConnection(
+                    $readConnection,
+                    $summaryScope,
+                    $dateFilter,
+                    $startDate,
+                    $endDate,
+                    $prefix,
+                );
             }
 
             // Filter "Semua Data" tidak membutuhkan status turunan dari detail,
