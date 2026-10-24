@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Marketing;
 
 use App\Services\Marketing\PurchaseRequirementInsightService;
+use App\Services\Marketing\PurchaseRequirementPageQuery;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -176,6 +177,7 @@ class PurchaseRequirementController
             $summary = $this->getPurchaseRequirementSummary($period);
             $response['outstandingCount'] = $summary['outstandingCount'];
             $response['outstandingTotal'] = $summary['outstandingTotal'];
+            $response['outstandingSource'] = $summary['outstandingSource'];
             $response['sisaPoCount'] = $summary['sisaPoCount'];
             $response['sisaPoTotal'] = $summary['sisaPoTotal'];
             $response['realizedCount'] = $summary['realizedCount'];
@@ -202,12 +204,21 @@ class PurchaseRequirementController
         ]);
         $size = (string) $request->query('per_page', '5');
         abort_unless($size === 'all' || (ctype_digit($size) && (int) $size >= 1 && (int) $size <= 100), 422);
-        return response()->json(app(\App\Services\Marketing\PurchaseRequirementPageQuery::class)->paginate($request->query()))
-            ->header('Cache-Control', 'no-store');
+        $data = app(PurchaseRequirementPageQuery::class)->paginate($request->query());
+        return response()->json($data)
+            ->header('Cache-Control', 'no-store')
+            ->header('X-Data-Source', $data['source']);
     }
 
     private function getPurchaseRequirementMaterialList($period, $status, $search, $startDate = null, $endDate = null)
     {
+        if ($status === 'outstanding') {
+            return app(PurchaseRequirementPageQuery::class)->paginate([
+                'status' => $status, 'period' => $period, 'view' => 'material',
+                'search' => $search, 'per_page' => 'all',
+                'start_date' => $startDate, 'end_date' => $endDate,
+            ])['purchaseRequirements'];
+        }
         if (!in_array($status, ['all', 'outstanding', 'sisa_po', 'realized'], true)) {
             $status = 'all';
         }
@@ -340,6 +351,7 @@ class PurchaseRequirementController
 
     private function getPurchaseRequirementSummary($period)
     {
+        $outstanding = app(PurchaseRequirementPageQuery::class)->outstandingSummary();
         $common = $this->getCommonQueries($period);
         $detailAgg = $common['detailAgg'];
         $poAgg = $common['poAgg'];
@@ -349,8 +361,6 @@ class PurchaseRequirementController
             ->joinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
             ->leftJoinSub($poAgg, 'po', 'pr.no_pr', '=', 'po.ref_pr')
             ->select(
-                DB::raw('sum(case when detail.total_items > 0 and detail.untouched_items = detail.total_items then 1 else 0 end) as outstanding_count'),
-                DB::raw('sum(case when detail.total_items > 0 and detail.untouched_items = detail.total_items then detail.total_price_sum else 0 end) as outstanding_total'),
                 DB::raw('sum(case when detail.total_items > 0 and detail.untouched_items < detail.total_items and detail.realized_items < detail.total_items then 1 else 0 end) as sisa_po_count'),
                 DB::raw('sum(case when detail.total_items > 0 and detail.untouched_items < detail.total_items and detail.realized_items < detail.total_items then detail.total_price_sum else 0 end) as sisa_po_total'),
                 DB::raw("sum(case when detail.total_items > 0 and detail.realized_items = detail.total_items and po.latest_po_date is not null and {$periodFilterRaw} then 1 else 0 end) as realized_count"),
@@ -359,8 +369,9 @@ class PurchaseRequirementController
             ->first();
 
         return [
-            'outstandingCount' => (int) ($summaryData->outstanding_count ?? 0),
-            'outstandingTotal' => (float) ($summaryData->outstanding_total ?? 0),
+            'outstandingCount' => $outstanding['outstandingCount'],
+            'outstandingTotal' => $outstanding['outstandingTotal'],
+            'outstandingSource' => $outstanding['source'],
             'sisaPoCount'      => (int) ($summaryData->sisa_po_count ?? 0),
             'sisaPoTotal'      => (float) ($summaryData->sisa_po_total ?? 0),
             'realizedCount'    => (int) ($summaryData->realized_count ?? 0),
@@ -370,6 +381,11 @@ class PurchaseRequirementController
 
     private function getPurchaseRequirementList($period, $status = 'all')
     {
+        if ($status === 'outstanding') {
+            return app(PurchaseRequirementPageQuery::class)->paginate([
+                'status' => $status, 'period' => 'all', 'per_page' => 'all',
+            ])['purchaseRequirements'];
+        }
         if (!in_array($status, ['all', 'outstanding', 'sisa_po', 'realized'], true)) {
             $status = 'all';
         }
