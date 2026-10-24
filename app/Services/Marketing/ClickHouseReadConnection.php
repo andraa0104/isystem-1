@@ -13,7 +13,9 @@ class ClickHouseReadConnection extends MySqlConnection
     public function __construct(string $tenant)
     {
         $mapping = config('purchase-requirement.clickhouse.databases', []);
-        parent::__construct(null, $mapping[$tenant] ?? $tenant, '', ['driver' => 'clickhouse', 'name' => 'clickhouse-http']);
+        $configured = config('database.connections.clickhouse.database');
+        $database = $mapping[$tenant] ?? (($configured && $configured !== 'default') ? $configured : $tenant);
+        parent::__construct(null, $database, '', ['driver' => 'clickhouse', 'name' => 'clickhouse-http']);
     }
 
     public function select($query, $bindings = [], $useReadPdo = true)

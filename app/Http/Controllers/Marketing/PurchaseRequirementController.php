@@ -123,8 +123,7 @@ class PurchaseRequirementController
      */
     public function stockInsights(PurchaseRequirementInsightService $insights)
     {
-        $data = Cache::remember('pr_stock_insights', now()->addMinutes(30), fn () => $insights->stock());
-        return response()->json($data);
+        return response()->json($insights->stock());
     }
 
     /**
@@ -132,8 +131,7 @@ class PurchaseRequirementController
      */
     public function opexInsights(PurchaseRequirementInsightService $insights)
     {
-        $data = Cache::remember('pr_opex_insights', now()->addMinutes(30), fn () => $insights->opex());
-        return response()->json($data);
+        return response()->json($insights->opex());
     }
 
     public function index(Request $request)
@@ -353,16 +351,16 @@ class PurchaseRequirementController
 
     private function getPurchaseRequirementSummary($period)
     {
-        $outstanding = app(PurchaseRequirementPageQuery::class)->outstandingSummary();
         $common = $this->getCommonQueries($period);
         $detailAgg = $common['detailAgg'];
         $poAgg = $common['poAgg'];
         $periodFilterRaw = $common['periodFilterRaw'];
 
-        $summaryData = DB::table('tb_pr as pr')
-            ->joinSub($detailAgg, 'detail', 'pr.no_pr', '=', 'detail.no_pr')
-            ->leftJoinSub($poAgg, 'po', 'pr.no_pr', '=', 'po.ref_pr')
+        $summaryData = DB::table($detailAgg, 'detail')
+            ->leftJoinSub($poAgg, 'po', 'detail.no_pr', '=', 'po.ref_pr')
             ->select(
+                DB::raw('sum(case when detail.total_items > 0 and detail.untouched_items = detail.total_items then 1 else 0 end) as outstanding_count'),
+                DB::raw('sum(case when detail.total_items > 0 and detail.untouched_items = detail.total_items then detail.total_price_sum else 0 end) as outstanding_total'),
                 DB::raw('sum(case when detail.total_items > 0 and detail.untouched_items < detail.total_items and detail.realized_items < detail.total_items then 1 else 0 end) as sisa_po_count'),
                 DB::raw('sum(case when detail.total_items > 0 and detail.untouched_items < detail.total_items and detail.realized_items < detail.total_items then detail.total_price_sum else 0 end) as sisa_po_total'),
                 DB::raw("sum(case when detail.total_items > 0 and detail.realized_items = detail.total_items and po.latest_po_date is not null and {$periodFilterRaw} then 1 else 0 end) as realized_count"),
@@ -371,9 +369,9 @@ class PurchaseRequirementController
             ->first();
 
         return [
-            'outstandingCount' => $outstanding['outstandingCount'],
-            'outstandingTotal' => $outstanding['outstandingTotal'],
-            'outstandingSource' => $outstanding['source'],
+            'outstandingCount' => (int) ($summaryData->outstanding_count ?? 0),
+            'outstandingTotal' => (float) ($summaryData->outstanding_total ?? 0),
+            'outstandingSource' => 'mysql',
             'sisaPoCount'      => (int) ($summaryData->sisa_po_count ?? 0),
             'sisaPoTotal'      => (float) ($summaryData->sisa_po_total ?? 0),
             'realizedCount'    => (int) ($summaryData->realized_count ?? 0),

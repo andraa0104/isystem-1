@@ -21,11 +21,10 @@ class PurchaseRequirementPageQuery
     private function readOutstanding(callable $read): array
     {
         $mysql = DB::connection();
-        if (config('purchase-requirement.clickhouse.enabled', true) && !Cache::has('pr_clickhouse_offline')) {
+        if (config('purchase-requirement.clickhouse.enabled', true)) {
             try {
                 return $read(new ClickHouseReadConnection($mysql->getDatabaseName())) + ['source' => 'clickhouse'];
             } catch (\Throwable $error) {
-                Cache::put('pr_clickhouse_offline', true, 60);
                 Log::warning('PR outstanding ClickHouse read failed; using MySQL.', ['exception' => class_basename($error)]);
             }
         }
