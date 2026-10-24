@@ -649,6 +649,13 @@ class PurchaseOrderInController
         return "coalesce(date({$column}), str_to_date({$column}, '%Y-%m-%d'), str_to_date({$column}, '%Y/%m/%d'), str_to_date({$column}, '%d/%m/%Y'), str_to_date({$column}, '%d-%m-%Y'), str_to_date({$column}, '%d.%m.%Y'))";
     }
 
+    private function poinTextSql($connection, string $column): string
+    {
+        return $connection->getConfig('driver') === 'clickhouse'
+            ? "lower(trimBoth(toString({$column})))"
+            : "lower(trim(cast({$column} as char)))";
+    }
+
     private function applyRealizedDateFilter($query, string $dateExpression, string $filter, string $startDate, string $endDate): void
     {
         $now = now();
@@ -692,6 +699,41 @@ class PurchaseOrderInController
         $summary = [];
 
         if (in_array($summaryScope, ['realized', 'realized_do'], true)) {
+            // Recalculate DO completion from immutable quantities. The replicated
+            // sisa_qtydo value can lag behind MySQL updates on some tenants.
+            $requiredMaterial = $this->poinTextSql($connection, 'required_line.kd_material');
+            $requiredQty = $this->poinNumericSql($connection, 'required_line.qty');
+            $requiredLines = $connection->table('tb_detailpoin as required_line')
+                ->where('required_line.kode_poin', 'like', $prefix.'.POIN-%')
+                ->select('required_line.kode_poin')
+                ->selectRaw("{$requiredMaterial} as material_key")
+                ->selectRaw("sum(coalesce({$requiredQty}, 0)) as required_qty")
+                ->groupBy('required_line.kode_poin')
+                ->groupByRaw($requiredMaterial);
+
+            $deliveredReference = $this->poinTextSql($connection, 'delivered_line.ref_po');
+            $deliveredMaterial = $this->poinTextSql($connection, 'delivered_line.kd_mat');
+            $deliveredQty = $this->poinNumericSql($connection, 'delivered_line.qty');
+            $deliveredLines = $connection->table('tb_do as delivered_line')
+                ->whereRaw("trim(coalesce(delivered_line.ref_po, '')) <> ''")
+                ->selectRaw("{$deliveredReference} as ref_po_key")
+                ->selectRaw("{$deliveredMaterial} as material_key")
+                ->selectRaw("sum(coalesce({$deliveredQty}, 0)) as delivered_qty")
+                ->groupByRaw($deliveredReference)
+                ->groupByRaw($deliveredMaterial);
+
+            $doCompletionStats = $connection->query()->fromSub($requiredLines, 'required')
+                ->join('tb_poin as completion_poin', 'completion_poin.kode_poin', '=', 'required.kode_poin')
+                ->leftJoinSub($deliveredLines, 'delivered', function ($join) use ($connection) {
+                    $poinReference = $this->poinTextSql($connection, 'completion_poin.no_poin');
+                    $join->whereRaw("delivered.ref_po_key = {$poinReference}");
+                    $join->on('delivered.material_key', '=', 'required.material_key');
+                })
+                ->select('required.kode_poin')
+                ->selectRaw('count(*) as total_items')
+                ->selectRaw('sum(case when coalesce(delivered.delivered_qty, 0) < required.required_qty then 1 else 0 end) as do_unrealized_items')
+                ->groupBy('required.kode_poin');
+
             $doDate = $this->poinDateSql($connection, 'kdo.pos_tgl');
             $doReferences = $connection->table('tb_kddo')
                 ->whereRaw("trim(coalesce(ref_po, '')) <> ''")
@@ -703,7 +745,7 @@ class PurchaseOrderInController
                     $join->where('p.kode_poin', 'like', $prefix.'.POIN-%');
                     $join->whereRaw("kdo.ref_po_key = {$poinNumber}");
                 })
-                ->joinSub($detailStats, 'do_ds', 'do_ds.kode_poin', '=', 'p.kode_poin')
+                ->joinSub($doCompletionStats, 'do_ds', 'do_ds.kode_poin', '=', 'p.kode_poin')
                 ->whereRaw('coalesce(do_ds.total_items, 0) > 0')
                 ->whereRaw('coalesce(do_ds.do_unrealized_items, 0) = 0');
             $this->applyRealizedDateFilter($query, $doDate, $dateFilter, $startDate, $endDate);
