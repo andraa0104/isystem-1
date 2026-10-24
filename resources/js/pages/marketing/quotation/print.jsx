@@ -54,7 +54,7 @@ const clamp = (value, minimum, maximum) =>
 
 const getDetailColumnWidths = (details) => {
     if (!details || details.length === 0) {
-        return ['4%', '44%', '4%', '6%', '12%', '30%'];
+        return ['4%', '54%', '4%', '6%', '11%', '21%'];
     }
 
     const remarkMetrics = details.map((detail) => {
@@ -99,39 +99,29 @@ const getDetailColumnWidths = (details) => {
     const priceWidth = clamp(7 + Math.ceil(longestPrice / 4), 8, 14);
     const availableWidth = 100 - 4 - 4 - unitWidth - priceWidth;
 
+    // Lebar kolom Remark diatur dinamis:
+    // - Jika kosong sampai maksimal 25 karakter: diperlebar (20% - 24%) agar seimbang dan teks pendek muat 1 baris.
+    // - Jika di atas 25 karakter / spesifikasi panjang: melebar dinamis proporsional (24% - 37%).
+    let targetRemarkWidth = 21;
+    const effectiveRemarkLen = Math.max(maxRemarkLine, Math.min(longestRemark, 35));
+
     if (longestRemark === 0) {
-        const emptyRemarkWidth = 10;
-        const descriptionWidth = availableWidth - emptyRemarkWidth;
-        return [
-            '4%',
-            `${descriptionWidth}%`,
-            '4%',
-            `${unitWidth}%`,
-            `${priceWidth}%`,
-            `${emptyRemarkWidth}%`,
-        ];
-    }
-
-    // Lebar kolom Remark diatur proporsional:
-    // - Untuk spesifikasi panjang: sekitar 37% agar baris teks spesifikasi tidak
-    //   terpotong/membungkus (seperti nama komponen), namun ruang kosong berlebih di kanan tetap terpangkas rapi.
-    // - Untuk catatan pendek: 12% - 18%.
-    let targetRemarkWidth = 12;
-    if (longestRemark > 150 || maxRemarkLine >= 35) {
+        targetRemarkWidth = 21;
+    } else if (effectiveRemarkLen <= 25) {
+        // Skala halus dari 21% hingga 24% untuk teks <= 25 karakter
+        const ratio = effectiveRemarkLen / 25;
+        targetRemarkWidth = clamp(21 + Math.round(ratio * 3), 21, 24);
+    } else if (longestRemark > 150 || maxRemarkLine >= 35) {
         targetRemarkWidth = 37;
-    } else if (longestRemark > 50 || maxRemarkLine >= 20) {
-        const ratio = (maxRemarkLine - 20) / (35 - 20);
-        targetRemarkWidth = clamp(18 + Math.round(ratio * (37 - 18)), 18, 37);
     } else {
-        const ratio = Math.max(0, maxRemarkLine) / 20;
-        targetRemarkWidth = clamp(12 + Math.round(ratio * (18 - 12)), 12, 18);
+        // Skala dari 24% hingga 37% untuk teks 26 - 35 karakter
+        const ratio = (effectiveRemarkLen - 25) / (35 - 25);
+        targetRemarkWidth = clamp(24 + Math.round(ratio * (37 - 24)), 24, 37);
     }
 
-    const remarkWidth = clamp(
-        targetRemarkWidth,
-        12,
-        Math.min(37, availableWidth - 28),
-    );
+    // Pastikan Description selalu mendapatkan ruang yang cukup (minimal 35% dari availableWidth)
+    const maxAllowedRemark = Math.max(21, availableWidth - 36);
+    const remarkWidth = clamp(targetRemarkWidth, 21, maxAllowedRemark);
     const descriptionWidth = availableWidth - remarkWidth;
 
     return [
