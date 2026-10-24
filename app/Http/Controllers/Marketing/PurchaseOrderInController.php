@@ -788,12 +788,6 @@ class PurchaseOrderInController
         string $deadlineFilter,
         $readConnection = null,
     ): array {
-        if ($readConnection === null && in_array($statusFilter, ['outstanding_pr', 'outstanding_do'], true)) {
-            return $this->safeClickhouseRead(fn ($conn) => $this->getPurchaseOrderInMaterialData(
-                $search, $perPage, $statusFilter, $page, $dateFilter, $startDate,
-                $endDate, $prefix, $deadlineFilter, $conn,
-            ));
-        }
         $readConnection ??= DB::connection();
         $isClickhouse = $readConnection->getConfig('driver') === 'clickhouse';
         $todaySql = $isClickhouse ? 'today()' : 'current_date()';
@@ -946,12 +940,10 @@ class PurchaseOrderInController
         $deadlineFilter = 'all',
         $readConnection = null
     ) {
-        $usesClickhouseReplica = ($summaryOnly && in_array($summaryScope, [
+        $usesClickhouseReplica = $summaryOnly && in_array($summaryScope, [
             'operational', 'outstanding', 'outstanding_pr', 'outstanding_do',
             'realized', 'realized_pr', 'realized_do',
-        ], true)) || (!$summaryOnly && ($isPartial || $rowsOnly) && in_array($statusFilter, [
-            'outstanding', 'outstanding_pr', 'outstanding_do',
-        ], true));
+        ], true);
         if ($readConnection === null && $usesClickhouseReplica) {
             return $this->safeClickhouseRead(fn ($conn) => $this->getPurchaseOrderInData(
                 $search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly,
@@ -1962,12 +1954,14 @@ class PurchaseOrderInController
         $perPageInput = $request->query('per_page', 5);
         $page = max(1, (int) $request->query('page', 1));
         
-        $data = $this->safeClickhouseRead(function ($conn) use ($kodePoin, $search, $perPageInput, $page) {
-            $header = $conn->table('tb_poin')->where('kode_poin', $kodePoin)->first();
+        $conn = DB::connection();
+        $this->readSource = 'mysql';
 
-            if (!$header) {
-                return null;
-            }
+        $header = $conn->table('tb_poin')->where('kode_poin', $kodePoin)->first();
+
+        if (!$header) {
+            return response()->json(['message' => 'PO In tidak ditemukan'], 404);
+        }
 
             $perPage = $perPageInput === 'all'
                 ? null
@@ -1990,7 +1984,7 @@ class PurchaseOrderInController
                 $items = (clone $query)->orderBy('id')->forPage($page, $perPage)->get();
             }
 
-            return [
+            return response()->json([
                 'header' => $header,
                 'items' => $items,
                 'pagination' => [
@@ -1999,14 +1993,7 @@ class PurchaseOrderInController
                     'per_page' => $perPage === null ? 'all' : $perPage,
                     'total_pages' => $perPage === null ? 1 : max(1, (int) ceil($total / $perPage)),
                 ],
-            ];
-        });
-
-        if (!$data) {
-            return response()->json(['message' => 'Data PO In tidak ditemukan.'], 404);
-        }
-
-        return response()->json($data)->header('X-Data-Source', $this->readSource)->header('Cache-Control', 'no-store');
+            ])->header('X-Data-Source', $this->readSource)->header('Cache-Control', 'no-store');
     }
 
     public function print($kodePoin)

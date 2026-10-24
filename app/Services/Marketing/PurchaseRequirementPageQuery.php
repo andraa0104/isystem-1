@@ -201,10 +201,9 @@ class PurchaseRequirementPageQuery
 
     public function paginate(array $filters): array
     {
-        $status = $filters['status'] ?? 'all';
-        if (in_array($status, ['outstanding', 'realized'], true)) {
-            return $this->readAnalytics($status, fn ($connection) => $this->queryPage($filters, $connection));
-        }
+        // Table pagination and row-level lookup perform significantly faster on MySQL
+        // via B-Tree indexes and native connection pooling, while ClickHouse remains
+        // available for summary aggregations.
         return $this->queryPage($filters, DB::connection()) + ['source' => 'mysql'];
     }
 
