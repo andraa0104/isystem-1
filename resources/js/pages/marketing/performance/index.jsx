@@ -102,20 +102,51 @@ const semesterOptions = [
     { value: 2, label: 'Semester 2 (Jul - Des)' },
 ];
 
+const getLastClosedMonth = () => {
+    const date = new Date();
+    date.setDate(1);
+    date.setMonth(date.getMonth() - 1);
+    const month = date.getMonth() + 1;
+
+    return {
+        year: date.getFullYear(),
+        period_type: 'monthly',
+        month,
+        quarter: Math.ceil(month / 3),
+        semester: month <= 6 ? 1 : 2,
+        customer: 'all',
+    };
+};
+
 export default function PerformanceIndex({
     initialFilters = {},
-    availableYears = [2026, 2025, 2024],
+    defaultFilters = {},
+    availableYears = [],
     customersList = [],
 }) {
+    const closedPeriodDefaults = {
+        ...getLastClosedMonth(),
+        ...defaultFilters,
+    };
     // Filter states
-    const [year, setYear] = useState(initialFilters.year || 2026);
-    const [periodType, setPeriodType] = useState(
-        initialFilters.period_type || 'monthly',
+    const [year, setYear] = useState(
+        initialFilters.year ?? closedPeriodDefaults.year,
     );
-    const [month, setMonth] = useState(initialFilters.month || 8);
-    const [quarter, setQuarter] = useState(initialFilters.quarter || 3);
-    const [semester, setSemester] = useState(initialFilters.semester || 2);
-    const [customer, setCustomer] = useState(initialFilters.customer || 'all');
+    const [periodType, setPeriodType] = useState(
+        initialFilters.period_type ?? closedPeriodDefaults.period_type,
+    );
+    const [month, setMonth] = useState(
+        initialFilters.month ?? closedPeriodDefaults.month,
+    );
+    const [quarter, setQuarter] = useState(
+        initialFilters.quarter ?? closedPeriodDefaults.quarter,
+    );
+    const [semester, setSemester] = useState(
+        initialFilters.semester ?? closedPeriodDefaults.semester,
+    );
+    const [customer, setCustomer] = useState(
+        initialFilters.customer ?? closedPeriodDefaults.customer,
+    );
 
     // Data states
     const [loading, setLoading] = useState(true);
@@ -338,20 +369,13 @@ export default function PerformanceIndex({
 
     // Handle filter reset
     const handleResetFilter = () => {
-        setYear(2026);
-        setPeriodType('monthly');
-        setMonth(8);
-        setQuarter(3);
-        setSemester(2);
-        setCustomer('all');
-        fetchData({
-            year: 2026,
-            period_type: 'monthly',
-            month: 8,
-            quarter: 3,
-            semester: 2,
-            customer: 'all',
-        });
+        setYear(closedPeriodDefaults.year);
+        setPeriodType(closedPeriodDefaults.period_type);
+        setMonth(closedPeriodDefaults.month);
+        setQuarter(closedPeriodDefaults.quarter);
+        setSemester(closedPeriodDefaults.semester);
+        setCustomer(closedPeriodDefaults.customer);
+        fetchData(closedPeriodDefaults);
     };
 
     // Handle export PDF

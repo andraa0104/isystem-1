@@ -139,11 +139,13 @@ class PerformanceController
     public function index(Request $request)
     {
         $filters = $this->extractFilters($request);
+        $defaultFilters = $this->defaultClosedPeriodFilters();
         $availableYears = $this->getAvailableYears();
         $customersList = $this->getCustomersList();
 
         return Inertia::render('marketing/performance/index', [
             'initialFilters' => $filters,
+            'defaultFilters' => $defaultFilters,
             'availableYears' => $availableYears,
             'customersList' => $customersList,
         ]);
@@ -237,6 +239,7 @@ class PerformanceController
         return Inertia::render('marketing/performance/customer', [
             'customer' => $customerInfo,
             'initialFilters' => $filters,
+            'defaultFilters' => $this->defaultClosedPeriodFilters(),
             'availableYears' => $this->getAvailableYears(),
         ]);
     }
@@ -406,13 +409,27 @@ class PerformanceController
     /**
      * Extract and sanitize request filters.
      */
+    private function defaultClosedPeriodFilters(): array
+    {
+        $closedMonth = now('Asia/Singapore')->subMonthNoOverflow();
+        $month = (int) $closedMonth->month;
+
+        return [
+            'year' => (int) $closedMonth->year,
+            'period_type' => 'monthly',
+            'month' => $month,
+            'quarter' => (int) ceil($month / 3),
+            'semester' => $month <= 6 ? 1 : 2,
+            'customer' => 'all',
+        ];
+    }
+
     private function extractFilters(Request $request): array
     {
-        $currentYear = (int) date('Y');
-        // If data is from 2026, default to 2026
-        $year = (int) $request->input('year', 2026);
+        $defaults = $this->defaultClosedPeriodFilters();
+        $year = (int) $request->input('year', $defaults['year']);
         if ($year < 2000 || $year > 2100) {
-            $year = 2026;
+            $year = $defaults['year'];
         }
 
         $periodType = $request->input('period_type', 'monthly');
@@ -420,19 +437,19 @@ class PerformanceController
             $periodType = 'monthly';
         }
 
-        $month = (int) $request->input('month', 8);
+        $month = (int) $request->input('month', $defaults['month']);
         if ($month < 1 || $month > 12) {
-            $month = 8;
+            $month = $defaults['month'];
         }
 
-        $quarter = (int) $request->input('quarter', 3);
+        $quarter = (int) $request->input('quarter', $defaults['quarter']);
         if ($quarter < 1 || $quarter > 4) {
-            $quarter = 3;
+            $quarter = $defaults['quarter'];
         }
 
-        $semester = (int) $request->input('semester', 2);
+        $semester = (int) $request->input('semester', $defaults['semester']);
         if ($semester < 1 || $semester > 2) {
-            $semester = 2;
+            $semester = $defaults['semester'];
         }
 
         $customer = trim((string) $request->input('customer', 'all'));
@@ -452,6 +469,9 @@ class PerformanceController
      */
     private function getAvailableYears(): array
     {
+        $currentYear = $this->defaultClosedPeriodFilters()['year'];
+        $fallbackYears = range($currentYear, $currentYear - 4);
+
         try {
             $years = $this->getDbConnection()->table('tb_fakturpenjualan')
                 ->whereNotNull('no_fakturpenjualan')
@@ -466,12 +486,12 @@ class PerformanceController
                 ->toArray();
 
             if (empty($years)) {
-                return [2026, 2025, 2024, 2023, 2022];
+                return $fallbackYears;
             }
 
             return $years;
         } catch (\Throwable) {
-            return [2026, 2025, 2024, 2023, 2022];
+            return $fallbackYears;
         }
     }
 
@@ -1515,25 +1535,26 @@ USER_PROMPT;
      */
     private function extractCustomerFilters(Request $request): array
     {
+        $defaults = $this->defaultClosedPeriodFilters();
         $periodType = $request->input('period_type', 'monthly');
         if (!in_array($periodType, ['weekly', 'monthly', 'quarterly', 'semester', 'yearly', 'year_range'], true)) {
             $periodType = 'monthly';
         }
 
-        $year = (int) $request->input('year', 2026);
-        if ($year < 2000 || $year > 2100) $year = 2026;
+        $year = (int) $request->input('year', $defaults['year']);
+        if ($year < 2000 || $year > 2100) $year = $defaults['year'];
 
-        $month = (int) $request->input('month', 8);
-        if ($month < 1 || $month > 12) $month = 8;
+        $month = (int) $request->input('month', $defaults['month']);
+        if ($month < 1 || $month > 12) $month = $defaults['month'];
 
         $week = (int) $request->input('week', 1);
         if ($week < 1 || $week > 5) $week = 1;
 
-        $quarter = (int) $request->input('quarter', 3);
-        if ($quarter < 1 || $quarter > 4) $quarter = 3;
+        $quarter = (int) $request->input('quarter', $defaults['quarter']);
+        if ($quarter < 1 || $quarter > 4) $quarter = $defaults['quarter'];
 
-        $semester = (int) $request->input('semester', 2);
-        if ($semester < 1 || $semester > 2) $semester = 2;
+        $semester = (int) $request->input('semester', $defaults['semester']);
+        if ($semester < 1 || $semester > 2) $semester = $defaults['semester'];
 
         $startYear = (int) $request->input('start_year', max(2020, $year - 4));
         $endYear = (int) $request->input('end_year', $year);
@@ -2319,4 +2340,3 @@ USER_PROMPT;
         ];
     }
 }
-

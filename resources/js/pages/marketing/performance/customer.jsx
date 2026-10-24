@@ -127,28 +127,57 @@ const semesterOptions = [
     { value: 2, label: 'Semester 2 (Jul - Des)' },
 ];
 
+const getLastClosedMonth = () => {
+    const date = new Date();
+    date.setDate(1);
+    date.setMonth(date.getMonth() - 1);
+    const month = date.getMonth() + 1;
+
+    return {
+        year: date.getFullYear(),
+        period_type: 'monthly',
+        month,
+        quarter: Math.ceil(month / 3),
+        semester: month <= 6 ? 1 : 2,
+    };
+};
+
 export default function CustomerPerformanceDetail({
     customer = {},
     initialFilters = {},
-    availableYears = [2026, 2025, 2024, 2023, 2022],
+    defaultFilters = {},
+    availableYears = [],
 }) {
     const customerCode = customer.kd_cs || '';
     const customerName = customer.nm_cs || customerCode;
+    const closedPeriodDefaults = {
+        ...getLastClosedMonth(),
+        ...defaultFilters,
+    };
+    const defaultStartYear = Math.max(2020, closedPeriodDefaults.year - 4);
 
     // Filter states
     const [periodType, setPeriodType] = useState(
-        initialFilters.period_type || 'monthly',
+        initialFilters.period_type ?? closedPeriodDefaults.period_type,
     );
-    const [year, setYear] = useState(Number(initialFilters.year || 2026));
-    const [month, setMonth] = useState(Number(initialFilters.month || 8));
-    const [week, setWeek] = useState(Number(initialFilters.week || 1));
-    const [quarter, setQuarter] = useState(Number(initialFilters.quarter || 3));
-    const [semester, setSemester] = useState(Number(initialFilters.semester || 2));
+    const [year, setYear] = useState(
+        Number(initialFilters.year ?? closedPeriodDefaults.year),
+    );
+    const [month, setMonth] = useState(
+        Number(initialFilters.month ?? closedPeriodDefaults.month),
+    );
+    const [week, setWeek] = useState(Number(initialFilters.week ?? 1));
+    const [quarter, setQuarter] = useState(
+        Number(initialFilters.quarter ?? closedPeriodDefaults.quarter),
+    );
+    const [semester, setSemester] = useState(
+        Number(initialFilters.semester ?? closedPeriodDefaults.semester),
+    );
     const [startYear, setStartYear] = useState(
-        Number(initialFilters.start_year || 2022),
+        Number(initialFilters.start_year ?? defaultStartYear),
     );
     const [endYear, setEndYear] = useState(
-        Number(initialFilters.end_year || 2026),
+        Number(initialFilters.end_year ?? closedPeriodDefaults.year),
     );
 
     // Data states
@@ -321,23 +350,23 @@ export default function CustomerPerformanceDetail({
 
     // Handle reset filter
     const handleResetFilter = () => {
-        setPeriodType('monthly');
-        setYear(2026);
-        setMonth(8);
+        setPeriodType(closedPeriodDefaults.period_type);
+        setYear(closedPeriodDefaults.year);
+        setMonth(closedPeriodDefaults.month);
         setWeek(1);
-        setQuarter(3);
-        setSemester(2);
-        setStartYear(2022);
-        setEndYear(2026);
+        setQuarter(closedPeriodDefaults.quarter);
+        setSemester(closedPeriodDefaults.semester);
+        setStartYear(defaultStartYear);
+        setEndYear(closedPeriodDefaults.year);
         fetchCustomerData({
-            period_type: 'monthly',
-            year: 2026,
-            month: 8,
+            period_type: closedPeriodDefaults.period_type,
+            year: closedPeriodDefaults.year,
+            month: closedPeriodDefaults.month,
             week: 1,
-            quarter: 3,
-            semester: 2,
-            start_year: 2022,
-            end_year: 2026,
+            quarter: closedPeriodDefaults.quarter,
+            semester: closedPeriodDefaults.semester,
+            start_year: defaultStartYear,
+            end_year: closedPeriodDefaults.year,
         });
     };
 
