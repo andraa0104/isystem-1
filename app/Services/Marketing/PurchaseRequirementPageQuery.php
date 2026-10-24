@@ -62,8 +62,19 @@ class PurchaseRequirementPageQuery
         $clickhouse = $connection->getConfig('driver') === 'clickhouse';
         $status = $filters['status'] ?? 'all';
         $material = ($filters['view'] ?? 'customer') === 'material';
+        // Explicit output aliases keep ClickHouse JOIN responses identical to
+        // MySQL: the browser and document actions require `no_pr`, not `pr.no_pr`.
+        $customerColumn = $material ? 'd.for_customer' : 'pr.for_customer';
+        $referenceColumn = $material ? 'd.ref_po' : 'pr.ref_po';
         $query = $connection->table('tb_pr as pr')
-            ->select('pr.no_pr', 'pr.date', 'pr.for_customer', 'pr.ref_po', 'pr.jenis_pr', 'pr.payment');
+            ->select(
+                'pr.no_pr as no_pr',
+                'pr.date as date',
+                $customerColumn.' as for_customer',
+                $referenceColumn.' as ref_po',
+                'pr.jenis_pr as jenis_pr',
+                'pr.payment as payment',
+            );
         if ($clickhouse) {
             $linkedPo = $connection->table('tb_po')->select('ref_pr')->selectRaw('count(*) as linked_count')->groupBy('ref_pr');
             $query->leftJoinSub($linkedPo, 'linked_po', 'linked_po.ref_pr', '=', 'pr.no_pr')
@@ -73,7 +84,7 @@ class PurchaseRequirementPageQuery
         }
         if ($material) {
             $query->join('tb_detailpr as d', 'd.no_pr', '=', 'pr.no_pr')
-                ->addSelect('d.no', 'd.material', 'd.qty', 'd.unit', 'd.sisa_pr', 'd.ref_po', 'd.for_customer');
+                ->addSelect('d.no as no', 'd.material as material', 'd.qty as qty', 'd.unit as unit', 'd.sisa_pr as sisa_pr');
             $qtyValue = $this->numberSql($connection, 'd.qty');
             $remainingValue = $this->numberSql($connection, 'd.sisa_pr');
             $remaining = "coalesce({$remainingValue}, {$qtyValue}, 0)";
@@ -166,6 +177,11 @@ class PurchaseRequirementPageQuery
             $pages = max(1, (int) ceil($total / (int) $size));
             $page = min($page, $pages);
             $rows = $query->forPage($page, (int) $size)->get();
+        }
+        foreach ($rows as $row) {
+            if (!isset($row->no_pr) || !is_scalar($row->no_pr) || trim((string) $row->no_pr) === '') {
+                throw new \RuntimeException('Invalid PR row: missing document number.');
+            }
         }
         $ids = $rows->pluck('no_pr')->unique()->values()->all();
         if ($ids !== []) {
