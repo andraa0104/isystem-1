@@ -123,7 +123,7 @@ export default function Dashboard({
     const [prefetchPriorityCards, setPrefetchPriorityCards] = useState(false);
     const [lastRefreshedAt, setLastRefreshedAt] = useState(null);
     const [isGlobalRefreshing, setIsGlobalRefreshing] = useState(false);
-    const [autoRefreshInterval, setAutoRefreshInterval] = useState(30); // in seconds, 0 = off
+    const [autoRefreshInterval, setAutoRefreshInterval] = useState(10); // in seconds, 0 = off
 
     // Sales HPP State
     const [salesHppRange, setSalesHppRange] = useState('1_week'); // 1_week|1_month|3_months|5_months|1_year
