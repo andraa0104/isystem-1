@@ -123,7 +123,8 @@ class PurchaseRequirementController
      */
     public function stockInsights(PurchaseRequirementInsightService $insights)
     {
-        return response()->json($insights->stock());
+        $data = Cache::remember('pr_stock_insights', now()->addMinutes(30), fn () => $insights->stock());
+        return response()->json($data);
     }
 
     /**
@@ -131,7 +132,8 @@ class PurchaseRequirementController
      */
     public function opexInsights(PurchaseRequirementInsightService $insights)
     {
-        return response()->json($insights->opex());
+        $data = Cache::remember('pr_opex_insights', now()->addMinutes(30), fn () => $insights->opex());
+        return response()->json($data);
     }
 
     public function index(Request $request)

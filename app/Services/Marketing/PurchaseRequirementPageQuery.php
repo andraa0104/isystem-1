@@ -3,6 +3,7 @@
 namespace App\Services\Marketing;
 
 use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -20,10 +21,11 @@ class PurchaseRequirementPageQuery
     private function readOutstanding(callable $read): array
     {
         $mysql = DB::connection();
-        if (config('purchase-requirement.clickhouse.enabled', true)) {
+        if (config('purchase-requirement.clickhouse.enabled', true) && !Cache::has('pr_clickhouse_offline')) {
             try {
                 return $read(new ClickHouseReadConnection($mysql->getDatabaseName())) + ['source' => 'clickhouse'];
             } catch (\Throwable $error) {
+                Cache::put('pr_clickhouse_offline', true, 60);
                 Log::warning('PR outstanding ClickHouse read failed; using MySQL.', ['exception' => class_basename($error)]);
             }
         }
@@ -96,9 +98,8 @@ class PurchaseRequirementPageQuery
             } elseif ($status === 'realized') {
                 $query->whereRaw("{$remaining} <= 0");
             }
-        } elseif (in_array($status, ['outstanding', 'sisa_po'], true)) {
-            // Local EXPLAIN/timings favor one grouped status scan over multiple
-            // correlated lookups for these two document filters.
+        } elseif ($clickhouse && in_array($status, ['outstanding', 'sisa_po'], true)) {
+            // ClickHouse columnar engine executes grouped subquery hash-joins fast in memory.
             $query->joinSub($this->statusQuery($connection), 'detail', 'detail.no_pr', '=', 'pr.no_pr');
             if ($status === 'outstanding') {
                 $query->whereColumn('detail.untouched_items', 'detail.total_items');
@@ -107,10 +108,19 @@ class PurchaseRequirementPageQuery
                     ->whereColumn('detail.realized_items', '<', 'detail.total_items');
             }
         } else {
+            // MySQL: use correlated subqueries backed by composite index idx_detailpr_status (no_pr, sisa_pr, qty)
+            // to avoid full table scans of derived temporary tables.
             $query->whereExists(fn ($q) => $q->selectRaw('1')->from('tb_detailpr as present')->whereColumn('present.no_pr', 'pr.no_pr'));
             $remaining = 'coalesce(cast(candidate.sisa_pr as decimal(18,4)), cast(candidate.qty as decimal(18,4)), 0)';
+            $qty = 'coalesce(cast(candidate.qty as decimal(18,4)), 0)';
             $candidate = fn ($q) => $q->selectRaw('1')->from('tb_detailpr as candidate')->whereColumn('candidate.no_pr', 'pr.no_pr');
-            if ($status === 'realized') {
+
+            if ($status === 'outstanding') {
+                $query->whereNotExists(fn ($q) => $candidate($q)->whereRaw("({$remaining} < {$qty} or {$qty} <= 0)"));
+            } elseif ($status === 'sisa_po') {
+                $query->whereExists(fn ($q) => $candidate($q)->whereRaw("{$remaining} < {$qty}"))
+                    ->whereExists(fn ($q) => $candidate($q)->whereRaw("{$remaining} > 0"));
+            } elseif ($status === 'realized') {
                 $query->whereNotExists(fn ($q) => $candidate($q)->whereRaw("{$remaining} > 0"));
             }
         }
