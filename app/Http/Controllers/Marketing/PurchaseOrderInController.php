@@ -137,10 +137,12 @@ class PurchaseOrderInController
 
     private function safeClickhouseRead(callable $callback)
     {
-        $conn = $this->getClickhouseOrFallbackConnection();
-        $isClickhouse = ($conn->getConfig('driver') === 'clickhouse');
+        $conn = null;
+        $isClickhouse = false;
 
         try {
+            $conn = $this->getClickhouseOrFallbackConnection();
+            $isClickhouse = ($conn->getConfig('driver') === 'clickhouse');
             $result = $callback($conn);
             if ($isClickhouse && $result === null) {
                 throw new \RuntimeException('Replica has no document yet.');
@@ -148,7 +150,7 @@ class PurchaseOrderInController
             $this->readSource = $isClickhouse ? 'clickhouse' : 'mysql';
             return $result;
         } catch (\Throwable $e) {
-            if ($isClickhouse) {
+            if ($isClickhouse || $conn === null) {
                 Log::warning('PO IN ClickHouse read failed; using MySQL.', ['exception' => class_basename($e)]);
                 $this->readSource = 'mysql';
                 return $callback(DB::connection());
@@ -606,6 +608,38 @@ class PurchaseOrderInController
         ]);
     }
 
+    private function poinNumericSql($connection, string $column): string
+    {
+        if ($connection->getConfig('driver') === 'clickhouse') {
+            return "toDecimal128OrNull(nullIf(trimBoth(toString({$column})), ''), 4)";
+        }
+
+        return "cast(nullif(trim({$column}), '') as decimal(18,4))";
+    }
+
+    private function applyCreatedDateFilter($query, string $filter, string $startDate, string $endDate): void
+    {
+        $now = now();
+        $bounds = match ($filter) {
+            'today' => [$now->copy()->startOfDay(), $now->copy()->addDay()->startOfDay()],
+            'this_week' => [$now->copy()->startOfWeek(), $now->copy()->startOfWeek()->addWeek()],
+            'this_month' => [$now->copy()->startOfMonth(), $now->copy()->startOfMonth()->addMonth()],
+            'this_year' => [$now->copy()->startOfYear(), $now->copy()->startOfYear()->addYear()],
+            'range' => $startDate !== '' && $endDate !== ''
+                ? [\Illuminate\Support\Carbon::parse($startDate)->startOfDay(),
+                   \Illuminate\Support\Carbon::parse($endDate)->addDay()->startOfDay()]
+                : null,
+            default => null,
+        };
+
+        if ($bounds !== null) {
+            $query->where('p.created_at', '>=', $bounds[0])
+                ->where('p.created_at', '<', $bounds[1]);
+        } elseif ($filter === 'range') {
+            $query->whereRaw('1 = 0');
+        }
+    }
+
     private function getPurchaseOrderInMaterialData(
         string $search,
         ?int $perPage,
@@ -616,11 +650,25 @@ class PurchaseOrderInController
         string $endDate,
         string $prefix,
         string $deadlineFilter,
+        $readConnection = null,
     ): array {
-        $qty = "coalesce(cast(nullif(trim(d.qty), '') as decimal(18,4)), 0)";
-        $sisaPr = "coalesce(cast(nullif(trim(d.sisa_qtypr), '') as decimal(18,4)), {$qty})";
-        $sisaDo = "coalesce(cast(nullif(trim(d.sisa_qtydo), '') as decimal(18,4)), {$qty})";
-        $query = DB::table('tb_detailpoin as d')
+        if ($readConnection === null && in_array($statusFilter, ['outstanding_pr', 'outstanding_do'], true)) {
+            return $this->safeClickhouseRead(fn ($conn) => $this->getPurchaseOrderInMaterialData(
+                $search, $perPage, $statusFilter, $page, $dateFilter, $startDate,
+                $endDate, $prefix, $deadlineFilter, $conn,
+            ));
+        }
+        $readConnection ??= DB::connection();
+        $isClickhouse = $readConnection->getConfig('driver') === 'clickhouse';
+        $todaySql = $isClickhouse ? 'today()' : 'current_date()';
+        $soonSql = $isClickhouse ? 'addDays(today(), 5)' : 'date_add(current_date(), interval 5 day)';
+        $qtyValue = $this->poinNumericSql($readConnection, 'd.qty');
+        $prValue = $this->poinNumericSql($readConnection, 'd.sisa_qtypr');
+        $doValue = $this->poinNumericSql($readConnection, 'd.sisa_qtydo');
+        $qty = "coalesce({$qtyValue}, 0)";
+        $sisaPr = "coalesce({$prValue}, {$qty})";
+        $sisaDo = "coalesce({$doValue}, {$qty})";
+        $query = $readConnection->table('tb_detailpoin as d')
             ->join('tb_poin as p', 'p.kode_poin', '=', 'd.kode_poin')
             ->where(function ($q) use ($prefix) {
                 $q->where('p.kode_poin', 'like', $prefix . '.POIN-%')
@@ -710,34 +758,20 @@ class PurchaseOrderInController
                 }
             }
         } else {
-            if ($dateFilter === 'today') {
-                $query->whereDate('p.created_at', $now->toDateString());
-            } elseif ($dateFilter === 'this_week') {
-                $query->whereBetween('p.created_at', [$now->copy()->startOfWeek(), $now->copy()->endOfWeek()]);
-            } elseif ($dateFilter === 'this_month') {
-                $query->whereYear('p.created_at', $now->year)->whereMonth('p.created_at', $now->month);
-            } elseif ($dateFilter === 'this_year') {
-                $query->whereYear('p.created_at', $now->year);
-            } elseif ($dateFilter === 'range') {
-                if ($startDate !== '' && $endDate !== '') {
-                    $query->whereDate('p.created_at', '>=', $startDate)->whereDate('p.created_at', '<=', $endDate);
-                } else {
-                    $query->whereRaw('1 = 0');
-                }
-            }
+            $this->applyCreatedDateFilter($query, $dateFilter, $startDate, $endDate);
         }
 
-        $deadline = "coalesce(str_to_date(trim(p.delivery_date), '%Y-%m-%d'), str_to_date(trim(p.delivery_date), '%d.%m.%Y'), str_to_date(trim(p.delivery_date), '%d/%m/%Y'))";
+        $deadline = "p.delivery_date";
         if ($deadlineFilter === 'overdue') {
-            $query->whereRaw("{$deadline} <= current_date()");
+            $query->whereRaw("{$deadline} <= {$todaySql}");
         } elseif ($deadlineFilter === 'soon') {
-            $query->whereRaw("{$deadline} > current_date() and {$deadline} <= date_add(current_date(), interval 5 day)");
+            $query->whereRaw("{$deadline} > {$todaySql} and {$deadline} <= {$soonSql}");
         }
 
         $total = (clone $query)->count();
         
         if (in_array($statusFilter, ['outstanding_pr', 'outstanding_do', 'sisa_pr', 'sisa_do'])) {
-            $query->orderByRaw("case when trim(coalesce(p.delivery_date, '')) = '' then 1 else 0 end")
+            $query->orderByRaw("case when p.delivery_date is null then 1 else 0 end")
                   ->orderByRaw("{$deadline} asc")
                   ->orderByDesc('d.id');
         } else {
@@ -773,9 +807,27 @@ class PurchaseOrderInController
         $startDate = '',
         $endDate = '',
         $prefix = '',
-        $deadlineFilter = 'all'
+        $deadlineFilter = 'all',
+        $readConnection = null
     ) {
-        return (function () use ($search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly, $summaryScope, $rowsOnly, $paginationOnly, $dateFilter, $startDate, $endDate, $prefix, $deadlineFilter) {
+        $usesOutstandingReplica = ($summaryOnly && in_array($summaryScope, [
+            'operational', 'outstanding', 'outstanding_pr', 'outstanding_do',
+        ], true)) || (!$summaryOnly && ($isPartial || $rowsOnly) && in_array($statusFilter, [
+            'outstanding', 'outstanding_pr', 'outstanding_do',
+        ], true));
+        if ($readConnection === null && $usesOutstandingReplica) {
+            return $this->safeClickhouseRead(fn ($conn) => $this->getPurchaseOrderInData(
+                $search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly,
+                $summaryScope, $rowsOnly, $paginationOnly, $dateFilter, $startDate,
+                $endDate, $prefix, $deadlineFilter, $conn,
+            ));
+        }
+        $readConnection ??= DB::connection();
+
+        return (function () use ($search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly, $summaryScope, $rowsOnly, $paginationOnly, $dateFilter, $startDate, $endDate, $prefix, $deadlineFilter, $readConnection) {
+            $isClickhouse = $readConnection->getConfig('driver') === 'clickhouse';
+            $todaySql = $isClickhouse ? 'today()' : 'current_date()';
+            $soonSql = $isClickhouse ? 'addDays(today(), 5)' : 'date_add(current_date(), interval 5 day)';
             // Kartu Total PO In hanya menghitung dokumen header dan grand total. Jalankan
             // sebelum statistik status dibuat agar query ini murni ke tb_poin memakai index.
             if ($summaryOnly && $summaryScope === 'total') {
@@ -792,7 +844,7 @@ class PurchaseOrderInController
                     if ($dateFilter === 'range' && $startDate !== '' && $endDate !== '') {
                         $periodCounts = (clone $query)
                             ->where('created_at', '>=', $startDate . ' 00:00:00')
-                            ->where('created_at', '<=', $endDate . ' 23:59:59')
+                            ->where('created_at', '<', \Illuminate\Support\Carbon::parse($endDate)->addDay()->startOfDay())
                             ->selectRaw('count(*) as count, coalesce(sum(grand_total), 0) as total_amount')
                             ->first();
 
@@ -857,17 +909,17 @@ class PurchaseOrderInController
             // Filter "Semua Data" tidak membutuhkan status turunan dari detail,
             // PR, atau DO. Tangani lebih awal agar request tabel hanya membaca
             // tb_poin dan tidak membangun/menjalankan subquery join yang mahal.
-            $applyDeadlineFilter = function ($query) use ($deadlineFilter) {
+            $applyDeadlineFilter = function ($query) use ($deadlineFilter, $todaySql, $soonSql) {
                 if ($deadlineFilter === 'overdue') {
-                    $query->whereRaw("coalesce(str_to_date(trim(p.delivery_date), '%Y-%m-%d'), str_to_date(trim(p.delivery_date), '%d.%m.%Y'), str_to_date(trim(p.delivery_date), '%d/%m/%Y')) <= current_date()");
+                    $query->whereRaw("p.delivery_date <= {$todaySql}");
                 } elseif ($deadlineFilter === 'soon') {
-                    $query->whereRaw("coalesce(str_to_date(trim(p.delivery_date), '%Y-%m-%d'), str_to_date(trim(p.delivery_date), '%d.%m.%Y'), str_to_date(trim(p.delivery_date), '%d/%m/%Y')) > current_date() and coalesce(str_to_date(trim(p.delivery_date), '%Y-%m-%d'), str_to_date(trim(p.delivery_date), '%d.%m.%Y'), str_to_date(trim(p.delivery_date), '%d/%m/%Y')) <= date_add(current_date(), interval 5 day)");
+                    $query->whereRaw("p.delivery_date > {$todaySql} and p.delivery_date <= {$soonSql}");
                 }
             };
 
             if ($statusFilter === 'all' && !$summaryOnly) {
                 $now = now();
-                $query = DB::table('tb_poin as p')
+                $query = $readConnection->table('tb_poin as p')
                     ->where(function ($q) use ($prefix) {
                         $q->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                             ->orWhere('p.kode_poin', 'like', '%.POIN-%')
@@ -894,24 +946,7 @@ class PurchaseOrderInController
                     });
                 }
 
-                if ($dateFilter === 'today') {
-                    $query->whereDate('p.created_at', $now->toDateString());
-                } elseif ($dateFilter === 'this_week') {
-                    $query->whereDate('p.created_at', '>=', $now->copy()->startOfWeek()->toDateString())
-                        ->whereDate('p.created_at', '<=', $now->copy()->endOfWeek()->toDateString());
-                } elseif ($dateFilter === 'this_month') {
-                    $query->whereYear('p.created_at', $now->year)
-                        ->whereMonth('p.created_at', $now->month);
-                } elseif ($dateFilter === 'this_year') {
-                    $query->whereYear('p.created_at', $now->year);
-                } elseif ($dateFilter === 'range') {
-                    if ($startDate !== '' && $endDate !== '') {
-                        $query->whereDate('p.created_at', '>=', $startDate)
-                            ->whereDate('p.created_at', '<=', $endDate);
-                    } else {
-                        $query->whereRaw('1 = 0');
-                    }
-                }
+                $this->applyCreatedDateFilter($query, $dateFilter, $startDate, $endDate);
 
                 $applyDeadlineFilter($query);
 
@@ -920,12 +955,12 @@ class PurchaseOrderInController
                     ? collect()
                     : ($perPage === null
                         ? (clone $query)
-                            ->orderByRaw("case when trim(coalesce(p.delivery_date, '')) = '' then 1 else 0 end")
-                            ->orderByRaw("coalesce(str_to_date(trim(p.delivery_date), '%Y-%m-%d'), str_to_date(trim(p.delivery_date), '%d.%m.%Y'), str_to_date(trim(p.delivery_date), '%d/%m/%Y')) asc")
+                            ->orderByRaw("case when p.delivery_date is null then 1 else 0 end")
+                            ->orderByRaw("p.delivery_date asc")
                             ->orderByDesc('p.id')->get()
                         : (clone $query)
-                            ->orderByRaw("case when trim(coalesce(p.delivery_date, '')) = '' then 1 else 0 end")
-                            ->orderByRaw("coalesce(str_to_date(trim(p.delivery_date), '%Y-%m-%d'), str_to_date(trim(p.delivery_date), '%d.%m.%Y'), str_to_date(trim(p.delivery_date), '%d/%m/%Y')) asc")
+                            ->orderByRaw("case when p.delivery_date is null then 1 else 0 end")
+                            ->orderByRaw("p.delivery_date asc")
                             ->orderByDesc('p.id')->forPage($page, $perPage)->get());
 
                 $pagination = [
@@ -935,7 +970,7 @@ class PurchaseOrderInController
                     'total_pages' => $perPage === null ? 1 : max(1, (int) ceil(($total ?? 0) / $perPage)),
                 ];
 
-                if ($isPartial) {
+                if ($isPartial || $rowsOnly) {
                     $response = [];
                     if (!$paginationOnly) {
                         $response['purchaseOrderIns'] = $rows;
@@ -956,26 +991,30 @@ class PurchaseOrderInController
             $sisaPrCondition = "(coalesce(ds.sisa_pr_items, 0) > 0 or (coalesce(ds.changed_count, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0))";
             $sisaDoCondition = "(coalesce(ds.sisa_do_items, 0) > 0 or (coalesce(ds.do_changed_count, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0))";
 
-            $detailStats = DB::table('tb_detailpoin')
+            $qtyValue = $this->poinNumericSql($readConnection, 'qty');
+            $prValue = $this->poinNumericSql($readConnection, 'sisa_qtypr');
+            $doValue = $this->poinNumericSql($readConnection, 'sisa_qtydo');
+            $priceValue = $this->poinNumericSql($readConnection, 'price_po_in');
+            $detailStats = $readConnection->table('tb_detailpoin')
                 ->where('kode_poin', 'like', $prefix . '.POIN-%')
                 ->select('kode_poin')
                 ->selectRaw('count(*) as total_items')
-                ->selectRaw("sum(case when coalesce(cast(nullif(trim(sisa_qtypr), '') as decimal(18,4)), cast(nullif(trim(qty), '') as decimal(18,4)), 0) <> coalesce(cast(nullif(trim(qty), '') as decimal(18,4)), 0) then 1 else 0 end) as changed_count")
-                ->selectRaw("sum(case when coalesce(cast(nullif(trim(sisa_qtypr), '') as decimal(18,4)), cast(nullif(trim(qty), '') as decimal(18,4)), 0) > 0 then 1 else 0 end) as unrealized_items")
-                ->selectRaw("sum(case when coalesce(cast(nullif(trim(sisa_qtypr), '') as decimal(18,4)), cast(nullif(trim(qty), '') as decimal(18,4)), 0) < coalesce(cast(nullif(trim(qty), '') as decimal(18,4)), 0) then 1 else 0 end) as started_items")
-                ->selectRaw("sum(case when coalesce(cast(nullif(trim(sisa_qtydo), '') as decimal(18,4)), coalesce(cast(nullif(trim(qty), '') as decimal(18,4)), 0)) <> coalesce(cast(nullif(trim(qty), '') as decimal(18,4)), 0) then 1 else 0 end) as do_changed_count")
-                ->selectRaw("sum(case when coalesce(cast(nullif(trim(sisa_qtydo), '') as decimal(18,4)), coalesce(cast(nullif(trim(qty), '') as decimal(18,4)), 0)) > 0 then 1 else 0 end) as do_unrealized_items")
-                ->selectRaw("sum(case when coalesce(cast(nullif(trim(sisa_qtydo), '') as decimal(18,4)), coalesce(cast(nullif(trim(qty), '') as decimal(18,4)), 0)) < coalesce(cast(nullif(trim(qty), '') as decimal(18,4)), 0) then 1 else 0 end) as do_started_items")
-                ->selectRaw("sum(case when coalesce(cast(nullif(trim(sisa_qtypr), '') as decimal(18,4)), cast(nullif(trim(qty), '') as decimal(18,4)), 0) <> coalesce(cast(nullif(trim(qty), '') as decimal(18,4)), 0) and coalesce(cast(nullif(trim(sisa_qtypr), '') as decimal(18,4)), cast(nullif(trim(qty), '') as decimal(18,4)), 0) <> 0 then 1 else 0 end) as sisa_pr_items")
-                ->selectRaw("sum(case when coalesce(cast(nullif(trim(sisa_qtydo), '') as decimal(18,4)), coalesce(cast(nullif(trim(qty), '') as decimal(18,4)), 0)) <> coalesce(cast(nullif(trim(qty), '') as decimal(18,4)), 0) and coalesce(cast(nullif(trim(sisa_qtydo), '') as decimal(18,4)), coalesce(cast(nullif(trim(qty), '') as decimal(18,4)), 0)) <> 0 then 1 else 0 end) as sisa_do_items")
-                ->selectRaw("sum(coalesce(cast(nullif(trim(sisa_qtydo), '') as decimal(18,4)), coalesce(cast(nullif(trim(qty), '') as decimal(18,4)), 0))) as do_remaining_qty")
-                ->selectRaw("sum(coalesce(cast(nullif(trim(sisa_qtypr), '') as decimal(18,4)), cast(nullif(trim(qty), '') as decimal(18,4)), 0) * coalesce(cast(nullif(trim(price_po_in), '') as decimal(18,4)), 0)) as pr_remaining_amount")
-                ->selectRaw("sum(coalesce(cast(nullif(trim(sisa_qtydo), '') as decimal(18,4)), cast(nullif(trim(qty), '') as decimal(18,4)), 0) * coalesce(cast(nullif(trim(price_po_in), '') as decimal(18,4)), 0)) as do_remaining_amount")
+                ->selectRaw("sum(case when coalesce({$prValue}, {$qtyValue}, 0) <> coalesce({$qtyValue}, 0) then 1 else 0 end) as changed_count")
+                ->selectRaw("sum(case when coalesce({$prValue}, {$qtyValue}, 0) > 0 then 1 else 0 end) as unrealized_items")
+                ->selectRaw("sum(case when coalesce({$prValue}, {$qtyValue}, 0) < coalesce({$qtyValue}, 0) then 1 else 0 end) as started_items")
+                ->selectRaw("sum(case when coalesce({$doValue}, coalesce({$qtyValue}, 0)) <> coalesce({$qtyValue}, 0) then 1 else 0 end) as do_changed_count")
+                ->selectRaw("sum(case when coalesce({$doValue}, coalesce({$qtyValue}, 0)) > 0 then 1 else 0 end) as do_unrealized_items")
+                ->selectRaw("sum(case when coalesce({$doValue}, coalesce({$qtyValue}, 0)) < coalesce({$qtyValue}, 0) then 1 else 0 end) as do_started_items")
+                ->selectRaw("sum(case when coalesce({$prValue}, {$qtyValue}, 0) <> coalesce({$qtyValue}, 0) and coalesce({$prValue}, {$qtyValue}, 0) <> 0 then 1 else 0 end) as sisa_pr_items")
+                ->selectRaw("sum(case when coalesce({$doValue}, coalesce({$qtyValue}, 0)) <> coalesce({$qtyValue}, 0) and coalesce({$doValue}, coalesce({$qtyValue}, 0)) <> 0 then 1 else 0 end) as sisa_do_items")
+                ->selectRaw("sum(coalesce({$doValue}, coalesce({$qtyValue}, 0))) as do_remaining_qty")
+                ->selectRaw("sum(coalesce({$prValue}, {$qtyValue}, 0) * coalesce({$priceValue}, 0)) as pr_remaining_amount")
+                ->selectRaw("sum(coalesce({$doValue}, {$qtyValue}, 0) * coalesce({$priceValue}, 0)) as do_remaining_amount")
                 ->groupBy('kode_poin');
 
             if (($isPartial && ! $summaryOnly) || ($summaryOnly && $summaryScope !== 'all')) {
-                $detailStats->columns = array_values(array_filter($detailStats->columns, function ($column) use ($summaryOnly, $summaryScope) {
-                    $sql = is_string($column) ? $column : $column->getValue(DB::connection()->getQueryGrammar());
+                $detailStats->columns = array_values(array_filter($detailStats->columns, function ($column) use ($summaryOnly, $summaryScope, $readConnection) {
+                    $sql = is_string($column) ? $column : $column->getValue($readConnection->getQueryGrammar());
                     if (str_ends_with($sql, ' as started_items') || str_ends_with($sql, ' as do_started_items')) {
                         return false;
                     }
@@ -994,7 +1033,7 @@ class PurchaseOrderInController
             if ($isPartial && ! $summaryOnly
                 && ($dateFilter !== 'all' || $deadlineFilter !== 'all')
                 && ! in_array($statusFilter, ['realized_pr', 'realized_do'], true)) {
-                $candidates = DB::table('tb_poin as p')->select('p.kode_poin');
+                $candidates = $readConnection->table('tb_poin as p')->select('p.kode_poin');
                 if ($search !== '') {
                     $like = '%'.strtolower($search).'%';
                     $candidates->where(function ($q) use ($like) {
@@ -1003,31 +1042,19 @@ class PurchaseOrderInController
                             ->orWhereRaw('lower(p.customer_name) like ?', [$like]);
                     });
                 }
-                $nowForCandidates = now();
-                $bounds = match ($dateFilter) {
-                    'today' => [$nowForCandidates->copy()->startOfDay(), $nowForCandidates->copy()->endOfDay()],
-                    'this_week' => [$nowForCandidates->copy()->startOfWeek(), $nowForCandidates->copy()->endOfWeek()],
-                    'this_month' => [$nowForCandidates->copy()->startOfMonth(), $nowForCandidates->copy()->endOfMonth()],
-                    'this_year' => [$nowForCandidates->copy()->startOfYear(), $nowForCandidates->copy()->endOfYear()],
-                    'range' => $startDate !== '' && $endDate !== '' ? [$startDate.' 00:00:00', $endDate.' 23:59:59'] : null,
-                    default => null,
-                };
-                if ($bounds) {
-                    $exclusiveEnd = \Carbon\Carbon::parse($bounds[1])->addSecond()->startOfSecond();
-                    $candidates->where('p.created_at', '>=', $bounds[0])->where('p.created_at', '<', $exclusiveEnd);
-                }
+                $this->applyCreatedDateFilter($candidates, $dateFilter, $startDate, $endDate);
                 $applyDeadlineFilter($candidates);
                 $detailStats->whereIn('kode_poin', $candidates);
             }
 
-            $doStats = DB::table('tb_kddo as kdo')
+            $doStats = $readConnection->table('tb_kddo as kdo')
                 ->selectRaw('lower(trim(kdo.ref_po)) as ref_po_key')
                 ->selectRaw('count(*) as do_count')
                 ->selectRaw("max(str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y')) as last_do_date")
                 ->whereRaw("trim(coalesce(kdo.ref_po, '')) <> ''")
                 ->groupByRaw('lower(trim(kdo.ref_po))');
 
-            $prStats = DB::table('tb_poin as pr_p')->where('pr_p.kode_poin', 'like', $prefix . '.POIN-%')
+            $prStats = $readConnection->table('tb_poin as pr_p')->where('pr_p.kode_poin', 'like', $prefix . '.POIN-%')
                 ->join('tb_detailpoin as dp', 'dp.kode_poin', '=', 'pr_p.kode_poin')
                 ->join('tb_detailpr as dpr', function ($join) {
                     $join->on('dpr.ref_po', '=', DB::raw('CONVERT(dp.no_poin USING latin1)'));
@@ -1049,20 +1076,20 @@ class PurchaseOrderInController
 
             if ($summaryOnly && $summaryScope !== 'all') {
                 if ($summaryScope === 'operational' || $summaryScope === 'outstanding' || $summaryScope === 'outstanding_pr' || $summaryScope === 'outstanding_do') {
-                    $deadlineDateExpr = "coalesce(str_to_date(trim(p.delivery_date), '%Y-%m-%d'), str_to_date(trim(p.delivery_date), '%d.%m.%Y'), str_to_date(trim(p.delivery_date), '%d/%m/%Y'))";
-                    $isOverdueExpr = "{$deadlineDateExpr} <= current_date()";
-                    $isSoonExpr = "{$deadlineDateExpr} > current_date() and {$deadlineDateExpr} <= date_add(current_date(), interval 5 day)";
+                    $deadlineDateExpr = "p.delivery_date";
+                    $isOverdueExpr = "{$deadlineDateExpr} <= {$todaySql}";
+                    $isSoonExpr = "{$deadlineDateExpr} > {$todaySql} and {$deadlineDateExpr} <= {$soonSql}";
                     
-                    $row = DB::table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
+                    $row = $readConnection->table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                         ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
-                        ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_pr")
-                        ->selectRaw("coalesce(sum(case when coalesce(ds.changed_count, 0) = 0 and ds.kode_poin is not null then p.grand_total else 0 end), 0) as outstanding_pr_amount")
-                        ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and ds.kode_poin is not null and {$isSoonExpr} then 1 end) as outstanding_pr_soon")
-                        ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and ds.kode_poin is not null and {$isOverdueExpr} then 1 end) as outstanding_pr_overdue")
-                        ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_do")
-                        ->selectRaw("coalesce(sum(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then p.grand_total else 0 end), 0) as outstanding_do_amount")
-                        ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null and {$isSoonExpr} then 1 end) as outstanding_do_soon")
-                        ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null and {$isOverdueExpr} then 1 end) as outstanding_do_overdue");
+                        ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then 1 end) as outstanding_pr")
+                        ->selectRaw("coalesce(sum(case when coalesce(ds.changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then p.grand_total else 0 end), 0) as outstanding_pr_amount")
+                        ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 and {$isSoonExpr} then 1 end) as outstanding_pr_soon")
+                        ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 and {$isOverdueExpr} then 1 end) as outstanding_pr_overdue")
+                        ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then 1 end) as outstanding_do")
+                        ->selectRaw("coalesce(sum(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then p.grand_total else 0 end), 0) as outstanding_do_amount")
+                        ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 and {$isSoonExpr} then 1 end) as outstanding_do_soon")
+                        ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 and {$isOverdueExpr} then 1 end) as outstanding_do_overdue");
 
                     if ($summaryScope === 'operational') {
                         $row->selectRaw("count(case when {$sisaPrCondition} then 1 end) as sisa_pr")
@@ -1103,11 +1130,11 @@ class PurchaseOrderInController
                 }
 
                 if ($summaryScope === 'sisa' || $summaryScope === 'sisa_pr' || $summaryScope === 'sisa_do') {
-                    $deadlineDateExpr = "coalesce(str_to_date(trim(p.delivery_date), '%Y-%m-%d'), str_to_date(trim(p.delivery_date), '%d.%m.%Y'), str_to_date(trim(p.delivery_date), '%d/%m/%Y'))";
-                    $isOverdueExpr = "{$deadlineDateExpr} <= current_date()";
-                    $isSoonExpr = "{$deadlineDateExpr} > current_date() and {$deadlineDateExpr} <= date_add(current_date(), interval 5 day)";
+                    $deadlineDateExpr = "p.delivery_date";
+                    $isOverdueExpr = "{$deadlineDateExpr} <= {$todaySql}";
+                    $isSoonExpr = "{$deadlineDateExpr} > {$todaySql} and {$deadlineDateExpr} <= {$soonSql}";
 
-                    $row = DB::table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
+                    $row = $readConnection->table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                         ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                         ->selectRaw("count(case when {$sisaPrCondition} then 1 end) as sisa_pr")
                         ->selectRaw("coalesce(sum(case when {$sisaPrCondition} then ds.pr_remaining_amount else 0 end), 0) as sisa_pr_amount")
@@ -1140,11 +1167,11 @@ class PurchaseOrderInController
                     $summary = [];
 
                     if ($summaryScope === 'realized' || $summaryScope === 'realized_do') {
-                        $doReferences = DB::table('tb_kddo')
+                        $doReferences = $readConnection->table('tb_kddo')
                             ->whereRaw("trim(coalesce(ref_po, '')) <> ''")
                             ->whereRaw("trim(coalesce(no_do, '')) <> ''")
                             ->selectRaw('lower(trim(ref_po)) as ref_po_key, lower(trim(no_do)) as no_do, pos_tgl')->distinct();
-                        $doCountsQuery = DB::query()->fromSub($doReferences, 'kdo')
+                        $doCountsQuery = $readConnection->query()->fromSub($doReferences, 'kdo')
                             ->join('tb_poin as p', function ($join) use ($prefix) {
                                 $join->where('p.kode_poin', 'like', $prefix . '.POIN-%');
                                 $join->whereRaw('kdo.ref_po_key = lower(trim(CONVERT(p.no_poin USING latin1)))');
@@ -1175,11 +1202,11 @@ class PurchaseOrderInController
                     if ($summaryScope === 'realized' || $summaryScope === 'realized_pr') {
                         $prDateExpression = "case when trim(dpr.date) like '__.__.____' then str_to_date(trim(dpr.date), '%d.%m.%Y') else str_to_date(trim(dpr.date), '%Y-%m-%d') end";
 
-                        $prReferences = DB::table('tb_detailpr')
+                        $prReferences = $readConnection->table('tb_detailpr')
                             ->whereRaw("trim(coalesce(ref_po, '')) <> ''")
                             ->whereRaw("trim(coalesce(no_pr, '')) <> ''")
                             ->selectRaw('lower(trim(ref_po)) as ref_po_key, date')->distinct();
-                        $prCountsQuery = DB::query()->fromSub($prReferences, 'dpr')
+                        $prCountsQuery = $readConnection->query()->fromSub($prReferences, 'dpr')
                             ->join('tb_poin as p', function ($join) use ($prefix) {
                                 $join->where('p.kode_poin', 'like', $prefix . '.POIN-%');
                                 $join->whereRaw('dpr.ref_po_key = lower(trim(CONVERT(p.no_poin USING latin1)))');
@@ -1216,7 +1243,7 @@ class PurchaseOrderInController
 
             if ($statusFilter === 'realized_do') {
                 $doDateExpression = "str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y')";
-                $query = DB::table('tb_kddo as kdo')
+                $query = $readConnection->table('tb_kddo as kdo')
                     ->join('tb_poin as p', function ($join) use ($prefix) {
                         $join->where('p.kode_poin', 'like', $prefix . '.POIN-%');
                         $join->whereRaw('lower(trim(kdo.ref_po)) = lower(trim(CONVERT(p.no_poin USING latin1)))');
@@ -1261,7 +1288,7 @@ class PurchaseOrderInController
 
                 $applyDeadlineFilter($query);
 
-                $total = ($rowsOnly && $isPartial) ? null : DB::query()->fromSub(clone $query, 'realized_do_rows')->count();
+                $total = ($rowsOnly && $isPartial) ? null : $readConnection->query()->fromSub(clone $query, 'realized_do_rows')->count();
                 $rows = ($paginationOnly && $isPartial)
                     ? collect()
                     : ($perPage === null
@@ -1275,7 +1302,7 @@ class PurchaseOrderInController
                     'total_pages' => $perPage === null ? 1 : max(1, (int) ceil(($total ?? 0) / $perPage)),
                 ];
 
-                if ($isPartial) {
+                if ($isPartial || $rowsOnly) {
                     $response = [];
                     if (!$paginationOnly) {
                         $response['purchaseOrderIns'] = $rows;
@@ -1295,7 +1322,7 @@ class PurchaseOrderInController
             if ($statusFilter === 'realized_pr') {
                 $prDateExpression = "case when trim(dpr.date) like '__.__.____' then str_to_date(trim(dpr.date), '%d.%m.%Y') else str_to_date(trim(dpr.date), '%Y-%m-%d') end";
 
-                $query = DB::table('tb_detailpr as dpr')
+                $query = $readConnection->table('tb_detailpr as dpr')
                     ->join('tb_poin as p', function ($join) use ($prefix) {
                         $join->where(function ($q) use ($prefix) {
                             $q->where('p.kode_poin', 'like', $prefix . '.POIN-%')
@@ -1346,7 +1373,7 @@ class PurchaseOrderInController
 
                 $applyDeadlineFilter($query);
 
-                $total = ($rowsOnly && $isPartial) ? null : DB::query()->fromSub(clone $query, 'realized_pr_rows')->count();
+                $total = ($rowsOnly && $isPartial) ? null : $readConnection->query()->fromSub(clone $query, 'realized_pr_rows')->count();
                 $rows = ($paginationOnly && $isPartial)
                     ? collect()
                     : ($perPage === null
@@ -1360,7 +1387,7 @@ class PurchaseOrderInController
                     'total_pages' => $perPage === null ? 1 : max(1, (int) ceil(($total ?? 0) / $perPage)),
                 ];
 
-                if ($isPartial) {
+                if ($isPartial || $rowsOnly) {
                     $response = [];
                     if (!$paginationOnly) {
                         $response['purchaseOrderIns'] = $rows;
@@ -1377,7 +1404,7 @@ class PurchaseOrderInController
                 ];
             }
 
-            $query = DB::table('tb_poin as p')
+            $query = $readConnection->table('tb_poin as p')
                 ->where(function ($q) use ($prefix) {
                     $q->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                         ->orWhere('p.kode_poin', 'like', '%.POIN-%')
@@ -1430,24 +1457,7 @@ class PurchaseOrderInController
                     ->whereRaw('coalesce(ds.do_unrealized_items, 0) = 0');
             }
 
-            if ($dateFilter === 'today') {
-                    $query->whereDate('p.created_at', $now->toDateString());
-                } elseif ($dateFilter === 'this_week') {
-                    $query->whereDate('p.created_at', '>=', $now->copy()->startOfWeek()->toDateString())
-                        ->whereDate('p.created_at', '<=', $now->copy()->endOfWeek()->toDateString());
-                } elseif ($dateFilter === 'this_month') {
-                    $query->whereYear('p.created_at', $now->year)
-                        ->whereMonth('p.created_at', $now->month);
-                } elseif ($dateFilter === 'this_year') {
-                    $query->whereYear('p.created_at', $now->year);
-                } elseif ($dateFilter === 'range') {
-                    if ($startDate !== '' && $endDate !== '') {
-                        $query->whereDate('p.created_at', '>=', $startDate)
-                            ->whereDate('p.created_at', '<=', $endDate);
-                    } else {
-                        $query->whereRaw('1 = 0');
-                    }
-                }
+            $this->applyCreatedDateFilter($query, $dateFilter, $startDate, $endDate);
 
             $applyDeadlineFilter($query);
 
@@ -1461,13 +1471,13 @@ class PurchaseOrderInController
                     : ($perPage === null
                         ? (clone $query)->orderByDesc('p.id')->get()
                         : (clone $query)
-                            ->orderByRaw("case when trim(coalesce(p.delivery_date, '')) = '' then 1 else 0 end")
-                            ->orderByRaw("coalesce(str_to_date(trim(p.delivery_date), '%Y-%m-%d'), str_to_date(trim(p.delivery_date), '%d.%m.%Y'), str_to_date(trim(p.delivery_date), '%d/%m/%Y')) asc")
+                            ->orderByRaw("case when p.delivery_date is null then 1 else 0 end")
+                            ->orderByRaw("p.delivery_date asc")
                             ->orderByDesc('p.id')
                             ->forPage($page, $perPage)
                             ->get());
 
-                if ($isPartial) {
+                if ($isPartial || $rowsOnly) {
                     $response = [];
                     if (!$paginationOnly) {
                         $response['purchaseOrderIns'] = $rows;
@@ -1484,28 +1494,28 @@ class PurchaseOrderInController
                 }
             }
 
-            $deadlineDateExpr = "coalesce(str_to_date(trim(p.delivery_date), '%Y-%m-%d'), str_to_date(trim(p.delivery_date), '%d.%m.%Y'), str_to_date(trim(p.delivery_date), '%d/%m/%Y'))";
-            $isOverdueExpr = "{$deadlineDateExpr} <= current_date()";
-            $isSoonExpr = "{$deadlineDateExpr} > current_date() and {$deadlineDateExpr} <= date_add(current_date(), interval 5 day)";
+            $deadlineDateExpr = "p.delivery_date";
+            $isOverdueExpr = "{$deadlineDateExpr} <= {$todaySql}";
+            $isSoonExpr = "{$deadlineDateExpr} > {$todaySql} and {$deadlineDateExpr} <= {$soonSql}";
 
-            $statusData = DB::table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
+            $statusData = $readConnection->table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                 ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                 ->leftJoinSub($doStats, 'dos', function ($join) {
                     $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
                 })
                 ->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
                 ->selectRaw("count(*) as total")
-                ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding")
+                ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then 1 end) as outstanding")
                 ->selectRaw("count(case when coalesce(ds.do_started_items, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0 then 1 end) as belum_pr")
                 ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null then 1 end) as realized")
-                ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_pr")
-                ->selectRaw("coalesce(sum(case when coalesce(ds.changed_count, 0) = 0 and ds.kode_poin is not null then p.grand_total else 0 end), 0) as outstanding_pr_amount")
-                ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and ds.kode_poin is not null and {$isSoonExpr} then 1 end) as outstanding_pr_soon")
-                ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and ds.kode_poin is not null and {$isOverdueExpr} then 1 end) as outstanding_pr_overdue")
-                ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then 1 end) as outstanding_do")
-                ->selectRaw("coalesce(sum(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null then p.grand_total else 0 end), 0) as outstanding_do_amount")
-                ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null and {$isSoonExpr} then 1 end) as outstanding_do_soon")
-                ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and ds.kode_poin is not null and {$isOverdueExpr} then 1 end) as outstanding_do_overdue")
+                ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then 1 end) as outstanding_pr")
+                ->selectRaw("coalesce(sum(case when coalesce(ds.changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then p.grand_total else 0 end), 0) as outstanding_pr_amount")
+                ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 and {$isSoonExpr} then 1 end) as outstanding_pr_soon")
+                ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 and {$isOverdueExpr} then 1 end) as outstanding_pr_overdue")
+                ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then 1 end) as outstanding_do")
+                ->selectRaw("coalesce(sum(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then p.grand_total else 0 end), 0) as outstanding_do_amount")
+                ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 and {$isSoonExpr} then 1 end) as outstanding_do_soon")
+                ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 and {$isOverdueExpr} then 1 end) as outstanding_do_overdue")
                 ->selectRaw("count(case when {$sisaPrCondition} then 1 end) as sisa_pr")
                 ->selectRaw("coalesce(sum(case when {$sisaPrCondition} then ds.pr_remaining_amount else 0 end), 0) as sisa_pr_amount")
                 ->selectRaw("count(case when {$sisaPrCondition} and {$isSoonExpr} then 1 end) as sisa_pr_soon")
@@ -1526,7 +1536,7 @@ class PurchaseOrderInController
                 ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_year", [$startYear, $endYear])
                 ->first();
 
-            $periodCounts = DB::table('tb_poin')->where('kode_poin', 'like', $prefix . '.POIN-%')
+            $periodCounts = $readConnection->table('tb_poin')->where('kode_poin', 'like', $prefix . '.POIN-%')
                 ->selectRaw("count(*) as total")
                 ->selectRaw("coalesce(sum(grand_total), 0) as total_amount")
                 ->selectRaw("count(case when created_at >= ? then 1 end) as today", [$startToday])
@@ -1592,7 +1602,7 @@ class PurchaseOrderInController
                 ],
             ];
 
-            $base = DB::table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
+            $base = $readConnection->table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                 ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                 ->leftJoinSub($doStats, 'dos', function ($join) {
                     $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
@@ -1734,15 +1744,19 @@ class PurchaseOrderInController
         $doNos = [];
         if (Schema::hasTable('tb_kddo')) {
             $dos = DB::table('tb_kddo')->whereRaw('lower(trim(ref_po)) = ?', [$refPoLower])->get();
+            $doNos = $dos->map(fn ($row) => strtolower(trim($row->no_do)))->unique()->values()->all();
+            $doBantuByRef = collect();
+            if ($doNos !== [] && Schema::hasTable('tb_kddob')) {
+                $doBantuByRef = DB::table('tb_kddob')
+                    ->whereIn(DB::raw('lower(trim(ref_do))'), $doNos)
+                    ->get(['ref_do', 'date', 'no_dob'])
+                    ->groupBy(fn ($row) => strtolower(trim($row->ref_do)));
+            }
+
             foreach ($dos as $doRecord) {
                 $doInfo = "Delivery Order telah dibuat pada tanggal {$doRecord->tgl} dengan nomor document {$doRecord->no_do}";
-                $doNos[] = strtolower(trim($doRecord->no_do));
-                
-                if (Schema::hasTable('tb_kddob')) {
-                    $dobantus = DB::table('tb_kddob')->whereRaw('lower(trim(ref_do)) = ?', [strtolower(trim($doRecord->no_do))])->get();
-                    foreach ($dobantus as $dob) {
-                        $doInfo .= " dan DO bantu pada tanggal {$dob->date} dengan nomor document {$dob->no_dob}";
-                    }
+                foreach ($doBantuByRef->get(strtolower(trim($doRecord->no_do)), []) as $dob) {
+                    $doInfo .= " dan DO bantu pada tanggal {$dob->date} dengan nomor document {$dob->no_dob}";
                 }
                 $flow[] = $doInfo;
             }

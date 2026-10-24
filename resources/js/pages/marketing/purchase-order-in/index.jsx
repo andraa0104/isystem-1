@@ -13,6 +13,7 @@ import { useAppearance } from '@/hooks/use-appearance';
 import AppLayout from '@/layouts/app-layout';
 import {
     createLatestRequest,
+    createPoInPaginationCache,
     getBusinessDate,
     getPaginationRange,
     readPoInResponse,
@@ -369,6 +370,7 @@ export default function PurchaseOrderInIndex({
     }, []);
     const rowsRequestId = useRef(0);
     const paginationRequestId = useRef(0);
+    const paginationCache = useRef(createPoInPaginationCache());
     const materialRequestId = useRef(0);
     const summaryRequestIds = useRef({});
     const modalRequest = useRef(createLatestRequest());
@@ -505,6 +507,7 @@ export default function PurchaseOrderInIndex({
                 requestId === paginationRequestId.current &&
                 responseMatchesFilters(data, nextParams)
             ) {
+                paginationCache.current.remember(queryParams, data.pagination);
                 setPagination(data.pagination || {});
             }
         } catch (error) {
@@ -522,13 +525,25 @@ export default function PurchaseOrderInIndex({
         }
     };
 
-    const fetchPoInData = (params = {}) => {
+    const fetchPoInData = (params = {}, reusePagination = false) => {
         lastTableParams.current = {
             ...params,
             page: params.page ?? pagination.page ?? 1,
         };
+        const cachedPagination = reusePagination
+            ? paginationCache.current.read(buildTableQueryParams(lastTableParams.current))
+            : null;
         fetchPoInRows(lastTableParams.current);
-        fetchPoInPagination(lastTableParams.current);
+        if (cachedPagination) {
+            tableAbortControllers.current.pagination?.abort();
+            paginationRequestId.current += 1;
+            setPagination(cachedPagination);
+            setPaginationLoading(false);
+            setPaginationError('');
+        } else {
+            paginationCache.current.clear();
+            fetchPoInPagination(lastTableParams.current);
+        }
     };
 
     const fetchMaterialData = async (params = {}) => {
@@ -2423,7 +2438,7 @@ export default function PurchaseOrderInIndex({
                                                     ) - 1,
                                                 ),
                                                 isPartial: true,
-                                            })
+                                            }, true)
                                         }
                                     >
                                         Sebelumnya
@@ -2459,7 +2474,7 @@ export default function PurchaseOrderInIndex({
                                                     ) + 1,
                                                 ),
                                                 isPartial: true,
-                                            })
+                                            }, true)
                                         }
                                     >
                                         Berikutnya

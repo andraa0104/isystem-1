@@ -53,13 +53,9 @@ const clamp = (value, minimum, maximum) =>
     Math.min(Math.max(value, minimum), maximum);
 
 const getDetailColumnWidths = (details) => {
-    const descriptionLengths = details.map(
-        (detail) => getCellText(detail.Material).length,
-    );
     const remarkLengths = details.map(
         (detail) => getCellText(detail.Remark).length,
     );
-    const longestDescription = Math.max(0, ...descriptionLengths);
     const longestRemark = Math.max(0, ...remarkLengths);
     const longestPrice = Math.max(
         0,
@@ -74,44 +70,8 @@ const getDetailColumnWidths = (details) => {
     const unitWidth = clamp(3 + Math.ceil(longestUnit / 4), 5, 7);
     const priceWidth = clamp(7 + Math.ceil(longestPrice / 4), 8, 14);
     const availableWidth = 100 - 4 - 4 - unitWidth - priceWidth;
-    const minimumDescription = 30;
-    const minimumRemark = longestRemark ? 9 : 15;
-
-    // Saat tidak ada remark, batasi Description agar tidak mengambil hampir
-    // seluruh lebar tabel. Ruang yang tersisa tetap disediakan untuk kolom
-    // Remark sehingga komposisi tabel terlihat seimbang saat dicetak.
-    if (!longestRemark) {
-        const descriptionWidth = Math.min(60, availableWidth - minimumRemark);
-
-        return [
-            '4%',
-            `${descriptionWidth}%`,
-            '4%',
-            `${unitWidth}%`,
-            `${priceWidth}%`,
-            `${availableWidth - descriptionWidth}%`,
-        ];
-    }
-
-    const flexibleWidth = availableWidth - minimumDescription - minimumRemark;
-    const averageDescription =
-        descriptionLengths.reduce((total, length) => total + length, 0) /
-        Math.max(descriptionLengths.length, 1);
-    const averageRemark =
-        remarkLengths.reduce((total, length) => total + length, 0) /
-        Math.max(remarkLengths.length, 1);
-    const descriptionScore = Math.max(
-        longestDescription * 0.9 + averageDescription * 0.1,
-        1,
-    );
-    // Remark diberi bobot lebih karena spesifikasi biasanya berupa beberapa
-    // baris; ini mencegah ruang kosong Description saat Remark masih membungkus.
-    const remarkScore = Math.max(longestRemark * 1.5 + averageRemark * 0.25, 0);
-    const totalScore = descriptionScore + remarkScore;
-    const remarkExtra = totalScore
-        ? Math.round(flexibleWidth * (remarkScore / totalScore))
-        : 0;
-    const remarkWidth = clamp(minimumRemark + remarkExtra, minimumRemark, 42);
+    // Remark pendek cukup 12%; isi panjang tetap dibatasi 20% dan membungkus.
+    const remarkWidth = clamp(10 + Math.ceil(longestRemark / 4), 12, 20);
     const descriptionWidth = availableWidth - remarkWidth;
 
     return [
@@ -292,6 +252,7 @@ export default function QuotationPrint({
                                     <td className="px-1 py-1 align-top">
                                         <FormattedRemark
                                             value={detail.Remark}
+                                            className="[overflow-wrap:anywhere]"
                                         />
                                     </td>
                                 </tr>

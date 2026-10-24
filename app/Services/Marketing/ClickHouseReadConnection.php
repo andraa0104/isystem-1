@@ -45,14 +45,17 @@ class ClickHouseReadConnection extends MySqlConnection
         $host = (string) $settings['host'];
         $uri = new Uri(str_contains($host, '://') ? $host : ($settings['options']['protocol'] ?? 'http').'://'.$host);
         $uri = $uri->withPort($uri->getPort() ?? (int) $settings['port'])->withPath('/');
+        // Aggregation SQL can exceed URL limits; send SQL in the POST body.
+        $uri = $uri->withQuery(http_build_query($params + [
+            'database' => $this->getDatabaseName(),
+            'final' => config('purchase-requirement.clickhouse.final', false) ? 1 : 0,
+            'readonly' => 1, 'max_execution_time' => 2, 'wait_end_of_query' => 1,
+        ]));
         $response = Http::connectTimeout((float) config('purchase-requirement.clickhouse.connect_timeout', 1))
             ->timeout((float) config('purchase-requirement.clickhouse.timeout', 3))
             ->withBasicAuth($settings['username'], $settings['password'])
-            ->get((string) $uri, $params + [
-                'database' => $this->getDatabaseName(), 'query' => $query.' FORMAT JSON',
-                'final' => config('purchase-requirement.clickhouse.final', false) ? 1 : 0,
-                'readonly' => 1, 'max_execution_time' => 2, 'wait_end_of_query' => 1,
-            ]);
+            ->withBody($query.' FORMAT JSON', 'text/plain')
+            ->post((string) $uri);
         $response->throw();
         $rows = $response->json('data');
         if (! is_array($rows) || ! array_is_list($rows)) {

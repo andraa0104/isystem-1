@@ -82,3 +82,31 @@ export const readPoInTrackingResponse = async (
     }
     return data.data;
 };
+
+// Keep only the current filter's count; refreshes and mutations invalidate it.
+export const createPoInPaginationCache = () => {
+    let cached = null;
+    const keyFor = (params) => {
+        const filters = new URLSearchParams(params);
+        for (const key of ['page', '_request', 'is_partial', 'rows_only', 'pagination_only']) {
+            filters.delete(key);
+        }
+        filters.sort();
+        return filters.toString();
+    };
+    return {
+        clear() {
+            cached = null;
+        },
+        remember(params, pagination) {
+            cached = { key: keyFor(params), pagination: { ...pagination } };
+        },
+        read(params) {
+            if (!cached || cached.key !== keyFor(params)) return null;
+            return {
+                ...cached.pagination,
+                page: Math.max(1, Number(params.get('page')) || 1),
+            };
+        },
+    };
+};
