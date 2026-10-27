@@ -196,39 +196,20 @@ class DashboardController
     }
 
     
-    private function getDbConnection()
+    private function getDbConnection(): \Illuminate\Database\ConnectionInterface
     {
-        try {
-            $connection = \Illuminate\Support\Facades\DB::connection('clickhouse');
-            if (!$connection->getConfig('driver')) {
-                throw new \Exception("Driver not set");
-            }
-            return $connection;
-        } catch (\Exception $e) {
-            return \Illuminate\Support\Facades\DB::connection();
-        } catch (\InvalidArgumentException $e) {
-            return \Illuminate\Support\Facades\DB::connection();
-        }
+        return DB::connection();
     }
 
     private function sqlYw(string $col): string {
-        return $this->getDbConnection()->getConfig('driver') === 'clickhouse'
-            ? "toYearWeek(toDateTimeOrNull(toString($col)), 1)"
-            : "YEARWEEK($col, 1)";
+        return "YEARWEEK($col, 1)";
     }
 
     private function sqlDf(string $col, string $fmt): string {
-        if ($this->getDbConnection()->getConfig('driver') === 'clickhouse') {
-            $fmt = str_replace('%Y-%m-%d', '%Y-%m-%d', $fmt);
-            return "formatDateTime(toDateTimeOrNull(toString($col)), '$fmt')";
-        }
         return "DATE_FORMAT($col, '$fmt')";
     }
 
     private function sqlStd(string $col, string $fmt): string {
-        if ($this->getDbConnection()->getConfig('driver') === 'clickhouse') {
-            return "parseDateTimeBestEffortOrNull(toString($col))";
-        }
         return "STR_TO_DATE($col, '$fmt')";
     }
 
