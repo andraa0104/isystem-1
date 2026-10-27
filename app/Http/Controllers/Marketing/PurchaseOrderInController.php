@@ -51,7 +51,7 @@ class PurchaseOrderInController
         $detailsByDocument = collect();
 
         if ($kodePoins->isNotEmpty()) {
-            $purchaseOrders = $this->safeClickhouseRead(function ($conn) use ($kodePoins) {
+            $purchaseOrders = $this->readMysql(function ($conn) use ($kodePoins) {
                 return $conn->table('tb_poin')
                     ->whereIn('kode_poin', $kodePoins->all())
                     ->orderByDesc('created_at')
@@ -62,7 +62,7 @@ class PurchaseOrderInController
             $orderKodePoins = collect($purchaseOrders)->pluck('kode_poin')->filter()->values();
 
             if ($orderKodePoins->isNotEmpty()) {
-                $detailsByDocument = $this->safeClickhouseRead(function ($conn) use ($orderKodePoins) {
+                $detailsByDocument = $this->readMysql(function ($conn) use ($orderKodePoins) {
                     return $conn->table('tb_detailpoin')
                         ->whereIn('kode_poin', $orderKodePoins->all())
                         ->orderBy('id')
@@ -119,44 +119,11 @@ class PurchaseOrderInController
         ]);
     }
 
-    private function getClickhouseOrFallbackConnection(): \Illuminate\Database\ConnectionInterface
-    {
-        $requestedDriver = strtolower((string) request()->query('driver', request()->query('source', env('POIN_DB_DRIVER', 'clickhouse'))));
-        if ($requestedDriver === 'mysql') {
-            return DB::connection();
-        }
-
-        if (config('purchase-requirement.clickhouse.enabled', true)) {
-            return new \App\Services\Marketing\ClickHouseReadConnection(DB::connection()->getDatabaseName());
-        }
-
-        return DB::connection();
-    }
-
     private string $readSource = 'mysql';
 
-    private function safeClickhouseRead(callable $callback)
+    private function readMysql(callable $callback)
     {
-        $conn = null;
-        $isClickhouse = false;
-
-        try {
-            $conn = $this->getClickhouseOrFallbackConnection();
-            $isClickhouse = ($conn->getConfig('driver') === 'clickhouse');
-            $result = $callback($conn);
-            if ($isClickhouse && $result === null) {
-                throw new \RuntimeException('Replica has no document yet.');
-            }
-            $this->readSource = $isClickhouse ? 'clickhouse' : 'mysql';
-            return $result;
-        } catch (\Throwable $e) {
-            if ($isClickhouse || $conn === null) {
-                Log::warning('PO IN ClickHouse read failed; using MySQL.', ['exception' => class_basename($e)]);
-                $this->readSource = 'mysql';
-                return $callback(DB::connection());
-            }
-            throw $e;
-        }
+        return $callback(DB::connection());
     }
 
     private function formatFailureMessage(string $action, Throwable $e): string
@@ -610,10 +577,6 @@ class PurchaseOrderInController
 
     private function poinNumericSql($connection, string $column): string
     {
-        if ($connection->getConfig('driver') === 'clickhouse') {
-            return "toDecimal128OrNull(nullIf(trimBoth(toString({$column})), ''), 4)";
-        }
-
         return "cast(nullif(trim({$column}), '') as decimal(18,4))";
     }
 
@@ -642,18 +605,7 @@ class PurchaseOrderInController
 
     private function poinDateSql($connection, string $column): string
     {
-        if ($connection->getConfig('driver') === 'clickhouse') {
-            return $column;
-        }
-
         return "coalesce(date({$column}), str_to_date({$column}, '%Y-%m-%d'), str_to_date({$column}, '%Y/%m/%d'), str_to_date({$column}, '%d/%m/%Y'), str_to_date({$column}, '%d-%m-%Y'), str_to_date({$column}, '%d.%m.%Y'))";
-    }
-
-    private function poinTextSql($connection, string $column): string
-    {
-        return $connection->getConfig('driver') === 'clickhouse'
-            ? "lower(trimBoth(toString({$column})))"
-            : "lower(trim(cast({$column} as char)))";
     }
 
     private function applyRealizedDateFilter($query, string $dateExpression, string $filter, string $startDate, string $endDate): void
@@ -693,15 +645,12 @@ class PurchaseOrderInController
             ->selectRaw("sum(case when coalesce({$sisaPr}, {$qty}, 0) > 0 then 1 else 0 end) as unrealized_items")
             ->selectRaw("sum(case when coalesce({$sisaDo}, {$qty}, 0) > 0 then 1 else 0 end) as do_unrealized_items")
             ->groupBy('kode_poin');
-        $poinNumber = $connection->getConfig('driver') === 'clickhouse'
-            ? 'lower(trim(p.no_poin))'
-            : 'lower(trim(CONVERT(p.no_poin USING latin1)))';
+        $poinNumber = 'CONVERT(p.no_poin USING latin1)';
         $summary = [];
 
         if (in_array($summaryScope, ['realized', 'realized_do'], true)) {
-            // Recalculate DO completion from immutable quantities. The replicated
-            // sisa_qtydo value can lag behind MySQL updates on some tenants.
-            $requiredMaterial = $this->poinTextSql($connection, 'required_line.kd_material');
+            // Hitung penyelesaian dari qty pengiriman per referensi dan material.
+            $requiredMaterial = 'required_line.kd_material';
             $requiredQty = $this->poinNumericSql($connection, 'required_line.qty');
             $requiredLines = $connection->table('tb_detailpoin as required_line')
                 ->where('required_line.kode_poin', 'like', $prefix.'.POIN-%')
@@ -711,11 +660,11 @@ class PurchaseOrderInController
                 ->groupBy('required_line.kode_poin')
                 ->groupByRaw($requiredMaterial);
 
-            $deliveredReference = $this->poinTextSql($connection, 'delivered_line.ref_po');
-            $deliveredMaterial = $this->poinTextSql($connection, 'delivered_line.kd_mat');
+            $deliveredReference = 'delivered_line.ref_po';
+            $deliveredMaterial = 'delivered_line.kd_mat';
             $deliveredQty = $this->poinNumericSql($connection, 'delivered_line.qty');
             $deliveredLines = $connection->table('tb_do as delivered_line')
-                ->whereRaw("trim(coalesce(delivered_line.ref_po, '')) <> ''")
+                ->where('delivered_line.ref_po', '<>', '')
                 ->selectRaw("{$deliveredReference} as ref_po_key")
                 ->selectRaw("{$deliveredMaterial} as material_key")
                 ->selectRaw("sum(coalesce({$deliveredQty}, 0)) as delivered_qty")
@@ -724,10 +673,9 @@ class PurchaseOrderInController
 
             $doCompletionStats = $connection->query()->fromSub($requiredLines, 'required')
                 ->join('tb_poin as completion_poin', 'completion_poin.kode_poin', '=', 'required.kode_poin')
-                ->leftJoinSub($deliveredLines, 'delivered', function ($join) use ($connection) {
-                    $poinReference = $this->poinTextSql($connection, 'completion_poin.no_poin');
-                    $join->whereRaw("delivered.ref_po_key = {$poinReference}");
-                    $join->on('delivered.material_key', '=', 'required.material_key');
+                ->leftJoinSub($deliveredLines, 'delivered', function ($join) {
+                    $join->on('delivered.ref_po_key', '=', DB::raw('CONVERT(completion_poin.no_poin USING latin1)'));
+                    $join->on('delivered.material_key', '=', DB::raw('CONVERT(required.material_key USING latin1)'));
                 })
                 ->select('required.kode_poin')
                 ->selectRaw('count(*) as total_items')
@@ -736,9 +684,9 @@ class PurchaseOrderInController
 
             $doDate = $this->poinDateSql($connection, 'kdo.pos_tgl');
             $doReferences = $connection->table('tb_kddo')
-                ->whereRaw("trim(coalesce(ref_po, '')) <> ''")
+                ->where('ref_po', '<>', '')
                 ->whereRaw("trim(coalesce(no_do, '')) <> ''")
-                ->selectRaw('lower(trim(ref_po)) as ref_po_key, lower(trim(no_do)) as no_do, pos_tgl')
+                ->selectRaw('ref_po as ref_po_key, lower(trim(no_do)) as no_do, pos_tgl')
                 ->distinct();
             $query = $connection->query()->fromSub($doReferences, 'kdo')
                 ->join('tb_poin as p', function ($join) use ($prefix, $poinNumber) {
@@ -756,14 +704,14 @@ class PurchaseOrderInController
         if (in_array($summaryScope, ['realized', 'realized_pr'], true)) {
             $prDate = $this->poinDateSql($connection, 'dpr.date');
             $prReferences = $connection->table('tb_detailpr')
-                ->whereRaw("trim(coalesce(ref_po, '')) <> ''")
-                ->whereRaw("trim(coalesce(no_pr, '')) <> ''")
-                ->selectRaw('lower(trim(ref_po)) as ref_po_key, date')
+                ->where('ref_po', '<>', '')
+                ->where('no_pr', '<>', '')
+                ->selectRaw('ref_po as ref_po_key, date')
                 ->distinct();
             $query = $connection->query()->fromSub($prReferences, 'dpr')
                 ->join('tb_poin as p', function ($join) use ($prefix, $poinNumber) {
                     $join->where('p.kode_poin', 'like', $prefix.'.POIN-%');
-                    $join->whereRaw("dpr.ref_po_key = {$poinNumber}");
+                    $join->whereRaw('dpr.ref_po_key = CONVERT(p.no_poin USING latin1)');
                 })
                 ->joinSub($detailStats, 'pr_ds', 'pr_ds.kode_poin', '=', 'p.kode_poin')
                 ->whereRaw('coalesce(pr_ds.total_items, 0) > 0')
@@ -789,9 +737,8 @@ class PurchaseOrderInController
         $readConnection = null,
     ): array {
         $readConnection ??= DB::connection();
-        $isClickhouse = $readConnection->getConfig('driver') === 'clickhouse';
-        $todaySql = $isClickhouse ? 'today()' : 'current_date()';
-        $soonSql = $isClickhouse ? 'addDays(today(), 5)' : 'date_add(current_date(), interval 5 day)';
+        $todaySql = 'current_date()';
+        $soonSql = 'date_add(current_date(), interval 5 day)';
         $qtyValue = $this->poinNumericSql($readConnection, 'd.qty');
         $prValue = $this->poinNumericSql($readConnection, 'd.sisa_qtypr');
         $doValue = $this->poinNumericSql($readConnection, 'd.sisa_qtydo');
@@ -844,7 +791,7 @@ class PurchaseOrderInController
         if ($statusFilter === 'realized_do') {
             $doDateExpression = "str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y')";
             $query->join('tb_kddo as kdo', function ($join) {
-                $join->whereRaw('lower(trim(kdo.ref_po)) = lower(trim(CONVERT(p.no_poin USING latin1)))');
+                $join->on('kdo.ref_po', '=', DB::raw('CONVERT(p.no_poin USING latin1)'));
             })
             ->whereRaw("trim(coalesce(kdo.no_do, '')) <> ''")
             ->distinct();
@@ -867,9 +814,9 @@ class PurchaseOrderInController
         } elseif ($statusFilter === 'realized_pr') {
             $prDateExpression = "case when trim(dpr.date) like '__.__.____' then str_to_date(trim(dpr.date), '%d.%m.%Y') else str_to_date(trim(dpr.date), '%Y-%m-%d') end";
             $query->join('tb_detailpr as dpr', function ($join) {
-                $join->whereRaw('lower(trim(dpr.ref_po)) = lower(trim(CONVERT(p.no_poin USING latin1)))');
+                $join->on('dpr.ref_po', '=', DB::raw('CONVERT(p.no_poin USING latin1)'));
             })
-            ->whereRaw("trim(coalesce(dpr.no_pr, '')) <> ''")
+            ->where('dpr.no_pr', '<>', '')
             ->distinct();
 
             if ($dateFilter === 'today') {
@@ -940,23 +887,11 @@ class PurchaseOrderInController
         $deadlineFilter = 'all',
         $readConnection = null
     ) {
-        $usesClickhouseReplica = $summaryOnly && in_array($summaryScope, [
-            'operational', 'outstanding', 'outstanding_pr', 'outstanding_do',
-            'realized', 'realized_pr', 'realized_do',
-        ], true);
-        if ($readConnection === null && $usesClickhouseReplica) {
-            return $this->safeClickhouseRead(fn ($conn) => $this->getPurchaseOrderInData(
-                $search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly,
-                $summaryScope, $rowsOnly, $paginationOnly, $dateFilter, $startDate,
-                $endDate, $prefix, $deadlineFilter, $conn,
-            ));
-        }
         $readConnection ??= DB::connection();
 
         return (function () use ($search, $perPage, $statusFilter, $page, $isPartial, $summaryOnly, $summaryScope, $rowsOnly, $paginationOnly, $dateFilter, $startDate, $endDate, $prefix, $deadlineFilter, $readConnection) {
-            $isClickhouse = $readConnection->getConfig('driver') === 'clickhouse';
-            $todaySql = $isClickhouse ? 'today()' : 'current_date()';
-            $soonSql = $isClickhouse ? 'addDays(today(), 5)' : 'date_add(current_date(), interval 5 day)';
+            $todaySql = 'current_date()';
+            $soonSql = 'date_add(current_date(), interval 5 day)';
             // Kartu Total PO In hanya menghitung dokumen header dan grand total. Jalankan
             // sebelum statistik status dibuat agar query ini murni ke tb_poin memakai index.
             if ($summaryOnly && $summaryScope === 'total') {
@@ -966,7 +901,7 @@ class PurchaseOrderInController
                 $startMonth = $now->copy()->startOfMonth()->toDateTimeString();
                 $startYear = $now->copy()->startOfYear()->toDateTimeString();
 
-                return $this->safeClickhouseRead(function ($conn) use ($prefix, $dateFilter, $startDate, $endDate, $startToday, $startWeek, $startMonth, $startYear) {
+                return $this->readMysql(function ($conn) use ($prefix, $dateFilter, $startDate, $endDate, $startToday, $startWeek, $startMonth, $startYear) {
                     $query = $conn->table('tb_poin')
                         ->where('kode_poin', 'like', $prefix . '.POIN-%');
 
@@ -1188,11 +1123,11 @@ class PurchaseOrderInController
             }
 
             $doStats = $readConnection->table('tb_kddo as kdo')
-                ->selectRaw('lower(trim(kdo.ref_po)) as ref_po_key')
+                ->selectRaw('kdo.ref_po as ref_po_key')
                 ->selectRaw('count(*) as do_count')
                 ->selectRaw("max(str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y')) as last_do_date")
-                ->whereRaw("trim(coalesce(kdo.ref_po, '')) <> ''")
-                ->groupByRaw('lower(trim(kdo.ref_po))');
+                ->where('kdo.ref_po', '<>', '')
+                ->groupBy('kdo.ref_po');
 
             $prStats = $readConnection->table('tb_poin as pr_p')->where('pr_p.kode_poin', 'like', $prefix . '.POIN-%')
                 ->join('tb_detailpoin as dp', 'dp.kode_poin', '=', 'pr_p.kode_poin')
@@ -1308,13 +1243,13 @@ class PurchaseOrderInController
 
                     if ($summaryScope === 'realized' || $summaryScope === 'realized_do') {
                         $doReferences = $readConnection->table('tb_kddo')
-                            ->whereRaw("trim(coalesce(ref_po, '')) <> ''")
+                            ->where('ref_po', '<>', '')
                             ->whereRaw("trim(coalesce(no_do, '')) <> ''")
-                            ->selectRaw('lower(trim(ref_po)) as ref_po_key, lower(trim(no_do)) as no_do, pos_tgl')->distinct();
+                            ->selectRaw('ref_po as ref_po_key, lower(trim(no_do)) as no_do, pos_tgl')->distinct();
                         $doCountsQuery = $readConnection->query()->fromSub($doReferences, 'kdo')
                             ->join('tb_poin as p', function ($join) use ($prefix) {
                                 $join->where('p.kode_poin', 'like', $prefix . '.POIN-%');
-                                $join->whereRaw('kdo.ref_po_key = lower(trim(CONVERT(p.no_poin USING latin1)))');
+                                $join->whereRaw('kdo.ref_po_key = CONVERT(p.no_poin USING latin1)');
                             })
                             ->joinSub($detailStats, 'do_ds', function ($join) {
                                 $join->on('do_ds.kode_poin', '=', 'p.kode_poin');
@@ -1343,13 +1278,13 @@ class PurchaseOrderInController
                         $prDateExpression = "case when trim(dpr.date) like '__.__.____' then str_to_date(trim(dpr.date), '%d.%m.%Y') else str_to_date(trim(dpr.date), '%Y-%m-%d') end";
 
                         $prReferences = $readConnection->table('tb_detailpr')
-                            ->whereRaw("trim(coalesce(ref_po, '')) <> ''")
-                            ->whereRaw("trim(coalesce(no_pr, '')) <> ''")
-                            ->selectRaw('lower(trim(ref_po)) as ref_po_key, date')->distinct();
+                            ->where('ref_po', '<>', '')
+                            ->where('no_pr', '<>', '')
+                            ->selectRaw('ref_po as ref_po_key, date')->distinct();
                         $prCountsQuery = $readConnection->query()->fromSub($prReferences, 'dpr')
                             ->join('tb_poin as p', function ($join) use ($prefix) {
                                 $join->where('p.kode_poin', 'like', $prefix . '.POIN-%');
-                                $join->whereRaw('dpr.ref_po_key = lower(trim(CONVERT(p.no_poin USING latin1)))');
+                                $join->whereRaw('dpr.ref_po_key = CONVERT(p.no_poin USING latin1)');
                             })
                             ->joinSub($detailStats, 'pr_ds', function ($join) {
                                 $join->on('pr_ds.kode_poin', '=', 'p.kode_poin');
@@ -1386,7 +1321,7 @@ class PurchaseOrderInController
                 $query = $readConnection->table('tb_kddo as kdo')
                     ->join('tb_poin as p', function ($join) use ($prefix) {
                         $join->where('p.kode_poin', 'like', $prefix . '.POIN-%');
-                        $join->whereRaw('lower(trim(kdo.ref_po)) = lower(trim(CONVERT(p.no_poin USING latin1)))');
+                        $join->on('kdo.ref_po', '=', DB::raw('CONVERT(p.no_poin USING latin1)'));
                     })
                     ->joinSub($detailStats, 'ds', function ($join) {
                         $join->on('ds.kode_poin', '=', 'p.kode_poin');
@@ -1469,13 +1404,13 @@ class PurchaseOrderInController
                                 ->orWhere('p.kode_poin', 'like', '%.POIN-%')
                                 ->orWhere('p.kode_poin', 'like', 'POIN-%');
                         });
-                        $join->whereRaw('lower(trim(dpr.ref_po)) = lower(trim(CONVERT(p.no_poin USING latin1)))');
+                        $join->on('dpr.ref_po', '=', DB::raw('CONVERT(p.no_poin USING latin1)'));
                     })
                     ->joinSub($detailStats, 'ds', function ($join) {
                         $join->on('ds.kode_poin', '=', 'p.kode_poin');
                     })
                     ->whereRaw("trim(coalesce(dpr.ref_po, '')) <> ''")
-                    ->whereRaw("trim(coalesce(dpr.no_pr, '')) <> ''")
+                    ->where('dpr.no_pr', '<>', '')
                     ->whereRaw('coalesce(ds.total_items, 0) > 0')
                     ->whereRaw('coalesce(ds.unrealized_items, 0) = 0')
                     ->selectRaw('min(p.id) as id, p.kode_poin, p.no_poin, p.date_poin, p.created_at, p.delivery_date, p.customer_name, p.grand_total')
@@ -1641,7 +1576,7 @@ class PurchaseOrderInController
             $statusData = $readConnection->table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                 ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                 ->leftJoinSub($doStats, 'dos', function ($join) {
-                    $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
+                    $join->on('dos.ref_po_key', '=', DB::raw('CONVERT(p.no_poin USING latin1)'));
                 })
                 ->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
                 ->selectRaw("count(*) as total")
@@ -1745,7 +1680,7 @@ class PurchaseOrderInController
             $base = $readConnection->table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
                 ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                 ->leftJoinSub($doStats, 'dos', function ($join) {
-                    $join->whereRaw('dos.ref_po_key = lower(trim(p.no_poin))');
+                    $join->on('dos.ref_po_key', '=', DB::raw('CONVERT(p.no_poin USING latin1)'));
                 })
                 ->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
                 ->select('p.id', 'p.kode_poin', 'p.no_poin', 'p.date_poin', 'p.created_at', 'p.customer_name', 'p.grand_total', DB::raw('prs.last_pr_date as last_pr_date'), DB::raw('dos.last_do_date as last_do_date'))
@@ -1804,7 +1739,7 @@ class PurchaseOrderInController
             ->addSelect([
                 'd.*',
                 'has_pr' => DB::table('tb_detailpr as pr')
-                    ->whereRaw("lower(trim(pr.ref_po)) = lower(trim(?))", [(string)$purchaseOrderIn->no_poin])
+                    ->where('pr.ref_po', trim((string) $purchaseOrderIn->no_poin))
                     ->whereRaw("lower(trim(pr.for_customer)) = lower(trim(?))", [(string)$purchaseOrderIn->customer_name])
                     ->whereColumn('pr.kd_material', 'd.kd_material')
                     ->selectRaw('count(*)')
@@ -1883,7 +1818,7 @@ class PurchaseOrderInController
         // Level 5: Delivery Order (tb_kddo & tb_kddob)
         $doNos = [];
         if (Schema::hasTable('tb_kddo')) {
-            $dos = DB::table('tb_kddo')->whereRaw('lower(trim(ref_po)) = ?', [$refPoLower])->get();
+            $dos = DB::table('tb_kddo')->where('ref_po', trim((string) $refPo))->get();
             $doNos = $dos->map(fn ($row) => strtolower(trim($row->no_do)))->unique()->values()->all();
             $doBantuByRef = collect();
             if ($doNos !== [] && Schema::hasTable('tb_kddob')) {
@@ -2301,7 +2236,7 @@ class PurchaseOrderInController
         if ($kdCustomer !== '') {
             $picExists = DB::table('tb_cspic')
                 ->where('kd_cs', $kdCustomer)
-                ->whereRaw('lower(trim(pic_name)) = lower(trim(?))', [$senderName])
+                ->where('pic_name', trim($senderName))
                 ->exists();
             if (!$picExists) {
                 throw ValidationException::withMessages([
@@ -2494,7 +2429,7 @@ class PurchaseOrderInController
         if ($kdCustomerUpd !== '') {
             $picExistsUpd = DB::table('tb_cspic')
                 ->where('kd_cs', $kdCustomerUpd)
-                ->whereRaw('lower(trim(pic_name)) = lower(trim(?))', [$senderNameUpd])
+                ->where('pic_name', trim($senderNameUpd))
                 ->exists();
             if (!$picExistsUpd) {
                 throw ValidationException::withMessages([
@@ -2903,7 +2838,7 @@ class PurchaseOrderInController
             $poHeader = DB::table('tb_poin')->where('kode_poin', $kodePoin)->first();
             if ($poHeader) {
                 $hasPr = DB::table('tb_detailpr')
-                    ->whereRaw("lower(trim(ref_po)) = lower(trim(?))", [(string)$poHeader->no_poin])
+                    ->where('ref_po', trim((string) $poHeader->no_poin))
                     ->whereRaw("lower(trim(for_customer)) = lower(trim(?))", [(string)$poHeader->customer_name])
                     ->where('kd_material', $detail->kd_material)
                     ->exists();

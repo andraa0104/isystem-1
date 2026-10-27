@@ -113,7 +113,7 @@ class QuotationService
 
                     // Recover safely if the counter is behind existing production data.
                     // The counter row is locked, so this loop is also concurrency-safe.
-                    while (DB::table('tb_penawaran')->where('No_penawaran', $noPenawaran)->exists()) {
+                    while (DB::table('tb_penawaran')->where('No_penawaran', trim($noPenawaran))->exists()) {
                         $newNumber++;
                         $noPenawaran = $prefix . str_pad((string) $newNumber, 7, '0', STR_PAD_LEFT);
 
@@ -202,7 +202,7 @@ class QuotationService
         }
 
         $exists = DB::table('tb_penawaran')
-            ->where('No_penawaran', $noPenawaran)
+            ->where('No_penawaran', trim($noPenawaran))
             ->exists();
 
         if (!$exists) {
@@ -211,7 +211,7 @@ class QuotationService
 
         DB::transaction(function () use ($data, $materials, $noPenawaran) {
             DB::table('tb_penawaran')
-                ->where('No_penawaran', $noPenawaran)
+                ->where('No_penawaran', trim($noPenawaran))
                 ->update([
                     'Tgl_penawaran' => $data['tgl_penawaran'] ?? Carbon::today()->toDateString(),
                     'Customer' => $this->sanitizeText($this->valueOrSpace($data['customer'] ?? null)),
@@ -232,7 +232,7 @@ class QuotationService
             $noPenawaranColumn = $this->resolveColumn('tb_penawarandetail', ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
             
             DB::table('tb_penawarandetail')
-                ->whereRaw('TRIM(' . $this->wrapColumn($noPenawaranColumn) . ') = ?', [trim($noPenawaran)])
+                ->where($noPenawaranColumn, trim($noPenawaran))
                 ->delete();
 
             $hargaModalColumn = $this->resolveColumn('tb_penawarandetail', ['Harga_Modal', 'Harga_modal', 'harga_modal'], 'Harga_Modal');
@@ -270,11 +270,11 @@ class QuotationService
 
         DB::transaction(function () use ($noPenawaran) {
             DB::table('tb_penawarandetail')
-                ->whereRaw('lower(trim(No_penawaran)) = ?', [strtolower($noPenawaran)])
+                ->where('No_penawaran', trim($noPenawaran))
                 ->delete();
 
             DB::table('tb_penawaran')
-                ->whereRaw('lower(trim(No_penawaran)) = ?', [strtolower($noPenawaran)])
+                ->where('No_penawaran', trim($noPenawaran))
                 ->delete();
         });
 
@@ -290,7 +290,7 @@ class QuotationService
         $noPenawaranColumn = $this->resolveColumn('tb_penawarandetail', ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
         
         $exists = DB::table('tb_penawarandetail')
-            ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [trim($noPenawaran)])
+            ->where($noPenawaranColumn, trim($noPenawaran))
             ->where('ID', $detailId)
             ->exists();
 
@@ -301,7 +301,7 @@ class QuotationService
         $hargaModalColumn = $this->resolveColumn('tb_penawarandetail', ['Harga_Modal', 'Harga_modal', 'harga_modal'], 'Harga_Modal');
         
         DB::table('tb_penawarandetail')
-            ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [trim($noPenawaran)])
+            ->where($noPenawaranColumn, trim($noPenawaran))
             ->where('ID', $detailId)
             ->update([
                 'Material' => $this->sanitizeText($data['material'] ?? null),
@@ -325,7 +325,7 @@ class QuotationService
         $noPenawaranColumn = $this->resolveColumn('tb_penawarandetail', ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
         
         $deleted = DB::table('tb_penawarandetail')
-            ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [trim($noPenawaran)])
+            ->where($noPenawaranColumn, trim($noPenawaran))
             ->where('ID', $detailId)
             ->delete();
 

@@ -33,21 +33,6 @@ class QuotationController
         return $code >= 100 && $code <= 599 ? $code : $fallback;
     }
 
-    private function getClickhouseOrFallbackConnection()
-    {
-        try {
-            $connection = DB::connection('clickhouse');
-            if (!$connection->getConfig('driver')) {
-                throw new \Exception("Driver not set");
-            }
-            return $connection;
-        } catch (\Exception $e) {
-            return DB::connection();
-        } catch (\InvalidArgumentException $e) {
-            return DB::connection();
-        }
-    }
-
     private function valueOrSpace(mixed $value): string
     {
         if ($value === null) {
@@ -161,11 +146,11 @@ class QuotationController
     private function getPenawaranQuery($period, string $search = '')
     {
         // Gunakan nama kolom yang sudah dipastikan ada (hardcode)
-        $query = $this->getClickhouseOrFallbackConnection()->table('tb_penawaran as p')
+        $query = DB::table('tb_penawaran as p')
             ->select(
                 'p.No_penawaran',
                 'p.Tgl_Penawaran',
-                DB::raw('COALESCE(p.Tgl_Posting) as Tgl_Posting'),
+                'p.Tgl_Posting',
                 'p.Customer',
                 'p.Alamat',
                 'p.Telp',
@@ -183,27 +168,18 @@ class QuotationController
     
         $now = Carbon::now();
     
-        if ($period === 'today') {
-            $todayDate = $now->format('Y-m-d');
-            $todayDot = $now->format('d.m.Y');
-            
-            $query->where(function($q) use ($todayDate, $todayDot) {
-                $q->whereDate('p.Tgl_Posting', $todayDate)
-                  ->orWhere('p.Tgl_Posting', 'like', $todayDate . '%')
-                  ->orWhere('p.Tgl_Posting', 'like', '%' . $todayDot . '%');
-            });
-        } elseif ($period === 'week') {
-            $query->whereBetween('p.Tgl_Posting', [
-                $now->startOfWeek()->toDateString(),
-                $now->endOfWeek()->toDateString()
-            ]);
-        } elseif ($period === 'month') {
-            $query->whereMonth('p.Tgl_Posting', $now->month)
-                  ->whereYear('p.Tgl_Posting', $now->year);
-        } elseif ($period === 'year') {
-            $query->whereYear('p.Tgl_Posting', $now->year);
-        } elseif ($period === 'all') {
-            // tidak ada filter tambahan
+        // Batas akhir eksklusif mencakup seluruh jam pada hari terakhir.
+        $range = match ($period) {
+            'today' => [$now->copy()->startOfDay(), $now->copy()->startOfDay()->addDay()],
+            'week' => [$now->copy()->startOfWeek(), $now->copy()->startOfWeek()->addWeek()],
+            'month' => [$now->copy()->startOfMonth(), $now->copy()->startOfMonth()->addMonth()],
+            'year' => [$now->copy()->startOfYear(), $now->copy()->startOfYear()->addYear()],
+            default => null,
+        };
+
+        if ($range !== null) {
+            $query->where('p.Tgl_Posting', '>=', $range[0]->toDateString())
+                ->where('p.Tgl_Posting', '<', $range[1]->toDateString());
         }
 
         if ($search !== '') {
@@ -317,7 +293,7 @@ class QuotationController
             'pageSize' => $pageSizeRaw,
         ]));
 
-        $query = $this->getClickhouseOrFallbackConnection()->table('tb_cs')
+        $query = DB::table('tb_cs')
             ->select(
                 'kd_cs as kd_cs',
                 'nm_cs as nm_cs',
@@ -367,7 +343,7 @@ class QuotationController
         $nameColumn = $this->resolveColumn('tb_barang', ['material', 'nama_barang', 'nm_barang', 'barang'], 'material');
         $unitColumn = $this->resolveColumn('tb_barang', ['unit', 'satuan'], 'unit');
 
-        $query = $this->getClickhouseOrFallbackConnection()->table('tb_barang')->selectRaw("
+        $query = DB::table('tb_barang')->selectRaw("
             {$codeColumn} as kd_material,
             {$nameColumn} as material,
             {$unitColumn} as unit,
@@ -412,7 +388,7 @@ class QuotationController
                 'Telp', 'Fax', 'Email', 'Attend', 'Payment', 'Validity',
                 'Delivery', 'Franco', 'Note1', 'Note2', 'Note3'
             )
-            ->where('No_penawaran', $noPenawaran)
+            ->where('No_penawaran', trim($noPenawaran))
             ->first();
 
         if (!$quotation) {
@@ -440,7 +416,7 @@ class QuotationController
                 'Margin, Margin as margin, ' .
                 'Remark, Remark as remark'
             )
-            ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [trim($noPenawaran)])
+            ->where($noPenawaranColumn, trim($noPenawaran))
             ->orderBy('ID')
             ->get();
 
@@ -460,7 +436,7 @@ class QuotationController
                 'Email', 'Attend', 'Payment', 'Validity', 'Delivery', 'Franco',
                 'Note1', 'Note2', 'Note3'
             )
-            ->where('No_penawaran', $noPenawaran)
+            ->where('No_penawaran', trim($noPenawaran))
             ->first();
 
         if (!$quotation) {
@@ -496,7 +472,7 @@ class QuotationController
                 'Margin, Margin as margin, '.
                 'Remark, Remark as remark'
             )
-            ->whereRaw('TRIM('.$this->wrapColumn($noPenawaranColumn).') = ?', [trim($noPenawaran)])
+            ->where($noPenawaranColumn, trim($noPenawaran))
             ->orderBy('ID')
             ->get();
 
