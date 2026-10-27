@@ -3,9 +3,7 @@
 namespace App\Services\Marketing;
 
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 use RuntimeException;
-use Throwable;
 
 class PurchaseRequirementDetailReader
 {
@@ -14,22 +12,9 @@ class PurchaseRequirementDetailReader
         'payment', 'renmark', 'ref_po', 'for_customer', 'price_po', 'unit_price', 'margin', 'stok',
     ];
 
-    public function page(string $number, array $filters, bool $fresh = false): array
+    public function page(string $number, array $filters): array
     {
-        $mysql = DB::connection();
-        if (! $fresh && config('purchase-requirement.clickhouse.enabled', true)) {
-            try {
-                $result = $this->queryPage(new ClickHouseReadConnection($mysql->getDatabaseName()), $number, $filters);
-                // Empty documents can indicate replication lag; retry the whole page in MySQL.
-                if ($result['customers'] !== []) {
-                    return $result + ['source' => 'clickhouse'];
-                }
-            } catch (Throwable $error) {
-                Log::warning('PR paginated ClickHouse read failed; using MySQL.', ['exception' => class_basename($error)]);
-            }
-        }
-
-        return $this->queryPage($mysql, $number, $filters) + ['source' => 'mysql'];
+        return $this->queryPage(DB::connection(), $number, $filters) + ['source' => 'mysql'];
     }
 
     private function queryPage($connection, string $number, array $filters): array
@@ -62,10 +47,9 @@ class PurchaseRequirementDetailReader
         $query = $connection->query()->fromSub($query, 'details');
         $search = trim($filters['search'] ?? '');
         if ($search !== '') {
-            $castType = $connection instanceof ClickHouseReadConnection ? 'String' : 'char';
-            $query->where(function ($q) use ($search, $castType) {
+            $query->where(function ($q) use ($search) {
                 foreach (['material', 'qty', 'unit', 'sisa_pr', 'renmark'] as $column) {
-                    $q->orWhereRaw('lower(cast('.$column.' as '.$castType.')) like ?', ['%'.mb_strtolower($search).'%']);
+                    $q->orWhereRaw('lower(cast('.$column.' as char)) like ?', ['%'.mb_strtolower($search).'%']);
                 }
             });
         }

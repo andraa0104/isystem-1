@@ -301,13 +301,13 @@ class PurchaseRequirementController
     public function details(Request $request)
     {
         $filters = $request->validate([
-            'no_pr' => 'required|string|max:100', 'source' => 'nullable|in:clickhouse,mysql',
+            'no_pr' => 'required|string|max:100',
             'search' => 'nullable|string|max:200', 'ref_po' => 'nullable|string|max:200',
             'page' => 'nullable|integer|min:1',
             'per_page' => ['nullable', \Illuminate\Validation\Rule::in(['5', '10', '20', '25', '50', '100', 'all'])],
         ]);
         $result = app(\App\Services\Marketing\PurchaseRequirementDetailReader::class)
-            ->page($filters['no_pr'], $filters, $request->query('source') === 'mysql');
+            ->page($filters['no_pr'], $filters);
         return response()->json([
             'purchaseRequirementDetails' => $result['rows'],
             'customers' => $result['customers'], 'payment' => $result['payment'],

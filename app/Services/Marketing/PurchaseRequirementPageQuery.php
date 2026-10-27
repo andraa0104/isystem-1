@@ -4,42 +4,27 @@ namespace App\Services\Marketing;
 
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class PurchaseRequirementPageQuery
 {
     private function numberSql($connection, string $column): string
     {
-        return $connection->getConfig('driver') === 'clickhouse'
-            ? "toDecimal128OrNull(nullIf(trimBoth(toString({$column})), ''), 4)"
-            : "cast({$column} as decimal(18,4))";
+        return "cast({$column} as decimal(18,4))";
     }
 
     private function dateSql($connection, string $column): string
     {
-        if ($connection->getConfig('driver') === 'clickhouse') {
-            return "coalesce(toDate(parseDateTimeBestEffortOrNull(nullIf(trimBoth(toString({$column})), ''))), toDateOrNull(concat(substring(toString({$column}), 7, 4), '-', substring(toString({$column}), 4, 2), '-', substring(toString({$column}), 1, 2))))";
-        }
-
         return "coalesce(date({$column}), str_to_date({$column}, '%Y-%m-%d'), str_to_date({$column}, '%Y/%m/%d'), str_to_date({$column}, '%d/%m/%Y'), str_to_date({$column}, '%d-%m-%Y'), str_to_date({$column}, '%d.%m.%Y'))";
     }
 
-    private function readAnalytics(string $status, callable $read): array
+    private function readAnalytics(callable $read): array
     {
-        $mysql = DB::connection();
-        if (config('purchase-requirement.clickhouse.enabled', true)) {
-            try {
-                return $read(new ClickHouseReadConnection($mysql->getDatabaseName())) + ['source' => 'clickhouse'];
-            } catch (\Throwable $error) {
-                Log::warning("PR {$status} ClickHouse read failed; using MySQL.", ['exception' => class_basename($error)]);
-            }
-        }
-        return $read($mysql) + ['source' => 'mysql'];
+        return $read(DB::connection()) + ['source' => 'mysql'];
     }
 
     public function outstandingSummary(): array
     {
-        return $this->readAnalytics('outstanding', function ($connection) {
+        return $this->readAnalytics(function ($connection) {
             $price = $this->numberSql($connection, 'total_price');
             $details = $this->statusQuery($connection)->selectRaw("sum(coalesce({$price}, 0)) as total_price_sum");
             $row = $connection->table('tb_pr as pr')
@@ -54,7 +39,7 @@ class PurchaseRequirementPageQuery
 
     public function realizedSummary(string $period = 'today'): array
     {
-        return $this->readAnalytics('realized', function ($connection) use ($period) {
+        return $this->readAnalytics(function ($connection) use ($period) {
             $price = $this->numberSql($connection, 'total_price');
             $details = $this->statusQuery($connection)->selectRaw("sum(coalesce({$price}, 0)) as total_price_sum");
             $poDate = $this->dateSql($connection, 'tgl');
@@ -107,11 +92,9 @@ class PurchaseRequirementPageQuery
     public function query(array $filters, $connection = null): Builder
     {
         $connection ??= DB::connection();
-        $clickhouse = $connection->getConfig('driver') === 'clickhouse';
         $status = $filters['status'] ?? 'all';
         $material = ($filters['view'] ?? 'customer') === 'material';
-        // Explicit output aliases keep ClickHouse JOIN responses identical to
-        // MySQL: the browser and document actions require `no_pr`, not `pr.no_pr`.
+        // Explicit aliases keep document fields stable for the browser.
         $customerColumn = $material ? 'd.for_customer' : 'pr.for_customer';
         $referenceColumn = $material ? 'd.ref_po' : 'pr.ref_po';
         $query = $connection->table('tb_pr as pr')
@@ -136,17 +119,6 @@ class PurchaseRequirementPageQuery
                 $query->whereRaw("{$remaining} > 0 and {$remaining} < {$qty}");
             } elseif ($status === 'realized') {
                 $query->whereRaw("{$remaining} <= 0");
-            }
-        } elseif ($clickhouse && in_array($status, ['outstanding', 'sisa_po', 'realized'], true)) {
-            // ClickHouse columnar engine executes grouped subquery hash-joins fast in memory.
-            $query->joinSub($this->statusQuery($connection), 'detail', 'detail.no_pr', '=', 'pr.no_pr');
-            if ($status === 'outstanding') {
-                $query->whereColumn('detail.untouched_items', 'detail.total_items');
-            } elseif ($status === 'sisa_po') {
-                $query->whereColumn('detail.untouched_items', '<', 'detail.total_items')
-                    ->whereColumn('detail.realized_items', '<', 'detail.total_items');
-            } else {
-                $query->whereColumn('detail.realized_items', 'detail.total_items');
             }
         } else {
             // MySQL: use correlated subqueries backed by composite index idx_detailpr_status (no_pr, sisa_pr, qty)
@@ -201,9 +173,6 @@ class PurchaseRequirementPageQuery
 
     public function paginate(array $filters): array
     {
-        // Table pagination and row-level lookup perform significantly faster on MySQL
-        // via B-Tree indexes and native connection pooling, while ClickHouse remains
-        // available for summary aggregations.
         return $this->queryPage($filters, DB::connection()) + ['source' => 'mysql'];
     }
 
