@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/dialog';
 import { Skeleton } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/app-layout';
+import { subscribeToPoInChanges } from '@/lib/po-in-realtime';
 import { Head, Link, router, usePage } from '@inertiajs/react';
 import { createLatestRequest, readPoInResponse } from '@/lib/purchase-order-in';
 import {
@@ -790,6 +791,7 @@ export default function PurchaseRequirementIndex({
     sisaPoTotal = 0,
     realizedTotal = 0,
     period = 'today',
+    realtimeChannel = null,
 }) {
     const { auth, tenant } = usePage().props;
     const preferenceKey = `pr-filters:${tenant?.database ?? auth?.user?.database ?? 'default'}:${auth?.user?.kd_user ?? auth?.user?.username ?? 'user'}`;
@@ -814,6 +816,20 @@ export default function PurchaseRequirementIndex({
     const [stockInsightError, setStockInsightError] = useState('');
     const [opexInsightError, setOpexInsightError] = useState('');
     const insightLoadedRef = useRef({ stock: false, opex: false });
+    const [realtimeRevision, setRealtimeRevision] = useState(0);
+
+    useEffect(() => subscribeToPoInChanges(
+        realtimeChannel,
+        () => {
+            // Known totals must be recomputed after another user's mutation.
+            Object.values(requests.current).forEach((request) => request.cancel());
+            paginationContexts.current = {};
+            insightLoadedRef.current = { stock: false, opex: false };
+            detailFresh.current = true;
+            setRealtimeRevision((revision) => revision + 1);
+        },
+        'purchase-requirement.changed',
+    ), [realtimeChannel]);
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
 
     const [purchaseRequirementsList, setPurchaseRequirementsList] = useState(
@@ -935,7 +951,7 @@ export default function PurchaseRequirementIndex({
         if (activeTab !== 'insight') return;
         loadInsights('stock');
         loadInsights('opex');
-    }, [activeTab, loadInsights]);
+    }, [activeTab, loadInsights, realtimeRevision]);
 
     const handleOpenOverdueDialog = useCallback(async (customer) => {
         const normalizedCustomer = String(customer ?? '').trim();
@@ -1195,7 +1211,7 @@ export default function PurchaseRequirementIndex({
         try {
             const response = await fetch(
                 `/marketing/purchase-requirement/data?period=${newPeriod}&fetch_type=summary`,
-                { signal, headers: { Accept: 'application/json' } },
+                { signal, headers: { Accept: 'application/json' }, cache: 'no-store' },
             );
             const data = await readPoInResponse(
                 response,
@@ -1232,7 +1248,7 @@ export default function PurchaseRequirementIndex({
     useEffect(() => {
         fetchSummaryData(periodFilter);
         return () => requests.current.summary.cancel();
-    }, [periodFilter, fetchSummaryData]);
+    }, [periodFilter, fetchSummaryData, realtimeRevision]);
 
     useEffect(() => {
         requests.current.table.cancel();
@@ -1263,6 +1279,7 @@ export default function PurchaseRequirementIndex({
         tableStartDate,
         tableEndDate,
         fetchTableData,
+        realtimeRevision,
     ]);
 
     useEffect(() => {
@@ -1386,7 +1403,7 @@ export default function PurchaseRequirementIndex({
                 if (isCurrent()) setDetailLoading(false);
             });
         return () => requests.current.detail.cancel();
-    }, [isModalOpen, selectedPr?.no_pr, materialCurrentPage, materialPageSize, materialSearchTerm, debouncedMaterialSearchTerm, activeMaterialTab, detailReload]);
+    }, [isModalOpen, selectedPr?.no_pr, materialCurrentPage, materialPageSize, materialSearchTerm, debouncedMaterialSearchTerm, activeMaterialTab, detailReload, realtimeRevision]);
 
 
     const handleRemoveCustomerPo = (refPo) => {
@@ -1581,6 +1598,7 @@ export default function PurchaseRequirementIndex({
         outstandingPageSize,
         outstandingSearchTerm,
         debouncedOutstandingSearchTerm,
+        realtimeRevision,
     ]);
     useEffect(() => {
         if (isSisaPoModalOpen && sisaPoSearchTerm !== debouncedSisaPoSearchTerm) {
@@ -1597,6 +1615,7 @@ export default function PurchaseRequirementIndex({
         sisaPoPageSize,
         sisaPoSearchTerm,
         debouncedSisaPoSearchTerm,
+        realtimeRevision,
     ]);
     useEffect(() => {
         if (isRealizedModalOpen && realizedSearchTerm !== debouncedRealizedSearchTerm) {
@@ -1614,6 +1633,7 @@ export default function PurchaseRequirementIndex({
         realizedSearchTerm,
         debouncedRealizedSearchTerm,
         periodFilter,
+        realtimeRevision,
     ]);
     useEffect(() => {
         if (!isModalOpen) requests.current.detail.cancel();

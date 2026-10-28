@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Marketing;
 
+use App\Events\PurchaseOrderInChanged;
+
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Database\QueryException;
@@ -18,6 +20,16 @@ class PurchaseOrderInController
     public function __construct(
         private PurchaseOrderInService $purchaseOrderInService
     ) {}
+
+    private function broadcastPoInChanged(): void
+    {
+        try {
+            event(new PurchaseOrderInChanged(PurchaseOrderInChanged::currentChannel()));
+        } catch (Throwable $exception) {
+            // A socket outage must not report an already committed write as failed.
+            report($exception);
+        }
+    }
     public function export(Request $request)
     {
         $statusFilter = $request->query('status', 'outstanding_do');
@@ -452,6 +464,7 @@ class PurchaseOrderInController
         $page = max(1, (int) $request->query('page', 1));
 
         return Inertia::render('marketing/purchase-order-in/index', [
+            'realtimeChannel' => PurchaseOrderInChanged::currentChannel(),
             'purchaseOrderIns' => [],
             'summary' => [
                 'total' => 0,
@@ -2360,6 +2373,8 @@ class PurchaseOrderInController
                 }
             });
 
+            $this->broadcastPoInChanged();
+
             if ($request->header('X-Inertia')) {
                 return redirect()
                     ->route('marketing.purchase-order-in.index')
@@ -2538,6 +2553,8 @@ class PurchaseOrderInController
                 $this->syncPurchaseRequirementRefPo($oldNoPoin, $newNoPoin);
             });
 
+            $this->broadcastPoInChanged();
+
             if ($request->header('X-Inertia')) {
                 session()->flash('success', 'Data PO IN berhasil diperbarui.');
                 return redirect('/marketing/purchase-order-in');
@@ -2568,6 +2585,7 @@ class PurchaseOrderInController
     {
         try {
             $this->purchaseOrderInService->deletePurchaseOrderIn($kodePoin);
+            $this->broadcastPoInChanged();
 
             if ($request->header('X-Inertia')) {
                 session()->flash('success', 'PO In berhasil dihapus.');
@@ -2653,6 +2671,7 @@ class PurchaseOrderInController
             DB::table('tb_detailpoin')->insert($insertData);
 
             $this->recalculateHeaderTotals($kodePoin);
+            $this->broadcastPoInChanged();
 
             return response()->json([
                 'message' => 'Material berhasil ditambahkan.',
@@ -2793,6 +2812,7 @@ class PurchaseOrderInController
                 ]);
 
             $this->recalculateHeaderTotals($kodePoin);
+            $this->broadcastPoInChanged();
 
             return response()->json([
                 'message' => 'Material berhasil diperbarui.',
@@ -2888,6 +2908,7 @@ class PurchaseOrderInController
             }
 
             $this->recalculateHeaderTotals($kodePoin);
+            $this->broadcastPoInChanged();
 
             return response()->json([
                 'message' => 'Material berhasil dihapus.',

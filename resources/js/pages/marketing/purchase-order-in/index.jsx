@@ -11,6 +11,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { useAppearance } from '@/hooks/use-appearance';
 import AppLayout from '@/layouts/app-layout';
+import { subscribeToPoInChanges } from '@/lib/po-in-realtime';
 import {
     createLatestRequest,
     createPoInPaginationCache,
@@ -237,6 +238,7 @@ export default function PurchaseOrderInIndex({
     summary: initialSummary = {},
     filters = {},
     pagination: initialPagination = {},
+    realtimeChannel = null,
 }) {
     const today = getBusinessDate();
     const isMobile = useSyncExternalStore(
@@ -431,7 +433,7 @@ export default function PurchaseOrderInIndex({
         const startedAt = performance.now();
         setTableLoading(true);
         setTableError('');
-        setPurchaseOrderIns([]);
+        if (!params.background) setPurchaseOrderIns([]);
 
         try {
             const queryParams = buildTableQueryParams(nextParams);
@@ -553,7 +555,7 @@ export default function PurchaseOrderInIndex({
         lastMaterialParams.current = params;
         setMaterialLoading(true);
         setMaterialError('');
-        setMaterialRows([]);
+        if (!params.background) setMaterialRows([]);
 
         try {
             const queryParams = new URLSearchParams({
@@ -1092,6 +1094,45 @@ export default function PurchaseOrderInIndex({
         setDetailPage(1);
         setDetailLoading(true);
     };
+
+    // Keep event handlers connected to the current filters and pagination.
+    const refreshPoInRef = useRef(null);
+    const [pendingRealtimeRefresh, setPendingRealtimeRefresh] = useState(false);
+    useEffect(() => {
+        refreshPoInRef.current = (background = false) => {
+            paginationCache.current.clear();
+            fetchPoInSummary();
+            if (activeDataTab === 'material') {
+                fetchMaterialData({ ...lastMaterialParams.current, background });
+            } else {
+                fetchPoInData({ ...lastTableParams.current, background });
+            }
+            if (activeModal) fetchModalData();
+            if (isDetailModalOpen && detailKodePoin) {
+                loadDetailModal(detailKodePoin, { initial: false });
+            }
+        };
+    });
+
+    useEffect(
+        () => subscribeToPoInChanges(
+            realtimeChannel,
+            () => setPendingRealtimeRefresh(true),
+        ),
+        [realtimeChannel],
+    );
+
+    useEffect(() => {
+        // Keep events received during a request pending until that request ends.
+        if (
+            !pendingRealtimeRefresh || tableLoading || paginationLoading ||
+            materialLoading || modalLoading || isDeleting ||
+            Object.values(summaryLoading).some(Boolean)
+        ) return;
+        setPendingRealtimeRefresh(false);
+        refreshPoInRef.current?.(true);
+    }, [pendingRealtimeRefresh, tableLoading, paginationLoading,
+        materialLoading, modalLoading, isDeleting, summaryLoading]);
 
     const handleDeletePoIn = () => {
         if (!confirmDeleteKode) {

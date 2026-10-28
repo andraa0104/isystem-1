@@ -2,6 +2,9 @@
 
 namespace App\Http\Controllers\Marketing;
 
+use App\Events\PurchaseOrderInChanged;
+use App\Events\PurchaseRequirementChanged;
+
 use App\Services\Marketing\PurchaseRequirementInsightService;
 use App\Services\Marketing\PurchaseRequirementPageQuery;
 use Illuminate\Http\Request;
@@ -15,6 +18,27 @@ use Carbon\Carbon;
 
 class PurchaseRequirementController
 {
+    private function broadcastPrChanged(): void
+    {
+        try {
+            if (Cache::supportsTags()) {
+                Cache::tags(['poin_data'])->flush();
+            }
+        } catch (\Throwable $exception) {
+            report($exception);
+        }
+
+        // PR consumption / restoration changes PO In remaining quantities too.
+        foreach ([PurchaseRequirementChanged::class, PurchaseOrderInChanged::class] as $eventClass) {
+            try {
+                event(new $eventClass($eventClass::currentChannel()));
+            } catch (\Throwable $exception) {
+                // A completed database write must remain successful during outages.
+                report($exception);
+            }
+        }
+    }
+
     private function legacyRenmarkValue($value): string
     {
         $renmark = trim((string) ($value ?? ''));
@@ -140,6 +164,7 @@ class PurchaseRequirementController
 
         // Initially we send empty data or zeros for fast page load
         return Inertia::render('marketing/purchase-requirement/index', [
+            'realtimeChannel' => PurchaseRequirementChanged::currentChannel(),
             'purchaseRequirements' => [],
             'outstandingCount' => 0,
             'sisaPoCount' => 0,
@@ -1251,13 +1276,12 @@ class PurchaseRequirementController
             }
         }
 
+        $this->broadcastPrChanged();
+
         if ($request->header('X-Inertia')) {
-            Cache::tags(['poin_data'])->flush();
             session()->flash('success', 'Data PR berhasil disimpan.');
             return redirect('/marketing/purchase-requirement');
         }
-
-        Cache::tags(['poin_data'])->flush();
         return redirect()
             ->route('marketing.purchase-requirement.index')
             ->with('success', 'Data PR berhasil disimpan.');
@@ -1477,6 +1501,8 @@ class PurchaseRequirementController
             return back()->with('error', 'Gagal memperbarui data: ' . $exception->getMessage());
         }
 
+        $this->broadcastPrChanged();
+
         if ($request->header('X-Inertia')) {
             session()->flash('success', 'Data PR berhasil diperbarui.');
             return redirect('/marketing/purchase-requirement');
@@ -1608,6 +1634,8 @@ class PurchaseRequirementController
             return back()->with('error', 'Gagal memperbarui detail: ' . $exception->getMessage());
         }
 
+        $this->broadcastPrChanged();
+
         if ($request->header('X-Inertia')) {
             session()->flash('success', 'Detail PR berhasil diperbarui.');
             return to_route('marketing.purchase-requirement.index');
@@ -1716,6 +1744,7 @@ class PurchaseRequirementController
             return back()->with('error', 'Gagal memperbarui Sisa PR: ' . $exception->getMessage());
         }
 
+        $this->broadcastPrChanged();
         return back()->with('success', 'Sisa PR berhasil diubah menjadi 0.');
     }
 
@@ -1777,6 +1806,7 @@ class PurchaseRequirementController
             return back()->with('error', 'Detail PR tidak ditemukan.');
         }
 
+        $this->broadcastPrChanged();
         return back()->with('success', 'Detail PR berhasil dihapus.');
     }
 
@@ -1912,8 +1942,7 @@ class PurchaseRequirementController
         } catch (\Throwable $e) {
             return response()->json(['message' => 'Gagal menghapus Customer dari PR: ' . $e->getMessage()], 500);
         }
-
-        Cache::tags(['poin_data'])->flush();
+        $this->broadcastPrChanged();
         return response()->json(['message' => 'Customer terpilih berhasil dihapus dari PR.']);
     }
 
@@ -2026,12 +2055,12 @@ class PurchaseRequirementController
             return back()->with('error', 'Gagal menghapus PR: ' . $e->getMessage());
         }
 
+        $this->broadcastPrChanged();
+
         if ($request->header('X-Inertia')) {
-            Cache::tags(['poin_data'])->flush();
             session()->flash('success', 'Data PR berhasil dihapus.');
             return redirect('/marketing/purchase-requirement');
         }
-        Cache::tags(['poin_data'])->flush();
         return response()->json(['message' => 'Data PR berhasil dihapus.']);
     }
 
@@ -2039,6 +2068,7 @@ class PurchaseRequirementController
     {
         try {
             DB::table('tb_detailpoin')->where('id', $id)->update(['sisa_qtypr' => 0]);
+            $this->broadcastPrChanged();
             return response()->json(['success' => true, 'message' => 'PO In quantity cleared successfully.']);
         } catch (\Exception $e) {
             return response()->json(['success' => false, 'message' => 'Failed to clear quantity.', 'error' => $e->getMessage()], 500);
