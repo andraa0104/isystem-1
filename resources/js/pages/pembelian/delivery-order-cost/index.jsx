@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ActionIconButton } from '@/components/action-icon-button';
 import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 import { Button } from '@/components/ui/button';
@@ -314,11 +315,11 @@ export default function DeliveryOrderCostIndex({
                             Ringkasan dan daftar DO biaya
                         </p>
                     </div>
-                    <Button asChild type="button">
+                    <MenuAction action="create" asChild type="button">
                         <Link href="/pembelian/delivery-order-cost/create">
                             Tambah DO Biaya
                         </Link>
-                    </Button>
+                    </MenuAction>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-1">
@@ -911,7 +912,9 @@ export default function DeliveryOrderCostIndex({
                                                 {item.kd_cs}
                                             </td>
                                             <td className="px-4 py-3">
-                                                <ActionIconButton
+                                                <MenuAction
+                                                    action="update"
+                                                    as={ActionIconButton}
                                                     label="Edit"
                                                     asChild
                                                 >
@@ -922,7 +925,7 @@ export default function DeliveryOrderCostIndex({
                                                     >
                                                         <Pencil className="size-4" />
                                                     </Link>
-                                                </ActionIconButton>
+                                                </MenuAction>
                                             </td>
                                         </tr>
                                     ))}

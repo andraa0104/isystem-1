@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import AppLayout from '@/layouts/app-layout';
 import { Head, router } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
@@ -299,7 +300,8 @@ export default function PermintaanDanaBiayaCreate() {
                                     </div>
                                 </div>
                             </div>
-                            <Button
+                            <MenuAction
+                                action="create"
                                 onClick={save}
                                 disabled={saving}
                                 className="h-10 w-full gap-2 sm:w-auto"
@@ -308,7 +310,7 @@ export default function PermintaanDanaBiayaCreate() {
                                     <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : null}
                                 Simpan
-                            </Button>
+                            </MenuAction>
                         </CardContent>
                     </Card>
                 </div>

@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -840,9 +841,9 @@ export default function BiayaKirimPembelianEdit({ header = {}, details = [] }) {
                             >
                                 Kembali
                             </Button>
-                            <Button variant="default" onClick={handleSave}>
+                            <MenuAction action="update" variant="default" onClick={handleSave}>
                                 Simpan Data
-                            </Button>
+                            </MenuAction>
                         </div>
                     </>
                 )}

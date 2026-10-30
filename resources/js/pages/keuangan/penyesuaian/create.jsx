@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -901,13 +902,14 @@ export default function KeuanganPenyesuaianCreate({
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">
-                                <Button
+                                <MenuAction
+                                    action="create"
                                     type="button"
                                     disabled={!canSave || saving}
                                     onClick={onSave}
                                 >
                                     {saving ? 'Menyimpan...' : 'Simpan'}
-                                </Button>
+                                </MenuAction>
                                 <Button
                                     type="button"
                                     variant="outline"

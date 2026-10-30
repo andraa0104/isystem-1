@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ActionIconButton } from '@/components/action-icon-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -615,12 +616,13 @@ export default function FakturPenjualanEdit({
                                     />
                                 </div>
                                 <div className="flex items-end gap-2">
-                                    <Button
+                                    <MenuAction
+                                        action="update"
                                         type="button"
                                         onClick={handleUpsertRow}
                                     >
                                         Simpan Detail
-                                    </Button>
+                                    </MenuAction>
                                 </div>
                             </CardContent>
                         </Card>
@@ -695,7 +697,9 @@ export default function FakturPenjualanEdit({
                                                     )}
                                                 </TableCell>
                                                 <TableCell className="text-right">
-                                                    <ActionIconButton
+                                                    <MenuAction
+                                                        action="delete"
+                                                        as={ActionIconButton}
                                                         label="Hapus"
                                                         onClick={async (
                                                             event,
@@ -715,7 +719,7 @@ export default function FakturPenjualanEdit({
                                                         }}
                                                     >
                                                         <Trash2 className="h-4 w-4 text-destructive" />
-                                                    </ActionIconButton>
+                                                    </MenuAction>
                                                 </TableCell>
                                             </TableRow>
                                         ))}
@@ -775,13 +779,14 @@ export default function FakturPenjualanEdit({
                             >
                                 Kembali
                             </Button>
-                            <Button
+                            <MenuAction
+                                action="update"
                                 type="button"
                                 onClick={handleSave}
                                 disabled={isSubmitting}
                             >
                                 {isSubmitting ? 'Menyimpan...' : 'Simpan'}
-                            </Button>
+                            </MenuAction>
                         </div>
                     </div>
                 )}

@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { Button } from '@/components/ui/button';
 import OverdueInvoiceWarningDialog from '@/components/OverdueInvoiceWarningDialog';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -677,7 +678,8 @@ onError: () => setIsSubmitting(false),
                             <Button variant="outline" onClick={prevStep}>
                                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
                             </Button>
-                            <Button
+                            <MenuAction
+                                action="create"
                                 onClick={handleSubmit}
                                 disabled={
                                     isSubmitting ||
@@ -687,7 +689,7 @@ onError: () => setIsSubmitting(false),
                             >
                                 {isSubmitting && <Spinner className="mr-2" />}
                                 {isSubmitting ? 'Menyimpan...' : 'Simpan DO'}
-                            </Button>
+                            </MenuAction>
                         </div>
                     </div>
                 )}

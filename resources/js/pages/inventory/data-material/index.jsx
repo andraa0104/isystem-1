@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ActionIconButton } from '@/components/action-icon-button';
 import { ErrorState } from '@/components/data-states/ErrorState';
 import { Button } from '@/components/ui/button';
@@ -471,7 +472,8 @@ function SectionCollapse({ id, label }) {
                                                         {id === 'mib' && (
                                                             <td className="border-b px-3 py-2 text-center align-top whitespace-nowrap">
                                                                 {Number(row.gr_mat ?? 0) > 0 && (
-                                                                    <Button
+                                                                    <MenuAction
+                                                                        action="delete"
                                                                         type="button"
                                                                         size="icon"
                                                                         variant="ghost"
@@ -483,7 +485,7 @@ function SectionCollapse({ id, label }) {
                                                                         }
                                                                     >
                                                                         <Trash2 className="h-4 w-4" />
-                                                                    </Button>
+                                                                    </MenuAction>
                                                                 )}
                                                             </td>
                                                         )}
@@ -530,7 +532,9 @@ function SectionCollapse({ id, label }) {
                                                                     row.inv ??
                                                                     0,
                                                                 ) === 0 && (
-                                                                    <ActionIconButton
+                                                                    <MenuAction
+                                                                        action="delete"
+                                                                        as={ActionIconButton}
                                                                         label="Hapus"
                                                                         onClick={() =>
                                                                             handleDelete(
@@ -539,7 +543,7 @@ function SectionCollapse({ id, label }) {
                                                                         }
                                                                     >
                                                                         <Trash2 className="h-4 w-4 text-destructive" />
-                                                                    </ActionIconButton>
+                                                                    </MenuAction>
                                                                 )
                                                                 : Number(
                                                                     row.qty,
@@ -547,7 +551,9 @@ function SectionCollapse({ id, label }) {
                                                                 Number(
                                                                     row.mis,
                                                                 ) && (
-                                                                    <ActionIconButton
+                                                                    <MenuAction
+                                                                        action="delete"
+                                                                        as={ActionIconButton}
                                                                         label="Hapus"
                                                                         onClick={() =>
                                                                             handleDelete(
@@ -556,7 +562,7 @@ function SectionCollapse({ id, label }) {
                                                                         }
                                                                     >
                                                                         <Trash2 className="h-4 w-4 text-destructive" />
-                                                                    </ActionIconButton>
+                                                                    </MenuAction>
                                                                 )}
                                                         </td>
                                                     </>

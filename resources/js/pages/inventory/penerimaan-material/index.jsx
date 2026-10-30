@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ActionIconButton } from '@/components/action-icon-button';
 import { ErrorState } from '@/components/data-states/ErrorState';
 import { Button } from '@/components/ui/button';
@@ -901,7 +902,8 @@ export default function PenerimaanMaterialIndex() {
                                 <h2 className="text-base font-semibold">
                                     Input Material {modeLabel}
                                 </h2>
-                                <Button
+                                <MenuAction
+                                    action="create"
                                     type="button"
                                     onClick={handleAddRow}
                                     disabled={
@@ -915,7 +917,7 @@ export default function PenerimaanMaterialIndex() {
                                     }
                                 >
                                     Tambah Data
-                                </Button>
+                                </MenuAction>
                             </div>
                             <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                                 <div className="space-y-1">
@@ -1068,7 +1070,8 @@ export default function PenerimaanMaterialIndex() {
                                     Data Material {modeLabel}
                                 </h2>
                                 {mode === 'mi' ? (
-                                    <Button
+                                    <MenuAction
+                                        action="create"
                                         type="button"
                                         onClick={handleSaveMi}
                                         disabled={isSaving}
@@ -1077,9 +1080,10 @@ export default function PenerimaanMaterialIndex() {
                                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                         )}
                                         Simpan Data MI
-                                    </Button>
+                                    </MenuAction>
                                 ) : mode === 'mis' ? (
-                                    <Button
+                                    <MenuAction
+                                        action="create"
                                         type="button"
                                         onClick={handleSaveMis}
                                         disabled={isSaving}
@@ -1088,9 +1092,10 @@ export default function PenerimaanMaterialIndex() {
                                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                         )}
                                         Simpan Data MIS
-                                    </Button>
+                                    </MenuAction>
                                 ) : mode === 'mib' ? (
-                                    <Button
+                                    <MenuAction
+                                        action="create"
                                         type="button"
                                         onClick={handleSaveMib}
                                         disabled={isSaving}
@@ -1099,7 +1104,7 @@ export default function PenerimaanMaterialIndex() {
                                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                                         )}
                                         Simpan Data MIB
-                                    </Button>
+                                    </MenuAction>
                                 ) : (
                                     <Button type="button" disabled={isSaving}>
                                         {isSaving && (

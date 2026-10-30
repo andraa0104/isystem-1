@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -793,7 +794,8 @@ export default function PermintaanDanaOperasionalCreate() {
                                 <span className="font-medium">Simpan</span>{' '}
                                 (format dd.mm.yyyy).
                             </div>
-                            <Button
+                            <MenuAction
+                                action="create"
                                 type="button"
                                 onClick={save}
                                 disabled={saving || items.length === 0}
@@ -803,7 +805,7 @@ export default function PermintaanDanaOperasionalCreate() {
                                     <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : null}
                                 Simpan
-                            </Button>
+                            </MenuAction>
                         </CardContent>
                     </Card>
                 </div>

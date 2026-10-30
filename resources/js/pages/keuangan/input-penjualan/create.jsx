@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -1261,7 +1262,8 @@ export default function InputPenjualanCreate({
                             </div>
 
                             <div className="flex gap-2">
-                                <Button
+                                <MenuAction
+                                    action="create"
                                     type="button"
                                     className="w-full"
                                     disabled={
@@ -1278,7 +1280,7 @@ export default function InputPenjualanCreate({
                                     onClick={submit}
                                 >
                                     {saving ? 'Menyimpan...' : 'Simpan'}
-                                </Button>
+                                </MenuAction>
                                 <Button
                                     type="button"
                                     variant="outline"

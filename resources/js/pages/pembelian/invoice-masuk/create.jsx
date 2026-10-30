@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ErrorState } from '@/components/data-states/ErrorState';
 import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
 import { Button } from '@/components/ui/button';
@@ -585,7 +586,8 @@ export default function InvoiceMasukCreate() {
                                 >
                                     Kembali
                                 </Button>
-                                <Button
+                                <MenuAction
+                                    action="create"
                                     onClick={handleSubmit}
                                     disabled={
                                         !header.no_gudang ||
@@ -594,7 +596,7 @@ export default function InvoiceMasukCreate() {
                                     }
                                 >
                                     Simpan data
-                                </Button>
+                                </MenuAction>
                             </div>
                         </CardContent>
                     </Card>

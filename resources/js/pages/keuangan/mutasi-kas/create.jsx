@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -1770,14 +1771,15 @@ export default function MutasiKasCreate({
                             </div>
 
                             <div className="grid grid-cols-2 gap-3">
-                                <Button
+                                <MenuAction
+                                    action="create"
                                     type="button"
                                     className="w-full"
                                     disabled={saving || suggestLoading}
                                     onClick={onSave}
                                 >
                                     {saving ? 'Menyimpan...' : 'Simpan'}
-                                </Button>
+                                </MenuAction>
                                 <Button
                                     type="button"
                                     variant="outline"

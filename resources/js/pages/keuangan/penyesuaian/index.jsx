@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -289,7 +290,8 @@ export default function KeuanganPenyesuaianIndex({
                                 </div>
                             </div>
                             <div className="flex items-center gap-2">
-                                <Button
+                                <MenuAction
+                                    action="create"
                                     type="button"
                                     variant="outline"
                                     onClick={() =>
@@ -299,7 +301,7 @@ export default function KeuanganPenyesuaianIndex({
                                     }
                                 >
                                     Penyesuaian Baru
-                                </Button>
+                                </MenuAction>
                                 <Button
                                     type="button"
                                     onClick={fetchRows}

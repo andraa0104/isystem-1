@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -912,7 +913,8 @@ export default function FakturPenjualanCreate() {
                             >
                                 Kembali
                             </Button>
-                            <Button
+                            <MenuAction
+                                action="create"
                                 type="button"
                                 onClick={handleSubmit}
                                 disabled={
@@ -920,7 +922,7 @@ export default function FakturPenjualanCreate() {
                                 }
                             >
                                 Tambah Invoice
-                            </Button>
+                            </MenuAction>
                         </div>
                     </div>
                 )}

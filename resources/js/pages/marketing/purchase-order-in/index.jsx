@@ -1,3 +1,5 @@
+import { MenuAction } from '@/components/menu-action';
+import { canAccessMenuAction } from '@/lib/menu-permissions';
 import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 import { Button } from '@/components/ui/button';
 import {
@@ -257,14 +259,10 @@ export default function PurchaseOrderInIndex({
     const { resolvedAppearance } = useAppearance();
     const isDark = resolvedAppearance === 'dark';
     const user = auth?.user ?? {};
-    const userLevel = String(user.level ?? '').toLowerCase();
-    const isAdmin = userLevel === 'admin';
-    const menuAccess =
-        user.menu_access?.['Marketing:Purchase Order In (PO In)'] ?? {};
-    const hasPrivileges = user.has_privileges ?? false;
-    const canCreate = isAdmin || (hasPrivileges && menuAccess.create === true);
-    const canUpdate = isAdmin || (hasPrivileges && menuAccess.update === true);
-    const canDelete = isAdmin || (hasPrivileges && menuAccess.delete === true);
+    const menuKey = 'Marketing:Purchase Order In (PO In)';
+    const canCreate = canAccessMenuAction(user, menuKey, 'create');
+    const canUpdate = canAccessMenuAction(user, menuKey, 'update');
+    const canDelete = canAccessMenuAction(user, menuKey, 'delete');
 
     const [search, setSearch] = useState(filters.search ?? '');
     const [activeDataTab, setActiveDataTab] = useState('customer');
@@ -1406,7 +1404,8 @@ export default function PurchaseOrderInIndex({
                             >
                                 Export Data
                             </Button>
-                            <Button
+                            <MenuAction
+                                action="create"
                                 className="w-full border-2 border-slate-700 bg-[#ffffff] font-bold text-[#0f172a] hover:bg-[#f1f5f9] md:w-auto"
                                 style={{
                                     backgroundColor: '#ffffff',
@@ -1426,7 +1425,7 @@ export default function PurchaseOrderInIndex({
                                 }}
                             >
                                 Tambah PO IN
-                            </Button>
+                            </MenuAction>
                         </div>
                     </div>
                 </section>
@@ -3711,7 +3710,8 @@ export default function PurchaseOrderInIndex({
                                                             ) ||
                                                             activeModal ===
                                                             'sisa') && (
-                                                                <Button
+                                                                <MenuAction
+                                                                    action="update"
                                                                     type="button"
                                                                     variant="outline"
                                                                     size="sm"
@@ -3735,11 +3735,12 @@ export default function PurchaseOrderInIndex({
                                                                     title="Edit"
                                                                 >
                                                                     <Pencil className="size-4" />
-                                                                </Button>
+                                                                </MenuAction>
                                                             )}
                                                         {activeModal ===
                                                             'outstanding' && (
-                                                                <Button
+                                                                <MenuAction
+                                                                    action="delete"
                                                                     type="button"
                                                                     variant="outline"
                                                                     size="sm"
@@ -3763,7 +3764,7 @@ export default function PurchaseOrderInIndex({
                                                                     }}
                                                                 >
                                                                     <Trash2 className="size-4" />
-                                                                </Button>
+                                                                </MenuAction>
                                                             )}
                                                     </div>
                                                 ) : (
@@ -3890,14 +3891,15 @@ export default function PurchaseOrderInIndex({
                             >
                                 Batal
                             </Button>
-                            <Button
+                            <MenuAction
+                                action="delete"
                                 type="button"
                                 variant="destructive"
                                 onClick={handleDeletePoIn}
                                 disabled={isDeleting}
                             >
                                 {isDeleting ? 'Menghapus...' : 'Ya, hapus'}
-                            </Button>
+                            </MenuAction>
                         </div>
                     </DialogContent>
                 </Dialog>

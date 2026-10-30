@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -330,7 +331,8 @@ onSuccess: () => {
                                 </div>
                             </div>
                             <div className="flex flex-wrap justify-end gap-2 pt-4">
-                                <Button
+                                <MenuAction
+                                    action="update"
                                     variant="secondary"
                                     onClick={handleSaveDate}
                                     disabled={isSavingDate}
@@ -338,7 +340,7 @@ onSuccess: () => {
                                     {isSavingDate
                                         ? 'Menyimpan...'
                                         : 'Simpan Data'}
-                                </Button>
+                                </MenuAction>
                                 <Button onClick={nextStep}>
                                     Next <ArrowRight className="ml-2 h-4 w-4" />
                                 </Button>
@@ -425,7 +427,8 @@ onSuccess: () => {
                                         />
                                     </div>
                                     <div className="flex items-end justify-end lg:col-span-4">
-                                        <Button
+                                        <MenuAction
+                                            action="update"
                                             onClick={handleUpdateItem}
                                             disabled={
                                                 isSubmitting || !inputItem.no
@@ -435,7 +438,7 @@ onSuccess: () => {
                                             {isSubmitting
                                                 ? 'Menyimpan...'
                                                 : 'Edit Data'}
-                                        </Button>
+                                        </MenuAction>
                                     </div>
                                 </div>
 
@@ -508,7 +511,8 @@ onSuccess: () => {
                                                                 {item.remark}
                                                             </TableCell>
                                                             <TableCell className="text-center">
-                                                                <Button
+                                                                <MenuAction
+                                                                    action="delete"
                                                                     type="button"
                                                                     variant="ghost"
                                                                     size="icon"
@@ -522,7 +526,7 @@ onSuccess: () => {
                                                                     }}
                                                                 >
                                                                     <Trash2 className="h-4 w-4 text-destructive" />
-                                                                </Button>
+                                                                </MenuAction>
                                                             </TableCell>
                                                         </TableRow>
                                                     ),

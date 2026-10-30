@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -207,7 +208,8 @@ export default function InputPenjualanIndex({
                                     untuk transaksi penjualan.
                                 </div>
                             </div>
-                            <Button
+                            <MenuAction
+                                action="create"
                                 type="button"
                                 onClick={() =>
                                     router.visit(
@@ -216,7 +218,7 @@ export default function InputPenjualanIndex({
                                 }
                             >
                                 Input Baru
-                            </Button>
+                            </MenuAction>
                         </div>
 
                         <div className="grid grid-cols-1 gap-3 lg:grid-cols-12 lg:items-end">

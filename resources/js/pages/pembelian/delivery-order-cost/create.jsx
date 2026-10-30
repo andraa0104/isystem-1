@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ActionIconButton } from '@/components/action-icon-button';
 import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
 import { Button } from '@/components/ui/button';
@@ -493,14 +494,15 @@ export default function DeliveryOrderCostCreate() {
                             <Button variant="outline" onClick={prevStep}>
                                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
                             </Button>
-                            <Button
+                            <MenuAction
+                                action="create"
                                 onClick={handleSubmit}
                                 disabled={
                                     isSubmitting || formData.items.length === 0
                                 }
                             >
                                 {isSubmitting ? 'Menyimpan...' : 'Simpan Data'}
-                            </Button>
+                            </MenuAction>
                         </div>
                     </div>
                 )}

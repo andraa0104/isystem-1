@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import InputError from '@/components/input-error';
 import RichTextEditor from '@/components/rich-text-editor';
 import { Button } from '@/components/ui/button';
@@ -1300,7 +1301,8 @@ export default function QuotationEdit({
                                 </div>
                             </div>
                             <div className="flex flex-wrap items-center gap-2">
-                                <Button
+                                <MenuAction
+                                    action="update"
                                     type="button"
                                     onClick={
                                         editingMaterialId
@@ -1320,7 +1322,7 @@ export default function QuotationEdit({
                                             ? 'Menyimpan...'
                                             : 'Simpan Material'
                                         : 'Tambah Material'}
-                                </Button>
+                                </MenuAction>
                                 {editingMaterialId && (
                                     <Button
                                         type="button"
@@ -1447,7 +1449,8 @@ export default function QuotationEdit({
                                                                 </>
                                                             ) : (
                                                                 <>
-                                                                    <Button
+                                                                    <MenuAction
+                                                                        action="update"
                                                                         type="button"
                                                                         variant="ghost"
                                                                         size="icon"
@@ -1466,8 +1469,9 @@ export default function QuotationEdit({
                                                                         <span className="sr-only">
                                                                             Edit
                                                                         </span>
-                                                                    </Button>
-                                                                    <Button
+                                                                    </MenuAction>
+                                                                    <MenuAction
+                                                                        action="delete"
                                                                         type="button"
                                                                         variant="ghost"
                                                                         size="icon"
@@ -1491,7 +1495,7 @@ export default function QuotationEdit({
                                                                         <span className="sr-only">
                                                                             Hapus
                                                                         </span>
-                                                                    </Button>
+                                                                    </MenuAction>
                                                                 </>
                                                             )}
                                                         </div>
@@ -1534,7 +1538,8 @@ export default function QuotationEdit({
                         </div>
                         {activeStep === steps.length - 1 && (
                             <div className="flex flex-wrap items-center gap-2">
-                                <Button
+                                <MenuAction
+                                    action="update"
                                     type="submit"
                                     disabled={
                                         isSubmitting ||
@@ -1546,7 +1551,7 @@ export default function QuotationEdit({
                                         <Spinner className="mr-2" />
                                     )}
                                     {isSubmitting ? 'Menyimpan...' : 'Simpan'}
-                                </Button>
+                                </MenuAction>
                                 <Button variant="outline" asChild>
                                     <Link href="/marketing/quotation">
                                         Batal

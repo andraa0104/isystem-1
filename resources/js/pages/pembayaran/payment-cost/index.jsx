@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ActionIconButton } from '@/components/action-icon-button';
 import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 import { Button } from '@/components/ui/button';
@@ -199,11 +200,11 @@ export default function PaymentCostIndex() {
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                        <Button asChild className="sm:order-3">
+                        <MenuAction action="create" asChild className="sm:order-3">
                             <Link href="/pembayaran/payment-cost/create">
                                 Add Payment
                             </Link>
-                        </Button>
+                        </MenuAction>
                         <Select value={period} onValueChange={setPeriod}>
                             <SelectTrigger className="w-36">
                                 <SelectValue placeholder="Pilih Periode" />

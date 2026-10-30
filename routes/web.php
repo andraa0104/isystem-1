@@ -327,7 +327,8 @@ Route::get('marketing/purchase-requirement/create', [PurchaseRequirementControll
     ->name('marketing.purchase-requirement.create');
 Route::get('marketing/purchase-requirement/{noPr}/edit', [PurchaseRequirementController::class, 'edit'])
     ->name('marketing.purchase-requirement.edit');
-Route::put('marketing/purchase-requirement/poin-detail/{id}/clear-sisa', [PurchaseRequirementController::class, 'clearPoInSisaQtyPr']);
+Route::put('marketing/purchase-requirement/poin-detail/{id}/clear-sisa', [PurchaseRequirementController::class, 'clearPoInSisaQtyPr'])
+    ->name('marketing.purchase-requirement.poin-detail.clear-sisa');
     Route::post('marketing/purchase-requirement', [PurchaseRequirementController::class, 'store'])
     ->name('marketing.purchase-requirement.store');
 Route::put('marketing/purchase-requirement/{noPr}', [PurchaseRequirementController::class, 'update'])

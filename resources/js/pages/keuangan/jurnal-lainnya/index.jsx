@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -76,14 +77,15 @@ export default function JurnalLainnyaIndex({ filters = {} }) {
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between gap-3">
                         <CardTitle>Jurnal Lainnya</CardTitle>
-                        <Button
+                        <MenuAction
+                            action="create"
                             type="button"
                             onClick={() =>
                                 router.visit('/keuangan/jurnal-lainnya/create')
                             }
                         >
                             Input Baru
-                        </Button>
+                        </MenuAction>
                     </CardHeader>
                     <CardContent className="space-y-3">
                         <div className="flex flex-wrap items-center gap-2">

@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 import { Button } from '@/components/ui/button';
 import {
@@ -476,11 +477,11 @@ export default function DeliveryOrderAddIndex({
                     </p>
                 </div>
                 <div className="flex justify-end">
-                    <Button asChild type="button">
+                    <MenuAction action="create" asChild type="button">
                         <Link href="/marketing/delivery-order-add/create">
                             Tambah DOT
                         </Link>
-                    </Button>
+                    </MenuAction>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2">
@@ -1372,7 +1373,9 @@ export default function DeliveryOrderAddIndex({
                                               </td>
                                               <td className="px-4 py-3">
                                                   <div className="flex items-center gap-2">
-                                                      <Link
+                                                      <MenuAction
+                                                          action="update"
+                                                          as={Link}
                                                           href={`/marketing/delivery-order-add/${encodeURIComponent(
                                                               item.no_dob,
                                                           )}/edit`}
@@ -1386,8 +1389,10 @@ export default function DeliveryOrderAddIndex({
                                                           }
                                                       >
                                                           <Pencil className="size-4" />
-                                                      </Link>
-                                                      <button
+                                                      </MenuAction>
+                                                      <MenuAction
+                                                          action="delete"
+                                                          as="button"
                                                           type="button"
                                                           className="text-destructive transition hover:text-red-600"
                                                           aria-label="Hapus"
@@ -1399,7 +1404,7 @@ export default function DeliveryOrderAddIndex({
                                                           }
                                                       >
                                                           <Trash2 className="size-4" />
-                                                      </button>
+                                                      </MenuAction>
                                                   </div>
                                               </td>
                                           </tr>

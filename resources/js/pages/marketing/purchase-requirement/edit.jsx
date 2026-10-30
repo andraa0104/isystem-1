@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -1203,7 +1204,8 @@ export default function PurchaseRequirementEdit({
                                 <div className="space-y-2 md:col-span-2">
                                     <div className="flex items-center justify-between">
                                         <Label>PO In Terpilih</Label>
-                                        <Button
+                                        <MenuAction
+                                            action="update"
                                             type="button"
                                             variant="outline"
                                             size="sm"
@@ -1214,7 +1216,7 @@ export default function PurchaseRequirementEdit({
                                             }}
                                         >
                                             <Plus className="mr-1 h-3 w-3" /> Tambah PO In
-                                        </Button>
+                                        </MenuAction>
                                     </div>
                                     <div className="grid gap-2 md:grid-cols-2">
                                         {uniqueCustomerPOs.map((po) => (
@@ -1230,7 +1232,9 @@ export default function PurchaseRequirementEdit({
                                                         {po.customer}
                                                     </div>
                                                 </div>
-                                                <button
+                                                <MenuAction
+                                                    action="delete"
+                                                    as="button"
                                                     type="button"
                                                     className="rounded-md p-2 text-red-500 transition-colors hover:bg-red-50 hover:text-red-600"
                                                     title="Hapus Customer/PO"
@@ -1241,7 +1245,7 @@ export default function PurchaseRequirementEdit({
                                                     }
                                                 >
                                                     <Trash2 className="size-4" />
-                                                </button>
+                                                </MenuAction>
                                             </div>
                                         ))}
                                     </div>
@@ -1339,14 +1343,15 @@ export default function PurchaseRequirementEdit({
                                 >
                                     <Search className="mr-2 h-4 w-4" /> Pilih PO In
                                 </Button>
-                                <Button
+                                <MenuAction
+                                    action="update"
                                     type="button"
                                     size="sm"
                                     onClick={() => setIsMaterialModalOpen(true)}
                                 >
                                     <Plus className="mr-2 h-4 w-4" /> Tambah
                                     Material
-                                </Button>
+                                </MenuAction>
                             </div>
                         </CardHeader>
                         <CardContent className="space-y-4">
@@ -1548,7 +1553,8 @@ export default function PurchaseRequirementEdit({
                                                 </div>
                                             </div>
                                             <div className="flex items-center gap-1">
-                                                <Button
+                                                <MenuAction
+                                                    action="update"
                                                     type="button"
                                                     variant="ghost"
                                                     size="icon"
@@ -1558,11 +1564,12 @@ export default function PurchaseRequirementEdit({
                                                     }
                                                 >
                                                     <Pencil className="h-4 w-4" />
-                                                </Button>
+                                                </MenuAction>
                                                 {shouldShowClearSisaPrButton(
                                                     item,
                                                 ) && (
-                                                    <Button
+                                                    <MenuAction
+                                                        action="update"
                                                         type="button"
                                                         variant="ghost"
                                                         size="icon"
@@ -1585,10 +1592,11 @@ export default function PurchaseRequirementEdit({
                                                         ) : (
                                                             <CheckCircle2 className="h-4 w-4 text-green-600" />
                                                         )}
-                                                    </Button>
+                                                    </MenuAction>
                                                 )}
                                                 {item.qtyPo <= 0 && (
-                                                    <Button
+                                                    <MenuAction
+                                                        action="delete"
                                                         type="button"
                                                         variant="ghost"
                                                         size="icon"
@@ -1611,7 +1619,7 @@ export default function PurchaseRequirementEdit({
                                                         ) : (
                                                             <Trash2 className="h-4 w-4 text-destructive" />
                                                         )}
-                                                    </Button>
+                                                    </MenuAction>
                                                 )}
                                             </div>
                                         </div>
@@ -1772,7 +1780,8 @@ export default function PurchaseRequirementEdit({
                                                 >
                                                     Batal
                                                 </Button>
-                                                <Button
+                                                <MenuAction
+                                                    action="update"
                                                     type="button"
                                                     disabled={
                                                         item.detailNo &&
@@ -1789,7 +1798,7 @@ export default function PurchaseRequirementEdit({
                                                             <Spinner className="mr-2" />
                                                         )}
                                                     Simpan
-                                                </Button>
+                                                </MenuAction>
                                             </div>
                                         )}
                                     </div>
@@ -1865,12 +1874,12 @@ export default function PurchaseRequirementEdit({
                                 Kembali
                             </Button>
                             <div className="flex flex-wrap items-center gap-2">
-                                <Button type="submit" disabled={isSubmitting}>
+                                <MenuAction action="update" type="submit" disabled={isSubmitting}>
                                     {isSubmitting && (
                                         <Spinner className="mr-2" />
                                     )}
                                     {isSubmitting ? 'Menyimpan...' : 'Simpan'}
-                                </Button>
+                                </MenuAction>
                                 <Button variant="outline" asChild>
                                     <Link href="/marketing/purchase-requirement">
                                         Batal

@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ActionIconButton } from '@/components/action-icon-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -386,12 +387,12 @@ export default function PermintaanDanaOperasionalIndex() {
                             Monitoring permintaan dana operasional (PDO)
                         </p>
                     </div>
-                    <Button asChild>
+                    <MenuAction action="create" asChild>
                         <Link href="/pembayaran/permintaan-dana-operasional/create">
                             <Plus className="mr-2 h-4 w-4" />
                             Add PDO
                         </Link>
-                    </Button>
+                    </MenuAction>
                 </div>
 
                 <Card className="rounded-2xl border-white/10 bg-card">

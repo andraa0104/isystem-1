@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -449,7 +450,8 @@ export default function InvoiceMasukEdit({
                                 >
                                     Kembali
                                 </Button>
-                                <Button
+                                <MenuAction
+                                    action="update"
                                     onClick={handleSubmit}
                                     disabled={
                                         !header.no_gudang ||
@@ -458,7 +460,7 @@ export default function InvoiceMasukEdit({
                                     }
                                 >
                                     Simpan data
-                                </Button>
+                                </MenuAction>
                             </div>
                         </CardContent>
                     </Card>

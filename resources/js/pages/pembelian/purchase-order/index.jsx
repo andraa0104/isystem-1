@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ActionIconButton } from '@/components/action-icon-button';
 import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 import { Button } from '@/components/ui/button';
@@ -992,14 +993,15 @@ export default function PurchaseOrderIndex({
                             Ringkasan dan daftar PO
                         </p>
                     </div>
-                    <Button
+                    <MenuAction
+                        action="create"
                         type="button"
                         onClick={() =>
                             router.visit('/pembelian/purchase-order/create')
                         }
                     >
                         Tambah PO
-                    </Button>
+                    </MenuAction>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2 md:grid-cols-4">
                     <button
@@ -2292,7 +2294,9 @@ export default function PurchaseOrderIndex({
                                                 </td>
                                                 <td className="px-4 py-3">
                                                     <div className="flex items-center gap-2">
-                                                        <ActionIconButton
+                                                        <MenuAction
+                                                            action="update"
+                                                            as={ActionIconButton}
                                                             label="Edit"
                                                             asChild
                                                         >
@@ -2303,13 +2307,15 @@ export default function PurchaseOrderIndex({
                                                             >
                                                                 <Pencil className="size-4" />
                                                             </Link>
-                                                        </ActionIconButton>
+                                                        </MenuAction>
                                                         {Number(
                                                             item.can_delete ??
                                                             item.canDelete ??
                                                             0,
                                                         ) === 1 && (
-                                                                <ActionIconButton
+                                                                <MenuAction
+                                                                    action="delete"
+                                                                    as={ActionIconButton}
                                                                     label="Hapus"
                                                                     onClick={() =>
                                                                         handleDeletePo(
@@ -2327,7 +2333,7 @@ export default function PurchaseOrderIndex({
                                                                     ) : (
                                                                         <Trash2 className="size-4 text-destructive" />
                                                                     )}
-                                                                </ActionIconButton>
+                                                                </MenuAction>
                                                             )}
                                                     </div>
                                                 </td>

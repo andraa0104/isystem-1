@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -432,15 +433,17 @@ export default function TandaTerimaInvoiceEdit({ noTtInv }) {
                         </p>
                     </div>
                     <div className="flex items-center gap-2">
-                        <Button
+                        <MenuAction
+                            action="create"
                             type="button"
                             variant="outline"
                             onClick={() => setIsSearchOpen(true)}
                         >
                             <Search className="mr-2 h-4 w-4" />
                             Cari Invoice
-                        </Button>
-                        <Button
+                        </MenuAction>
+                        <MenuAction
+                            action="delete"
                             type="button"
                             variant="destructive"
                             onClick={handleDeleteTandaTerima}
@@ -449,7 +452,7 @@ export default function TandaTerimaInvoiceEdit({ noTtInv }) {
                             {deletingAll
                                 ? 'Menghapus...'
                                 : 'Hapus Tanda Terima'}
-                        </Button>
+                        </MenuAction>
                     </div>
                 </div>
 
@@ -529,7 +532,8 @@ export default function TandaTerimaInvoiceEdit({ noTtInv }) {
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <div className="inline-flex items-center gap-1">
-                                                    <Button
+                                                    <MenuAction
+                                                        action="update"
                                                         type="button"
                                                         variant="ghost"
                                                         size="icon"
@@ -540,8 +544,9 @@ export default function TandaTerimaInvoiceEdit({ noTtInv }) {
                                                         }
                                                     >
                                                         <Pencil className="h-4 w-4" />
-                                                    </Button>
-                                                    <Button
+                                                    </MenuAction>
+                                                    <MenuAction
+                                                        action="delete"
                                                         type="button"
                                                         variant="ghost"
                                                         size="icon"
@@ -552,7 +557,7 @@ export default function TandaTerimaInvoiceEdit({ noTtInv }) {
                                                         }
                                                     >
                                                         <Trash2 className="h-4 w-4 text-destructive" />
-                                                    </Button>
+                                                    </MenuAction>
                                                 </div>
                                             </TableCell>
                                         </TableRow>
@@ -652,7 +657,9 @@ export default function TandaTerimaInvoiceEdit({ noTtInv }) {
                                     {!invoiceLoading &&
                                         !invoiceError &&
                                         displayedInvoiceRows.map((row) => (
-                                            <TableRow
+                                            <MenuAction
+                                                action="create"
+                                                as={TableRow}
                                                 key={row.no_fakturpenjualan}
                                                 className="cursor-pointer"
                                                 onClick={() =>
@@ -677,7 +684,7 @@ export default function TandaTerimaInvoiceEdit({ noTtInv }) {
                                                 <TableCell>
                                                     {formatRupiah(row.g_total)}
                                                 </TableCell>
-                                            </TableRow>
+                                            </MenuAction>
                                         ))}
                                 </TableBody>
                             </Table>

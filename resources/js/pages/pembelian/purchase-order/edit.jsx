@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 import { Badge } from '@/components/ui/badge';
 import { ActionIconButton } from '@/components/action-icon-button';
@@ -1737,7 +1738,8 @@ export default function PurchaseOrderEdit({
                                 </div>
                                 <div className="grid gap-2 lg:col-span-2">
                                     <div className="flex flex-wrap gap-2">
-                                        <Button
+                                        <MenuAction
+                                            action="update"
                                             type="button"
                                             onClick={handleSaveMaterial}
                                             disabled={
@@ -1750,7 +1752,7 @@ export default function PurchaseOrderEdit({
                                             editingMaterialId
                                                 ? 'Menyimpan...'
                                                 : 'Simpan Data'}
-                                        </Button>
+                                        </MenuAction>
                                         <Button
                                             type="button"
                                             variant="outline"
@@ -1863,7 +1865,9 @@ export default function PurchaseOrderEdit({
                                                                     <CheckCircle2 className="h-4 w-4 text-green-600" />
                                                                 </ActionIconButton>
                                                             )}
-                                                        <ActionIconButton
+                                                        <MenuAction
+                                                            action="update"
+                                                            as={ActionIconButton}
                                                             label="Edit"
                                                             onClick={() =>
                                                                 handleEditMaterial(
@@ -1872,8 +1876,10 @@ export default function PurchaseOrderEdit({
                                                             }
                                                         >
                                                             <Pencil className="h-4 w-4" />
-                                                        </ActionIconButton>
-                                                        <ActionIconButton
+                                                        </MenuAction>
+                                                        <MenuAction
+                                                            action="delete"
+                                                            as={ActionIconButton}
                                                             label="Hapus"
                                                             onClick={() =>
                                                                 handleDeleteMaterial(
@@ -1882,7 +1888,7 @@ export default function PurchaseOrderEdit({
                                                             }
                                                         >
                                                             <Trash2 className="h-4 w-4 text-destructive" />
-                                                        </ActionIconButton>
+                                                        </MenuAction>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -1984,7 +1990,8 @@ export default function PurchaseOrderEdit({
                                                                 )}
                                                             </td>
                                                             <td className="px-4 py-3">
-                                                                <Button
+                                                                <MenuAction
+                                                                    action="update"
                                                                     type="button"
                                                                     size="sm"
                                                                     variant="outline"
@@ -1995,7 +2002,7 @@ export default function PurchaseOrderEdit({
                                                                     }
                                                                 >
                                                                     Tambah
-                                                                </Button>
+                                                                </MenuAction>
                                                             </td>
                                                         </tr>
                                                     ),
@@ -2042,14 +2049,15 @@ export default function PurchaseOrderEdit({
                             >
                                 Kembali
                             </Button>
-                            <Button
+                            <MenuAction
+                                action="update"
                                 type="button"
                                 onClick={handleSubmit}
                                 disabled={isSubmitting}
                             >
                                 {isSubmitting && <Spinner className="mr-2" />}
                                 {isSubmitting ? 'Menyimpan...' : 'Simpan'}
-                            </Button>
+                            </MenuAction>
                         </div>
                     </Card>
                 )}
@@ -2620,13 +2628,14 @@ export default function PurchaseOrderEdit({
                                 >
                                     Batal
                                 </Button>
-                                <Button
+                                <MenuAction
+                                    action="update"
                                     type="button"
                                     onClick={handleConfirmQtyAllocation}
                                     disabled={!pendingSubmitPayload}
                                 >
                                     Lanjut Simpan
-                                </Button>
+                                </MenuAction>
                             </div>
                         </div>
                     </DialogContent>
@@ -2751,13 +2760,14 @@ export default function PurchaseOrderEdit({
                                 >
                                     Batal
                                 </Button>
-                                <Button
+                                <MenuAction
+                                    action="update"
                                     type="button"
                                     onClick={handleConfirmClearRealization}
                                     disabled={!pendingClearRealization}
                                 >
                                     Lanjut Simpan
-                                </Button>
+                                </MenuAction>
                             </div>
                         </div>
                     </DialogContent>

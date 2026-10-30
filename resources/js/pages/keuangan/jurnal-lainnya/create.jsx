@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -468,14 +469,15 @@ export default function JurnalLainnyaCreate({ types = {}, accountOptions = [] })
                             {isBalanced ? 'Balance' : 'Belum balance'}
                         </div>
                         <div className="flex gap-2">
-                            <Button
+                            <MenuAction
+                                action="create"
                                 type="button"
                                 className="flex-1"
                                 disabled={!isBalanced || saving}
                                 onClick={submit}
                             >
                                 Simpan
-                            </Button>
+                            </MenuAction>
                             <Button
                                 type="button"
                                 variant="outline"

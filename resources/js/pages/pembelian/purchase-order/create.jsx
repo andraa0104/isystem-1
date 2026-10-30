@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -1552,7 +1553,8 @@ export default function PurchaseOrderCreate({
                             >
                                 Kembali
                             </Button>
-                            <Button
+                            <MenuAction
+                                action="create"
                                 type="button"
                                 onClick={handleSubmit}
                                 disabled={
@@ -1561,7 +1563,7 @@ export default function PurchaseOrderCreate({
                             >
                                 {isSubmitting && <Spinner className="mr-2" />}
                                 {isSubmitting ? 'Menyimpan...' : 'Simpan'}
-                            </Button>
+                            </MenuAction>
                         </div>
                     </Card>
                 )}
@@ -2185,13 +2187,14 @@ export default function PurchaseOrderCreate({
                                 >
                                     Batal
                                 </Button>
-                                <Button
+                                <MenuAction
+                                    action="create"
                                     type="button"
                                     onClick={handleConfirmReturnSubmit}
                                     disabled={!pendingSubmitPayload}
                                 >
                                     Lanjut Simpan
-                                </Button>
+                                </MenuAction>
                             </div>
                         </div>
                     </DialogContent>

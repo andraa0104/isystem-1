@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ActionIconButton } from '@/components/action-icon-button';
 import { ErrorState } from '@/components/data-states/ErrorState';
 import { Button } from '@/components/ui/button';
@@ -599,10 +600,10 @@ export default function VendorIndex({ vendors = [] }) {
                             Kelola daftar vendor.
                         </p>
                     </div>
-                    <Button onClick={() => setIsCreateModalOpen(true)}>
+                    <MenuAction action="create" onClick={() => setIsCreateModalOpen(true)}>
                         <Plus className="mr-2 h-4 w-4" />
                         Tambah Data
-                    </Button>
+                    </MenuAction>
                 </div>
 
                 <Card>
@@ -719,7 +720,8 @@ export default function VendorIndex({ vendors = [] }) {
                                                         tersedia atau tidak ditemukan.
                                                     </div>
                                                     <div className="mt-3">
-                                                        <Button
+                                                        <MenuAction
+                                                            action="create"
                                                             type="button"
                                                             size="sm"
                                                             onClick={() =>
@@ -729,7 +731,7 @@ export default function VendorIndex({ vendors = [] }) {
                                                             }
                                                         >
                                                             Tambah Vendor
-                                                        </Button>
+                                                        </MenuAction>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -766,7 +768,9 @@ export default function VendorIndex({ vendors = [] }) {
                                                             >
                                                                 <Eye className="h-4 w-4" />
                                                             </ActionIconButton>
-                                                            <ActionIconButton
+                                                            <MenuAction
+                                                                action="update"
+                                                                as={ActionIconButton}
                                                                 label="Edit"
                                                                 onMouseEnter={() => handlePreload(item.kd_vdr)}
                                                                 onClick={() =>
@@ -774,8 +778,10 @@ export default function VendorIndex({ vendors = [] }) {
                                                                 }
                                                             >
                                                                 <Pencil className="h-4 w-4" />
-                                                            </ActionIconButton>
-                                                            <ActionIconButton
+                                                            </MenuAction>
+                                                            <MenuAction
+                                                                action="delete"
+                                                                as={ActionIconButton}
                                                                 label="Hapus"
                                                                 onMouseEnter={() => handlePreload(item.kd_vdr)}
                                                                 onClick={() =>
@@ -785,7 +791,7 @@ export default function VendorIndex({ vendors = [] }) {
                                                                 }
                                                             >
                                                                 <Trash2 className="h-4 w-4 text-destructive" />
-                                                            </ActionIconButton>
+                                                            </MenuAction>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -901,7 +907,8 @@ export default function VendorIndex({ vendors = [] }) {
                                         Lanjut
                                     </Button>
                                 ) : (
-                                    <Button
+                                    <MenuAction
+                                        action="create"
                                         type="button"
                                         disabled={createProcessing}
                                         onClick={handleCreateSubmit}
@@ -909,7 +916,7 @@ export default function VendorIndex({ vendors = [] }) {
                                         {createProcessing
                                             ? 'Menyimpan...'
                                             : 'Simpan Data'}
-                                    </Button>
+                                    </MenuAction>
                                 )}
                             </div>
                         </form>
@@ -1432,7 +1439,8 @@ export default function VendorIndex({ vendors = [] }) {
                                             Lanjut
                                         </Button>
                                     ) : (
-                                        <Button
+                                        <MenuAction
+                                            action="update"
                                             type="button"
                                             disabled={editProcessing}
                                             onClick={handleEditSubmit}
@@ -1440,7 +1448,7 @@ export default function VendorIndex({ vendors = [] }) {
                                             {editProcessing
                                                 ? 'Menyimpan...'
                                                 : 'Simpan Perubahan'}
-                                        </Button>
+                                        </MenuAction>
                                     )}
                                 </div>
                             </form>

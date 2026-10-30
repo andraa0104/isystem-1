@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ActionIconButton } from '@/components/action-icon-button';
 import { ErrorState } from '@/components/data-states/ErrorState';
 import { Button } from '@/components/ui/button';
@@ -817,7 +818,7 @@ export default function FakturPenjualanIndex({
                         </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                        <label className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-sidebar-border/70 bg-black px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-black/80 dark:bg-white dark:text-black dark:hover:bg-white/90">
+                        <MenuAction action="update" as="label" className="inline-flex cursor-pointer items-center gap-2 rounded-md border border-sidebar-border/70 bg-black px-3 py-2 text-sm font-medium text-white shadow-sm hover:bg-black/80 dark:bg-white dark:text-black dark:hover:bg-white/90">
                             <input
                                 type="file"
                                 accept=".csv"
@@ -825,12 +826,12 @@ export default function FakturPenjualanIndex({
                                 onChange={handleUploadCsv}
                             />
                             Upload Faktur Pajak
-                        </label>
-                        <Button asChild>
+                        </MenuAction>
+                        <MenuAction action="create" asChild>
                             <Link href="/penjualan/faktur-penjualan/create">
                                 Tambah Invoice
                             </Link>
-                        </Button>
+                        </MenuAction>
                     </div>
                 </div>
                 <div className="grid gap-4 md:grid-cols-2">
@@ -1098,14 +1099,15 @@ export default function FakturPenjualanIndex({
                                                             invoice.
                                                         </div>
                                                         <div className="mt-3">
-                                                            <Button
+                                                            <MenuAction
+                                                                action="create"
                                                                 asChild
                                                                 size="sm"
                                                             >
                                                                 <Link href="/penjualan/faktur-penjualan/create">
                                                                     Buat Faktur
                                                                 </Link>
-                                                            </Button>
+                                                            </MenuAction>
                                                         </div>
                                                     </TableCell>
                                                 </TableRow>
@@ -1667,7 +1669,9 @@ export default function FakturPenjualanIndex({
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <div className="inline-flex items-center justify-end gap-2">
-                                                    <ActionIconButton
+                                                    <MenuAction
+                                                        action="update"
+                                                        as={ActionIconButton}
                                                         label="Edit"
                                                         asChild
                                                     >
@@ -1687,8 +1691,11 @@ export default function FakturPenjualanIndex({
                                                         >
                                                             <Pencil className="h-4 w-4" />
                                                         </Link>
-                                                    </ActionIconButton>
-                                                    <ActionIconButton
+                                                    </MenuAction>
+                                                    <MenuAction
+                                                        action="create"
+                                                        menu="Penjualan:Faktur Penjualan"
+                                                        as={ActionIconButton}
                                                         label="Buat Kwitansi"
                                                         onClick={() =>
                                                             openKwitansiModal(
@@ -1697,7 +1704,7 @@ export default function FakturPenjualanIndex({
                                                         }
                                                     >
                                                         <ReceiptText className="h-4 w-4" />
-                                                    </ActionIconButton>
+                                                    </MenuAction>
                                                     {canDeleteRow(item, {
                                                         journalKeys: [
                                                             'trx_jurnal',
@@ -1705,7 +1712,9 @@ export default function FakturPenjualanIndex({
                                                             'jurnal',
                                                         ],
                                                     }) ? (
-                                                        <ActionIconButton
+                                                        <MenuAction
+                                                            action="delete"
+                                                            as={ActionIconButton}
                                                             label="Hapus"
                                                             onClick={() =>
                                                                 handleDeleteInvoice(
@@ -1714,7 +1723,7 @@ export default function FakturPenjualanIndex({
                                                             }
                                                         >
                                                             <Trash2 className="h-4 w-4 text-destructive" />
-                                                        </ActionIconButton>
+                                                        </MenuAction>
                                                     ) : null}
                                                 </div>
                                             </TableCell>
@@ -1848,7 +1857,8 @@ export default function FakturPenjualanIndex({
                                     </Table>
                                 </div>
                                 <div className="flex justify-end">
-                                    <Button
+                                    <MenuAction
+                                        action="update"
                                         type="button"
                                         onClick={handleSaveUpload}
                                         disabled={uploadSaving}
@@ -1856,7 +1866,7 @@ export default function FakturPenjualanIndex({
                                         {uploadSaving
                                             ? 'Menyimpan...'
                                             : 'Simpan'}
-                                    </Button>
+                                    </MenuAction>
                                 </div>
                             </div>
                         )}
@@ -1908,13 +1918,15 @@ export default function FakturPenjualanIndex({
                             />
                         </label>
                         <div className="flex justify-end gap-2">
-                            <Button
+                            <MenuAction
+                                action="create"
+                                menu="Penjualan:Faktur Penjualan"
                                 type="button"
                                 onClick={handleSaveKwitansi}
                                 disabled={kwitansiSaving}
                             >
                                 {kwitansiSaving ? 'Menyimpan...' : 'Simpan'}
-                            </Button>
+                            </MenuAction>
                         </div>
                     </div>
                 </DialogContent>

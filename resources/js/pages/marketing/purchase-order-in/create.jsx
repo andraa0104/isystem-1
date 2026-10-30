@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -1733,7 +1734,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                             </article>
 
                             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                                <Button
+                                <MenuAction
+                                    action="create"
                                     className="w-full"
                                     type="button"
                                     onClick={handleSavePoIn}
@@ -1743,7 +1745,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                         <Spinner className="mr-2" />
                                     )}
                                     Simpan PO In
-                                </Button>
+                                </MenuAction>
                                 <Button
                                     variant="outline"
                                     asChild
@@ -2680,11 +2682,11 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                             >
                                 Batal
                             </Button>
-                            <Button type="submit" disabled={isMaterialCreating}>
+                            <MenuAction action="create" type="submit" disabled={isMaterialCreating}>
                                 {isMaterialCreating
                                     ? 'Menyimpan...'
                                     : 'Simpan Data'}
-                            </Button>
+                            </MenuAction>
                         </div>
                     </form>
                 </DialogContent>
@@ -2846,11 +2848,11 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                             >
                                 Batal
                             </Button>
-                            <Button type="submit" disabled={isCustomerCreating}>
+                            <MenuAction action="create" type="submit" disabled={isCustomerCreating}>
                                 {isCustomerCreating
                                     ? 'Menyimpan...'
                                     : 'Simpan Data'}
-                            </Button>
+                            </MenuAction>
                         </div>
                     </form>
                 </DialogContent>

@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -348,13 +349,14 @@ export default function TandaTerimaInvoiceCreate() {
                         </div>
                     </div>
                     <div className="flex items-end justify-end">
-                        <Button
+                        <MenuAction
+                            action="create"
                             type="button"
                             onClick={handleSave}
                             disabled={saving}
                         >
                             {saving ? 'Menyimpan...' : 'Simpan Data'}
-                        </Button>
+                        </MenuAction>
                     </div>
                 </div>
             </div>

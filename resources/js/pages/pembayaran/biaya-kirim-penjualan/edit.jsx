@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
@@ -671,7 +672,8 @@ export default function BiayaKirimPenjualanEdit({
                                                         )}
                                                     </TableCell>
                                                     <TableCell className="text-center">
-                                                        <Button
+                                                        <MenuAction
+                                                            action="delete"
                                                             variant="ghost"
                                                             size="icon"
                                                             onClick={(
@@ -711,7 +713,7 @@ export default function BiayaKirimPenjualanEdit({
                                                             }}
                                                         >
                                                             <Trash2 className="h-4 w-4" />
-                                                        </Button>
+                                                        </MenuAction>
                                                     </TableCell>
                                                 </TableRow>
                                             ))
@@ -1621,7 +1623,8 @@ export default function BiayaKirimPenjualanEdit({
                                                         })()}
                                                     </TableCell>
                                                     <TableCell className="text-center">
-                                                        <Button
+                                                        <MenuAction
+                                                            action="delete"
                                                             variant="ghost"
                                                             size="icon"
                                                             onClick={() =>
@@ -1632,7 +1635,7 @@ export default function BiayaKirimPenjualanEdit({
                                                             className="text-destructive hover:text-destructive"
                                                         >
                                                             <Trash2 className="h-4 w-4" />
-                                                        </Button>
+                                                        </MenuAction>
                                                     </TableCell>
                                                 </TableRow>
                                             ))
@@ -1643,9 +1646,9 @@ export default function BiayaKirimPenjualanEdit({
                         </Card>
 
                         <div className="flex flex-wrap items-center justify-end gap-3">
-                            <Button variant="default" onClick={handleSave}>
+                            <MenuAction action="update" variant="default" onClick={handleSave}>
                                 Simpan Data
-                            </Button>
+                            </MenuAction>
                         </div>
                     </>
                 )}

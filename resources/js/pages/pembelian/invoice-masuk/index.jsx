@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ActionIconButton } from '@/components/action-icon-button';
 import { ErrorState } from '@/components/data-states/ErrorState';
 import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
@@ -625,9 +626,9 @@ export default function InvoiceMasukIndex({
                     <CardHeader className="space-y-3">
                         <div className="flex items-center justify-between gap-3">
                             <CardTitle>Data Invoice Masuk</CardTitle>
-                            <Link href="/pembelian/invoice-masuk/create">
+                            <MenuAction action="create" as={Link} href="/pembelian/invoice-masuk/create">
                                 <Button variant="default">Tambah FI</Button>
-                            </Link>
+                            </MenuAction>
                         </div>
                         <div className="flex flex-wrap gap-3">
                             <Input
@@ -1240,7 +1241,9 @@ export default function InvoiceMasukIndex({
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 <div className="flex items-center justify-center gap-2">
-                                                    <ActionIconButton
+                                                    <MenuAction
+                                                        action="update"
+                                                        as={ActionIconButton}
                                                         label="Edit"
                                                         variant="outline"
                                                         asChild
@@ -1250,8 +1253,10 @@ export default function InvoiceMasukIndex({
                                                         >
                                                             <Pencil className="h-4 w-4" />
                                                         </Link>
-                                                    </ActionIconButton>
-                                                    <ActionIconButton
+                                                    </MenuAction>
+                                                    <MenuAction
+                                                        action="delete"
+                                                        as={ActionIconButton}
                                                         label="Hapus"
                                                         variant="outline"
                                                         onClick={() =>
@@ -1261,7 +1266,7 @@ export default function InvoiceMasukIndex({
                                                         }
                                                     >
                                                         <Trash2 className="h-4 w-4 text-rose-500" />
-                                                    </ActionIconButton>
+                                                    </MenuAction>
                                                 </div>
                                             </TableCell>
                                         </TableRow>

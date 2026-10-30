@@ -114,6 +114,8 @@ class EnsureMenuPrivilege
         }
 
         if ($lastSegment === 'edit'
+            || $request->isMethod('put')
+            || $request->isMethod('patch')
             || str_contains($routeName, '.update')
             || str_contains($routeName, '.receive.store')
             || str_contains($routeName, '.upload-')) {
@@ -124,9 +126,7 @@ class EnsureMenuPrivilege
             || str_contains($routeName, '.store')
             || str_contains($routeName, '.add-')
             || str_contains($routeName, '.transfer')
-            || $request->isMethod('post')
-            || $request->isMethod('put')
-            || $request->isMethod('patch')) {
+            || $request->isMethod('post')) {
             return 'create';
         }
 

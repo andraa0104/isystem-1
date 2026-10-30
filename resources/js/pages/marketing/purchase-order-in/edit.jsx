@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { Button } from '@/components/ui/button';
 import {
     Dialog,
@@ -1454,7 +1455,8 @@ export default function PurchaseOrderInEdit({
                             </article>
 
                             <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                                <Button
+                                <MenuAction
+                                    action="update"
                                     className="w-full"
                                     type="button"
                                     onClick={handleSavePoIn}
@@ -1464,7 +1466,7 @@ export default function PurchaseOrderInEdit({
                                         <Spinner className="mr-2" />
                                     )}
                                     Simpan PO In
-                                </Button>
+                                </MenuAction>
                                 <Button
                                     variant="outline"
                                     asChild
@@ -1608,7 +1610,8 @@ export default function PurchaseOrderInEdit({
                             </div>
                         </div>
                         <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                            <Button
+                            <MenuAction
+                                action="update"
                                 type="button"
                                 className="w-full sm:w-auto"
                                 onClick={handleAddItem}
@@ -1622,7 +1625,7 @@ export default function PurchaseOrderInEdit({
                                     : editingItemId
                                       ? 'Simpan Perubahan'
                                       : 'Tambah Item'}
-                            </Button>
+                            </MenuAction>
                             {editingItemId && (
                                 <Button
                                     type="button"
@@ -1661,7 +1664,8 @@ export default function PurchaseOrderInEdit({
                                                 toNumber(
                                                     item.sisaQtyDo ?? 0,
                                                 ) !== 0) && (
-                                                <Button
+                                                <MenuAction
+                                                    action="update"
                                                     type="button"
                                                     variant="outline"
                                                     size="sm"
@@ -1671,7 +1675,7 @@ export default function PurchaseOrderInEdit({
                                                     title="Edit"
                                                 >
                                                     <Pencil className="size-4" />
-                                                </Button>
+                                                </MenuAction>
                                             )}
                                             {toNumber(item.sisaQtyPr ?? 0) ===
                                                 toNumber(item.qty ?? 0) &&
@@ -1679,7 +1683,8 @@ export default function PurchaseOrderInEdit({
                                                     item.sisaQtyDo ?? 0,
                                                 ) ===
                                                     toNumber(item.qty ?? 0) && (
-                                                    <Button
+                                                    <MenuAction
+                                                        action="delete"
                                                         type="button"
                                                         variant="outline"
                                                         size="sm"
@@ -1691,7 +1696,7 @@ export default function PurchaseOrderInEdit({
                                                         title="Hapus"
                                                     >
                                                         <Trash2 className="size-4" />
-                                                    </Button>
+                                                    </MenuAction>
                                                 )}
                                         </div>
                                     </div>
@@ -1822,7 +1827,8 @@ export default function PurchaseOrderInEdit({
                                                         toNumber(
                                                             item.sisaQtyDo ?? 0,
                                                         ) !== 0) && (
-                                                        <Button
+                                                        <MenuAction
+                                                            action="update"
                                                             type="button"
                                                             variant="outline"
                                                             size="sm"
@@ -1834,7 +1840,7 @@ export default function PurchaseOrderInEdit({
                                                             title="Edit"
                                                         >
                                                             <Pencil className="size-4" />
-                                                        </Button>
+                                                        </MenuAction>
                                                     )}
                                                     {toNumber(
                                                         item.sisaQtyPr ?? 0,
@@ -1848,7 +1854,8 @@ export default function PurchaseOrderInEdit({
                                                             toNumber(
                                                                 item.qty ?? 0,
                                                             ) && (
-                                                            <Button
+                                                            <MenuAction
+                                                                action="delete"
                                                                 type="button"
                                                                 variant="outline"
                                                                 size="sm"
@@ -1860,7 +1867,7 @@ export default function PurchaseOrderInEdit({
                                                                 title="Hapus"
                                                             >
                                                                 <Trash2 className="size-4" />
-                                                            </Button>
+                                                            </MenuAction>
                                                         )}
                                                 </div>
                                             </td>

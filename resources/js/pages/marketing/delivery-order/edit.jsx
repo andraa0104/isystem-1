@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -489,7 +490,8 @@ onError: () => setIsSubmitting(false),
                             </div>
                             <div className="flex justify-end pt-4">
                                 <div className="flex gap-2">
-                                    <Button
+                                    <MenuAction
+                                        action="update"
                                         variant="outline"
                                         type="button"
                                         onClick={handleSaveStep1}
@@ -501,7 +503,7 @@ onError: () => setIsSubmitting(false),
                                         {isSubmitting
                                             ? 'Menyimpan...'
                                             : 'Simpan Data'}
-                                    </Button>
+                                    </MenuAction>
                                     <Button onClick={nextStep}>
                                         Next{' '}
                                         <ArrowRight className="ml-2 h-4 w-4" />
@@ -605,7 +607,8 @@ onError: () => setIsSubmitting(false),
                                                 Stock now tidak boleh minus.
                                             </p>
                                         )}
-                                        <Button
+                                        <MenuAction
+                                            action="update"
                                             onClick={handleUpdateItem}
                                             disabled={
                                                 isSubmitting ||
@@ -624,7 +627,7 @@ onError: () => setIsSubmitting(false),
                                                 : inputItem.is_new
                                                   ? 'Tambah Data'
                                                   : 'Edit Data'}
-                                        </Button>
+                                        </MenuAction>
                                     </div>
                                 </div>
 
@@ -690,7 +693,8 @@ onError: () => setIsSubmitting(false),
                                                                 {item.remark}
                                                             </TableCell>
                                                             <TableCell>
-                                                                <Button
+                                                                <MenuAction
+                                                                    action="delete"
                                                                     type="button"
                                                                     variant="ghost"
                                                                     size="icon"
@@ -705,7 +709,7 @@ onError: () => setIsSubmitting(false),
                                                                     aria-label="Hapus material"
                                                                 >
                                                                     <Trash2 className="h-4 w-4 text-destructive" />
-                                                                </Button>
+                                                                </MenuAction>
                                                             </TableCell>
                                                         </TableRow>
                                                     ),

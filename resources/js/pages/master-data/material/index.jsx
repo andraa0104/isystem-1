@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ActionIconButton } from '@/components/action-icon-button';
 import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 import { Button } from '@/components/ui/button';
@@ -1315,10 +1316,10 @@ export default function MaterialIndex({ materials }) {
                         >
                             Export Data
                         </Button>
-                        <Button onClick={() => setIsModalOpen(true)}>
+                        <MenuAction action="create" onClick={() => setIsModalOpen(true)}>
                             <Plus className="mr-2 h-4 w-4" />
                             Tambah Data
-                        </Button>
+                        </MenuAction>
                     </div>
                 </div>
 
@@ -2007,7 +2008,8 @@ export default function MaterialIndex({ materials }) {
                                                         tersedia.
                                                     </div>
                                                     <div className="mt-3">
-                                                        <Button
+                                                        <MenuAction
+                                                            action="create"
                                                             type="button"
                                                             size="sm"
                                                             onClick={() =>
@@ -2017,7 +2019,7 @@ export default function MaterialIndex({ materials }) {
                                                             }
                                                         >
                                                             Tambah Material
-                                                        </Button>
+                                                        </MenuAction>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -2076,7 +2078,9 @@ export default function MaterialIndex({ materials }) {
                                                                 >
                                                                     <Eye className="h-4 w-4" />
                                                                 </ActionIconButton>
-                                                                <ActionIconButton
+                                                                <MenuAction
+                                                                    action="update"
+                                                                    as={ActionIconButton}
                                                                     label="Edit"
                                                                     onClick={() =>
                                                                         handleEdit(
@@ -2085,11 +2089,13 @@ export default function MaterialIndex({ materials }) {
                                                                     }
                                                                 >
                                                                     <Pencil className="h-4 w-4" />
-                                                                </ActionIconButton>
+                                                                </MenuAction>
                                                                 {toNumber(
                                                                     item.stok,
                                                                 ) === 0 && (
-                                                                    <ActionIconButton
+                                                                    <MenuAction
+                                                                        action="delete"
+                                                                        as={ActionIconButton}
                                                                         label="Hapus"
                                                                         onClick={() =>
                                                                             handleDelete(
@@ -2098,7 +2104,7 @@ export default function MaterialIndex({ materials }) {
                                                                         }
                                                                     >
                                                                         <Trash2 className="h-4 w-4 text-destructive" />
-                                                                    </ActionIconButton>
+                                                                    </MenuAction>
                                                                 )}
                                                             </div>
                                                         </td>
@@ -4504,11 +4510,11 @@ export default function MaterialIndex({ materials }) {
                                 >
                                     Batal
                                 </Button>
-                                <Button type="submit" disabled={processing}>
+                                <MenuAction action="create" type="submit" disabled={processing}>
                                     {processing
                                         ? 'Menyimpan...'
                                         : 'Simpan Data'}
-                                </Button>
+                                </MenuAction>
                             </div>
                         </form>
                     </DialogContent>
@@ -4628,11 +4634,11 @@ export default function MaterialIndex({ materials }) {
                                 >
                                     Batal
                                 </Button>
-                                <Button type="submit" disabled={editProcessing}>
+                                <MenuAction action="update" type="submit" disabled={editProcessing}>
                                     {editProcessing
                                         ? 'Menyimpan...'
                                         : 'Simpan Perubahan'}
-                                </Button>
+                                </MenuAction>
                             </div>
                         </form>
                     </DialogContent>

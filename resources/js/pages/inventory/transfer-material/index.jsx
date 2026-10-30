@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import AppLayout from '@/layouts/app-layout';
 import { Head } from '@inertiajs/react';
 import { useEffect, useMemo, useState } from 'react';
@@ -318,9 +319,9 @@ export default function TransferMaterialIndex() {
                                             <SelectItem value="all">Semua</SelectItem>
                                         </SelectContent>
                                     </Select>
-                                    <Button type="button" onClick={handleSave}>
+                                    <MenuAction action="create" type="button" onClick={handleSave}>
                                         Simpan Transfer
-                                    </Button>
+                                    </MenuAction>
                                 </div>
                             </div>
                         </div>

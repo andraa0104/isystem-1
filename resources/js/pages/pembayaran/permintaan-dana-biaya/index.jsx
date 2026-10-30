@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ActionIconButton } from '@/components/action-icon-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -315,12 +316,12 @@ export default function PermintaanDanaBiayaIndex() {
                             Ringkasan permintaan dana biaya berdasarkan PDB.
                         </div>
                     </div>
-                    <Button asChild className="gap-2">
+                    <MenuAction action="create" asChild className="gap-2">
                         <Link href="/pembayaran/permintaan-dana-biaya/create">
                             <Plus className="h-4 w-4" />
                             Add PDB
                         </Link>
-                    </Button>
+                    </MenuAction>
                 </div>
 
                 <Card>

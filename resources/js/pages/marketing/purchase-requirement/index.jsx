@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 import InvoiceDetailDialog from '@/components/InvoiceDetailDialog';
 import PrOrderHistory from '@/components/pr-order-history';
@@ -1405,7 +1406,6 @@ export default function PurchaseRequirementIndex({
         return () => requests.current.detail.cancel();
     }, [isModalOpen, selectedPr?.no_pr, materialCurrentPage, materialPageSize, materialSearchTerm, debouncedMaterialSearchTerm, activeMaterialTab, detailReload, realtimeRevision]);
 
-
     const handleRemoveCustomerPo = (refPo) => {
         if (!selectedPr) return;
 
@@ -1675,7 +1675,6 @@ export default function PurchaseRequirementIndex({
             setRealizedCurrentPage(realizedTotalPages);
     }, [realizedCurrentPage, realizedTotalPages]);
 
-
     const showToast = (message, variant = 'error') => {
         if (!message) return;
         Swal.fire({
@@ -1784,7 +1783,8 @@ export default function PurchaseRequirementIndex({
                             Ringkasan dan daftar PR
                         </p>
                     </div>
-                    <Button
+                    <MenuAction
+                        action="create"
                         type="button"
                         onClick={() =>
                             router.visit(
@@ -1793,7 +1793,7 @@ export default function PurchaseRequirementIndex({
                         }
                     >
                         Tambah PR
-                    </Button>
+                    </MenuAction>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-3">
@@ -2967,15 +2967,19 @@ export default function PurchaseRequirementIndex({
                                                         >
                                                             <Eye className="size-4" />
                                                         </button>
-                                                        <Link
+                                                        <MenuAction
+                                                            action="update"
+                                                            as={Link}
                                                             href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/edit`}
                                                             className="text-muted-foreground transition hover:text-foreground"
                                                             title="Edit"
                                                         >
                                                             <Pencil className="size-4" />
-                                                        </Link>
+                                                        </MenuAction>
                                                         {item._canDelete && (
-                                                            <button
+                                                            <MenuAction
+                                                                action="delete"
+                                                                as="button"
                                                                 type="button"
                                                                 className="text-muted-foreground transition hover:text-destructive"
                                                                 title="Hapus"
@@ -2989,7 +2993,7 @@ export default function PurchaseRequirementIndex({
                                                                 }
                                                             >
                                                                 <Trash2 className="size-4" />
-                                                            </button>
+                                                            </MenuAction>
                                                         )}
                                                     </div>
                                                 </td>
@@ -3210,15 +3214,19 @@ export default function PurchaseRequirementIndex({
                                                         >
                                                             <Eye className="size-4" />
                                                         </button>
-                                                        <Link
+                                                        <MenuAction
+                                                            action="update"
+                                                            as={Link}
                                                             href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/edit`}
                                                             className="text-muted-foreground transition hover:text-foreground"
                                                             title="Edit"
                                                         >
                                                             <Pencil className="size-4" />
-                                                        </Link>
+                                                        </MenuAction>
                                                         {item._canDelete && (
-                                                            <button
+                                                            <MenuAction
+                                                                action="delete"
+                                                                as="button"
                                                                 type="button"
                                                                 className="text-muted-foreground transition hover:text-destructive"
                                                                 title="Hapus"
@@ -3232,7 +3240,7 @@ export default function PurchaseRequirementIndex({
                                                                 }
                                                             >
                                                                 <Trash2 className="size-4" />
-                                                            </button>
+                                                            </MenuAction>
                                                         )}
                                                     </div>
                                                 </td>

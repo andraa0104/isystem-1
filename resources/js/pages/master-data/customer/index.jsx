@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ActionIconButton } from '@/components/action-icon-button';
 import { ErrorState } from '@/components/data-states/ErrorState';
 import { Button } from '@/components/ui/button';
@@ -568,10 +569,10 @@ export default function CustomerIndex({ customers }) {
                             <Download className="mr-2 h-4 w-4" />
                             Export Data
                         </Button>
-                        <Button onClick={() => setIsCreateModalOpen(true)}>
+                        <MenuAction action="create" onClick={() => setIsCreateModalOpen(true)}>
                             <Plus className="mr-2 h-4 w-4" />
                             Tambah Data
-                        </Button>
+                        </MenuAction>
                     </div>
                 </div>
 
@@ -691,7 +692,8 @@ export default function CustomerIndex({ customers }) {
                                                         ditemukan.
                                                     </div>
                                                     <div className="mt-3">
-                                                        <Button
+                                                        <MenuAction
+                                                            action="create"
                                                             type="button"
                                                             size="sm"
                                                             onClick={() =>
@@ -701,7 +703,7 @@ export default function CustomerIndex({ customers }) {
                                                             }
                                                         >
                                                             Tambah Customer
-                                                        </Button>
+                                                        </MenuAction>
                                                     </div>
                                                 </td>
                                             </tr>
@@ -748,7 +750,9 @@ export default function CustomerIndex({ customers }) {
                                                                 >
                                                                     <Eye className="h-4 w-4" />
                                                                 </ActionIconButton>
-                                                                <ActionIconButton
+                                                                <MenuAction
+                                                                    action="update"
+                                                                    as={ActionIconButton}
                                                                     label="Edit"
                                                                     onClick={() =>
                                                                         handleEdit(
@@ -757,8 +761,10 @@ export default function CustomerIndex({ customers }) {
                                                                     }
                                                                 >
                                                                     <Pencil className="h-4 w-4" />
-                                                                </ActionIconButton>
-                                                                <ActionIconButton
+                                                                </MenuAction>
+                                                                <MenuAction
+                                                                    action="delete"
+                                                                    as={ActionIconButton}
                                                                     label="Hapus"
                                                                     onClick={() =>
                                                                         handleDelete(
@@ -767,7 +773,7 @@ export default function CustomerIndex({ customers }) {
                                                                     }
                                                                 >
                                                                     <Trash2 className="h-4 w-4 text-destructive" />
-                                                                </ActionIconButton>
+                                                                </MenuAction>
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -1054,14 +1060,15 @@ export default function CustomerIndex({ customers }) {
                                 >
                                     Batal
                                 </Button>
-                                <Button
+                                <MenuAction
+                                    action="create"
                                     type="submit"
                                     disabled={createProcessing}
                                 >
                                     {createProcessing
                                         ? 'Menyimpan...'
                                         : 'Simpan Data'}
-                                </Button>
+                                </MenuAction>
                             </div>
                         </form>
                     </DialogContent>
@@ -1734,7 +1741,8 @@ export default function CustomerIndex({ customers }) {
                                     >
                                         Batal
                                     </Button>
-                                    <Button
+                                    <MenuAction
+                                        action="update"
                                         type="button"
                                         disabled={editProcessing}
                                         onClick={handleEditSubmit}
@@ -1742,7 +1750,7 @@ export default function CustomerIndex({ customers }) {
                                         {editProcessing
                                             ? 'Menyimpan...'
                                             : 'Simpan Perubahan'}
-                                    </Button>
+                                    </MenuAction>
                                 </div>
                             </form>
                         )}

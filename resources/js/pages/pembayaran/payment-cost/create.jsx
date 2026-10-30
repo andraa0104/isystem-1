@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import {
@@ -791,9 +792,9 @@ export default function PaymentCostCreate() {
                             >
                                 <Plus className="mr-2 h-4 w-4" /> Masuk
                             </Button>
-                            <Button type="button" onClick={handleSimpan}>
+                            <MenuAction action="create" type="button" onClick={handleSimpan}>
                                 Simpan
-                            </Button>
+                            </MenuAction>
                         </div>
                     </div>
 

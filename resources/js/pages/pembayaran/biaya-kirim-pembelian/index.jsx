@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ActionIconButton } from '@/components/action-icon-button';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -457,7 +458,8 @@ export default function BiayaKirimPembelianIndex({
                     <CardHeader className="space-y-3">
                         <div className="flex items-center justify-between gap-3">
                             <CardTitle>Data Biaya Kirim Pembelian</CardTitle>
-                            <Button
+                            <MenuAction
+                                action="create"
                                 variant="default"
                                 onClick={() => {
                                     setIsNavigating(true);
@@ -471,7 +473,7 @@ export default function BiayaKirimPembelianIndex({
                                 }}
                             >
                                 Tambah BKP
-                            </Button>
+                            </MenuAction>
                         </div>
                         <div className="flex flex-wrap gap-3">
                             <Input
@@ -853,7 +855,9 @@ export default function BiayaKirimPembelianIndex({
                                                                 </TableCell>
                                                                 <TableCell className="text-center">
                                                                     <div className="flex items-center justify-center gap-2">
-                                                                        <ActionIconButton
+                                                                        <MenuAction
+                                                                            action="update"
+                                                                            as={ActionIconButton}
                                                                             label="Edit"
                                                                             onClick={() => {
                                                                                 setIsNavigating(
@@ -872,7 +876,7 @@ export default function BiayaKirimPembelianIndex({
                                                                             }}
                                                                         >
                                                                             <Pencil className="h-4 w-4" />
-                                                                        </ActionIconButton>
+                                                                        </MenuAction>
                                                                         {canDeleteRow(
                                                                             row,
                                                                             {
@@ -883,7 +887,9 @@ export default function BiayaKirimPembelianIndex({
                                                                                     ],
                                                                             },
                                                                         ) ? (
-                                                                            <ActionIconButton
+                                                                            <MenuAction
+                                                                                action="delete"
+                                                                                as={ActionIconButton}
                                                                                 label="Hapus"
                                                                                 onClick={() =>
                                                                                     handleDeleteBkp(
@@ -892,7 +898,7 @@ export default function BiayaKirimPembelianIndex({
                                                                                 }
                                                                             >
                                                                                 <Trash2 className="h-4 w-4 text-destructive" />
-                                                                            </ActionIconButton>
+                                                                            </MenuAction>
                                                                         ) : null}
                                                                     </div>
                                                                 </TableCell>

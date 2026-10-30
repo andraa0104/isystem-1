@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ActionIconButton } from '@/components/action-icon-button';
 import { ErrorState } from '@/components/data-states/ErrorState';
 import { Button } from '@/components/ui/button';
@@ -337,11 +338,11 @@ export default function TandaTerimaInvoiceIndex() {
                             Ringkasan tanda terima invoice.
                         </p>
                     </div>
-                    <Button asChild type="button" variant="outline">
+                    <MenuAction action="create" asChild type="button" variant="outline">
                         <Link href="/penjualan/tanda-terima-invoice/create">
                             Buat Tanda Terima
                         </Link>
-                    </Button>
+                    </MenuAction>
                 </div>
 
                 <div className="rounded-xl border border-border/60 bg-card">
@@ -459,7 +460,9 @@ export default function TandaTerimaInvoiceIndex() {
                                                                 row.nm_penerima,
                                                             ) && (
                                                                 <>
-                                                                    <ActionIconButton
+                                                                    <MenuAction
+                                                                        action="update"
+                                                                        as={ActionIconButton}
                                                                         label="Terima Invoice"
                                                                         onClick={() =>
                                                                             openReceive(
@@ -469,8 +472,10 @@ export default function TandaTerimaInvoiceIndex() {
                                                                         className="text-success hover:text-success"
                                                                     >
                                                                         <Check className="h-4 w-4" />
-                                                                    </ActionIconButton>
-                                                                    <ActionIconButton
+                                                                    </MenuAction>
+                                                                    <MenuAction
+                                                                        action="update"
+                                                                        as={ActionIconButton}
                                                                         label="Edit"
                                                                         asChild
                                                                         className="text-primary hover:text-primary"
@@ -483,7 +488,7 @@ export default function TandaTerimaInvoiceIndex() {
                                                                         >
                                                                             <Edit className="h-4 w-4" />
                                                                         </Link>
-                                                                    </ActionIconButton>
+                                                                    </MenuAction>
                                                                 </>
                                                             )}
                                                             <ActionIconButton
@@ -862,13 +867,14 @@ export default function TandaTerimaInvoiceIndex() {
                                 />
                             </div>
                             <div className="flex items-center justify-end gap-3">
-                                <Button
+                                <MenuAction
+                                    action="update"
                                     type="button"
                                     onClick={handleSaveReceive}
                                     disabled={receiveSaving}
                                 >
                                     {receiveSaving ? 'Menyimpan...' : 'Simpan'}
-                                </Button>
+                                </MenuAction>
                             </div>
                         </div>
                     )}

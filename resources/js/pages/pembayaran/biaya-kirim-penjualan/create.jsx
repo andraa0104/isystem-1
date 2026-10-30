@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
@@ -1802,9 +1803,9 @@ export default function BiayaKirimPenjualanCreate() {
                             >
                                 Kembali
                             </Button>
-                            <Button variant="default" onClick={handleSave}>
+                            <MenuAction action="create" variant="default" onClick={handleSave}>
                                 Simpan Data
-                            </Button>
+                            </MenuAction>
                         </div>
                     </>
                 )}

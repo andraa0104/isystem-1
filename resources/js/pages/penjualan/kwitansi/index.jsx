@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ActionIconButton } from '@/components/action-icon-button';
 import { ErrorState } from '@/components/data-states/ErrorState';
 import { Button } from '@/components/ui/button';
@@ -436,10 +437,10 @@ export default function KwitansiIndex() {
                             Daftar kwitansi penjualan.
                         </p>
                     </div>
-                    <Button type="button" onClick={openKwitansiModal}>
+                    <MenuAction action="create" menu="Penjualan:Faktur Penjualan" type="button" onClick={openKwitansiModal}>
                         <ReceiptText className="mr-2 h-4 w-4" />
                         Buat Kwitansi
-                    </Button>
+                    </MenuAction>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
@@ -548,7 +549,9 @@ export default function KwitansiIndex() {
                                                     Tidak ada data kwitansi.
                                                 </div>
                                                 <div className="mt-3">
-                                                    <Button
+                                                    <MenuAction
+                                                        action="create"
+                                                        menu="Penjualan:Faktur Penjualan"
                                                         type="button"
                                                         size="sm"
                                                         onClick={
@@ -556,7 +559,7 @@ export default function KwitansiIndex() {
                                                         }
                                                     >
                                                         Buat Kwitansi
-                                                    </Button>
+                                                    </MenuAction>
                                                 </div>
                                             </TableCell>
                                         </TableRow>
@@ -980,7 +983,9 @@ export default function KwitansiIndex() {
                             >
                                 Cari Invoice
                             </Button>
-                            <Button
+                            <MenuAction
+                                action="create"
+                                menu="Penjualan:Faktur Penjualan"
                                 type="button"
                                 onClick={handleSaveKwitansi}
                                 disabled={
@@ -988,7 +993,7 @@ export default function KwitansiIndex() {
                                 }
                             >
                                 {kwitansiSaving ? 'Menyimpan...' : 'Simpan'}
-                            </Button>
+                            </MenuAction>
                         </div>
                     </div>
                 </DialogContent>

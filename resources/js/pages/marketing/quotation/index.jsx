@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 import { FormattedRemark } from '@/components/rich-text-editor';
 import { Button } from '@/components/ui/button';
@@ -254,7 +255,6 @@ export default function QuotationIndex({
         }
     }, []);
 
-
     const handleOpenModal = async (item) => {
         const noPenawaran = item.No_penawaran || item.No_Penawaran;
         if (!noPenawaran) return;
@@ -417,12 +417,13 @@ export default function QuotationIndex({
                         <h1 className="text-xl font-semibold">Quotation</h1>
                         <p className="text-sm text-muted-foreground">Daftar penawaran</p>
                     </div>
-                    <Button
+                    <MenuAction
+                        action="create"
                         type="button"
                         onClick={() => router.visit('/marketing/quotation/create')}
                     >
                         Tambah Quotation
-                    </Button>
+                    </MenuAction>
                 </div>
 
                 {/* ==================== NAVIGASI TABS ==================== */}
@@ -532,13 +533,15 @@ export default function QuotationIndex({
                                                         >
                                                             <Eye className="size-4" />
                                                         </button>
-                                                        <Link
+                                                        <MenuAction
+                                                            action="update"
+                                                            as={Link}
                                                             href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/edit`}
                                                             className="text-muted-foreground transition hover:text-foreground"
                                                             title="Edit"
                                                         >
                                                             <Pencil className="size-4" />
-                                                        </Link>
+                                                        </MenuAction>
                                                         <a
                                                             href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/print`}
                                                             className="text-muted-foreground transition hover:text-foreground"
@@ -549,7 +552,9 @@ export default function QuotationIndex({
                                                             <Printer className="size-4" />
                                                         </a>
                                                         {Number(item.can_delete ?? 0) === 1 && (
-                                                            <button
+                                                            <MenuAction
+                                                                action="delete"
+                                                                as="button"
                                                                 type="button"
                                                                 className="text-muted-foreground transition hover:text-destructive"
                                                                 title="Hapus"
@@ -557,7 +562,7 @@ export default function QuotationIndex({
                                                                 onClick={() => handleDelete(item.No_penawaran)}
                                                             >
                                                                 <Trash2 className="size-4" />
-                                                            </button>
+                                                            </MenuAction>
                                                         )}
                                                     </div>
                                                 </td>

@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -626,7 +627,8 @@ export default function DeliveryOrderAddCreate() {
                             <Button variant="outline" onClick={prevStep}>
                                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
                             </Button>
-                            <Button
+                            <MenuAction
+                                action="create"
                                 onClick={handleSubmit}
                                 disabled={
                                     isSubmitting ||
@@ -635,7 +637,7 @@ export default function DeliveryOrderAddCreate() {
                                 }
                             >
                                 {isSubmitting ? 'Menyimpan...' : 'Simpan Data'}
-                            </Button>
+                            </MenuAction>
                         </div>
                     </div>
                 )}

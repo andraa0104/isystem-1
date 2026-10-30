@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import OverdueInvoiceWarningDialog from '@/components/OverdueInvoiceWarningDialog';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -167,6 +168,13 @@ const calculateTotalStock = (item) => {
         parseNumber(item?.do_outstanding);
     return total;
 };
+
+// Removing these rows also updates the saved PO In quantity.
+const clearsSavedPoInQuantity = (item) =>
+    item &&
+    !String(item.id).startsWith('manual-') &&
+    parseNumber(item.qtyPr) === 0 &&
+    calculateTotalStock(item) >= 0;
 
 const toDate = (dateString) => {
     if (!dateString || String(dateString).trim() === '') return null;
@@ -752,11 +760,7 @@ export default function PurchaseRequirementCreate() {
 
     const handleRemoveMaterial = (id) => {
         const material = materialItems.find((item) => item.id === id);
-        const isFulfilledByStock =
-            material &&
-            !String(material.id).startsWith('manual-') &&
-            parseNumber(material.qtyPr) === 0 &&
-            calculateTotalStock(material) >= 0;
+        const isFulfilledByStock = clearsSavedPoInQuantity(material);
 
         if (isFulfilledByStock) {
             setMaterialToDelete(material);
@@ -1514,7 +1518,8 @@ export default function PurchaseRequirementCreate() {
                                                                                 </span>
                                                                             </div>
                                                                         </div>
-                                                                        <Button
+                                                                        <MenuAction
+                                                                            action={clearsSavedPoInQuantity(item) ? 'update' : 'create'}
                                                                             type="button"
                                                                             variant="ghost"
                                                                             size="icon"
@@ -1526,7 +1531,7 @@ export default function PurchaseRequirementCreate() {
                                                                             }
                                                                         >
                                                                             <Trash2 className="h-4 w-4 transition-transform group-hover/del:scale-110" />
-                                                                        </Button>
+                                                                        </MenuAction>
                                                                     </div>
 
                                                                     {/* Middle Section: Inputs */}
@@ -2145,7 +2150,8 @@ export default function PurchaseRequirementCreate() {
                                                 <ArrowLeft className="mr-2 h-4 w-4" />{' '}
                                                 Kembali
                                             </Button>
-                                            <Button
+                                            <MenuAction
+                                                action="create"
                                                 type="submit"
                                                 className="h-12 w-full shadow-xl shadow-primary/20"
                                                 disabled={
@@ -2161,7 +2167,7 @@ export default function PurchaseRequirementCreate() {
                                                         Simpan
                                                     </>
                                                 )}
-                                            </Button>
+                                            </MenuAction>
                                         </div>
                                         {submitError && (
                                             <div className="mt-4 animate-bounce rounded-lg bg-destructive/10 p-3 text-center text-xs font-medium text-destructive">
@@ -2862,14 +2868,15 @@ export default function PurchaseRequirementCreate() {
                         >
                             Batal
                         </Button>
-                        <Button
+                        <MenuAction
+                            action="update"
                             type="button"
                             variant="destructive"
                             onClick={confirmDeleteMaterial}
                             disabled={isDeletingMaterial}
                         >
                             {isDeletingMaterial ? 'Menghapus...' : 'Ya, Hapus'}
-                        </Button>
+                        </MenuAction>
                     </div>
                 </DialogContent>
             </Dialog>

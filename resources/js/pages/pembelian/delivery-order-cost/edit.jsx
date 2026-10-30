@@ -1,3 +1,4 @@
+import { MenuAction } from '@/components/menu-action';
 import { ActionIconButton } from '@/components/action-icon-button';
 import { ShadcnTableStateRows } from '@/components/data-states/TableStateRows';
 import { Button } from '@/components/ui/button';
@@ -463,7 +464,8 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                                 </div>
                             </div>
                             <div className="flex justify-between pt-4">
-                                <Button
+                                <MenuAction
+                                    action="update"
                                     variant="outline"
                                     onClick={handleSubmit}
                                     disabled={isSubmitting}
@@ -471,7 +473,7 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                                     {isSubmitting
                                         ? 'Menyimpan...'
                                         : 'Simpan Data'}
-                                </Button>
+                                </MenuAction>
                                 <Button onClick={nextStep}>
                                     Next <ArrowRight className="ml-2 h-4 w-4" />
                                 </Button>
@@ -561,7 +563,8 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                                         />
                                     </div>
                                     <div className="flex items-end justify-end gap-2 lg:col-span-4">
-                                        <Button
+                                        <MenuAction
+                                            action="create"
                                             onClick={handleAddItem}
                                             disabled={
                                                 isSavingDetail ||
@@ -570,8 +573,9 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                                         >
                                             <Plus className="mr-2 h-4 w-4" />
                                             Tambah Data
-                                        </Button>
-                                        <Button
+                                        </MenuAction>
+                                        <MenuAction
+                                            action="update"
                                             variant="outline"
                                             onClick={handleUpdateItem}
                                             disabled={
@@ -581,7 +585,7 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                                             {isSavingDetail
                                                 ? 'Menyimpan...'
                                                 : 'Edit Data'}
-                                        </Button>
+                                        </MenuAction>
                                     </div>
                                 </div>
 
@@ -656,7 +660,9 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                                                                 )}
                                                             </TableCell>
                                                             <TableCell>
-                                                                <ActionIconButton
+                                                                <MenuAction
+                                                                    action="delete"
+                                                                    as={ActionIconButton}
                                                                     label="Hapus"
                                                                     variant="destructive"
                                                                     onClick={(
@@ -669,7 +675,7 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                                                                     }}
                                                                 >
                                                                     <Trash2 className="h-4 w-4" />
-                                                                </ActionIconButton>
+                                                                </MenuAction>
                                                             </TableCell>
                                                         </TableRow>
                                                     ),
@@ -697,13 +703,14 @@ export default function DeliveryOrderCostEdit({ deliveryOrder, items = [] }) {
                             <Button variant="outline" onClick={prevStep}>
                                 <ArrowLeft className="mr-2 h-4 w-4" /> Back
                             </Button>
-                            <Button
+                            <MenuAction
+                                action="update"
                                 variant="outline"
                                 onClick={handleSubmit}
                                 disabled={isSubmitting}
                             >
                                 {isSubmitting ? 'Menyimpan...' : 'Simpan Data'}
-                            </Button>
+                            </MenuAction>
                         </div>
                     </div>
                 )}
