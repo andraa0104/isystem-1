@@ -619,10 +619,11 @@ class PurchaseOrderInController
     private function applyDeliveryDeadlineOrder($query, string $tieBreaker = 'p.id')
     {
         return $query
-            // PO yang paling lama melewati delivery date menjadi prioritas utama.
-            // Delivery date mendatang tetap berurutan dari yang paling dekat,
-            // sedangkan tanggal kosong selalu diletakkan paling bawah.
-            ->orderByRaw('case when p.delivery_date is null then 1 else 0 end')
+            // Deadline yang terlewat diletakkan lebih dahulu, lalu diurutkan
+            // berdasarkan jumlah hari keterlambatan terbesar. Deadline mendatang
+            // tetap dimulai dari yang terdekat dan tanggal kosong selalu terakhir.
+            ->orderByRaw('case when p.delivery_date is null then 2 when p.delivery_date <= current_date() then 0 else 1 end')
+            ->orderByRaw('case when p.delivery_date <= current_date() then datediff(current_date(), p.delivery_date) else null end desc')
             ->orderBy('p.delivery_date')
             ->orderByDesc($tieBreaker);
     }
@@ -881,11 +882,9 @@ class PurchaseOrderInController
         }
 
         $total = (clone $query)->count();
-        
+
         if (in_array($statusFilter, ['outstanding_pr', 'outstanding_do', 'sisa_pr', 'sisa_do'])) {
-            $query->orderByRaw("case when p.delivery_date is null then 1 else 0 end")
-                  ->orderByRaw("{$deadline} asc")
-                  ->orderByDesc('d.id');
+            $this->applyDeliveryDeadlineOrder($query, 'd.id');
         } else {
             $query->orderByDesc('d.id');
         }

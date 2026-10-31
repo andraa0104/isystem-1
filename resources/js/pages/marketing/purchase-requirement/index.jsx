@@ -828,7 +828,7 @@ export default function PurchaseRequirementIndex({
     );
 
     const [statusFilter, setStatusFilter] = useState('outstanding');
-    const [tableDateFilter, setTableDateFilter] = useState('all');
+    const [tableDateFilter, setTableDateFilter] = useState('today');
     const [tableStartDate, setTableStartDate] = useState('');
     const [tableEndDate, setTableEndDate] = useState('');
     const [periodFilter, setPeriodFilter] = useState(period ?? 'today');

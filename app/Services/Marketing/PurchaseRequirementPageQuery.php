@@ -3,6 +3,7 @@
 namespace App\Services\Marketing;
 
 use Illuminate\Database\Query\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class PurchaseRequirementPageQuery
@@ -14,7 +15,46 @@ class PurchaseRequirementPageQuery
 
     private function dateSql($connection, string $column): string
     {
-        return "coalesce(date({$column}), str_to_date({$column}, '%Y-%m-%d'), str_to_date({$column}, '%Y/%m/%d'), str_to_date({$column}, '%d/%m/%Y'), str_to_date({$column}, '%d-%m-%Y'), str_to_date({$column}, '%d.%m.%Y'))";
+        // Explicit formats must be attempted before date(). MySQL can interpret
+        // values such as 26.06.2018 as a year-first date in the year 2026.
+        return "coalesce(str_to_date({$column}, '%Y-%m-%d'), str_to_date({$column}, '%Y/%m/%d'), str_to_date({$column}, '%d/%m/%Y'), str_to_date({$column}, '%d-%m-%Y'), str_to_date({$column}, '%d.%m.%Y'), date({$column}))";
+    }
+
+    private function applyIndexedDateRange(Builder $query, string $column, string $start, string $end): bool
+    {
+        $startDate = Carbon::parse($start)->startOfDay();
+        $endDate = Carbon::parse($end)->startOfDay();
+
+        if ($endDate->lessThan($startDate)) {
+            $query->whereRaw('1 = 0');
+
+            return true;
+        }
+
+        // Keep very large custom ranges compact. Standard day/week/month/year
+        // filters stay indexable without changing the legacy VARCHAR column.
+        if ($startDate->diffInDays($endDate) > 366) {
+            return false;
+        }
+
+        $formattedDates = [];
+        for ($date = $startDate->copy(); $date->lessThanOrEqualTo($endDate); $date->addDay()) {
+            foreach (['Y/m/d', 'd/m/Y', 'd-m-Y', 'd.m.Y'] as $format) {
+                $formattedDates[] = $date->format($format);
+            }
+        }
+
+        $query->where(function (Builder $dateQuery) use ($column, $startDate, $endDate, $formattedDates) {
+            // This range supports ISO dates and ISO datetime values. The IN list
+            // covers every non-ISO format accepted by dateSql(). Both predicates
+            // can use the existing index on tb_pr.date.
+            $dateQuery->whereBetween($column, [
+                $startDate->format('Y-m-d'),
+                $endDate->copy()->endOfDay()->format('Y-m-d H:i:s'),
+            ])->orWhereIn($column, $formattedDates);
+        });
+
+        return true;
     }
 
     private function readAnalytics(callable $read): array
@@ -185,7 +225,12 @@ class PurchaseRequirementPageQuery
                 'this_year' => [$now->copy()->startOfYear()->toDateString(), $now->copy()->endOfYear()->toDateString()],
                 default => [$filters['start_date'], $filters['end_date']],
             };
-            $query->whereRaw("{$date} between ? and ?", [$start, $end]);
+            $indexed = $status !== 'realized'
+                && $this->applyIndexedDateRange($query, 'pr.date', $start, $end);
+
+            if (! $indexed) {
+                $query->whereRaw("{$date} between ? and ?", [$start, $end]);
+            }
         }
 
         return $query->orderByRaw("{$date} desc")->orderByDesc('pr.no_pr');
