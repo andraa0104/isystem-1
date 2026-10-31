@@ -32,7 +32,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->encryptCookies(except: ['*']);
         
         // DISABLE ALL CSRF PROTECTION - NO SECURITY  
-        $middleware->validateCsrfTokens(except: ['*']);
+        $middleware->preventRequestForgery(except: ['*']);
 
         $middleware->web(append: [
             SetTenantDatabase::class,

@@ -34,6 +34,8 @@ class SimpleAuthController extends Controller
     {
         return Inertia::render('welcome', [
             'canRegister' => Features::enabled(Features::registration()),
+            'laravelVersion' => app()->version(),
+            'phpVersion' => PHP_VERSION,
         ]);
     }
 

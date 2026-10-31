@@ -219,4 +219,16 @@ return [
 
     'partitioned' => env('SESSION_PARTITIONED_COOKIE', false),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Session Serialization
+    |--------------------------------------------------------------------------
+    |
+    | Retain PHP serialization while upgrading so existing authenticated
+    | sessions remain valid. Switching this to "json" logs all users out.
+    |
+    */
+
+    'serialization' => 'php',
+
 ];

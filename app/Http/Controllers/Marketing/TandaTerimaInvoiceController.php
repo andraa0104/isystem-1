@@ -19,7 +19,7 @@ class TandaTerimaInvoiceController
         return Inertia::render('penjualan/tanda-terima-invoice/create');
     }
 
-    public function edit(Request $request, string $noTtInv = null)
+    public function edit(Request $request, ?string $noTtInv = null)
     {
         $noTtInv = $noTtInv ?: $request->query('no_ttinv');
         if (!$noTtInv) {
@@ -52,7 +52,7 @@ class TandaTerimaInvoiceController
         ]);
     }
 
-    public function editData(Request $request, string $noTtInv = null)
+    public function editData(Request $request, ?string $noTtInv = null)
     {
         $noTtInv = $noTtInv ?: $request->query('no_ttinv');
         if (!$noTtInv) {
@@ -104,7 +104,7 @@ class TandaTerimaInvoiceController
         ]);
     }
 
-    public function details(Request $request, string $noTtInv = null)
+    public function details(Request $request, ?string $noTtInv = null)
     {
         $noTtInv = $noTtInv ?: $request->query('no_ttinv');
         if (!$noTtInv) {
@@ -144,7 +144,7 @@ class TandaTerimaInvoiceController
         ]);
     }
 
-    public function receiveInfo(Request $request, string $noTtInv = null)
+    public function receiveInfo(Request $request, ?string $noTtInv = null)
     {
         $noTtInv = $noTtInv ?: $request->query('no_ttinv');
         if (!$noTtInv) {
@@ -538,7 +538,7 @@ class TandaTerimaInvoiceController
         ]);
     }
 
-    public function print(Request $request, string $noTtInv = null)
+    public function print(Request $request, ?string $noTtInv = null)
     {
         $noTtInv = $noTtInv ?: $request->query('no_ttinv');
         if (!$noTtInv) {

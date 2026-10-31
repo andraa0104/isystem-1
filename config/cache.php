@@ -114,4 +114,17 @@ return [
 
     'prefix' => env('CACHE_PREFIX', Str::slug((string) env('APP_NAME', 'laravel')).'-cache-'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Serializable Classes
+    |--------------------------------------------------------------------------
+    |
+    | The application currently caches query results containing Collection and
+    | stdClass instances. Preserve the application's existing serialization
+    | behavior so cached business data remains valid after the upgrade.
+    |
+    */
+
+    'serializable_classes' => true,
+
 ];
