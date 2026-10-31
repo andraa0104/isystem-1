@@ -24,16 +24,36 @@ class PurchaseRequirementPageQuery
 
     public function outstandingSummary(): array
     {
+        $summary = $this->operationalSummary();
+
+        return [
+            'outstandingCount' => $summary['outstandingCount'],
+            'outstandingTotal' => $summary['outstandingTotal'],
+            'source' => $summary['source'],
+        ];
+    }
+
+    public function operationalSummary(): array
+    {
         return $this->readAnalytics(function ($connection) {
             $price = $this->numberSql($connection, 'total_price');
             $details = $this->statusQuery($connection)->selectRaw("sum(coalesce({$price}, 0)) as total_price_sum");
-            $row = $connection->table('tb_pr as pr')
-                ->joinSub($details, 'detail', 'detail.no_pr', '=', 'pr.no_pr')
-                ->whereColumn('detail.untouched_items', 'detail.total_items')
-                ->selectRaw('count(*) as outstanding_count, coalesce(sum(detail.total_price_sum), 0) as outstanding_total')
+            $outstanding = 'detail.untouched_items = detail.total_items and exists (select 1 from tb_pr as pr where pr.no_pr = detail.no_pr)';
+            $remaining = 'detail.total_items > 0 and detail.untouched_items < detail.total_items and detail.realized_items < detail.total_items';
+            $row = $connection->query()
+                ->fromSub($details, 'detail')
+                ->selectRaw("sum(case when {$outstanding} then 1 else 0 end) as outstanding_count")
+                ->selectRaw("coalesce(sum(case when {$outstanding} then detail.total_price_sum else 0 end), 0) as outstanding_total")
+                ->selectRaw("sum(case when {$remaining} then 1 else 0 end) as sisa_po_count")
+                ->selectRaw("coalesce(sum(case when {$remaining} then detail.total_price_sum else 0 end), 0) as sisa_po_total")
                 ->first();
-            return ['outstandingCount' => (int) ($row->outstanding_count ?? 0),
-                'outstandingTotal' => (float) ($row->outstanding_total ?? 0)];
+
+            return [
+                'outstandingCount' => (int) ($row->outstanding_count ?? 0),
+                'outstandingTotal' => (float) ($row->outstanding_total ?? 0),
+                'sisaPoCount' => (int) ($row->sisa_po_count ?? 0),
+                'sisaPoTotal' => (float) ($row->sisa_po_total ?? 0),
+            ];
         });
     }
 

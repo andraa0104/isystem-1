@@ -1,5 +1,6 @@
 import Echo from 'laravel-echo';
 import Pusher from 'pusher-js';
+import { createReconnectRefreshHandler } from './purchase-order-in';
 
 export const subscribeToPoInChanges = (channelName, onChange, eventName = 'purchase-order-in.changed') => {
     const key = import.meta.env.VITE_REVERB_APP_KEY;
@@ -19,10 +20,14 @@ export const subscribeToPoInChanges = (channelName, onChange, eventName = 'purch
         auth: { headers: { Accept: 'application/json' } },
     });
 
+    const refreshAfterReconnect = createReconnectRefreshHandler(onChange);
+
     echo.private(channelName)
         .listen(`.${eventName}`, onChange)
-        // Re-fetch after reconnect to include writes missed while disconnected.
-        .subscribed(onChange)
+        // Subscription pertama terjadi bersama load awal halaman, jadi tidak perlu
+        // mengambil data lagi. Reconnect berikutnya tetap melakukan refresh agar
+        // perubahan yang terlewat saat koneksi putus dapat dimuat kembali.
+        .subscribed(refreshAfterReconnect)
         .error((error) => console.error('Marketing WebSocket subscription failed:', error));
 
     return () => {

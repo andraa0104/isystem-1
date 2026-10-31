@@ -51,6 +51,19 @@ export const createLatestRequest = () => {
     };
 };
 
+export const createReconnectRefreshHandler = (onReconnect) => {
+    let hasSubscribed = false;
+
+    return () => {
+        if (!hasSubscribed) {
+            hasSubscribed = true;
+            return;
+        }
+
+        onReconnect();
+    };
+};
+
 export const readPoInResponse = async (response, failureMessage) => {
     if (!response.ok) throw new Error(failureMessage);
     try {

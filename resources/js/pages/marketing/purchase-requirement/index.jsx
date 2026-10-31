@@ -21,12 +21,11 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/app-layout';
 import { subscribeToPoInChanges } from '@/lib/po-in-realtime';
-import { Head, Link, router, usePage } from '@inertiajs/react';
+import { Head, Link, router } from '@inertiajs/react';
 import { createLatestRequest, readPoInResponse } from '@/lib/purchase-order-in';
 import {
     applyKnownPrTotal,
     getPrProgress,
-    readPrFilters,
 } from '@/lib/purchase-requirement';
 import {
     AlertCircle,
@@ -794,21 +793,12 @@ export default function PurchaseRequirementIndex({
     period = 'today',
     realtimeChannel = null,
 }) {
-    const { auth, tenant } = usePage().props;
-    const preferenceKey = `pr-filters:${tenant?.database ?? auth?.user?.database ?? 'default'}:${auth?.user?.kd_user ?? auth?.user?.username ?? 'user'}`;
-    const savedFilters = useMemo(() => {
-        try {
-            return readPrFilters(localStorage, preferenceKey);
-        } catch {
-            return {};
-        }
-    }, [preferenceKey]);
     const requests = useRef(Object.fromEntries(['table', 'summary', 'detail', 'outstanding', 'sisa', 'realized'].map(key => [key, createLatestRequest()])));
     const [tableError, setTableError] = useState('');
     const [summaryError, setSummaryError] = useState('');
     const [serverPages, setServerPages] = useState({});
     const paginationContexts = useRef({});
-    const [searchTerm, setSearchTerm] = useState(String(savedFilters.search ?? ''));
+    const [searchTerm, setSearchTerm] = useState('');
     const [activeTab, setActiveTab] = useState('customer');
     const [stockInsights, setStockInsights] = useState([]);
     const [opexInsights, setOpexInsights] = useState([]);
@@ -837,10 +827,10 @@ export default function PurchaseRequirementIndex({
         [],
     );
 
-    const [statusFilter, setStatusFilter] = useState(['all', 'outstanding', 'sisa_po', 'realized'].includes(savedFilters.status) ? savedFilters.status : 'outstanding');
-    const [tableDateFilter, setTableDateFilter] = useState(['all', 'today', 'this_week', 'this_month', 'this_year', 'range'].includes(savedFilters.period) ? savedFilters.period : 'all');
-    const [tableStartDate, setTableStartDate] = useState(savedFilters.startDate ?? '');
-    const [tableEndDate, setTableEndDate] = useState(savedFilters.endDate ?? '');
+    const [statusFilter, setStatusFilter] = useState('outstanding');
+    const [tableDateFilter, setTableDateFilter] = useState('all');
+    const [tableStartDate, setTableStartDate] = useState('');
+    const [tableEndDate, setTableEndDate] = useState('');
     const [periodFilter, setPeriodFilter] = useState(period ?? 'today');
 
     const [outstandingCountState, setOutstandingCountState] =
@@ -855,7 +845,7 @@ export default function PurchaseRequirementIndex({
     const [tableLoading, setTableLoading] = useState(false);
     const [summaryLoading, setSummaryLoading] = useState(false);
 
-    const [pageSize, setPageSize] = useState(savedFilters.size === 'all' ? Infinity : [5, 10, 25, 50, 100].includes(savedFilters.size) ? savedFilters.size : 5);
+    const [pageSize, setPageSize] = useState(5);
     const [currentPage, setCurrentPage] = useState(1);
 
     const [selectedPr, setSelectedPr] = useState(null);
@@ -1281,32 +1271,6 @@ export default function PurchaseRequirementIndex({
         tableEndDate,
         fetchTableData,
         realtimeRevision,
-    ]);
-
-    useEffect(() => {
-        try {
-            localStorage.setItem(
-                preferenceKey,
-                JSON.stringify({
-                    search: searchTerm,
-                    status: statusFilter,
-                    period: tableDateFilter,
-                    startDate: tableStartDate,
-                    endDate: tableEndDate,
-                    size: pageSize === Infinity ? 'all' : pageSize,
-                }),
-            );
-        } catch {
-            /* Storage may be unavailable. */
-        }
-    }, [
-        preferenceKey,
-        searchTerm,
-        statusFilter,
-        tableDateFilter,
-        tableStartDate,
-        tableEndDate,
-        pageSize,
     ]);
 
     useEffect(

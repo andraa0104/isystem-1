@@ -616,6 +616,28 @@ class PurchaseOrderInController
         }
     }
 
+    private function applyDeliveryDeadlineOrder($query, string $tieBreaker = 'p.id')
+    {
+        return $query
+            // PO yang paling lama melewati delivery date menjadi prioritas utama.
+            // Delivery date mendatang tetap berurutan dari yang paling dekat,
+            // sedangkan tanggal kosong selalu diletakkan paling bawah.
+            ->orderByRaw('case when p.delivery_date is null then 1 else 0 end')
+            ->orderBy('p.delivery_date')
+            ->orderByDesc($tieBreaker);
+    }
+
+    private function applyNewestInputOrder(
+        $query,
+        string $createdAtColumn = 'p.created_at',
+        string $idColumn = 'p.id',
+    )
+    {
+        return $query
+            ->orderByDesc($createdAtColumn)
+            ->orderByDesc($idColumn);
+    }
+
     private function poinDateSql($connection, string $column): string
     {
         return "coalesce(date({$column}), str_to_date({$column}, '%Y-%m-%d'), str_to_date({$column}, '%Y/%m/%d'), str_to_date({$column}, '%d/%m/%Y'), str_to_date({$column}, '%d-%m-%Y'), str_to_date({$column}, '%d.%m.%Y'))";
@@ -1041,15 +1063,13 @@ class PurchaseOrderInController
                 $total = $rowsOnly ? null : (clone $query)->count();
                 $rows = $paginationOnly
                     ? collect()
-                    : ($perPage === null
-                        ? (clone $query)
-                            ->orderByRaw("case when p.delivery_date is null then 1 else 0 end")
-                            ->orderByRaw("p.delivery_date asc")
-                            ->orderByDesc('p.id')->get()
-                        : (clone $query)
-                            ->orderByRaw("case when p.delivery_date is null then 1 else 0 end")
-                            ->orderByRaw("p.delivery_date asc")
-                            ->orderByDesc('p.id')->forPage($page, $perPage)->get());
+                    : (function () use ($query, $perPage, $page) {
+                        $orderedQuery = $this->applyNewestInputOrder(clone $query);
+
+                        return $perPage === null
+                            ? $orderedQuery->get()
+                            : $orderedQuery->forPage($page, $perPage)->get();
+                    })();
 
                 $pagination = [
                     'total' => $total,
@@ -1379,9 +1399,15 @@ class PurchaseOrderInController
                 $total = ($rowsOnly && $isPartial) ? null : $readConnection->query()->fromSub(clone $query, 'realized_do_rows')->count();
                 $rows = ($paginationOnly && $isPartial)
                     ? collect()
-                    : ($perPage === null
-                        ? (clone $query)->orderByDesc('last_do_date')->orderByDesc('no_do')->get()
-                        : (clone $query)->orderByDesc('last_do_date')->orderByDesc('no_do')->forPage($page, $perPage)->get());
+                    : (function () use ($query, $perPage, $page) {
+                        $orderedQuery = $this->applyNewestInputOrder(clone $query, 'created_at', 'id')
+                            ->orderByDesc('last_do_date')
+                            ->orderByDesc('no_do');
+
+                        return $perPage === null
+                            ? $orderedQuery->get()
+                            : $orderedQuery->forPage($page, $perPage)->get();
+                    })();
 
                 $pagination = [
                     'total' => $total,
@@ -1464,9 +1490,15 @@ class PurchaseOrderInController
                 $total = ($rowsOnly && $isPartial) ? null : $readConnection->query()->fromSub(clone $query, 'realized_pr_rows')->count();
                 $rows = ($paginationOnly && $isPartial)
                     ? collect()
-                    : ($perPage === null
-                        ? (clone $query)->orderByDesc('last_pr_date')->orderByDesc('no_pr')->get()
-                        : (clone $query)->orderByDesc('last_pr_date')->orderByDesc('no_pr')->forPage($page, $perPage)->get());
+                    : (function () use ($query, $perPage, $page) {
+                        $orderedQuery = $this->applyNewestInputOrder(clone $query, 'created_at', 'id')
+                            ->orderByDesc('last_pr_date')
+                            ->orderByDesc('no_pr');
+
+                        return $perPage === null
+                            ? $orderedQuery->get()
+                            : $orderedQuery->forPage($page, $perPage)->get();
+                    })();
 
                 $pagination = [
                     'total' => $total,
@@ -1556,14 +1588,13 @@ class PurchaseOrderInController
                 $total = $rowsOnly ? null : (clone $query)->count();
                 $rows = $paginationOnly
                     ? collect()
-                    : ($perPage === null
-                        ? (clone $query)->orderByDesc('p.id')->get()
-                        : (clone $query)
-                            ->orderByRaw("case when p.delivery_date is null then 1 else 0 end")
-                            ->orderByRaw("p.delivery_date asc")
-                            ->orderByDesc('p.id')
-                            ->forPage($page, $perPage)
-                            ->get());
+                    : (function () use ($query, $perPage, $page) {
+                        $orderedQuery = $this->applyDeliveryDeadlineOrder(clone $query);
+
+                        return $perPage === null
+                            ? $orderedQuery->get()
+                            : $orderedQuery->forPage($page, $perPage)->get();
+                    })();
 
                 if ($isPartial || $rowsOnly) {
                     $response = [];

@@ -283,40 +283,18 @@ class PurchaseRequirementController
         ]);
     }
 
-    private function getCommonQueries()
-    {
-        $detailAgg = DB::table('tb_detailpr')
-            ->select(
-                'no_pr',
-                DB::raw('sum(coalesce(total_price, 0)) as total_price_sum'),
-                DB::raw('count(*) as total_items'),
-                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), coalesce(cast(qty as decimal(18,4)), 0)) >= coalesce(cast(qty as decimal(18,4)), 0) and coalesce(cast(qty as decimal(18,4)), 0) > 0 then 1 else 0 end) as untouched_items'),
-                DB::raw('sum(case when coalesce(cast(sisa_pr as decimal(18,4)), cast(qty as decimal(18,4)), 0) <= 0 then 1 else 0 end) as realized_items')
-            )
-            ->groupBy('no_pr');
-
-        return $detailAgg;
-    }
-
     private function getPurchaseRequirementSummary($period)
     {
-        $outstanding = app(PurchaseRequirementPageQuery::class)->outstandingSummary();
-        $realized = app(PurchaseRequirementPageQuery::class)->realizedSummary($period);
-        $detailAgg = $this->getCommonQueries();
-
-        $summaryData = DB::table($detailAgg, 'detail')
-            ->select(
-                DB::raw('sum(case when detail.total_items > 0 and detail.untouched_items < detail.total_items and detail.realized_items < detail.total_items then 1 else 0 end) as sisa_po_count'),
-                DB::raw('sum(case when detail.total_items > 0 and detail.untouched_items < detail.total_items and detail.realized_items < detail.total_items then detail.total_price_sum else 0 end) as sisa_po_total')
-            )
-            ->first();
+        $query = app(PurchaseRequirementPageQuery::class);
+        $operational = $query->operationalSummary();
+        $realized = $query->realizedSummary($period);
 
         return [
-            'outstandingCount' => $outstanding['outstandingCount'],
-            'outstandingTotal' => $outstanding['outstandingTotal'],
-            'outstandingSource' => $outstanding['source'],
-            'sisaPoCount'      => (int) ($summaryData->sisa_po_count ?? 0),
-            'sisaPoTotal'      => (float) ($summaryData->sisa_po_total ?? 0),
+            'outstandingCount' => $operational['outstandingCount'],
+            'outstandingTotal' => $operational['outstandingTotal'],
+            'outstandingSource' => $operational['source'],
+            'sisaPoCount'      => $operational['sisaPoCount'],
+            'sisaPoTotal'      => $operational['sisaPoTotal'],
             'realizedCount'    => $realized['realizedCount'],
             'realizedTotal'    => $realized['realizedTotal'],
             'realizedSource'   => $realized['source'],
