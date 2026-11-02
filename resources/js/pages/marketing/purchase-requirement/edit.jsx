@@ -1895,17 +1895,16 @@ export default function PurchaseRequirementEdit({
                     onOpenChange={setIsMaterialModalOpen}
                 >
                     <DialogContent
-                        aria-describedby={undefined}
                         className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col overflow-y-auto !rounded-none border-none p-0 shadow-2xl"
                     >
                         <DialogHeader className="border-b bg-muted/30 p-6">
                             <DialogTitle className="text-xl">
                                 Pilih Material
                             </DialogTitle>
+                            <DialogDescription className="sr-only">
+                                Pilih material dari database inventory untuk PR ini.
+                            </DialogDescription>
                         </DialogHeader>
-                        <DialogDescription className="sr-only">
-                            Pilih material dari database inventory untuk PR ini.
-                        </DialogDescription>
 
                         <div className="flex-1 space-y-6 overflow-auto p-6">
                             <div className="flex flex-wrap items-center justify-between gap-4">
@@ -2364,15 +2363,14 @@ export default function PurchaseRequirementEdit({
                     }}
                 >
                     <DialogContent
-                        aria-describedby={undefined}
                         className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none"
                     >
                         <DialogHeader>
                             <DialogTitle>Pilih PO In</DialogTitle>
+                            <DialogDescription className="sr-only">
+                                Pilih PO In untuk menambahkan material dari PO In.
+                            </DialogDescription>
                         </DialogHeader>
-                        <DialogDescription className="sr-only">
-                            Pilih PO In untuk menambahkan material dari PO In.
-                        </DialogDescription>
 
                         <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                             <label>

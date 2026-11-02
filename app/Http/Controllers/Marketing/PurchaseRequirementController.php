@@ -699,7 +699,7 @@ class PurchaseRequirementController
         }
 
         $schemaCache = [
-            'hasLineNo' => $this->schema->hasColumn('tb_detailpoin', 'no'),
+            'hasLineNo' => $this->schema->hasColumn('tb_detailpoin', 'line_no') || $this->schema->hasColumn('tb_detailpoin', 'no'),
             'hasRemark' => $this->schema->hasColumn('tb_detailpoin', 'remark'),
             'hasBarangStock' => ! array_diff(['stok_g1', 'stok_g2', 'stok_g3', 'stok_g4'], $this->schema->names('tb_barang')),
         ];
@@ -750,7 +750,8 @@ class PurchaseRequirementController
             })
             ->where('d.kode_poin', '=', $kodePoin)
             ->when($hasLineNo, function ($query) {
-                $query->orderBy('d.no');
+                $column = $this->schema->hasColumn('tb_detailpoin', 'line_no') ? 'd.line_no' : 'd.no';
+                $query->orderBy($column);
             }, function ($query) {
                 $query->orderBy('d.id');
             })
@@ -2168,36 +2169,42 @@ class PurchaseRequirementController
 
         $prices = [];
 
-        // Fetch memanfaatkan index idx_tb_detailpo_kd_mat
-        $poCandidates = DB::table('tb_detailpo')
-            ->whereIn('kd_mat', $kdList)
-            ->whereRaw('cast(price as decimal(18,4)) > 0')
-            ->select('kd_mat', 'price')
-            ->selectRaw("row_number() over (partition by lower(trim(kd_mat)) order by str_to_date(nullif(trim(tgl), ''), '%d.%m.%Y') desc, no_po desc, id_po desc) as price_rank");
-        $poPrices = DB::query()->fromSub($poCandidates, 'prices')->where('price_rank', 1)->get(['kd_mat', 'price']);
+        try {
+            // Compatible with MySQL 5.7+ (does not require window functions)
+            $poRows = DB::table('tb_detailpo')
+                ->whereIn('kd_mat', $kdList)
+                ->whereRaw('cast(price as decimal(18,4)) > 0')
+                ->select('kd_mat', 'price')
+                ->orderByRaw("str_to_date(nullif(trim(tgl), ''), '%d.%m.%Y') desc")
+                ->orderByDesc('no_po')
+                ->orderByDesc('id_po')
+                ->get();
 
-        foreach ($poPrices as $row) {
-            $k = strtolower(trim((string) $row->kd_mat));
-            if (! isset($prices[$k]) && (float) $row->price > 0) {
-                $prices[$k] = (float) $row->price;
-            }
-        }
-
-        $missing = array_values(array_diff(array_map('strtolower', $kdList), array_keys($prices)));
-        if (! empty($missing)) {
-            // Fetch memanfaatkan index idx_tb_invin_kd_mat
-            $inventoryCandidates = DB::table('tb_invin')->whereIn('kd_mat', $missing)
-                ->whereRaw('cast(harga as decimal(18,4)) > 0')
-                ->select('kd_mat', 'harga')
-                ->selectRaw('row_number() over (partition by lower(trim(kd_mat)) order by id_invin desc) as price_rank');
-            $invinPrices = DB::query()->fromSub($inventoryCandidates, 'prices')->where('price_rank', 1)->get(['kd_mat', 'harga']);
-
-            foreach ($invinPrices as $row) {
+            foreach ($poRows as $row) {
                 $k = strtolower(trim((string) $row->kd_mat));
-                if (! isset($prices[$k]) && (float) $row->harga > 0) {
-                    $prices[$k] = (float) $row->harga;
+                if (! isset($prices[$k]) && (float) $row->price > 0) {
+                    $prices[$k] = (float) $row->price;
                 }
             }
+
+            $missing = array_values(array_diff(array_map('strtolower', $kdList), array_keys($prices)));
+            if (! empty($missing)) {
+                $invinRows = DB::table('tb_invin')
+                    ->whereIn('kd_mat', $missing)
+                    ->whereRaw('cast(harga as decimal(18,4)) > 0')
+                    ->select('kd_mat', 'harga')
+                    ->orderByDesc('id_invin')
+                    ->get();
+
+                foreach ($invinRows as $row) {
+                    $k = strtolower(trim((string) $row->kd_mat));
+                    if (! isset($prices[$k]) && (float) $row->harga > 0) {
+                        $prices[$k] = (float) $row->harga;
+                    }
+                }
+            }
+        } catch (\Throwable $e) {
+            Log::error('getBatchLastPrices failed: ' . $e->getMessage());
         }
 
         return $prices;

@@ -1,5 +1,6 @@
 import InvoiceDetailDialog from '@/components/InvoiceDetailDialog';
 import OverdueInvoiceWarningDialog from '@/components/OverdueInvoiceWarningDialog';
+import ReviewTagihanDetailDialog from '@/components/review-tagihan-detail-dialog';
 import { Button } from '@/components/ui/button';
 import {
     Card,
@@ -140,10 +141,18 @@ export default function ReviewTagihanIndex() {
     const [aiCopied, setAiCopied] = useState(false);
     const [aiCollapsed, setAiCollapsed] = useState(false);
     const [accountCopied, setAccountCopied] = useState(null);
+    const [detailSelection, setDetailSelection] = useState(null);
 
     const totalPages = useMemo(
         () => Math.max(1, Math.ceil(customerTotal / pageSize)),
         [customerTotal, pageSize],
+    );
+
+    const visibleAgingBuckets = useMemo(
+        () => Array.isArray(aiData?.aging_distribution)
+            ? aiData.aging_distribution.filter((bucket) => toNumber(bucket?.saldo) > 0)
+            : [],
+        [aiData],
     );
 
     // Debtor Default Probability Lookup Map (ML Logistic Hazard)
@@ -830,7 +839,7 @@ export default function ReviewTagihanIndex() {
 
                                                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                                                         {/* 7 Days */}
-                                                        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3.5 flex flex-col justify-between">
+                                                        <button type="button" onClick={() => setDetailSelection({ key: 'cashflow_7', label: 'Proyeksi Pencairan Kas - 7 Hari', type: 'cashflow', description: 'Semua faktur aktif berkontribusi sesuai peluang pembayarannya pada horizon ini.', horizon: 7 })} className="text-left cursor-pointer focus-visible:outline-2 focus-visible:outline-primary rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3.5 flex flex-col justify-between">
                                                             <div className="flex items-center justify-between">
                                                                 <span className="text-xs font-bold text-emerald-800 dark:text-emerald-300">Horizon 7 Hari</span>
                                                                 <span className="rounded-md bg-emerald-500/15 px-1.5 py-0.5 text-[10px] font-bold text-emerald-700 dark:text-emerald-300">
@@ -842,12 +851,12 @@ export default function ReviewTagihanIndex() {
                                                             </div>
                                                             <div className="text-[11px] text-muted-foreground border-t border-emerald-500/20 pt-1.5 flex items-center justify-between">
                                                                 <span>Estimasi Faktur:</span>
-                                                                <strong className="text-foreground">{aiData.cashflow_forecast.horizon_7d?.invoices_count || 0} faktur</strong>
+                                                                <strong className="text-foreground">{aiData.cashflow_forecast.horizon_7d?.invoices_count || aiData.cashflow_forecast.invoices_count || aiData.analytics?.total_invoices_count || 0} faktur</strong>
                                                             </div>
-                                                        </div>
+                                                        </button>
 
                                                         {/* 14 Days */}
-                                                        <div className="rounded-xl border border-blue-500/30 bg-blue-500/5 p-3.5 flex flex-col justify-between">
+                                                        <button type="button" onClick={() => setDetailSelection({ key: 'cashflow_14', label: 'Proyeksi Pencairan Kas - 14 Hari', type: 'cashflow', description: 'Semua faktur aktif berkontribusi sesuai peluang pembayarannya pada horizon ini.', horizon: 14 })} className="text-left cursor-pointer focus-visible:outline-2 focus-visible:outline-primary rounded-xl border border-blue-500/30 bg-blue-500/5 p-3.5 flex flex-col justify-between">
                                                             <div className="flex items-center justify-between">
                                                                 <span className="text-xs font-bold text-blue-800 dark:text-blue-300">Horizon 14 Hari</span>
                                                                 <span className="rounded-md bg-blue-500/15 px-1.5 py-0.5 text-[10px] font-bold text-blue-700 dark:text-blue-300">
@@ -859,12 +868,12 @@ export default function ReviewTagihanIndex() {
                                                             </div>
                                                             <div className="text-[11px] text-muted-foreground border-t border-blue-500/20 pt-1.5 flex items-center justify-between">
                                                                 <span>Estimasi Faktur:</span>
-                                                                <strong className="text-foreground">{aiData.cashflow_forecast.horizon_14d?.invoices_count || 0} faktur</strong>
+                                                                <strong className="text-foreground">{aiData.cashflow_forecast.horizon_14d?.invoices_count || aiData.cashflow_forecast.invoices_count || aiData.analytics?.total_invoices_count || 0} faktur</strong>
                                                             </div>
-                                                        </div>
+                                                        </button>
 
                                                         {/* 30 Days */}
-                                                        <div className="rounded-xl border border-purple-500/30 bg-purple-500/5 p-3.5 flex flex-col justify-between">
+                                                        <button type="button" onClick={() => setDetailSelection({ key: 'cashflow_30', label: 'Proyeksi Pencairan Kas - 30 Hari', type: 'cashflow', description: 'Semua faktur aktif berkontribusi sesuai peluang pembayarannya pada horizon ini.', horizon: 30 })} className="text-left cursor-pointer focus-visible:outline-2 focus-visible:outline-primary rounded-xl border border-purple-500/30 bg-purple-500/5 p-3.5 flex flex-col justify-between">
                                                             <div className="flex items-center justify-between">
                                                                 <span className="text-xs font-bold text-purple-800 dark:text-purple-300">Horizon 30 Hari</span>
                                                                 <span className="rounded-md bg-purple-500/15 px-1.5 py-0.5 text-[10px] font-bold text-purple-700 dark:text-purple-300">
@@ -876,9 +885,9 @@ export default function ReviewTagihanIndex() {
                                                             </div>
                                                             <div className="text-[11px] text-muted-foreground border-t border-purple-500/20 pt-1.5 flex items-center justify-between">
                                                                 <span>Estimasi Faktur:</span>
-                                                                <strong className="text-foreground">{aiData.cashflow_forecast.horizon_30d?.invoices_count || 0} faktur</strong>
+                                                                <strong className="text-foreground">{aiData.cashflow_forecast.horizon_30d?.invoices_count || aiData.cashflow_forecast.invoices_count || aiData.analytics?.total_invoices_count || 0} faktur</strong>
                                                             </div>
-                                                        </div>
+                                                        </button>
                                                     </div>
 
                                                     {aiData.cashflow_forecast.forecast_narrative && (
@@ -904,7 +913,7 @@ export default function ReviewTagihanIndex() {
 
                                                     <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
                                                         {/* Critical */}
-                                                        <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-2.5">
+                                                        <button type="button" onClick={() => setDetailSelection({ key: 'critical_risk', label: 'Risiko Gagal Bayar - Kritis', type: 'risk', description: 'Skor dihitung dari seluruh faktur aktif per customer.' })} className="text-left cursor-pointer focus-visible:outline-2 focus-visible:outline-primary rounded-lg border border-rose-500/30 bg-rose-500/10 p-2.5">
                                                             <div className="text-[11px] font-bold text-rose-700 dark:text-rose-300 flex items-center justify-between">
                                                                 <span>Kritis (&ge;70% atau &gt;90 hari)</span>
                                                                 <span className="rounded bg-rose-500/20 px-1 py-0.5 font-mono">
@@ -917,10 +926,10 @@ export default function ReviewTagihanIndex() {
                                                             <div className="text-[10px] text-rose-600 dark:text-rose-400 mt-0.5">
                                                                 {aiData.default_risk_analysis.critical_risk?.pct ?? '—'}% eksposur
                                                             </div>
-                                                        </div>
+                                                        </button>
 
                                                         {/* High */}
-                                                        <div className="rounded-lg border border-orange-500/30 bg-orange-500/10 p-2.5">
+                                                        <button type="button" onClick={() => setDetailSelection({ key: 'high_risk', label: 'Risiko Gagal Bayar - Tinggi', type: 'risk', description: 'Skor dihitung dari seluruh faktur aktif per customer.' })} className="text-left cursor-pointer focus-visible:outline-2 focus-visible:outline-primary rounded-lg border border-orange-500/30 bg-orange-500/10 p-2.5">
                                                             <div className="text-[11px] font-bold text-orange-700 dark:text-orange-300 flex items-center justify-between">
                                                                 <span>Tinggi (&ge;45% atau &gt;45 hari)</span>
                                                                 <span className="rounded bg-orange-500/20 px-1 py-0.5 font-mono">
@@ -933,10 +942,10 @@ export default function ReviewTagihanIndex() {
                                                             <div className="text-[10px] text-orange-600 dark:text-orange-400 mt-0.5">
                                                                 {aiData.default_risk_analysis.high_risk?.pct ?? '—'}% eksposur
                                                             </div>
-                                                        </div>
+                                                        </button>
 
                                                         {/* Moderate */}
-                                                        <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5">
+                                                        <button type="button" onClick={() => setDetailSelection({ key: 'moderate_risk', label: 'Risiko Gagal Bayar - Moderat', type: 'risk', description: 'Skor dihitung dari seluruh faktur aktif per customer.' })} className="text-left cursor-pointer focus-visible:outline-2 focus-visible:outline-primary rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5">
                                                             <div className="text-[11px] font-bold text-amber-700 dark:text-amber-300 flex items-center justify-between">
                                                                 <span>Moderat (&ge;20% atau &gt;15 hari)</span>
                                                                 <span className="rounded bg-amber-500/20 px-1 py-0.5 font-mono">
@@ -949,10 +958,10 @@ export default function ReviewTagihanIndex() {
                                                             <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
                                                                 {aiData.default_risk_analysis.moderate_risk?.pct ?? '—'}% eksposur
                                                             </div>
-                                                        </div>
+                                                        </button>
 
                                                         {/* Low */}
-                                                        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2.5">
+                                                        <button type="button" onClick={() => setDetailSelection({ key: 'low_risk', label: 'Risiko Gagal Bayar - Rendah', type: 'risk', description: 'Skor dihitung dari seluruh faktur aktif per customer.' })} className="text-left cursor-pointer focus-visible:outline-2 focus-visible:outline-primary rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2.5">
                                                             <div className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 flex items-center justify-between">
                                                                 <span>Rendah (&lt;20% dan &le;15 hari)</span>
                                                                 <span className="rounded bg-emerald-500/20 px-1 py-0.5 font-mono">
@@ -965,7 +974,7 @@ export default function ReviewTagihanIndex() {
                                                             <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">
                                                                 {aiData.default_risk_analysis.low_risk?.pct ?? '—'}% eksposur
                                                             </div>
-                                                        </div>
+                                                        </button>
                                                     </div>
 
                                                     {aiData.default_risk_analysis.assessment && (
@@ -979,7 +988,7 @@ export default function ReviewTagihanIndex() {
                                     )}
 
                                     {/* 3. Aging Distribution Breakdown */}
-                                    {Array.isArray(aiData.aging_distribution) && aiData.aging_distribution.length > 0 && (
+                                    {visibleAgingBuckets.length > 0 && (
                                         <div className="space-y-3">
                                             <div className="flex items-center justify-between">
                                                 <div className="flex items-center gap-2">
@@ -996,13 +1005,16 @@ export default function ReviewTagihanIndex() {
 
                                             {/* Stacked Progress Bar */}
                                             <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted/80 shadow-inner">
-                                                {aiData.aging_distribution.map((b) => {
+                                                {visibleAgingBuckets.map((b) => {
                                                     if (b.percent <= 0) return null;
                                                     const colorBg = agingStyles[b.key]?.color ?? 'bg-slate-400';
 
                                                     return (
-                                                        <div
+                                                        <button
+                                                            type="button"
                                                             key={b.key}
+                                                            onClick={() => setDetailSelection(b)}
+                                                            aria-label={`Lihat rincian ${b.label} pada grafik`}
                                                             className={`${colorBg} transition-all duration-300 hover:opacity-85`}
                                                             style={{ width: `${b.percent}%` }}
                                                             title={`${b.label}: ${b.formatted_saldo} (${b.percent}%)`}
@@ -1013,15 +1025,18 @@ export default function ReviewTagihanIndex() {
 
                                             {/* Aging Grid Cards */}
                                             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7">
-                                                {aiData.aging_distribution.map((b) => {
+                                                {visibleAgingBuckets.map((b) => {
                                                     const style = agingStyles[b.key] ?? { color: 'bg-slate-400', border: 'border-sidebar-border/60' };
                                                     const borderClass = style.border;
                                                     const dotColor = style.color;
 
                                                     return (
-                                                        <div
+                                                        <button
+                                                            type="button"
                                                             key={b.key}
-                                                            className={`rounded-xl border ${borderClass} bg-card p-2.5 text-xs shadow-2xs transition hover:border-primary`}
+                                                            onClick={() => setDetailSelection(b)}
+                                                            className={`rounded-xl border ${borderClass} bg-card p-2.5 text-left text-xs shadow-2xs transition hover:border-primary focus-visible:outline-2 focus-visible:outline-primary`}
+                                                            aria-label={`Lihat rincian ${b.label}`}
                                                         >
                                                             <div className="flex items-center gap-1.5 font-semibold text-foreground">
                                                                 <span className={`h-2 w-2 rounded-full ${dotColor} shrink-0`} />
@@ -1034,7 +1049,7 @@ export default function ReviewTagihanIndex() {
                                                                 <span>{b.percent}%</span>
                                                                 <span>{b.invoice_count} faktur</span>
                                                             </div>
-                                                        </div>
+                                                        </button>
                                                     );
                                                 })}
                                             </div>
@@ -1524,6 +1539,19 @@ export default function ReviewTagihanIndex() {
                     </CardContent>
                 </Card>
             </div>
+
+            {detailSelection && (
+                <ReviewTagihanDetailDialog
+                    key={`${detailSelection.key}:${aiData?.analytics?.reference_date ?? ''}`}
+                    bucket={detailSelection}
+                    referenceDate={aiData?.analytics?.reference_date}
+                    onClose={() => setDetailSelection(null)}
+                    onInvoiceClick={(invoice) => {
+                        setSelectedInvoiceNo(invoice.no_fakturpenjualan);
+                        setInvoiceDetailOpen(true);
+                    }}
+                />
+            )}
 
             {/* Invoices Dialog */}
             <OverdueInvoiceWarningDialog

@@ -204,7 +204,12 @@ class CashflowInflowForecaster:
                 "inflow_30d_fmt": "Rp 0",
                 "inflow_30d_pct": 0.0,
                 "recovery_rate_expected": 0.0,
-                "summary": "Tidak ada saldo piutang tertunggak yang perlu diproyeksikan."
+                "invoices_count": 0,
+                "summary": "Tidak ada saldo piutang tertunggak yang perlu diproyeksikan.",
+                "forecast_narrative": "Tidak ada saldo piutang tertunggak yang perlu diproyeksikan.",
+                "horizon_7d": {"expected_recovery": 0.0, "recovery_rate": 0.0, "formatted_recovery": "Rp 0", "invoices_count": 0},
+                "horizon_14d": {"expected_recovery": 0.0, "recovery_rate": 0.0, "formatted_recovery": "Rp 0", "invoices_count": 0},
+                "horizon_30d": {"expected_recovery": 0.0, "recovery_rate": 0.0, "formatted_recovery": "Rp 0", "invoices_count": 0},
             }
 
         exp_7d = None
@@ -253,7 +258,7 @@ class CashflowInflowForecaster:
                 d = safe_int(inv.get("delta_days"))
                 g_total = max(1.0, safe_float(inv.get("g_total", saldo)))
                 total_bayar = safe_float(inv.get("total_bayar", 0))
-                pay_ratio = total_bayar / g_total
+                pay_ratio = max(0.0, min(1.0, total_bayar / g_total))
 
                 if d <= 0:
                     p7 = 0.65 if d >= -7 else 0.20
@@ -301,7 +306,20 @@ class CashflowInflowForecaster:
             "inflow_30d_fmt": format_rupiah(exp_30d),
             "inflow_30d_pct": pct_30d,
             "recovery_rate_expected": pct_30d,
-            "summary": summary
+            "invoices_count": len(invoices),
+            "summary": summary,
+            "forecast_narrative": summary,
+            **{
+                f"horizon_{days}d": {
+                    "expected_recovery": round(expected, 2),
+                    "recovery_rate": percent / 100.0,
+                    "formatted_recovery": format_rupiah(expected),
+                    "invoices_count": len(invoices),
+                }
+                for days, expected, percent in (
+                    (7, exp_7d, pct_7d), (14, exp_14d, pct_14d), (30, exp_30d, pct_30d)
+                )
+            },
         }
 
 # =====================================================================

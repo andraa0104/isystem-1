@@ -557,6 +557,10 @@ Route::get('penjualan/review-tagihan/overdue-customer-names', [ReviewTagihanCont
     ->name('penjualan.review-tagihan.overdue-customer-names');
 Route::get('penjualan/review-tagihan/invoices', [ReviewTagihanController::class, 'invoices'])
     ->name('penjualan.review-tagihan.invoices');
+Route::get('penjualan/review-tagihan/aging-invoices', [ReviewTagihanController::class, 'agingInvoices'])
+    ->name('penjualan.review-tagihan.aging-invoices');
+Route::get('penjualan/review-tagihan/portfolio-details', [ReviewTagihanController::class, 'portfolioDetails'])
+    ->name('penjualan.review-tagihan.portfolio-details');
 Route::post('penjualan/review-tagihan/ai-analyze', [ReviewTagihanController::class, 'aiAnalyze'])
     ->name('penjualan.review-tagihan.ai-analyze');
 Route::get('pembayaran/biaya-kirim-penjualan', [BiayaKirimPenjualanController::class, 'index'])

@@ -31,7 +31,14 @@ export const subscribeToPoInChanges = (channelName, onChange, eventName = 'purch
         .error((error) => console.error('Marketing WebSocket subscription failed:', error));
 
     return () => {
-        echo.leave(channelName);
-        echo.disconnect();
+        try {
+            echo.leave(channelName);
+        } catch {}
+        try {
+            const state = echo.connector?.pusher?.connection?.state;
+            if (state && state !== 'closed' && state !== 'closing') {
+                echo.disconnect();
+            }
+        } catch {}
     };
 };

@@ -8,7 +8,7 @@ use Symfony\Component\Process\Process;
 
 class CollectionAnalyticsService
 {
-    public const ANALYSIS_VERSION = 2;
+    public const ANALYSIS_VERSION = 4;
 
     /**
     * Run Python Data Analytics Engine for Invoices and enrich with Gemini.
@@ -110,25 +110,50 @@ class CollectionAnalyticsService
 
             $jsonInput = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
 
-            $pythonBinary = env('PYTHON_BINARY', 'python3');
-            $process = new Process([$pythonBinary, $scriptPath]);
-            $process->setInput($jsonInput);
-            $process->setTimeout(30);
-            $process->run();
+            $binaries = array_filter(array_unique([
+                env('PYTHON_BINARY'),
+                PHP_OS_FAMILY === 'Windows' ? 'python' : 'python3',
+                'python',
+                'python3',
+            ]));
 
-            if (!$process->isSuccessful()) {
-                Log::error('CollectionAnalytics.py execution failed', [
-                    'error' => $process->getErrorOutput(),
-                    'exit_code' => $process->getExitCode(),
-                ]);
-                return null;
+            $parsed = null;
+            $lastError = '';
+            $lastExitCode = null;
+
+            foreach ($binaries as $pythonBinary) {
+                try {
+                    $process = new Process([$pythonBinary, $scriptPath]);
+                    $process->setInput($jsonInput);
+                    $process->setTimeout(30);
+                    $process->run();
+
+                    if (! $process->isSuccessful()) {
+                        $lastError = $process->getErrorOutput();
+                        $lastExitCode = $process->getExitCode();
+                        continue;
+                    }
+
+                    $output = trim($process->getOutput());
+                    $decoded = json_decode($output, true);
+                    if (json_last_error() === JSON_ERROR_NONE && is_array($decoded)) {
+                        $parsed = $decoded;
+                        break;
+                    }
+
+                    $lastError = 'Non-JSON output: ' . substr($output, 0, 500);
+                } catch (\Throwable $e) {
+                    $lastError = $e->getMessage();
+                }
             }
 
-            $output = trim($process->getOutput());
-            $parsed = json_decode($output, true);
+            if (! $parsed) {
+                Log::error('CollectionAnalytics.py execution failed across candidate binaries', [
+                    'binaries' => $binaries,
+                    'error' => $lastError,
+                    'exit_code' => $lastExitCode,
+                ]);
 
-            if (json_last_error() !== JSON_ERROR_NONE || !is_array($parsed)) {
-                Log::error('CollectionAnalytics.py returned non-JSON output', ['output' => substr($output, 0, 500)]);
                 return null;
             }
 

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Marketing;
 
 use App\Services\Marketing\CollectionAnalyticsService;
+use App\Services\Marketing\CollectionDetailQuery;
 use Carbon\Carbon;
 use Illuminate\Database\Connection;
 use Illuminate\Database\Query\Builder;
@@ -11,6 +12,7 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 
 class ReviewTagihanController
@@ -294,6 +296,121 @@ class ReviewTagihanController
         ]);
     }
 
+    /** Match the Python aging matrix, including its legacy due-date fallback. */
+    private function agingDateExpr(string $column): string
+    {
+        if (in_array($this->columnType($column), ['date', 'datetime', 'timestamp'], true)) {
+            return "nullif(date({$column}), '0000-00-00')";
+        }
+
+        return "nullif(coalesce(str_to_date({$column}, '%Y-%m-%d'), str_to_date({$column}, '%Y/%m/%d'), str_to_date({$column}, '%d-%m-%Y'), str_to_date({$column}, '%d/%m/%Y'), str_to_date({$column}, '%d.%m.%Y')), '0000-00-00')";
+    }
+
+    public function agingInvoices(Request $request)
+    {
+        $filters = $request->validate([
+            'bucket' => ['required', Rule::in(['current', 'near_due', 'overdue_1_90', 'overdue_91_180', 'overdue_181_year', 'overdue_year_720', 'overdue_gt_720'])],
+            'reference_date' => ['nullable', 'date_format:Y-m-d'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', Rule::in([5, 10, 25, 50, 100])],
+            'search' => ['nullable', 'string', 'max:200'],
+        ]);
+        $reference = isset($filters['reference_date']) ? Carbon::createFromFormat('!Y-m-d', $filters['reference_date']) : Carbon::today();
+        $yearDays = $reference->isLeapYear() ? 366 : 365;
+        [$minAge, $maxAge] = match ($filters['bucket']) {
+            'current' => [null, -8],
+            'near_due' => [-7, 0],
+            'overdue_1_90' => [1, 90],
+            'overdue_91_180' => [91, 180],
+            'overdue_181_year' => [181, $yearDays],
+            'overdue_year_720' => [$yearDays + 1, 720],
+            'overdue_gt_720' => [721, null],
+        };
+        // Age is reference - due date; reverse bounds to keep the upper date exclusive.
+        $lower = $maxAge === null ? null : $reference->copy()->subDays($maxAge)->toDateString();
+        $upper = $minAge === null ? null : $reference->copy()->subDays($minAge)->addDay()->toDateString();
+        $due = $this->agingDateExpr('jth_tempo');
+        $document = $this->agingDateExpr('tgl_doc');
+        $fallback = "coalesce(date_add({$document}, interval 30 day), ?)";
+        $effectiveDue = "coalesce({$due}, date_add({$document}, interval 30 day), ?)";
+        $date = $reference->toDateString();
+        $native = in_array($this->columnType('jth_tempo'), ['date', 'datetime', 'timestamp'], true);
+        $query = $this->baseInvoiceQuery()->where(function (Builder $dates) use ($due, $fallback, $native, $lower, $upper, $date) {
+            $applyRange = function (Builder $range, string $expression, array $bindings = []) use ($lower, $upper) {
+                if ($lower !== null) {
+                    $range->whereRaw("{$expression} >= ?", [...$bindings, $lower]);
+                }
+                if ($upper !== null) {
+                    $range->whereRaw("{$expression} < ?", [...$bindings, $upper]);
+                }
+            };
+            $dates->where(fn (Builder $valid) => $applyRange($valid->whereRaw("{$due} is not null"), $native ? 'jth_tempo' : $due));
+            $dates->orWhere(function (Builder $missing) use ($applyRange, $due, $fallback, $date) {
+                $missing->whereRaw("{$due} is null");
+                $applyRange($missing, $fallback, [$date]);
+            });
+        });
+        $search = trim($filters['search'] ?? '');
+        if ($search !== '') {
+            $pattern = '%'.str_replace(['!', '%', '_'], ['!!', '!%', '!_'], Str::lower($search)).'%';
+            $query->where(function (Builder $matches) use ($pattern) {
+                foreach (['no_fakturpenjualan', 'nm_cs', 'ref_po'] as $column) {
+                    $matches->orWhereRaw("lower({$column}) like ? escape '!'", [$pattern]);
+                }
+            });
+        }
+        $paginator = $query->select(['no_fakturpenjualan', 'nm_cs', 'ref_po', 'tgl_doc', 'jth_tempo', 'g_total', 'total_bayaran', 'saldo_piutang'])
+            ->selectRaw("{$effectiveDue} as effective_due_date", [$date])
+            ->selectRaw("datediff(?, {$effectiveDue}) as umur_tempo", [$date, $date])
+            ->orderBy('effective_due_date')->orderBy('no_fakturpenjualan')->orderBy('kd_cs')
+            ->paginate((int) ($filters['per_page'] ?? 5), ['*'], 'page', (int) ($filters['page'] ?? 1));
+
+        return response()->json($paginator)->header('Cache-Control', 'no-store');
+    }
+
+    private function analyticsInvoices(string $date): Builder
+    {
+        $due = $this->agingDateExpr('jth_tempo');
+        $document = $this->agingDateExpr('tgl_doc');
+        $effectiveDue = "coalesce({$due}, date_add({$document}, interval 30 day), ?)";
+
+        return $this->baseInvoiceQuery()->select(['no_fakturpenjualan', 'nm_cs', 'ref_po', 'tgl_doc', 'jth_tempo'])
+            ->selectRaw($this->balanceExpr().' as saldo_piutang')
+            ->selectRaw('coalesce(cast(g_total as decimal(18,4)), 0) as g_total, coalesce(cast(total_bayaran as decimal(18,4)), 0) as total_bayaran')
+            ->selectRaw("{$effectiveDue} as effective_due_date", [$date])
+            ->selectRaw("datediff(?, {$effectiveDue}) as umur_tempo", [$date, $date]);
+    }
+
+    public function portfolioDetails(Request $request, CollectionDetailQuery $details)
+    {
+        $filters = $request->validate([
+            'type' => ['required', Rule::in(['risk', 'cashflow'])],
+            'tier' => ['required_if:type,risk', 'nullable', Rule::in(['critical_risk', 'high_risk', 'moderate_risk', 'low_risk'])],
+            'horizon' => ['required_if:type,cashflow', 'nullable', 'integer', Rule::in([7, 14, 30])],
+            'reference_date' => ['nullable', 'date_format:Y-m-d'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', Rule::in([5, 10, 25, 50, 100])],
+            'search' => ['nullable', 'string', 'max:200'],
+        ]);
+        $invoices = $this->analyticsInvoices($filters['reference_date'] ?? Carbon::today()->toDateString());
+        $risk = $filters['type'] === 'risk';
+        $query = $risk ? $details->risk($invoices, $filters['tier']) : $details->cashflow($invoices, (int) $filters['horizon']);
+        $search = trim($filters['search'] ?? '');
+        if ($search !== '') {
+            $pattern = '%'.str_replace(['!', '%', '_'], ['!!', '!%', '!_'], Str::lower($search)).'%';
+            $query->where(function (Builder $matches) use ($pattern, $risk) {
+                foreach ($risk ? ['nm_cs'] : ['no_fakturpenjualan', 'nm_cs', 'ref_po'] as $column) {
+                    $matches->orWhereRaw("lower(cast({$column} as char)) like ? escape '!'", [$pattern]);
+                }
+            });
+        }
+        $risk ? $query->orderByDesc('default_prob')->orderByDesc('total_saldo')->orderBy('nm_cs')
+            : $query->orderByDesc('expected_recovery')->orderBy('effective_due_date')->orderBy('no_fakturpenjualan')->orderBy('nm_cs');
+
+        return response()->json($query->paginate((int) ($filters['per_page'] ?? 5), ['*'], 'page', (int) ($filters['page'] ?? 1)))
+            ->header('Cache-Control', 'no-store');
+    }
+
     public function aiAnalyze(Request $request, CollectionAnalyticsService $analyticsService)
     {
         @set_time_limit(360);
@@ -336,16 +453,24 @@ class ReviewTagihanController
                 'invoices' => $invoices,
             ], JSON_THROW_ON_ERROR));
             if (! $request->boolean('force')) {
-                $cachedResult = Cache::get($cacheKey);
-                if (is_array($cachedResult)) {
-                    return response()->json(array_merge($cachedResult, ['cached' => true]));
+                try {
+                    $cachedResult = Cache::get($cacheKey);
+                    if (is_array($cachedResult)) {
+                        return response()->json(array_merge($cachedResult, ['cached' => true]));
+                    }
+                } catch (\Throwable) {
+                    // Ignore cache read failures if cache store unavailable
                 }
             }
 
             $result = $analyticsService->analyzeCollections($invoices, Carbon::today()->toDateString());
 
             if (! empty($result['success'])) {
-                Cache::put($cacheKey, $result, now()->addMinutes(15));
+                try {
+                    Cache::put($cacheKey, $result, now()->addMinutes(15));
+                } catch (\Throwable) {
+                    // Ignore cache write failures if cache store unavailable
+                }
             }
 
             return response()->json($result);
