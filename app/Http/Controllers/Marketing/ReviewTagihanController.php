@@ -329,6 +329,7 @@ class ReviewTagihanController
             $invoices = $query->orderBy('no_fakturpenjualan')->get()->map(fn ($row) => (array) $row)->toArray();
             $connection = $this->getDbConnection();
             $cacheKey = 'review-tagihan-ai:'.sha1(json_encode([
+                'analysis_version' => CollectionAnalyticsService::ANALYSIS_VERSION,
                 'tenant' => [$connection->getName(), $connection->getDatabaseName()],
                 'reference_date' => Carbon::today()->toDateString(),
                 'scope' => $scope, 'overdue_range' => $overdueRange, 'customer' => $customer,

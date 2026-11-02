@@ -2,6 +2,7 @@
 
 namespace App\Services\Marketing;
 
+use Illuminate\Database\Connection;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 
@@ -17,7 +18,7 @@ class PurchaseRequirementDetailReader
         return $this->queryPage(DB::connection(), $number, $filters) + ['source' => 'mysql'];
     }
 
-    private function queryPage($connection, string $number, array $filters): array
+    private function queryPage(Connection $connection, string $number, array $filters): array
     {
         $base = $connection->table('tb_detailpr')->where('no_pr', $number);
         $customers = (clone $base)->select('ref_po', 'for_customer')->distinct()->orderBy('ref_po')->get()->all();
@@ -38,7 +39,7 @@ class PurchaseRequirementDetailReader
                 ->groupByRaw("coalesce(nullif(kd_material, ''), material)");
             $query = $connection->table('tb_detailpr as d')->joinSub($groups, 'g', function ($join) {
                 $join->on('d.no', '=', 'g.first_no');
-                $join->on(\Illuminate\Support\Facades\DB::raw("coalesce(nullif(d.kd_material, ''), d.material)"), '=', 'g.material_key');
+                $join->on(DB::raw("coalesce(nullif(d.kd_material, ''), d.material)"), '=', 'g.material_key');
             })->where('d.no_pr', $number)
                 ->select(array_map(fn ($column) => 'd.'.$column, array_diff(self::COLUMNS, ['qty', 'sisa_pr', 'ref_po', 'for_customer'])))
                 ->selectRaw("g.grouped_qty as qty, g.grouped_sisa as sisa_pr, 'Multiple' as ref_po, 'Multiple' as for_customer");
@@ -53,8 +54,8 @@ class PurchaseRequirementDetailReader
                 }
             });
         }
-        $total = (clone $query)->count();
         $size = ($filters['per_page'] ?? 5) === 'all' ? null : min(100, max(1, (int) ($filters['per_page'] ?? 5)));
+        $total = $size === null ? null : (clone $query)->count();
         $pages = $size === null ? 1 : max(1, (int) ceil($total / $size));
         $page = min($pages, max(1, (int) ($filters['page'] ?? 1)));
         $rows = $query->orderBy('no');
@@ -63,6 +64,7 @@ class PurchaseRequirementDetailReader
         }
 
         $items = $rows->get();
+        $total ??= $items->count();
         foreach ($items as $item) {
             if (array_diff(self::COLUMNS, array_keys((array) $item)) || $item->no_pr !== $number) {
                 throw new RuntimeException('Invalid detail row.');

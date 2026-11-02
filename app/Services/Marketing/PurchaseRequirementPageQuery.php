@@ -2,19 +2,40 @@
 
 namespace App\Services\Marketing;
 
+use Illuminate\Database\Connection;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 class PurchaseRequirementPageQuery
 {
-    private function numberSql($connection, string $column): string
+    public function __construct(private readonly PurchaseRequirementSchema $schema) {}
+
+    private function numberSql(Connection $connection, string $column): string
     {
         return "cast({$column} as decimal(18,4))";
     }
 
-    private function dateSql($connection, string $column): string
+    private function nativeDateType(Connection $connection, string $table, string $column): ?string
     {
+        foreach ($this->schema->columns($table, $connection) as $metadata) {
+            if (strtolower($metadata['name']) === strtolower($column)
+                && in_array(strtolower($metadata['type_name']), ['date', 'datetime', 'timestamp'], true)) {
+                return strtolower($metadata['type_name']);
+            }
+        }
+
+        return null;
+    }
+
+    private function dateSql(Connection $connection, string $column): string
+    {
+        $table = str_ends_with($column, 'date') ? 'tb_pr' : 'tb_detailpo';
+        $name = str_contains($column, '.') ? substr($column, strrpos($column, '.') + 1) : $column;
+        if ($type = $this->nativeDateType($connection, $table, $name)) {
+            return $type === 'date' ? $column : "date({$column})";
+        }
+
         // Explicit formats must be attempted before date(). MySQL can interpret
         // values such as 26.06.2018 as a year-first date in the year 2026.
         return "coalesce(str_to_date({$column}, '%Y-%m-%d'), str_to_date({$column}, '%Y/%m/%d'), str_to_date({$column}, '%d/%m/%Y'), str_to_date({$column}, '%d-%m-%Y'), str_to_date({$column}, '%d.%m.%Y'), date({$column}))";
@@ -27,6 +48,13 @@ class PurchaseRequirementPageQuery
 
         if ($endDate->lessThan($startDate)) {
             $query->whereRaw('1 = 0');
+
+            return true;
+        }
+
+        if ($this->nativeDateType($query->getConnection(), 'tb_pr', 'date')) {
+            $query->where($column, '>=', $startDate->toDateString())
+                ->where($column, '<', $endDate->copy()->addDay()->toDateString());
 
             return true;
         }
@@ -48,10 +76,9 @@ class PurchaseRequirementPageQuery
             // This range supports ISO dates and ISO datetime values. The IN list
             // covers every non-ISO format accepted by dateSql(). Both predicates
             // can use the existing index on tb_pr.date.
-            $dateQuery->whereBetween($column, [
-                $startDate->format('Y-m-d'),
-                $endDate->copy()->endOfDay()->format('Y-m-d H:i:s'),
-            ])->orWhereIn($column, $formattedDates);
+            $dateQuery->where(fn (Builder $iso) => $iso->where($column, '>=', $startDate->toDateString())
+                ->where($column, '<', $endDate->copy()->addDay()->toDateString()))
+                ->orWhereIn($column, $formattedDates);
         });
 
         return true;
@@ -138,10 +165,11 @@ class PurchaseRequirementPageQuery
         });
     }
 
-    private function statusQuery($connection): Builder
+    private function statusQuery(Connection $connection): Builder
     {
         $qty = $this->numberSql($connection, 'qty');
         $remaining = $this->numberSql($connection, 'sisa_pr');
+
         return $connection->table('tb_detailpr')->select('no_pr')
             ->selectRaw('count(*) as total_items')
             ->selectRaw("sum(case when coalesce({$remaining}, {$qty}, 0) >= coalesce({$qty}, 0) and coalesce({$qty}, 0) > 0 then 1 else 0 end) as untouched_items")
@@ -149,7 +177,7 @@ class PurchaseRequirementPageQuery
             ->groupBy('no_pr');
     }
 
-    public function query(array $filters, $connection = null): Builder
+    public function query(array $filters, ?Connection $connection = null): Builder
     {
         $connection ??= DB::connection();
         $status = $filters['status'] ?? 'all';
@@ -233,7 +261,10 @@ class PurchaseRequirementPageQuery
             }
         }
 
-        return $query->orderByRaw("{$date} desc")->orderByDesc('pr.no_pr');
+        $orderDate = $status !== 'realized' && $this->nativeDateType($connection, 'tb_pr', 'date') ? 'pr.date' : $date;
+        $query->orderByRaw("{$orderDate} desc")->orderByDesc('pr.no_pr');
+
+        return $material ? $query->orderBy('d.no') : $query;
     }
 
     public function paginate(array $filters): array
@@ -241,10 +272,13 @@ class PurchaseRequirementPageQuery
         return $this->queryPage($filters, DB::connection()) + ['source' => 'mysql'];
     }
 
-    private function queryPage(array $filters, $connection): array
+    private function queryPage(array $filters, Connection $connection): array
     {
         $query = $this->query($filters, $connection);
         $size = (string) ($filters['per_page'] ?? '5');
+        if ($size !== 'all') {
+            $size = (string) min(100, max(1, (int) $size));
+        }
         $page = max(1, (int) ($filters['page'] ?? 1));
         $knownTotal = isset($filters['known_total']) && is_numeric($filters['known_total'])
             ? max(0, (int) $filters['known_total'])
@@ -270,7 +304,7 @@ class PurchaseRequirementPageQuery
             $rows = $query->forPage($page, (int) $size)->get();
         }
         foreach ($rows as $row) {
-            if (!isset($row->no_pr) || !is_scalar($row->no_pr) || trim((string) $row->no_pr) === '') {
+            if (! isset($row->no_pr) || ! is_scalar($row->no_pr) || trim((string) $row->no_pr) === '') {
                 throw new \RuntimeException('Invalid PR row: missing document number.');
             }
         }
@@ -293,7 +327,7 @@ class PurchaseRequirementPageQuery
 
             $knownStatus = ($filters['status'] ?? 'all') !== 'all';
             $stats = collect();
-            if (!$knownStatus) {
+            if (! $knownStatus) {
                 $statsQuery = $this->statusQuery($connection)->whereIn('no_pr', $ids);
                 $linkedPoDate = $this->dateSql($connection, 'linked_detail_po.tgl');
                 $statsQuery->selectRaw('case when exists (select 1 from tb_detailpo linked_detail_po where linked_detail_po.ref_pr = tb_detailpr.no_pr and '.$linkedPoDate.' is not null) then 1 else 0 end as has_po_date');

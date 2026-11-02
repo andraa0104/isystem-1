@@ -63,6 +63,16 @@ const overdueRanges = [
     { value: 'all', label: 'Semua data' },
 ];
 
+const agingStyles = {
+    current: { color: 'bg-emerald-500', border: 'border-sidebar-border/60' },
+    near_due: { color: 'bg-amber-500', border: 'border-sidebar-border/60' },
+    overdue_1_90: { color: 'bg-blue-500', border: 'border-sidebar-border/60' },
+    overdue_91_180: { color: 'bg-orange-500', border: 'border-orange-500/30' },
+    overdue_181_year: { color: 'bg-rose-500', border: 'border-rose-500/30' },
+    overdue_year_720: { color: 'bg-red-600', border: 'border-red-500/40 bg-red-500/5' },
+    overdue_gt_720: { color: 'bg-red-900', border: 'border-red-700/40 bg-red-700/5' },
+};
+
 const pageSizes = [5, 10, 25, 50, 100];
 const sortOptions = [
     { value: 'oldest_due', label: 'Jatuh tempo terlama' },
@@ -896,64 +906,64 @@ export default function ReviewTagihanIndex() {
                                                         {/* Critical */}
                                                         <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 p-2.5">
                                                             <div className="text-[11px] font-bold text-rose-700 dark:text-rose-300 flex items-center justify-between">
-                                                                <span>Critical (&gt;75%)</span>
+                                                                <span>Kritis (&ge;70% atau &gt;90 hari)</span>
                                                                 <span className="rounded bg-rose-500/20 px-1 py-0.5 font-mono">
-                                                                    {aiData.default_risk_analysis.critical_risk?.count || 0} Debtor
+                                                                    {aiData.default_risk_analysis.critical_risk?.count ?? '—'} Debtor
                                                                 </span>
                                                             </div>
                                                             <div className="mt-1.5 text-sm font-extrabold text-rose-700 dark:text-rose-300">
-                                                                {aiData.default_risk_analysis.critical_risk?.formatted_nominal || 'Rp 0'}
+                                                                {aiData.default_risk_analysis.critical_risk?.formatted_nominal ?? 'Data tidak tersedia'}
                                                             </div>
                                                             <div className="text-[10px] text-rose-600 dark:text-rose-400 mt-0.5">
-                                                                {aiData.default_risk_analysis.critical_risk?.pct || 0}% eksposur
+                                                                {aiData.default_risk_analysis.critical_risk?.pct ?? '—'}% eksposur
                                                             </div>
                                                         </div>
 
                                                         {/* High */}
                                                         <div className="rounded-lg border border-orange-500/30 bg-orange-500/10 p-2.5">
                                                             <div className="text-[11px] font-bold text-orange-700 dark:text-orange-300 flex items-center justify-between">
-                                                                <span>High (50-75%)</span>
+                                                                <span>Tinggi (&ge;45% atau &gt;45 hari)</span>
                                                                 <span className="rounded bg-orange-500/20 px-1 py-0.5 font-mono">
-                                                                    {aiData.default_risk_analysis.high_risk?.count || 0} Debtor
+                                                                    {aiData.default_risk_analysis.high_risk?.count ?? '—'} Debtor
                                                                 </span>
                                                             </div>
                                                             <div className="mt-1.5 text-sm font-extrabold text-orange-700 dark:text-orange-300">
-                                                                {aiData.default_risk_analysis.high_risk?.formatted_nominal || 'Rp 0'}
+                                                                {aiData.default_risk_analysis.high_risk?.formatted_nominal ?? 'Data tidak tersedia'}
                                                             </div>
                                                             <div className="text-[10px] text-orange-600 dark:text-orange-400 mt-0.5">
-                                                                {aiData.default_risk_analysis.high_risk?.pct || 0}% eksposur
+                                                                {aiData.default_risk_analysis.high_risk?.pct ?? '—'}% eksposur
                                                             </div>
                                                         </div>
 
                                                         {/* Moderate */}
                                                         <div className="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5">
                                                             <div className="text-[11px] font-bold text-amber-700 dark:text-amber-300 flex items-center justify-between">
-                                                                <span>Moderate (25-50%)</span>
+                                                                <span>Moderat (&ge;20% atau &gt;15 hari)</span>
                                                                 <span className="rounded bg-amber-500/20 px-1 py-0.5 font-mono">
-                                                                    {aiData.default_risk_analysis.moderate_risk?.count || 0} Debtor
+                                                                    {aiData.default_risk_analysis.moderate_risk?.count ?? '—'} Debtor
                                                                 </span>
                                                             </div>
                                                             <div className="mt-1.5 text-sm font-extrabold text-amber-700 dark:text-amber-300">
-                                                                {aiData.default_risk_analysis.moderate_risk?.formatted_nominal || 'Rp 0'}
+                                                                {aiData.default_risk_analysis.moderate_risk?.formatted_nominal ?? 'Data tidak tersedia'}
                                                             </div>
                                                             <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
-                                                                {aiData.default_risk_analysis.moderate_risk?.pct || 0}% eksposur
+                                                                {aiData.default_risk_analysis.moderate_risk?.pct ?? '—'}% eksposur
                                                             </div>
                                                         </div>
 
                                                         {/* Low */}
                                                         <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-2.5">
                                                             <div className="text-[11px] font-bold text-emerald-700 dark:text-emerald-300 flex items-center justify-between">
-                                                                <span>Low (&lt;25%)</span>
+                                                                <span>Rendah (&lt;20% dan &le;15 hari)</span>
                                                                 <span className="rounded bg-emerald-500/20 px-1 py-0.5 font-mono">
-                                                                    {aiData.default_risk_analysis.low_risk?.count || 0} Debtor
+                                                                    {aiData.default_risk_analysis.low_risk?.count ?? '—'} Debtor
                                                                 </span>
                                                             </div>
                                                             <div className="mt-1.5 text-sm font-extrabold text-emerald-700 dark:text-emerald-300">
-                                                                {aiData.default_risk_analysis.low_risk?.formatted_nominal || 'Rp 0'}
+                                                                {aiData.default_risk_analysis.low_risk?.formatted_nominal ?? 'Data tidak tersedia'}
                                                             </div>
                                                             <div className="text-[10px] text-emerald-600 dark:text-emerald-400 mt-0.5">
-                                                                {aiData.default_risk_analysis.low_risk?.pct || 0}% eksposur
+                                                                {aiData.default_risk_analysis.low_risk?.pct ?? '—'}% eksposur
                                                             </div>
                                                         </div>
                                                     </div>
@@ -979,7 +989,8 @@ export default function ReviewTagihanIndex() {
                                                     </h3>
                                                 </div>
                                                 <span className="text-xs text-muted-foreground">
-                                                    Dihitung presisi per tanggal jatuh tempo
+                                                    Dihitung per tanggal jatuh tempo
+                                                    {aiData.analytics?.aging_year_days && ` · 1 tahun = ${aiData.analytics.aging_year_days} hari`}
                                                 </span>
                                             </div>
 
@@ -987,20 +998,13 @@ export default function ReviewTagihanIndex() {
                                             <div className="flex h-3 w-full overflow-hidden rounded-full bg-muted/80 shadow-inner">
                                                 {aiData.aging_distribution.map((b) => {
                                                     if (b.percent <= 0) return null;
-                                                    let colorBg = 'bg-slate-400';
-                                                    if (b.key === 'current') colorBg = 'bg-emerald-500';
-                                                    else if (b.key === 'near_due') colorBg = 'bg-amber-500';
-                                                    else if (b.key === 'overdue_1_30') colorBg = 'bg-blue-500';
-                                                    else if (b.key === 'overdue_31_60') colorBg = 'bg-indigo-500';
-                                                    else if (b.key === 'overdue_61_90') colorBg = 'bg-orange-500';
-                                                    else if (b.key === 'overdue_gt_90') colorBg = 'bg-rose-500';
-                                                    else if (b.key === 'overdue_gt_180') colorBg = 'bg-red-700';
+                                                    const colorBg = agingStyles[b.key]?.color ?? 'bg-slate-400';
 
                                                     return (
                                                         <div
                                                             key={b.key}
                                                             className={`${colorBg} transition-all duration-300 hover:opacity-85`}
-                                                            style={{ width: `${Math.max(1, b.percent)}%` }}
+                                                            style={{ width: `${b.percent}%` }}
                                                             title={`${b.label}: ${b.formatted_saldo} (${b.percent}%)`}
                                                         />
                                                     );
@@ -1010,25 +1014,9 @@ export default function ReviewTagihanIndex() {
                                             {/* Aging Grid Cards */}
                                             <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7">
                                                 {aiData.aging_distribution.map((b) => {
-                                                    let borderClass = 'border-sidebar-border/60';
-                                                    let dotColor = 'bg-slate-400';
-                                                    if (b.key === 'current') {
-                                                        dotColor = 'bg-emerald-500';
-                                                    } else if (b.key === 'near_due') {
-                                                        dotColor = 'bg-amber-500';
-                                                    } else if (b.key === 'overdue_1_30') {
-                                                        dotColor = 'bg-blue-500';
-                                                    } else if (b.key === 'overdue_31_60') {
-                                                        dotColor = 'bg-indigo-500';
-                                                    } else if (b.key === 'overdue_61_90') {
-                                                        dotColor = 'bg-orange-500';
-                                                    } else if (b.key === 'overdue_gt_90') {
-                                                        dotColor = 'bg-rose-500';
-                                                        borderClass = 'border-rose-500/30';
-                                                    } else if (b.key === 'overdue_gt_180') {
-                                                        dotColor = 'bg-red-700';
-                                                        borderClass = 'border-red-500/40 bg-red-500/5';
-                                                    }
+                                                    const style = agingStyles[b.key] ?? { color: 'bg-slate-400', border: 'border-sidebar-border/60' };
+                                                    const borderClass = style.border;
+                                                    const dotColor = style.color;
 
                                                     return (
                                                         <div
@@ -1037,7 +1025,7 @@ export default function ReviewTagihanIndex() {
                                                         >
                                                             <div className="flex items-center gap-1.5 font-semibold text-foreground">
                                                                 <span className={`h-2 w-2 rounded-full ${dotColor} shrink-0`} />
-                                                                <span className="truncate text-[11px]">{b.label}</span>
+                                                                <span className="text-[11px] leading-snug" title={b.description || b.label}>{b.label}</span>
                                                             </div>
                                                             <div className="mt-1.5 text-xs font-bold text-foreground sm:text-sm">
                                                                 {b.formatted_saldo}

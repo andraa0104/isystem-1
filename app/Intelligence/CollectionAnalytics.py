@@ -6,7 +6,7 @@ Engine Analitik Data Penjualan & Penagihan Piutang (AR Collection Intelligence)
 berbasis Python (Standard Library Only).
 
 Menghitung metrik statistik presisi:
-- Aging Breakdown & Bucket Distribusi Tagihan (Near Due, 1-30, 31-60, 61-90, >90, >180, >360 hari)
+- Aging: belum/dekat jatuh tempo, 1-90, 91-180, 181-365/366, 366/367-720, >720 hari
 - Weighted Average Days Overdue (DSO Proxy)
 - Herfindahl-Hirschman Index (HHI) & Gini Ratio untuk Konsentrasi Piutang Macet
 - Multi-Factor Collection Priority Scoring (0 - 100) per Customer
@@ -19,6 +19,7 @@ import json
 import math
 import statistics
 import datetime
+import calendar
 import re
 
 # =====================================================================
@@ -402,14 +403,19 @@ class CollectionAnalyticsEngine:
             return self._empty_result()
 
         # 1. Aging Buckets Analysis
+        year_days = 366 if calendar.isleap(self.ref_date.year) else 365
+        definitions = [
+            ('current', 'Belum Jatuh Tempo', 'emerald', 'Jatuh tempo lebih dari 7 hari lagi.'),
+            ('near_due', 'Dekat Jatuh Tempo', 'amber', 'Jatuh tempo hari ini sampai 7 hari ke depan.'),
+            ('overdue_1_90', 'Lewat Tempo 1 - 90 Hari', 'blue', ''),
+            ('overdue_91_180', 'Lewat Tempo 91 - 180 Hari', 'orange', ''),
+            ('overdue_181_year', f'Lewat Tempo 181 - {year_days} Hari', 'rose', ''),
+            ('overdue_year_720', f'Lewat Tempo {year_days + 1} - 720 Hari', 'red', ''),
+            ('overdue_gt_720', 'Lewat Tempo > 720 Hari', 'red-dark', ''),
+        ]
         aging_buckets = {
-            'near_due': {'label': 'Dekat Jatuh Tempo (1-7 Hari)', 'saldo': 0.0, 'count': 0, 'customers': set(), 'color': 'amber'},
-            'current': {'label': 'Belum Jatuh Tempo (> 7 Hari)', 'saldo': 0.0, 'count': 0, 'customers': set(), 'color': 'emerald'},
-            'overdue_1_30': {'label': 'Lewat Tempo 1 - 30 Hari', 'saldo': 0.0, 'count': 0, 'customers': set(), 'color': 'blue'},
-            'overdue_31_60': {'label': 'Lewat Tempo 31 - 60 Hari', 'saldo': 0.0, 'count': 0, 'customers': set(), 'color': 'indigo'},
-            'overdue_61_90': {'label': 'Lewat Tempo 61 - 90 Hari', 'saldo': 0.0, 'count': 0, 'customers': set(), 'color': 'orange'},
-            'overdue_gt_90': {'label': 'Lewat Tempo 91 - 180 Hari', 'saldo': 0.0, 'count': 0, 'customers': set(), 'color': 'rose'},
-            'overdue_gt_180': {'label': 'Lewat Tempo > 180 Hari (Kritis)', 'saldo': 0.0, 'count': 0, 'customers': set(), 'color': 'red'},
+            key: {'label': label, 'description': description, 'saldo': 0.0, 'count': 0, 'customers': set(), 'color': color}
+            for key, label, color, description in definitions
         }
 
         total_overdue_saldo = 0.0
@@ -428,16 +434,16 @@ class CollectionAnalyticsEngine:
             else:
                 total_overdue_saldo += saldo
                 weighted_overdue_days_sum += (d * saldo)
-                if d <= 30:
-                    b = aging_buckets['overdue_1_30']
-                elif d <= 60:
-                    b = aging_buckets['overdue_31_60']
-                elif d <= 90:
-                    b = aging_buckets['overdue_61_90']
+                if d <= 90:
+                    b = aging_buckets['overdue_1_90']
                 elif d <= 180:
-                    b = aging_buckets['overdue_gt_90']
+                    b = aging_buckets['overdue_91_180']
+                elif d <= year_days:
+                    b = aging_buckets['overdue_181_year']
+                elif d <= 720:
+                    b = aging_buckets['overdue_year_720']
                 else:
-                    b = aging_buckets['overdue_gt_180']
+                    b = aging_buckets['overdue_gt_720']
 
             b['saldo'] += saldo
             b['count'] += 1
@@ -538,7 +544,7 @@ class CollectionAnalyticsEngine:
         # 3. Overall Collection Health Score (0 - 100)
         # 100 is pristine (all current), 0 is completely defaulted
         overdue_ratio = total_overdue_saldo / total_outstanding if total_outstanding > 0 else 0.0
-        gt_90_ratio = (aging_buckets['overdue_gt_90']['saldo'] + aging_buckets['overdue_gt_180']['saldo']) / total_outstanding if total_outstanding > 0 else 0.0
+        gt_90_ratio = sum(bucket['saldo'] for key, bucket in aging_buckets.items() if key in ('overdue_91_180', 'overdue_181_year', 'overdue_year_720', 'overdue_gt_720')) / total_outstanding if total_outstanding > 0 else 0.0
         
         base_health = 100.0 - (overdue_ratio * 40.0) - (gt_90_ratio * 35.0) - (min(300, weighted_avg_overdue_days) / 300.0 * 25.0)
         health_score = max(5, min(98, round(base_health)))
@@ -580,6 +586,7 @@ class CollectionAnalyticsEngine:
             aging_array.append({
                 'key': key,
                 'label': val['label'],
+                'description': val['description'],
                 'saldo': val['saldo'],
                 'formatted_saldo': format_rupiah(val['saldo']),
                 'percent': round(pct, 1),
@@ -622,8 +629,37 @@ class CollectionAnalyticsEngine:
             ]
         }
 
+        risk_levels = {
+            'critical_risk': 'Kritis (Bad Debt Risk)',
+            'high_risk': 'Tinggi',
+            'moderate_risk': 'Moderat',
+            'low_risk': 'Rendah',
+        }
+        for key, level in risk_levels.items():
+            debtors = [customer for customer in customer_scores if customer['default_risk_level'] == level]
+            nominal = sum(customer['total_saldo'] for customer in debtors)
+            default_risk_analysis[key] = {
+                'count': len(debtors),
+                'nominal': nominal,
+                'formatted_nominal': format_rupiah(nominal),
+                'pct': round(nominal / total_outstanding * 100.0, 1),
+            }
+        at_risk_nominal = default_risk_analysis['critical_risk']['nominal'] + default_risk_analysis['high_risk']['nominal']
+        default_risk_analysis.update({
+            'total_at_risk_nominal': at_risk_nominal,
+            'total_at_risk_fmt': format_rupiah(at_risk_nominal),
+            'model_name': 'Multivariate Logistic Hazard Model',
+            'assessment': (
+                f"Dari {total_customers_count} customer, {len(critical_debtors)} masuk risiko kritis dan "
+                f"{len(high_risk_debtors)} risiko tinggi, dengan total eksposur {format_rupiah(at_risk_nominal)}. "
+                "Kategori mengikuti probabilitas model atau batas hari keterlambatan, mana yang memicu risiko lebih tinggi."
+            ),
+        })
+
         # Build Analytics Summary Metrics
         analytics_metrics = {
+            'reference_date': self.ref_date.isoformat(),
+            'aging_year_days': year_days,
             'total_outstanding': total_outstanding,
             'formatted_total_outstanding': format_rupiah(total_outstanding),
             'total_overdue_saldo': total_overdue_saldo,
@@ -701,7 +737,7 @@ class CollectionAnalyticsEngine:
             })
 
         # Directive 2: Tim Finance & AR Collection
-        gt_90_saldo = aging_buckets['overdue_gt_90']['saldo'] + aging_buckets['overdue_gt_180']['saldo']
+        gt_90_saldo = sum(bucket['saldo'] for key, bucket in aging_buckets.items() if key in ('overdue_91_180', 'overdue_181_year', 'overdue_year_720', 'overdue_gt_720'))
         directives.append({
             'role': 'AR Collection & Finance Admin',
             'target': f"Piutang Macet > 90 Hari ({format_rupiah(gt_90_saldo)})",
@@ -821,7 +857,7 @@ class CollectionAnalyticsEngine:
             'total_at_risk_nominal': 0.0,
             'total_at_risk_fmt': 'Rp 0',
             'model_name': 'Multivariate Logistic Hazard Model',
-            'assessment': 'Seluruh akun dalam status aman, tidak terdeteksi risiko gagal bayar.',
+            'assessment': 'Tidak ada saldo piutang aktif untuk dianalisis.',
         }
         return {
             'analytics': {
