@@ -2,19 +2,61 @@
 
 namespace App\Http\Controllers;
 
+use Illuminate\Database\Connection;
+use Illuminate\Database\Query\Builder;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 class DashboardController
 {
-    private const DASHBOARD_CACHE_TAGS = ['dashboard_data'];
-    private const DASHBOARD_CACHE_TTL = 300;
+    /** @var \WeakMap<Connection, array<string, array>> */
+    private \WeakMap $schemaCache;
+
+    public function __construct()
+    {
+        $this->schemaCache = new \WeakMap;
+    }
+
+    private function hasTable(string $table): bool
+    {
+        $connection = $this->getDbConnection();
+        $database = $connection->getDatabaseName();
+        $metadata = $this->schemaCache[$connection] ?? [];
+        if (! isset($metadata[$database]['tables'])) {
+            $metadata[$database]['tables'] = array_fill_keys(
+                $connection->getSchemaBuilder()->getTableListing(schemaQualified: false), true,
+            );
+            $this->schemaCache[$connection] = $metadata;
+        }
+
+        return isset($metadata[$database]['tables'][$connection->getTablePrefix().$table]);
+    }
+
+    private function columnsForTable(string $table): array
+    {
+        if (! $this->hasTable($table)) {
+            return [];
+        }
+        $connection = $this->getDbConnection();
+        $database = $connection->getDatabaseName();
+        $metadata = $this->schemaCache[$connection];
+        if (! isset($metadata[$database]['columns'][$table])) {
+            $metadata[$database]['columns'][$table] = $connection->getSchemaBuilder()->getColumnListing($table);
+            $this->schemaCache[$connection] = $metadata;
+        }
+
+        return $metadata[$database]['columns'][$table];
+    }
+
+    private function hasColumn(string $table, string $column): bool
+    {
+        return in_array(strtolower($column), array_map('strtolower', $this->columnsForTable($table)), true);
+    }
+
     private const DASHBOARD_CARD_KEYS = [
         'quotation',
         'saldo',
@@ -28,12 +70,12 @@ class DashboardController
     private function dashboardCardAccess(Request $request): ?array
     {
         $kdUser = $request->user()?->kd_user;
-        if (!$kdUser || !Storage::disk('local')->exists('privileges.json')) {
+        if (! $kdUser || ! Storage::disk('local')->exists('privileges.json')) {
             return null;
         }
 
         $decoded = json_decode(Storage::disk('local')->get('privileges.json'), true);
-        if (!is_array($decoded)) {
+        if (! is_array($decoded)) {
             return null;
         }
 
@@ -42,12 +84,13 @@ class DashboardController
         $cards = $decoded['databases'][$database]['users'][$kdUser]['dashboard_cards']
             ?? $decoded['users'][$kdUser]['dashboard_cards']
             ?? null;
+
         return is_array($cards) ? $cards : null;
     }
 
     private function canViewDashboardCard(Request $request, string $card): bool
     {
-        if (!in_array($card, self::DASHBOARD_CARD_KEYS, true)) {
+        if (! in_array($card, self::DASHBOARD_CARD_KEYS, true)) {
             return false;
         }
 
@@ -64,94 +107,10 @@ class DashboardController
         abort_unless($this->canViewDashboardCard($request, $card), 403);
     }
 
-    private function tenantCachePrefix(?Request $request = null): string
-    {
-        $request ??= request();
-        $database = (string) (
-            $request->session()->get('tenant.database')
-            ?? $request->cookie('tenant_database')
-            ?? config('database.connections.'.config('database.default').'.database')
-            ?? ''
-        );
-
-        return preg_replace('/[^A-Za-z0-9_.:-]/', '_', strtolower($database)) ?: 'default';
-    }
-
-    private function dashboardCacheKey(string $scope, array $parts = [], ?Request $request = null): string
-    {
-        return 'dashboard:' . $this->tenantCachePrefix($request) . ':' . $scope . ':' . md5(json_encode($parts));
-    }
-
-    private function hasKasBreakdownColumns(): array
-    {
-        if (!Schema::hasTable('tb_kas')) {
-            return [
-                'has_breakdown' => false,
-                'has_b1' => false,
-                'has_b2' => false,
-                'has_b3' => false,
-                'has_jenis1' => false,
-                'has_jenis2' => false,
-                'has_jenis3' => false,
-            ];
-        }
-
-        $cols = Schema::getColumnListing('tb_kas');
-        $hasB1 = in_array('Kode_Akun1', $cols, true) && in_array('Nominal1', $cols, true);
-        $hasB2 = in_array('Kode_Akun2', $cols, true) && in_array('Nominal2', $cols, true);
-        $hasB3 = in_array('Kode_Akun3', $cols, true) && in_array('Nominal3', $cols, true);
-        $hasJenis1 = in_array('Jenis_Beban1', $cols, true);
-        $hasJenis2 = in_array('Jenis_Beban2', $cols, true);
-        $hasJenis3 = in_array('Jenis_Beban3', $cols, true);
-
-        return [
-            'has_breakdown' => $hasB1 || $hasB2 || $hasB3,
-            'has_b1' => $hasB1,
-            'has_b2' => $hasB2,
-            'has_b3' => $hasB3,
-            'has_jenis1' => $hasJenis1,
-            'has_jenis2' => $hasJenis2,
-            'has_jenis3' => $hasJenis3,
-        ];
-    }
-
-    private function biayaSelectSumSql(array $flags): string
-    {
-        // Prefer breakdown columns (Kode_Akun1..3 + Nominal1..3). Fallback to tb_kas.Kode_Akun + Mutasi_Kas.
-        $parts = [];
-
-        if (!empty($flags['has_b1'])) {
-            $parts[] = "CASE WHEN k.Kode_Akun1 LIKE '51%' THEN COALESCE(k.Nominal1,0) ELSE 0 END";
-        }
-        if (!empty($flags['has_b2'])) {
-            $parts[] = "CASE WHEN k.Kode_Akun2 LIKE '51%' THEN COALESCE(k.Nominal2,0) ELSE 0 END";
-        }
-        if (!empty($flags['has_b3'])) {
-            $parts[] = "CASE WHEN k.Kode_Akun3 LIKE '51%' THEN COALESCE(k.Nominal3,0) ELSE 0 END";
-        }
-
-        // Some datasets store expense "51" into Jenis_Beban* instead of Kode_Akun*.
-        if (!empty($flags['has_jenis1']) && !empty($flags['has_b1'])) {
-            $parts[] = "CASE WHEN k.Jenis_Beban1 LIKE '51%' THEN COALESCE(k.Nominal1,0) ELSE 0 END";
-        }
-        if (!empty($flags['has_jenis2']) && !empty($flags['has_b2'])) {
-            $parts[] = "CASE WHEN k.Jenis_Beban2 LIKE '51%' THEN COALESCE(k.Nominal2,0) ELSE 0 END";
-        }
-        if (!empty($flags['has_jenis3']) && !empty($flags['has_b3'])) {
-            $parts[] = "CASE WHEN k.Jenis_Beban3 LIKE '51%' THEN COALESCE(k.Nominal3,0) ELSE 0 END";
-        }
-
-        if (count($parts) > 0) {
-            return implode(' + ', $parts);
-        }
-
-        return "CASE WHEN k.Kode_Akun LIKE '51%' AND COALESCE(k.Mutasi_Kas,0) < 0 THEN -COALESCE(k.Mutasi_Kas,0) ELSE 0 END";
-    }
-
     private function tbKasBiayaQuery()
     {
         foreach (['Tgl_Voucher', 'Kode_Akun1', 'Jenis_Beban1', 'Nominal1'] as $column) {
-            if (!Schema::hasTable('tb_kas') || !Schema::hasColumn('tb_kas', $column)) {
+            if (! $this->hasTable('tb_kas') || ! $this->hasColumn('tb_kas', $column)) {
                 return null;
             }
         }
@@ -163,10 +122,10 @@ class DashboardController
 
     private function tbDoHppQuery()
     {
-        $hasDo = Schema::hasTable('tb_do') && Schema::hasColumn('tb_do', 'pos_tgl') && Schema::hasColumn('tb_do', 'total');
-        $hasDob = Schema::hasTable('tb_dob') && Schema::hasColumn('tb_dob', 'pos_tgl') && Schema::hasColumn('tb_dob', 'total');
+        $hasDo = $this->hasTable('tb_do') && $this->hasColumn('tb_do', 'pos_tgl') && $this->hasColumn('tb_do', 'total');
+        $hasDob = $this->hasTable('tb_dob') && $this->hasColumn('tb_dob', 'pos_tgl') && $this->hasColumn('tb_dob', 'total');
 
-        if (!$hasDo && !$hasDob) {
+        if (! $hasDo && ! $hasDob) {
             return null;
         }
 
@@ -183,7 +142,7 @@ class DashboardController
             $first->unionAll($q);
         }
 
-        return $this->getDbConnection()->table(DB::raw("({$first->toSql()}) as d"));
+        return $this->getDbConnection()->query()->fromSub($first, 'd');
     }
 
     private function normalizedDateSql(string $column): string
@@ -195,21 +154,23 @@ class DashboardController
         )";
     }
 
-    
-    private function getDbConnection(): \Illuminate\Database\ConnectionInterface
+    private function getDbConnection(): Connection
     {
         return DB::connection();
     }
 
-    private function sqlYw(string $col): string {
+    private function sqlYw(string $col): string
+    {
         return "YEARWEEK($col, 1)";
     }
 
-    private function sqlDf(string $col, string $fmt): string {
+    private function sqlDf(string $col, string $fmt): string
+    {
         return "DATE_FORMAT($col, '$fmt')";
     }
 
-    private function sqlStd(string $col, string $fmt): string {
+    private function sqlStd(string $col, string $fmt): string
+    {
         return "STR_TO_DATE($col, '$fmt')";
     }
 
@@ -243,7 +204,7 @@ class DashboardController
         $months = max(1, min(24, $months));
 
         $group = strtolower((string) $request->query('group', 'week'));
-        if (!in_array($group, ['week', 'month'], true)) {
+        if (! in_array($group, ['week', 'month'], true)) {
             $group = 'week';
         }
 
@@ -285,12 +246,12 @@ class DashboardController
 
         $userId = $request->user()->id;
         $path = storage_path('app/user_notes.json');
-        
+
         $notes = [];
         if (file_exists($path)) {
             $notes = json_decode(file_get_contents($path), true) ?: [];
         }
-        
+
         return response()->json([
             'content' => $notes[$userId] ?? '',
         ]);
@@ -305,7 +266,7 @@ class DashboardController
         $path = storage_path('app/user_notes.json');
 
         // Logging for audit
-        Log::info("UserNote SAVE: User ID $userId, Length " . strlen($content));
+        Log::info("UserNote SAVE: User ID $userId, Length ".strlen($content));
 
         $notes = [];
         if (file_exists($path)) {
@@ -313,20 +274,22 @@ class DashboardController
         }
 
         $notes[$userId] = $content;
-        
+
         try {
             file_put_contents($path, json_encode($notes, JSON_PRETTY_PRINT));
             chmod($path, 0777); // Ensure it stays writable
+
             return response()->json(['message' => 'Catatan berhasil disimpan.']);
         } catch (\Exception $e) {
-            Log::error("UserNote SAVE ERROR: " . $e->getMessage());
-            return response()->json(['message' => 'Gagal menyimpan catatan: ' . $e->getMessage()], 500);
+            Log::error('UserNote SAVE ERROR: '.$e->getMessage());
+
+            return response()->json(['message' => 'Gagal menyimpan catatan: '.$e->getMessage()], 500);
         }
     }
 
     private function buildQuotationStats(int $months = 12, string $group = 'week'): array
     {
-        if (!Schema::hasTable('tb_penawaran')) {
+        if (! $this->hasTable('tb_penawaran')) {
             return [];
         }
 
@@ -335,9 +298,10 @@ class DashboardController
             $start = $end->copy()->subMonths($months - 1);
 
             $rawStats = $this->getDbConnection()->table('tb_penawaran')
-                ->selectRaw("". $this->sqlDf('Tgl_penawaran', '%Y-%m') ." as period, COUNT(*) as total")
+                ->selectRaw(''.$this->sqlDf('Tgl_penawaran', '%Y-%m').' as period, COUNT(*) as total')
                 ->whereNotNull('Tgl_penawaran')
                 ->where('Tgl_penawaran', '>=', $start->toDateString())
+                ->where('Tgl_penawaran', '<', $end->copy()->addMonth()->toDateString())
                 ->groupBy('period')
                 ->orderBy('period')
                 ->get()
@@ -366,10 +330,10 @@ class DashboardController
             ->startOfWeek(Carbon::MONDAY);
 
         $rawStats = $this->getDbConnection()->table('tb_penawaran')
-            ->selectRaw("". $this->sqlYw('Tgl_penawaran') ." as week_key, COUNT(*) as total")
+            ->selectRaw(''.$this->sqlYw('Tgl_penawaran').' as week_key, COUNT(*) as total')
             ->whereNotNull('Tgl_penawaran')
             ->where('Tgl_penawaran', '>=', $startWeekStart->toDateString())
-            ->where('Tgl_penawaran', '<=', Carbon::now()->toDateString())
+            ->where('Tgl_penawaran', '<', Carbon::now()->startOfDay()->addDay()->toDateTimeString())
             ->groupBy('week_key')
             ->orderBy('week_key')
             ->pluck('total', 'week_key');
@@ -395,7 +359,7 @@ class DashboardController
 
     private function buildQuotationStatsRange(string $range): array
     {
-        if (!Schema::hasTable('tb_penawaran')) {
+        if (! $this->hasTable('tb_penawaran')) {
             return [];
         }
 
@@ -404,10 +368,10 @@ class DashboardController
             $start = $end->copy()->subDays(6);
 
             $raw = $this->getDbConnection()->table('tb_penawaran')
-                ->selectRaw("". $this->sqlDf('Tgl_penawaran', '%Y-%m-%d') ." as period, COUNT(*) as total")
+                ->selectRaw(''.$this->sqlDf('Tgl_penawaran', '%Y-%m-%d').' as period, COUNT(*) as total')
                 ->whereNotNull('Tgl_penawaran')
                 ->where('Tgl_penawaran', '>=', $start->toDateString())
-                ->where('Tgl_penawaran', '<=', $end->copy()->endOfDay()->toDateTimeString())
+                ->where('Tgl_penawaran', '<', $end->copy()->addDay()->toDateTimeString())
                 ->groupBy('period')
                 ->orderBy('period')
                 ->pluck('total', 'period');
@@ -432,10 +396,10 @@ class DashboardController
             $startWeek = $endWeek->copy()->subWeeks(3);
 
             $raw = $this->getDbConnection()->table('tb_penawaran')
-                ->selectRaw("". $this->sqlYw('Tgl_penawaran') ." as week_key, COUNT(*) as total")
+                ->selectRaw(''.$this->sqlYw('Tgl_penawaran').' as week_key, COUNT(*) as total')
                 ->whereNotNull('Tgl_penawaran')
                 ->where('Tgl_penawaran', '>=', $startWeek->toDateString())
-                ->where('Tgl_penawaran', '<=', Carbon::now()->endOfDay()->toDateTimeString())
+                ->where('Tgl_penawaran', '<', Carbon::now()->startOfDay()->addDay()->toDateTimeString())
                 ->groupBy('week_key')
                 ->orderBy('week_key')
                 ->pluck('total', 'week_key');
@@ -457,9 +421,15 @@ class DashboardController
             return $stats;
         }
 
-        if ($range === '3_months') return $this->buildQuotationStats(3, 'month');
-        if ($range === '5_months') return $this->buildQuotationStats(5, 'month');
-        if ($range === '1_year') return $this->buildQuotationStats(12, 'month');
+        if ($range === '3_months') {
+            return $this->buildQuotationStats(3, 'month');
+        }
+        if ($range === '5_months') {
+            return $this->buildQuotationStats(5, 'month');
+        }
+        if ($range === '1_year') {
+            return $this->buildQuotationStats(12, 'month');
+        }
 
         return $this->buildQuotationStats(3, 'month');
     }
@@ -476,11 +446,11 @@ class DashboardController
         $saldoByCode = collect();
         $lastVoucherByCode = collect();
 
-        if (Schema::hasTable('tb_kas')
-            && Schema::hasColumn('tb_kas', 'Saldo')
-            && Schema::hasColumn('tb_kas', 'Tgl_Voucher')
-            && Schema::hasColumn('tb_kas', 'Kode_Voucher')
-            && Schema::hasColumn('tb_kas', 'Kode_Akun')) {
+        if ($this->hasTable('tb_kas')
+            && $this->hasColumn('tb_kas', 'Saldo')
+            && $this->hasColumn('tb_kas', 'Tgl_Voucher')
+            && $this->hasColumn('tb_kas', 'Kode_Voucher')
+            && $this->hasColumn('tb_kas', 'Kode_Akun')) {
 
             $codes = array_keys($accountMap);
             $query = null;
@@ -535,8 +505,8 @@ class DashboardController
             'hutang' => '2101AK',
         ];
 
-        if (Schema::hasTable('tb_nabbrekap')) {
-            $rekapCols = Schema::getColumnListing('tb_nabbrekap');
+        if ($this->hasTable('tb_nabbrekap')) {
+            $rekapCols = $this->columnsForTable('tb_nabbrekap');
             $hasRekapRequired = in_array('Kode_Akun', $rekapCols, true)
                 && in_array('Saldo', $rekapCols, true);
 
@@ -549,21 +519,30 @@ class DashboardController
                     $dateOrderParts[] = 'Posting_Date';
                 }
 
-                $orderDateSql = count($dateOrderParts) > 0
-                    ? 'COALESCE(' . implode(',', $dateOrderParts) . ')'
-                    : 'Kode_Akun';
+                $orderDateSql = match (count($dateOrderParts)) {
+                    0 => 'Kode_Akun',
+                    1 => $dateOrderParts[0],
+                    default => 'COALESCE('.implode(',', $dateOrderParts).')',
+                };
 
+                $latestAccounts = null;
                 foreach ($accountCodes as $key => $code) {
-                    $row = $this->getDbConnection()->table('tb_nabbrekap')
-                        ->whereRaw("LOWER(TRIM(Kode_Akun)) = ?", [strtolower($code)])
+                    $query = $this->getDbConnection()->table('tb_nabbrekap')
+                        ->whereRaw('LOWER(TRIM(Kode_Akun)) = ?', [strtolower($code)])
                         ->select('Saldo')
+                        ->selectRaw('? as account_key', [$key])
                         ->when(in_array('End_Date', $rekapCols, true), fn ($query) => $query->addSelect('End_Date'))
                         ->when(in_array('Posting_Date', $rekapCols, true), fn ($query) => $query->addSelect('Posting_Date'))
                         ->orderByRaw("{$orderDateSql} desc")
                         ->when(in_array('Posting_Date', $rekapCols, true), fn ($query) => $query->orderByDesc('Posting_Date'))
                         ->when(in_array('Kode_NaBB', $rekapCols, true), fn ($query) => $query->orderByDesc('Kode_NaBB'))
-                        ->first();
+                        ->limit(1);
+                    $latestAccounts = $latestAccounts ? $latestAccounts->unionAll($query) : $query;
+                }
+                $rows = $latestAccounts->get()->keyBy('account_key');
 
+                foreach ($accountCodes as $key => $code) {
+                    $row = $rows->get($key);
                     if ($row) {
                         $result[$key] = [
                             'total' => (float) ($row->Saldo ?? 0),
@@ -580,12 +559,12 @@ class DashboardController
 
         $result['meta']['source'] = 'tb_nabb.saldo + tb_kas.tgl_voucher';
 
-        if (!Schema::hasTable('tb_nabb')) {
+        if (! $this->hasTable('tb_nabb')) {
             return $result;
         }
 
-        $nabbCols = Schema::getColumnListing('tb_nabb');
-        $kasCols = Schema::hasTable('tb_kas') ? Schema::getColumnListing('tb_kas') : [];
+        $nabbCols = $this->columnsForTable('tb_nabb');
+        $kasCols = $this->hasTable('tb_kas') ? $this->columnsForTable('tb_kas') : [];
         $lastUpdateAccountColumns = array_values(array_filter(
             ['Kode_Akun1', 'Kode_Akun2', 'Kode_Akun3'],
             fn (string $col) => in_array($col, $kasCols, true)
@@ -594,14 +573,14 @@ class DashboardController
         $hasRequired = in_array('Kode_Akun', $nabbCols, true)
             && in_array('Saldo', $nabbCols, true)
             && (
-                !Schema::hasTable('tb_kas')
+                ! $this->hasTable('tb_kas')
                 || (
                     in_array('Tgl_Voucher', $kasCols, true)
                     && count($lastUpdateAccountColumns) > 0
                 )
             );
 
-        if (!$hasRequired) {
+        if (! $hasRequired) {
             return $result;
         }
 
@@ -614,36 +593,32 @@ class DashboardController
         $piutangTotal = (float) ($stats->piutang_total ?? 0);
         $hutangTotal = (float) ($stats->hutang_total ?? 0);
 
-        $lastUpdateFromKas = function (array $accountCodes) use ($lastUpdateAccountColumns): ?string {
-            if (!Schema::hasTable('tb_kas') || count($accountCodes) === 0 || count($lastUpdateAccountColumns) === 0) {
-                return null;
-            }
-
-            $lastUpdate = $this->getDbConnection()->table('tb_kas')
-                ->where(function ($query) use ($lastUpdateAccountColumns, $accountCodes) {
-                    foreach ($lastUpdateAccountColumns as $index => $col) {
-                        if ($index === 0) {
-                            $query->whereIn($col, $accountCodes);
-                            continue;
-                        }
-                        $query->orWhereIn($col, $accountCodes);
-                    }
-                })
-                ->max('Tgl_Voucher');
-
-            return $lastUpdate ?: null;
-        };
-
         try {
+            $lastUpdates = null;
+            if ($this->hasTable('tb_kas') && $lastUpdateAccountColumns !== []) {
+                $query = $this->getDbConnection()->table('tb_kas');
+                foreach ($accountCodes as $key => $code) {
+                    $conditions = implode(' OR ', array_map(fn ($column) => $column.' = ?', $lastUpdateAccountColumns));
+                    $query->selectRaw('MAX(CASE WHEN '.$conditions.' THEN Tgl_Voucher END) as '.$key.'_last_update',
+                        array_fill(0, count($lastUpdateAccountColumns), $code));
+                }
+                $query->where(function ($query) use ($lastUpdateAccountColumns, $accountCodes) {
+                    foreach ($lastUpdateAccountColumns as $column) {
+                        $query->orWhereIn($column, array_values($accountCodes));
+                    }
+                });
+                $lastUpdates = $query->first();
+            }
             $result['piutang'] = [
                 'total' => $piutangTotal,
-                'last_update' => $lastUpdateFromKas(['1109AD']),
+                'last_update' => $lastUpdates?->piutang_last_update ?: null,
             ];
 
             $result['hutang'] = [
                 'total' => $hutangTotal,
-                'last_update' => $lastUpdateFromKas(['2101AK']),
+                'last_update' => $lastUpdates?->hutang_last_update ?: null,
             ];
+
             return $result;
         } catch (\Throwable) {
             return $result;
@@ -652,48 +627,28 @@ class DashboardController
 
     private function buildDeliveryStats(): array
     {
+        $counters = $this->hasTable('tb_counter')
+            ? $this->getDbConnection()->table('tb_counter')->whereIn('nama_tabel', ['saldo_pdb', 'saldo_pdo'])
+                ->pluck('nomor_terakhir', 'nama_tabel')
+            : collect();
+
         return [
-            'pdb' => $this->getPdbStats(),
-            'pdo' => $this->getPdoStats(),
+            'pdb' => ['total' => (float) ($counters['saldo_pdb'] ?? 0)],
+            'pdo' => ['total' => (float) ($counters['saldo_pdo'] ?? 0)],
         ];
     }
 
-    private function getPdbStats()
+    public function getSalesHppStats(Request $request, $period = null)
     {
-        if (!Schema::hasTable('tb_counter')) {
-            return ['total' => 0];
-        }
-
-        $value = $this->getDbConnection()->table('tb_counter')
-            ->where('nama_tabel', 'saldo_pdb')
-            ->value('nomor_terakhir');
-
-        return ['total' => (float) ($value ?? 0)];
-    }
-
-    private function getPdoStats()
-    {
-        if (!Schema::hasTable('tb_counter')) {
-            return ['total' => 0];
-        }
-
-        $value = $this->getDbConnection()->table('tb_counter')
-            ->where('nama_tabel', 'saldo_pdo')
-            ->value('nomor_terakhir');
-
-        return ['total' => (float) ($value ?? 0)];
-    }
-
-    public function getSalesHppStats(Request $request, $period = null) {
         $this->authorizeDashboardCard($request, 'sales_hpp');
 
         // Prioritize route param -> query param -> default
-        if (!$period) {
-             $period = $request->input('period', '3_months');
+        if (! $period) {
+            $period = $request->input('period', '3_months');
         }
 
         $group = strtolower((string) $request->query('group', 'month'));
-        if (!in_array($group, ['week', 'month'], true)) {
+        if (! in_array($group, ['week', 'month'], true)) {
             $group = 'month';
         }
 
@@ -702,324 +657,112 @@ class DashboardController
         return response()->json($stats);
     }
 
-    private function getSalesHppStatsData(string $period, string $group = 'week')
-    {
-        if ($period === '1_week') {
-            return $this->getSalesHppDailyStats();
+    /** Fetch each source once, including both bucket totals and its latest date. */
+    private function groupedTotals(
+        Builder $query,
+        string $date,
+        string $amount,
+        string $bucket,
+        string $start,
+        string $end,
+        bool $unboundedLastUpdate = false,
+    ): array {
+        $query->whereRaw("{$date} >= ?", [$start])->selectRaw("{$bucket} as period_key");
+        if ($unboundedLastUpdate) {
+            // Preserve the existing last-update rule, which also considers later-dated sales/HPP.
+            $query->selectRaw("SUM(CASE WHEN {$date} <= ? THEN {$amount} ELSE 0 END) as total", [$end]);
+        } else {
+            $query->whereRaw("{$date} <= ?", [$end])->selectRaw("SUM({$amount}) as total");
         }
-        if ($period === '1_month') {
-            return $this->getSalesHppWeeklyStatsForMonth();
-        }
+        $rows = $query->selectRaw("MAX({$date}) as last_update")->groupBy('period_key')->get();
 
-        $now = Carbon::now()->endOfMonth();
-        $months = 3;
-
-        if ($period === '5_months') {
-            $months = 5;
-        } elseif ($period === '1_year') {
-            $months = 12;
-        }
-
-        // We want to go back $months - 1 from current month to include current month
-        // e.g., 3 months: Current, Current-1, Current-2
-        $start = $now->copy()->startOfMonth()->subMonths($months - 1);
-
-        $result = [
-            'summary' => [
-                'sales_total' => 0,
-                'hpp_total' => 0,
-                'biaya_total' => 0,
-                'last_update' => null,
-            ],
-            'debug' => [
-                'received_period' => $period,
-                'calculated_months' => $months,
-            ],
-            'series' => [],
-        ];
-
-        $salesLastUpdate = null;
-        $hppLastUpdate = null;
-        $biayaLastUpdate = null;
-
-        if ($group === 'week') {
-            $endWeekStart = Carbon::now()->startOfWeek(Carbon::MONDAY);
-            $startWeekStart = Carbon::now()
-                ->startOfMonth()
-                ->subMonths($months - 1)
-                ->startOfWeek(Carbon::MONDAY);
-
-            // Sales grouped by week
-            $salesData = [];
-            if (Schema::hasTable('tb_kdfakturpenjualan')) {
-                $salesData = $this->getDbConnection()->table('tb_kdfakturpenjualan')
-                    ->selectRaw("". $this->sqlYw('tgl_doc') ." as week_key, SUM(harga) as total")
-                    ->where('tgl_doc', '>=', $startWeekStart->toDateString())
-                    ->where('tgl_doc', '<=', Carbon::now()->toDateString())
-                    ->groupBy('week_key')
-                    ->pluck('total', 'week_key');
-
-                $salesLastUpdate = $this->getDbConnection()->table('tb_kdfakturpenjualan')
-                    ->selectRaw("MAX(tgl_doc) as last_update")
-                    ->where('tgl_doc', '>=', $startWeekStart->toDateString())
-                    ->value('last_update');
-            }
-
-            // HPP grouped by week
-            $hppData = [];
-            $hppQuery = $this->tbDoHppQuery();
-            if ($hppQuery) {
-                $hppData = $hppQuery
-                    ->selectRaw("YEARWEEK(". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') .", 1) as week_key, SUM(COALESCE(d.total,0)) as total")
-                    ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." >= ?", [$startWeekStart->toDateString()])
-                    ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." <= ?", [Carbon::now()->toDateString()])
-                    ->groupBy('week_key')
-                    ->pluck('total', 'week_key');
-
-                $hppLastUpdateRaw = $this->tbDoHppQuery()
-                    ->selectRaw("MAX(". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') .") as last_update")
-                    ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." >= ?", [$startWeekStart->toDateString()])
-                    ->value('last_update');
-                $hppLastUpdate = $hppLastUpdateRaw;
-            }
-
-            // Biaya (Beban) from tb_kas: Kode_Akun1 starts with 51, Jenis_Beban1 Debit.
-            $biayaData = [];
-            $biayaQuery = $this->tbKasBiayaQuery();
-            if ($biayaQuery) {
-                $biayaData = $biayaQuery
-                    ->selectRaw("". $this->sqlYw('k.Tgl_Voucher') ." as week_key, SUM(COALESCE(k.Nominal1,0)) as total")
-                    ->where('k.Tgl_Voucher', '>=', $startWeekStart->toDateString())
-                    ->where('k.Tgl_Voucher', '<=', Carbon::now()->toDateString())
-                    ->groupBy('week_key')
-                    ->pluck('total', 'week_key');
-
-                $biayaLastUpdate = $this->tbKasBiayaQuery()
-                    ->selectRaw("MAX(k.Tgl_Voucher) as last_update")
-                    ->where('k.Tgl_Voucher', '>=', $startWeekStart->toDateString())
-                    ->where('k.Tgl_Voucher', '<=', Carbon::now()->toDateString())
-                    ->value('last_update');
-            }
-
-            // Build series by week
-            $cursor = $startWeekStart->copy();
-            while ($cursor->lte($endWeekStart)) {
-                $isoYear = (int) $cursor->isoWeekYear();
-                $isoWeek = (int) $cursor->isoWeek();
-                $weekKey = ($isoYear * 100) + $isoWeek;
-                $key = sprintf('%d-W%02d', $isoYear, $isoWeek);
-
-                $sales = (float) ($salesData[$weekKey] ?? 0);
-                $hpp = (float) ($hppData[$weekKey] ?? 0);
-                $biaya = (float) ($biayaData[$weekKey] ?? 0);
-
-                $result['series'][] = [
-                    'period' => $key,
-                    'label' => sprintf('W%02d %d', $isoWeek, $isoYear),
-                    'sales' => $sales,
-                    'hpp' => $hpp,
-                    'biaya' => $biaya,
-                ];
-
-                $result['summary']['sales_total'] += $sales;
-                $result['summary']['hpp_total'] += $hpp;
-                $result['summary']['biaya_total'] += $biaya;
-
-                $cursor->addWeek();
-            }
-
-            $lastUpdate = $salesLastUpdate;
-            if ($hppLastUpdate && (!$lastUpdate || $hppLastUpdate > $lastUpdate)) {
-                $lastUpdate = $hppLastUpdate;
-            }
-            if ($biayaLastUpdate && (!$lastUpdate || $biayaLastUpdate > $lastUpdate)) {
-                $lastUpdate = $biayaLastUpdate;
-            }
-            $result['summary']['last_update'] = $lastUpdate;
-
-            return $result;
-        }
-
-        // Pre-fetch all relevant data grouped by month to avoid N+1 queries in loop
-        // Sales: tgl_doc is DATE type (YYYY-MM-DD)
-        $salesData = [];
-        if (Schema::hasTable('tb_kdfakturpenjualan')) {
-            $salesData = $this->getDbConnection()->table('tb_kdfakturpenjualan')
-                ->selectRaw("". $this->sqlDf('tgl_doc', '%Y-%m') ." as month_key, SUM(harga) as total")
-                ->where('tgl_doc', '>=', $start->toDateString())
-                ->where('tgl_doc', '<=', $now->toDateString())
-                ->groupBy('month_key')
-                ->pluck('total', 'month_key');
-            
-             $salesLastUpdate = $this->getDbConnection()->table('tb_kdfakturpenjualan')
-                ->selectRaw("MAX(tgl_doc) as last_update")
-                ->where('tgl_doc', '>=', $start->toDateString())
-                ->value('last_update');
-        }
-
-        $hppData = [];
-        $hppQuery = $this->tbDoHppQuery();
-        if ($hppQuery) {
-            $hppData = $hppQuery
-                ->selectRaw("". $this->sqlDf('STR_TO_DATE(d.pos_tgl', '%d.%m.%Y') .", '%Y-%m') as month_key, SUM(COALESCE(d.total,0)) as total")
-                ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." >= ?", [$start->toDateString()])
-                ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." <= ?", [$now->toDateString()])
-                ->groupBy('month_key')
-                ->pluck('total', 'month_key');
-
-            $hppLastUpdateRaw = $this->tbDoHppQuery()
-                 ->selectRaw("MAX(". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') .") as last_update")
-                 ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." >= ?", [$start->toDateString()])
-                 ->value('last_update');
-            $hppLastUpdate = $hppLastUpdateRaw;
-        }
-
-        // Biaya (Beban) from tb_kas: Kode_Akun1 starts with 51, Jenis_Beban1 Debit.
-        $biayaData = [];
-        $biayaQuery = $this->tbKasBiayaQuery();
-        if ($biayaQuery) {
-            $biayaData = $biayaQuery
-                ->selectRaw("". $this->sqlDf('k.Tgl_Voucher', '%Y-%m') ." as month_key, SUM(COALESCE(k.Nominal1,0)) as total")
-                ->where('k.Tgl_Voucher', '>=', $start->toDateString())
-                ->where('k.Tgl_Voucher', '<=', $now->toDateString())
-                ->groupBy('month_key')
-                ->pluck('total', 'month_key');
-
-            $biayaLastUpdate = $this->tbKasBiayaQuery()
-                ->selectRaw("MAX(k.Tgl_Voucher) as last_update")
-                ->where('k.Tgl_Voucher', '>=', $start->toDateString())
-                ->where('k.Tgl_Voucher', '<=', $now->toDateString())
-                ->value('last_update');
-        }
-
-        // Build series
-        for ($i = 0; $i < $months; $i++) {
-            $currentMonth = $start->copy()->addMonths($i);
-            $key = $currentMonth->format('Y-m');
-            
-            $sales = (float) ($salesData[$key] ?? 0);
-            $hpp = (float) ($hppData[$key] ?? 0);
-            $biaya = (float) ($biayaData[$key] ?? 0);
-
-            $result['series'][] = [
-                'period' => $key,
-                'label' => $currentMonth->locale('id')->translatedFormat('M Y'),
-                'sales' => $sales,
-                'hpp' => $hpp,
-                'biaya' => $biaya,
-            ];
-
-            $result['summary']['sales_total'] += $sales;
-            $result['summary']['hpp_total'] += $hpp;
-            $result['summary']['biaya_total'] += $biaya;
-        }
-
-        // Determine overall last update
-        $lastUpdate = $salesLastUpdate;
-        if ($hppLastUpdate && (!$lastUpdate || $hppLastUpdate > $lastUpdate)) {
-            $lastUpdate = $hppLastUpdate;
-        }
-        if ($biayaLastUpdate && (!$lastUpdate || $biayaLastUpdate > $lastUpdate)) {
-            $lastUpdate = $biayaLastUpdate;
-        }
-        $result['summary']['last_update'] = $lastUpdate;
-
-        return $result;
+        return [$rows->pluck('total', 'period_key'), $rows->max('last_update')];
     }
 
-    private function getSalesHppDailyStats(): array
+    private function getSalesHppStatsData(string $period, string $group = 'week'): array
     {
-        $end = Carbon::now()->startOfDay();
-        $start = $end->copy()->subDays(6);
-
+        $now = Carbon::now();
+        $months = match ($period) {
+            '5_months' => 5,
+            '1_year' => 12,
+            default => 3,
+        };
+        $mode = match ($period) {
+            '1_week' => 'day',
+            '1_month' => 'week',
+            default => $group,
+        };
+        if ($mode === 'day') {
+            $start = $now->copy()->startOfDay()->subDays(6);
+            $lastBucket = $now->copy()->startOfDay();
+        } elseif ($mode === 'week') {
+            $lastBucket = $now->copy()->startOfWeek(Carbon::MONDAY);
+            $start = $period === '1_month'
+                ? $lastBucket->copy()->subWeeks(3)
+                : $now->copy()->startOfMonth()->subMonths($months - 1)->startOfWeek(Carbon::MONDAY);
+        } else {
+            $start = $now->copy()->startOfMonth()->subMonths($months - 1);
+            $lastBucket = $now->copy()->startOfMonth();
+        }
+        $end = $mode === 'month' ? $now->copy()->endOfMonth()->toDateString() : $now->toDateString();
+        $bucket = fn (string $date): string => match ($mode) {
+            'day' => $this->sqlDf($date, '%Y-%m-%d'),
+            'month' => $this->sqlDf($date, '%Y-%m'),
+            default => $this->sqlYw($date),
+        };
+        $sources = [];
+        $latest = [];
+        if ($this->hasTable('tb_kdfakturpenjualan')) {
+            [$sources['sales'], $latest['sales']] = $this->groupedTotals(
+                $this->getDbConnection()->table('tb_kdfakturpenjualan'),
+                'tgl_doc', 'harga', $bucket('tgl_doc'), $start->toDateString(), $end, unboundedLastUpdate: true,
+            );
+        }
+        if ($hpp = $this->tbDoHppQuery()) {
+            $date = $this->sqlStd('d.pos_tgl', '%d.%m.%Y');
+            [$sources['hpp'], $latest['hpp']] = $this->groupedTotals(
+                $hpp, $date, 'COALESCE(d.total, 0)', $bucket($date), $start->toDateString(), $end, unboundedLastUpdate: true,
+            );
+        }
+        if ($biaya = $this->tbKasBiayaQuery()) {
+            [$sources['biaya'], $latest['biaya']] = $this->groupedTotals(
+                $biaya, 'k.Tgl_Voucher', 'COALESCE(k.Nominal1, 0)', $bucket('k.Tgl_Voucher'), $start->toDateString(), $end,
+            );
+        }
         $result = [
-            'summary' => [
-                'sales_total' => 0,
-                'hpp_total' => 0,
-                'biaya_total' => 0,
-                'last_update' => null,
-            ],
+            'summary' => ['sales_total' => 0, 'hpp_total' => 0, 'biaya_total' => 0, 'last_update' => null],
             'series' => [],
         ];
-
-        $salesData = [];
-        $salesLastUpdate = null;
-        if (Schema::hasTable('tb_kdfakturpenjualan')) {
-            $salesData = $this->getDbConnection()->table('tb_kdfakturpenjualan')
-                ->selectRaw("". $this->sqlDf('tgl_doc', '%Y-%m-%d') ." as day_key, SUM(harga) as total")
-                ->where('tgl_doc', '>=', $start->toDateString())
-                ->where('tgl_doc', '<=', $end->toDateString())
-                ->groupBy('day_key')
-                ->pluck('total', 'day_key');
-
-            $salesLastUpdate = $this->getDbConnection()->table('tb_kdfakturpenjualan')
-                ->selectRaw("MAX(tgl_doc) as last_update")
-                ->where('tgl_doc', '>=', $start->toDateString())
-                ->value('last_update');
+        if (! in_array($period, ['1_week', '1_month'], true)) {
+            $result['debug'] = ['received_period' => $period, 'calculated_months' => $months];
         }
-
-        $hppData = [];
-        $hppLastUpdate = null;
-        $hppQuery = $this->tbDoHppQuery();
-        if ($hppQuery) {
-            $hppData = $hppQuery
-                ->selectRaw("". $this->sqlDf('STR_TO_DATE(d.pos_tgl', '%d.%m.%Y') .", '%Y-%m-%d') as day_key, SUM(COALESCE(d.total,0)) as total")
-                ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." >= ?", [$start->toDateString()])
-                ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." <= ?", [$end->toDateString()])
-                ->groupBy('day_key')
-                ->pluck('total', 'day_key');
-
-            $hppLastUpdate = $this->tbDoHppQuery()
-                ->selectRaw("MAX(". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') .") as last_update")
-                ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." >= ?", [$start->toDateString()])
-                ->value('last_update');
-        }
-
-        $biayaData = [];
-        $biayaLastUpdate = null;
-        $biayaQuery = $this->tbKasBiayaQuery();
-        if ($biayaQuery) {
-            $biayaData = $biayaQuery
-                ->selectRaw("". $this->sqlDf('k.Tgl_Voucher', '%Y-%m-%d') ." as day_key, SUM(COALESCE(k.Nominal1,0)) as total")
-                ->where('k.Tgl_Voucher', '>=', $start->toDateString())
-                ->where('k.Tgl_Voucher', '<=', $end->toDateString())
-                ->groupBy('day_key')
-                ->pluck('total', 'day_key');
-
-            $biayaLastUpdate = $this->tbKasBiayaQuery()
-                ->selectRaw("MAX(k.Tgl_Voucher) as last_update")
-                ->where('k.Tgl_Voucher', '>=', $start->toDateString())
-                ->where('k.Tgl_Voucher', '<=', $end->toDateString())
-                ->value('last_update');
-        }
-
-        for ($i = 0; $i < 7; $i += 1) {
-            $day = $start->copy()->addDays($i);
-            $key = $day->format('Y-m-d');
-            $sales = (float) ($salesData[$key] ?? 0);
-            $hpp = (float) ($hppData[$key] ?? 0);
-            $biaya = (float) ($biayaData[$key] ?? 0);
-
-            $result['series'][] = [
-                'period' => $key,
-                'label' => $day->locale('id')->translatedFormat('d M'),
-                'sales' => $sales,
-                'hpp' => $hpp,
-                'biaya' => $biaya,
+        for ($cursor = $start->copy(); $cursor->lte($lastBucket);) {
+            $key = match ($mode) {
+                'day' => $cursor->format('Y-m-d'),
+                'month' => $cursor->format('Y-m'),
+                default => ((int) $cursor->isoWeekYear() * 100) + (int) $cursor->isoWeek(),
+            };
+            $row = [
+                'period' => $mode === 'week' ? sprintf('%d-W%02d', $cursor->isoWeekYear(), $cursor->isoWeek()) : $key,
+                'label' => match ($mode) {
+                    'day' => $cursor->copy()->locale('id')->translatedFormat('d M'),
+                    'month' => $cursor->copy()->locale('id')->translatedFormat('M Y'),
+                    default => sprintf('W%02d %d', $cursor->isoWeek(), $cursor->isoWeekYear()),
+                },
             ];
-            $result['summary']['sales_total'] += $sales;
-            $result['summary']['hpp_total'] += $hpp;
-            $result['summary']['biaya_total'] += $biaya;
+            foreach (['sales', 'hpp', 'biaya'] as $metric) {
+                $row[$metric] = (float) ($sources[$metric][$key] ?? 0);
+                $result['summary'][$metric.'_total'] += $row[$metric];
+            }
+            $result['series'][] = $row;
+            match ($mode) {
+                'day' => $cursor->addDay(),
+                'month' => $cursor->addMonth(),
+                default => $cursor->addWeek(),
+            };
         }
-
-        $lastUpdate = $salesLastUpdate;
-        if ($hppLastUpdate && (!$lastUpdate || $hppLastUpdate > $lastUpdate)) {
-            $lastUpdate = $hppLastUpdate;
-        }
-        if ($biayaLastUpdate && (!$lastUpdate || $biayaLastUpdate > $lastUpdate)) {
-            $lastUpdate = $biayaLastUpdate;
-        }
-        $result['summary']['last_update'] = $lastUpdate;
+        $dates = array_filter($latest);
+        $result['summary']['last_update'] = $dates === [] ? null : max($dates);
 
         return $result;
     }
@@ -1028,155 +771,66 @@ class DashboardController
 
     private function buildStockSummary(): array
     {
-        $result = [
-            'physical' => null,
-            'physical_last_update' => null,
-            'book' => null,
-            'book_last_update' => null,
-            'difference' => null,
-        ];
-
-        // 1. HITUNG STOK BUKU & LAST UPDATE STOK BUKU (Akun 1105AD dari tb_nabb)
-        if (Schema::hasTable('tb_nabb')) {
-            $nabbCols = Schema::getColumnListing('tb_nabb');
-            $nabbColsLower = array_map('strtolower', $nabbCols);
-            $accountField = in_array('kode_akun', $nabbColsLower, true) ? $nabbCols[array_search('kode_akun', $nabbColsLower, true)] : 'Kode_Akun';
-            $saldoField = in_array('saldo', $nabbColsLower, true) ? $nabbCols[array_search('saldo', $nabbColsLower, true)] : 'Saldo';
-
-            $rowNabb = $this->getDbConnection()->table('tb_nabb')
-                ->whereRaw("LOWER(TRIM($accountField)) = ?", ['1105ad'])
-                ->first();
-
-            if ($rowNabb) {
-                $result['book'] = (float) ($rowNabb->$saldoField ?? 0);
-            } else {
-                $result['book'] = 0.0;
-            }
-
-            // Ambil tanggal update jika tersedia kolom tanggal pada tb_nabb
-            $dateCols = ['tgl_update', 'tgl_buat', 'posting_date', 'end_date', 'tgl'];
-            foreach ($dateCols as $dc) {
-                if (in_array($dc, $nabbColsLower, true)) {
-                    $dateField = $nabbCols[array_search($dc, $nabbColsLower, true)];
-                    $val = $rowNabb->$dateField ?? null;
-                    if ($val) {
-                        $result['book_last_update'] = $this->normalizeDate($val);
-                        break;
-                    }
+        $result = ['physical' => null, 'physical_last_update' => null, 'book' => null,
+            'book_last_update' => null, 'difference' => null];
+        if ($this->hasTable('tb_nabb')) {
+            $columns = $this->columnsForTable('tb_nabb');
+            $actual = array_change_key_case(array_combine($columns, $columns), CASE_LOWER);
+            $account = $actual['kode_akun'] ?? 'Kode_Akun';
+            $saldo = $actual['saldo'] ?? 'Saldo';
+            $dates = array_values(array_intersect(['tgl_update', 'tgl_buat', 'posting_date', 'end_date', 'tgl'], array_keys($actual)));
+            $selected = [$account, $saldo, ...array_map(fn ($column) => $actual[$column], $dates)];
+            $row = $this->getDbConnection()->table('tb_nabb')
+                ->whereRaw('LOWER(TRIM('.$account.')) = ?', ['1105ad'])->first($selected);
+            $result['book'] = (float) ($row->{$saldo} ?? 0);
+            foreach ($dates as $date) {
+                if ($value = $row->{$actual[$date]} ?? null) {
+                    $result['book_last_update'] = $this->normalizeDate($value);
+                    break;
                 }
             }
         }
 
-        // 2. HITUNG NOMINAL STOK FISIK (Logika Kode VB6)
-        $hmis = 0; $hmib = 0; $hmibs = 0; $hmi = 0; $hdo = 0; $hdob = 0; $hdot = 0;
-        $hasAnyPhysicalTable = false;
-
-        if (Schema::hasTable('tb_mi')) {
-            $hasAnyPhysicalTable = true;
-            $rowMi = $this->getDbConnection()->table('tb_mi')->selectRaw("SUM(harga_mis) as mis, SUM(harga_mib) as mib")->first();
-            $hmis = (float) ($rowMi->mis ?? 0);
-            $hmib = (float) ($rowMi->mib ?? 0);
+        $stock = [];
+        for ($warehouse = 1; $warehouse <= 4; $warehouse++) {
+            $stock[] = "(COALESCE(CAST(stok_g{$warehouse} AS DECIMAL(18,4)), 0) * COALESCE(CAST(harga_stokg{$warehouse} AS DECIMAL(18,4)), 0))";
         }
-
-        if (Schema::hasTable('tb_mib')) {
-            $hasAnyPhysicalTable = true;
-            $hmibs = (float) $this->getDbConnection()->table('tb_mib')->sum('total_price');
-        }
-
-        if (Schema::hasTable('tb_barang')) {
-            $hasAnyPhysicalTable = true;
-            $hmi = (float) $this->getDbConnection()->table('tb_barang')->selectRaw("SUM(
-                (coalesce(cast(stok_g1 as decimal(18,4)), 0) * coalesce(cast(harga_stokg1 as decimal(18,4)), 0)) +
-                (coalesce(cast(stok_g2 as decimal(18,4)), 0) * coalesce(cast(harga_stokg2 as decimal(18,4)), 0)) +
-                (coalesce(cast(stok_g3 as decimal(18,4)), 0) * coalesce(cast(harga_stokg3 as decimal(18,4)), 0)) +
-                (coalesce(cast(stok_g4 as decimal(18,4)), 0) * coalesce(cast(harga_stokg4 as decimal(18,4)), 0))
-            ) as total_value")->value('total_value');
-        }
-
-        if (Schema::hasTable('tb_do')) {
-            $hasAnyPhysicalTable = true;
-            $hdo = (float) $this->getDbConnection()->table('tb_do')->where('Val_inv', '<>', 1)->orWhereNull('Val_inv')->sum('total');
-        }
-
-        if (Schema::hasTable('tb_dobi')) {
-            $hasAnyPhysicalTable = true;
-            $hdob = (float) $this->getDbConnection()->table('tb_dobi')->where('status', 0)->sum('total');
-        }
-
-        if (Schema::hasTable('tb_dob')) {
-            $hasAnyPhysicalTable = true;
-            $hdot = (float) $this->getDbConnection()->table('tb_dob')->where('status', 0)->sum('total');
-        }
-
-        if ($hasAnyPhysicalTable) {
-            $result['physical'] = $hmis + $hmib + $hmi + $hdo + $hdob + $hdot;
-        }
-
-        // 3. HITUNG LAST UPDATE KHUSUS STOK FISIK
+        $sources = [
+            'tb_mi' => ['COALESCE(SUM(harga_mis), 0) + COALESCE(SUM(harga_mib), 0)', 'posting_tgl'],
+            'tb_barang' => ['SUM('.implode(' + ', $stock).')', 'tgl_buat'],
+            'tb_do' => ['SUM(total)', 'pos_tgl'],
+            'tb_dobi' => ['SUM(total)', 'pos_tgl'],
+            'tb_dob' => ['SUM(total)', 'pos_tgl'],
+        ];
+        // Preserve the legacy formula: tb_mib's nominal was read but never added to physical stock.
+        $hasPhysicalSource = $this->hasTable('tb_mib');
+        $physical = 0.0;
         $physicalDates = [];
-
-        if (Schema::hasTable('tb_mi')) {
-            $postingTglSql = $this->normalizedDateSql('posting_tgl');
-            $lastUpdateMi = $this->getDbConnection()->table('tb_mi')
-                ->selectRaw("MAX($postingTglSql) as last_update")
-                ->value('last_update');
-            if ($lastUpdateMi) {
-                $physicalDates[] = $this->normalizeDate($lastUpdateMi);
+        foreach ($sources as $table => [$totalSql, $dateColumn]) {
+            if (! $this->hasTable($table)) {
+                continue;
+            }
+            $hasPhysicalSource = true;
+            $query = $this->getDbConnection()->table($table)->selectRaw($totalSql.' as total_value');
+            if ($table === 'tb_do') {
+                $query->where(fn ($query) => $query->where('Val_inv', '<>', 1)->orWhereNull('Val_inv'));
+            } elseif (in_array($table, ['tb_dobi', 'tb_dob'], true)) {
+                $query->where('status', 0);
+            }
+            if ($this->hasColumn($table, $dateColumn)) {
+                $query->selectRaw('MAX('.$this->normalizedDateSql($dateColumn).') as last_update');
+            }
+            $row = $query->first();
+            $physical += (float) ($row->total_value ?? 0);
+            if ($date = $row->last_update ?? null) {
+                $physicalDates[] = $this->normalizeDate($date);
             }
         }
-
-        if (Schema::hasTable('tb_barang') && Schema::hasColumn('tb_barang', 'tgl_buat')) {
-            $tglBuatSql = $this->normalizedDateSql('tgl_buat');
-            $lastUpdateMaterial = $this->getDbConnection()->table('tb_barang')
-                ->selectRaw("MAX($tglBuatSql) as last_update")
-                ->value('last_update');
-            if ($lastUpdateMaterial) {
-                $physicalDates[] = $this->normalizeDate($lastUpdateMaterial);
-            }
+        if ($hasPhysicalSource) {
+            $result['physical'] = $physical;
         }
-
-        if (Schema::hasTable('tb_do') && Schema::hasColumn('tb_do', 'pos_tgl')) {
-            $posTglSql = $this->normalizedDateSql('pos_tgl');
-            $lastUpdateDo = $this->getDbConnection()->table('tb_do')
-                ->where(function ($query) {
-                    $query->where('Val_inv', '<>', 1)->orWhereNull('Val_inv');
-                })
-                ->selectRaw("MAX($posTglSql) as last_update")
-                ->value('last_update');
-            if ($lastUpdateDo) {
-                $physicalDates[] = $this->normalizeDate($lastUpdateDo);
-            }
-        }
-
-        if (Schema::hasTable('tb_dobi') && Schema::hasColumn('tb_dobi', 'pos_tgl')) {
-            $posTglSql = $this->normalizedDateSql('pos_tgl');
-            $lastUpdateDobi = $this->getDbConnection()->table('tb_dobi')
-                ->where('status', 0)
-                ->selectRaw("MAX($posTglSql) as last_update")
-                ->value('last_update');
-            if ($lastUpdateDobi) {
-                $physicalDates[] = $this->normalizeDate($lastUpdateDobi);
-            }
-        }
-
-        if (Schema::hasTable('tb_dob') && Schema::hasColumn('tb_dob', 'pos_tgl')) {
-            $posTglSql = $this->normalizedDateSql('pos_tgl');
-            $lastUpdateDob = $this->getDbConnection()->table('tb_dob')
-                ->where('status', 0)
-                ->selectRaw("MAX($posTglSql) as last_update")
-                ->value('last_update');
-            if ($lastUpdateDob) {
-                $physicalDates[] = $this->normalizeDate($lastUpdateDob);
-            }
-        }
-
         $physicalDates = array_filter($physicalDates);
-        if (!empty($physicalDates)) {
-            rsort($physicalDates); // Urutkan dari yang paling baru
-            $result['physical_last_update'] = $physicalDates[0];
-        }
-
-        // 4. HITUNG SELISIH (STOK FISIK - STOK BUKU)
+        $result['physical_last_update'] = $physicalDates === [] ? null : max($physicalDates);
         if ($result['physical'] !== null && $result['book'] !== null) {
             $result['difference'] = $result['physical'] - $result['book'];
         }
@@ -1190,7 +844,9 @@ class DashboardController
      */
     private function normalizeDate($dateString): ?string
     {
-        if (!$dateString) return null;
+        if (! $dateString) {
+            return null;
+        }
         $dateString = trim($dateString);
         try {
             // Deteksi jika format menggunakan dot/strip di awal (ex: 25.12.2025 atau 25-12-2025)
@@ -1198,9 +854,11 @@ class DashboardController
                 $separator = str_contains($dateString, '.') ? '.' : '-';
                 $parts = explode(' ', $dateString);
                 $datePart = $parts[0];
-                return \Illuminate\Support\Carbon::createFromFormat("d{$separator}m{$separator}Y", $datePart)->toDateString();
+
+                return Carbon::createFromFormat("d{$separator}m{$separator}Y", $datePart)->toDateString();
             }
-            return \Illuminate\Support\Carbon::parse($dateString)->toDateString();
+
+            return Carbon::parse($dateString)->toDateString();
         } catch (\Exception $e) {
             return $dateString; // Kembalikan string asli jika gagal di-parse
         }
@@ -1214,110 +872,5 @@ class DashboardController
         $stats = $this->buildStockSummary();
 
         return response()->json($stats);
-    }
-
-    private function getSalesHppWeeklyStatsForMonth(): array
-    {
-        // 4 minggu berjalan (termasuk minggu ini)
-        $endWeek = Carbon::now()->startOfWeek(Carbon::MONDAY);
-        $startWeek = $endWeek->copy()->subWeeks(3);
-
-        $result = [
-            'summary' => [
-                'sales_total' => 0,
-                'hpp_total' => 0,
-                'biaya_total' => 0,
-                'last_update' => null,
-            ],
-            'series' => [],
-        ];
-
-        $salesData = [];
-        $salesLastUpdate = null;
-        if (Schema::hasTable('tb_kdfakturpenjualan')) {
-            $salesData = $this->getDbConnection()->table('tb_kdfakturpenjualan')
-                ->selectRaw("". $this->sqlYw('tgl_doc') ." as week_key, SUM(harga) as total")
-                ->where('tgl_doc', '>=', $startWeek->toDateString())
-                ->where('tgl_doc', '<=', Carbon::now()->toDateString())
-                ->groupBy('week_key')
-                ->pluck('total', 'week_key');
-
-            $salesLastUpdate = $this->getDbConnection()->table('tb_kdfakturpenjualan')
-                ->selectRaw("MAX(tgl_doc) as last_update")
-                ->where('tgl_doc', '>=', $startWeek->toDateString())
-                ->value('last_update');
-        }
-
-        $hppData = [];
-        $hppLastUpdate = null;
-        $hppQuery = $this->tbDoHppQuery();
-        if ($hppQuery) {
-            $hppData = $hppQuery
-                ->selectRaw("YEARWEEK(". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') .", 1) as week_key, SUM(COALESCE(d.total,0)) as total")
-                ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." >= ?", [$startWeek->toDateString()])
-                ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." <= ?", [Carbon::now()->toDateString()])
-                ->groupBy('week_key')
-                ->pluck('total', 'week_key');
-
-            $hppLastUpdate = $this->tbDoHppQuery()
-                ->selectRaw("MAX(". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') .") as last_update")
-                ->whereRaw("". $this->sqlStd('d.pos_tgl', '%d.%m.%Y') ." >= ?", [$startWeek->toDateString()])
-                ->value('last_update');
-        }
-
-        $biayaData = [];
-        $biayaLastUpdate = null;
-        $biayaQuery = $this->tbKasBiayaQuery();
-        if ($biayaQuery) {
-            $biayaData = $biayaQuery
-                ->selectRaw("". $this->sqlYw('k.Tgl_Voucher') ." as week_key, SUM(COALESCE(k.Nominal1,0)) as total")
-                ->where('k.Tgl_Voucher', '>=', $startWeek->toDateString())
-                ->where('k.Tgl_Voucher', '<=', Carbon::now()->toDateString())
-                ->groupBy('week_key')
-                ->pluck('total', 'week_key');
-
-            $biayaLastUpdate = $this->tbKasBiayaQuery()
-                ->selectRaw("MAX(k.Tgl_Voucher) as last_update")
-                ->where('k.Tgl_Voucher', '>=', $startWeek->toDateString())
-                ->where('k.Tgl_Voucher', '<=', Carbon::now()->toDateString())
-                ->value('last_update');
-        }
-
-        $cursor = $startWeek->copy();
-        while ($cursor->lte($endWeek)) {
-            $isoYear = (int) $cursor->isoWeekYear();
-            $isoWeek = (int) $cursor->isoWeek();
-            $weekKey = ($isoYear * 100) + $isoWeek;
-            $key = sprintf('%d-W%02d', $isoYear, $isoWeek);
-
-            $sales = (float) ($salesData[$weekKey] ?? 0);
-            $hpp = (float) ($hppData[$weekKey] ?? 0);
-            $biaya = (float) ($biayaData[$weekKey] ?? 0);
-
-            $result['series'][] = [
-                'period' => $key,
-                'label' => sprintf('W%02d %d', $isoWeek, $isoYear),
-                'sales' => $sales,
-                'hpp' => $hpp,
-                'biaya' => $biaya,
-            ];
-
-            $result['summary']['sales_total'] += $sales;
-            $result['summary']['hpp_total'] += $hpp;
-            $result['summary']['biaya_total'] += $biaya;
-
-            $cursor->addWeek();
-        }
-
-        $lastUpdate = $salesLastUpdate;
-        if ($hppLastUpdate && (!$lastUpdate || $hppLastUpdate > $lastUpdate)) {
-            $lastUpdate = $hppLastUpdate;
-        }
-        if ($biayaLastUpdate && (!$lastUpdate || $biayaLastUpdate > $lastUpdate)) {
-            $lastUpdate = $biayaLastUpdate;
-        }
-        $result['summary']['last_update'] = $lastUpdate;
-
-        return $result;
     }
 }

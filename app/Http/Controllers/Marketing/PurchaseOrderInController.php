@@ -3,23 +3,27 @@
 namespace App\Http\Controllers\Marketing;
 
 use App\Events\PurchaseOrderInChanged;
-
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
+use App\Services\Marketing\PurchaseOrderInService;
+use Illuminate\Database\Connection;
 use Illuminate\Database\QueryException;
+use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Throwable;
-use App\Services\Marketing\PurchaseOrderInService;
 
 class PurchaseOrderInController
 {
+    /** @var \WeakMap<Connection, array<string, array<string, array<string, string>>>> */
+    private \WeakMap $columnCache;
+
     public function __construct(
         private PurchaseOrderInService $purchaseOrderInService
-    ) {}
+    ) {
+        $this->columnCache = new \WeakMap;
+    }
 
     private function broadcastPoInChanged(): void
     {
@@ -30,6 +34,7 @@ class PurchaseOrderInController
             report($exception);
         }
     }
+
     public function export(Request $request)
     {
         $statusFilter = $request->query('status', 'outstanding_do');
@@ -143,41 +148,14 @@ class PurchaseOrderInController
         $type = $e instanceof QueryException ? 'Error SQL/database' : 'Error sistem';
         $detail = trim($e->getMessage());
 
-        return "Gagal {$action} data PO In. {$type}: " . ($detail !== '' ? $detail : 'Tidak ada detail error dari server.');
+        return "Gagal {$action} data PO In. {$type}: ".($detail !== '' ? $detail : 'Tidak ada detail error dari server.');
     }
 
-    private function recalculateHeaderTotals(string $kodePoin): void
+    private function exceptionStatus(Throwable $exception): int
     {
-        $header = DB::table('tb_poin')
-            ->where('kode_poin', $kodePoin)
-            ->first(['ppn_input_percent']);
+        $code = (int) $exception->getCode();
 
-        if (!$header) {
-            return;
-        }
-
-        $totalPrice = (float) (DB::table('tb_detailpoin')
-            ->where('kode_poin', $kodePoin)
-            ->selectRaw('coalesce(sum(coalesce(cast(qty as decimal(18,4)), 0) * coalesce(cast(price_po_in as decimal(18,4)), 0)), 0) as total_price')
-            ->value('total_price') ?? 0);
-        $ppnPercentInput = (float) ($header->ppn_input_percent ?? 0);
-        $ppnPercentInputValue = $ppnPercentInput <= 0 ? 0.0 : $ppnPercentInput;
-        $ppnPercentUsed = $ppnPercentInputValue <= 0 ? 0.0 : min(11.0, $ppnPercentInputValue);
-        $dpp = $ppnPercentInput > 0
-            ? round((11 / $ppnPercentInput) * $totalPrice, 2)
-            : $totalPrice;
-        $ppnValue = round($totalPrice * ($ppnPercentUsed / 100), 2);
-        $grandTotal = round($totalPrice + $ppnValue, 2);
-
-        DB::table('tb_poin')
-            ->where('kode_poin', $kodePoin)
-            ->update([
-                'total_price' => $totalPrice,
-                'dpp' => $dpp,
-                'ppn_amount' => $ppnValue,
-                'grand_total' => $grandTotal,
-                'updated_at' => now('Asia/Singapore'),
-            ]);
+        return in_array($code, [400, 404, 409, 422], true) ? $code : 500;
     }
 
     private function activeTenantDatabase(?Request $request = null): string
@@ -198,25 +176,8 @@ class PurchaseOrderInController
         }
 
         $fallback = (string) config("database.connections.$connection.database", '');
+
         return in_array($fallback, $allowed, true) ? $fallback : $database;
-    }
-
-    private function parseDateOrNull(?string $value): ?string
-    {
-        $text = trim((string) ($value ?? ''));
-        if ($text === '') {
-            return null;
-        }
-
-        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $text) === 1) {
-            return $text;
-        }
-
-        if (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/', $text, $matches) === 1) {
-            return $matches[3].'-'.$matches[2].'-'.$matches[1];
-        }
-
-        return null;
     }
 
     private function resolveDatabasePrefix(Request $request): string
@@ -229,7 +190,7 @@ class PurchaseOrderInController
         }
 
         $prefix = strtoupper(preg_replace('/[^A-Za-z0-9]/', '', preg_replace('/^db/i', '', $database)));
-        
+
         if ($prefix === 'B3S') {
             $prefix = 'BBBS';
         }
@@ -237,36 +198,30 @@ class PurchaseOrderInController
         return $prefix !== '' ? $prefix : 'SYS';
     }
 
-    private function generateKodePoin(Request $request): string
-    {
-        $prefix = $this->resolveDatabasePrefix($request);
-        $latest = DB::table('tb_poin')
-            ->select('kode_poin')
-            ->where('kode_poin', 'like', $prefix.'.POIN-%')
-            ->orderByDesc('id')
-            ->lockForUpdate()
-            ->first();
-
-        $nextNumber = 1;
-        if ($latest && isset($latest->kode_poin)) {
-            $current = (string) $latest->kode_poin;
-            if (preg_match('/(\d{1,})$/', $current, $matches) === 1) {
-                $nextNumber = ((int) $matches[1]) + 1;
-            }
-        }
-
-        return $prefix.'.POIN-'.str_pad((string) $nextNumber, 8, '0', STR_PAD_LEFT);
-    }
-
     private function firstExistingColumn(string $table, array $columns, string $fallback): string
     {
+        $available = $this->columnsForTable($table);
         foreach ($columns as $column) {
-            if (Schema::hasColumn($table, $column)) {
-                return $column;
+            if (isset($available[strtolower($column)])) {
+                return $available[strtolower($column)];
             }
         }
 
         return $fallback;
+    }
+
+    private function columnsForTable(string $table): array
+    {
+        $connection = DB::connection();
+        $databases = $this->columnCache[$connection] ?? [];
+        $database = $connection->getDatabaseName();
+        if (! isset($databases[$database][$table])) {
+            $columns = $connection->getSchemaBuilder()->getColumnListing($table);
+            $databases[$database][$table] = array_change_key_case(array_combine($columns, $columns), CASE_LOWER);
+            $this->columnCache[$connection] = $databases;
+        }
+
+        return $databases[$database][$table];
     }
 
     private function barangStockTotalExpression(string $alias = ''): string
@@ -279,124 +234,6 @@ class PurchaseOrderInController
             coalesce(cast({$prefix}stok_g3 as decimal(65,4)), 0) +
             coalesce(cast({$prefix}stok_g4 as decimal(65,4)), 0)
         )";
-    }
-
-    private function normalizeMaterialCode(mixed $value): ?int
-    {
-        if ($value === null || $value === '') {
-            return null;
-        }
-
-        return (int) $value;
-    }
-
-    private function resolveCustomerForPoin(array $validated): object
-    {
-        $customerCode = trim((string) ($validated['kd_customer'] ?? ''));
-        $customerName = trim((string) ($validated['customer_name'] ?? ''));
-
-        if ($customerCode !== '') {
-            $customerByCode = DB::table('tb_cs')
-                ->whereRaw('lower(trim(kd_cs)) = lower(trim(?))', [$customerCode])
-                ->first(['kd_cs', 'nm_cs']);
-
-            if (
-                $customerByCode &&
-                $customerName !== '' &&
-                strtolower(trim((string) $customerByCode->nm_cs)) === strtolower($customerName)
-            ) {
-                return $customerByCode;
-            }
-        }
-
-        if ($customerName !== '') {
-            $customerByName = DB::table('tb_cs')
-                ->whereRaw('lower(trim(nm_cs)) = lower(trim(?))', [$customerName])
-                ->orderByDesc('kd_cs')
-                ->first(['kd_cs', 'nm_cs']);
-
-            if ($customerByName) {
-                return $customerByName;
-            }
-        }
-
-        if ($customerCode !== '') {
-            $customerByCode = DB::table('tb_cs')
-                ->whereRaw('lower(trim(kd_cs)) = lower(trim(?))', [$customerCode])
-                ->first(['kd_cs', 'nm_cs']);
-
-            if ($customerByCode) {
-                return $customerByCode;
-            }
-        }
-
-        throw ValidationException::withMessages([
-            'customer_name' => "Customer {$customerName} tidak ditemukan di master customer.",
-        ]);
-    }
-
-    private function replaceRefPoValue(?string $value, string $oldRefPo, string $newRefPo): string
-    {
-        $text = trim((string) ($value ?? ''));
-        if ($text === '') {
-            return $text;
-        }
-
-        $oldKey = strtolower(trim($oldRefPo));
-        $parts = array_map('trim', explode(',', $text));
-        $changed = false;
-
-        $parts = array_map(function ($part) use ($oldKey, $newRefPo, &$changed) {
-            if (strtolower(trim($part)) === $oldKey) {
-                $changed = true;
-                return $newRefPo;
-            }
-
-            return $part;
-        }, $parts);
-
-        return $changed ? implode(', ', $parts) : $text;
-    }
-
-    private function syncPurchaseRequirementRefPo(string $oldRefPo, string $newRefPo): void
-    {
-        $oldRefPo = trim($oldRefPo);
-        $newRefPo = trim($newRefPo);
-
-        if ($oldRefPo === '' || $newRefPo === '' || strcasecmp($oldRefPo, $newRefPo) === 0) {
-            return;
-        }
-
-        $refPoMatches = function ($query) use ($oldRefPo) {
-            $query->whereRaw('lower(trim(ref_po)) = lower(trim(?))', [$oldRefPo])
-                ->orWhereRaw("find_in_set(replace(lower(trim(?)), ' ', ''), replace(lower(coalesce(ref_po, '')), ' ', '')) > 0", [$oldRefPo]);
-        };
-
-        DB::table('tb_pr')
-            ->where($refPoMatches)
-            ->orderBy('no_pr')
-            ->get(['no_pr', 'ref_po'])
-            ->each(function ($row) use ($oldRefPo, $newRefPo) {
-                DB::table('tb_pr')
-                    ->where('no_pr', $row->no_pr)
-                    ->update([
-                        'ref_po' => $this->replaceRefPoValue($row->ref_po, $oldRefPo, $newRefPo),
-                    ]);
-            });
-
-        DB::table('tb_detailpr')
-            ->where($refPoMatches)
-            ->orderBy('no_pr')
-            ->orderBy('no')
-            ->get(['no_pr', 'no', 'ref_po'])
-            ->each(function ($row) use ($oldRefPo, $newRefPo) {
-                DB::table('tb_detailpr')
-                    ->where('no_pr', $row->no_pr)
-                    ->where('no', $row->no)
-                    ->update([
-                        'ref_po' => $this->replaceRefPoValue($row->ref_po, $oldRefPo, $newRefPo),
-                    ]);
-            });
     }
 
     public function ocrUpload(Request $request)
@@ -422,34 +259,37 @@ class PurchaseOrderInController
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_TIMEOUT, 180);
 
-            $result   = curl_exec($ch);
+            $result = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-            $curlErr  = curl_error($ch);
+            $curlErr = curl_error($ch);
             curl_close($ch);
 
             if ($curlErr) {
-                \Illuminate\Support\Facades\Log::error('OCR cURL error: ' . $curlErr);
-                return response()->json(['error' => 'Gagal menghubungi ML service: ' . $curlErr], 500);
+                Log::error('OCR cURL error: '.$curlErr);
+
+                return response()->json(['error' => 'Gagal menghubungi ML service: '.$curlErr], 500);
             }
 
             if ($httpCode === 200 && $result) {
                 return response()->json(json_decode($result, true));
             }
 
-            $errorMsg = 'ML API error (Status ' . $httpCode . ')';
+            $errorMsg = 'ML API error (Status '.$httpCode.')';
             if ($result) {
                 $parsed = json_decode($result, true);
                 if (is_array($parsed) && isset($parsed['detail'])) {
                     $errorMsg = $parsed['detail'];
                 }
             }
-            
-            \Illuminate\Support\Facades\Log::error('OCR ML API error: status=' . $httpCode . ' body=' . $result);
+
+            Log::error('OCR ML API error: status='.$httpCode.' body='.$result);
+
             return response()->json(['error' => $errorMsg], 500);
 
-        } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('OCR Error: ' . $e->getMessage());
-            return response()->json(['error' => 'Error: ' . $e->getMessage()], 500);
+        } catch (Throwable $e) {
+            Log::error('OCR Error: '.$e->getMessage());
+
+            return response()->json(['error' => 'Error: '.$e->getMessage()], 500);
         }
     }
 
@@ -457,7 +297,7 @@ class PurchaseOrderInController
     {
         $search = trim((string) $request->query('search', ''));
         $perPageInput = $request->query('per_page', 5);
-        $perPage = $perPageInput === 'all' ? null : (is_numeric($perPageInput) ? (int) $perPageInput : 5);
+        $perPage = $perPageInput === 'all' ? null : (is_numeric($perPageInput) ? max(1, (int) $perPageInput) : 5);
         $statusFilter = $request->query('status', 'outstanding_do');
         $dateFilter = $request->query('date_filter', 'all');
         $deadlineFilter = $request->query('deadline_filter', 'all');
@@ -503,7 +343,7 @@ class PurchaseOrderInController
     {
         $search = trim((string) $request->query('search', ''));
         $perPageInput = $request->query('per_page', 5);
-        $perPage = $perPageInput === 'all' ? null : (is_numeric($perPageInput) ? (int) $perPageInput : 5);
+        $perPage = $perPageInput === 'all' ? null : (is_numeric($perPageInput) ? max(1, (int) $perPageInput) : 5);
         $statusFilter = $request->query('status', 'all');
         $page = max(1, (int) $request->query('page', 1));
         $isPartial = $request->boolean('is_partial', false);
@@ -555,7 +395,7 @@ class PurchaseOrderInController
     {
         $search = trim((string) $request->query('search', ''));
         $perPageInput = $request->query('per_page', 5);
-        $perPage = $perPageInput === 'all' ? null : (is_numeric($perPageInput) ? (int) $perPageInput : 5);
+        $perPage = $perPageInput === 'all' ? null : (is_numeric($perPageInput) ? max(1, (int) $perPageInput) : 5);
         $statusFilter = (string) $request->query('status', 'all');
         $dateFilter = (string) $request->query('date_filter', 'all');
         $startDate = (string) $request->query('start_date', '');
@@ -602,8 +442,8 @@ class PurchaseOrderInController
             'this_month' => [$now->copy()->startOfMonth(), $now->copy()->startOfMonth()->addMonth()],
             'this_year' => [$now->copy()->startOfYear(), $now->copy()->startOfYear()->addYear()],
             'range' => $startDate !== '' && $endDate !== ''
-                ? [\Illuminate\Support\Carbon::parse($startDate)->startOfDay(),
-                   \Illuminate\Support\Carbon::parse($endDate)->addDay()->startOfDay()]
+                ? [Carbon::parse($startDate)->startOfDay(),
+                    Carbon::parse($endDate)->addDay()->startOfDay()]
                 : null,
             default => null,
         };
@@ -632,8 +472,7 @@ class PurchaseOrderInController
         $query,
         string $createdAtColumn = 'p.created_at',
         string $idColumn = 'p.id',
-    )
-    {
+    ) {
         return $query
             ->orderByDesc($createdAtColumn)
             ->orderByDesc($idColumn);
@@ -745,7 +584,7 @@ class PurchaseOrderInController
                 ->selectRaw('ref_po as ref_po_key, date')
                 ->distinct();
             $query = $connection->query()->fromSub($prReferences, 'dpr')
-                ->join('tb_poin as p', function ($join) use ($prefix, $poinNumber) {
+                ->join('tb_poin as p', function ($join) use ($prefix) {
                     $join->where('p.kode_poin', 'like', $prefix.'.POIN-%');
                     $join->whereRaw('dpr.ref_po_key = CONVERT(p.no_poin USING latin1)');
                 })
@@ -784,7 +623,7 @@ class PurchaseOrderInController
         $query = $readConnection->table('tb_detailpoin as d')
             ->join('tb_poin as p', 'p.kode_poin', '=', 'd.kode_poin')
             ->where(function ($q) use ($prefix) {
-                $q->where('p.kode_poin', 'like', $prefix . '.POIN-%')
+                $q->where('p.kode_poin', 'like', $prefix.'.POIN-%')
                     ->orWhere('p.kode_poin', 'like', '%.POIN-%')
                     ->orWhere('p.kode_poin', 'like', 'POIN-%');
             })
@@ -802,7 +641,7 @@ class PurchaseOrderInController
             );
 
         if ($search !== '') {
-            $like = '%' . strtolower($search) . '%';
+            $like = '%'.strtolower($search).'%';
             $query->where(function ($q) use ($like) {
                 $q->whereRaw('lower(d.no_poin) like ?', [$like])
                     ->orWhereRaw('lower(d.material) like ?', [$like]);
@@ -829,8 +668,8 @@ class PurchaseOrderInController
             $query->join('tb_kddo as kdo', function ($join) {
                 $join->on('kdo.ref_po', '=', DB::raw('CONVERT(p.no_poin USING latin1)'));
             })
-            ->whereRaw("trim(coalesce(kdo.no_do, '')) <> ''")
-            ->distinct();
+                ->whereRaw("trim(coalesce(kdo.no_do, '')) <> ''")
+                ->distinct();
 
             if ($dateFilter === 'today') {
                 $query->whereRaw("{$doDateExpression} between ? and ?", [$now->copy()->toDateString(), $now->copy()->toDateString()]);
@@ -852,8 +691,8 @@ class PurchaseOrderInController
             $query->join('tb_detailpr as dpr', function ($join) {
                 $join->on('dpr.ref_po', '=', DB::raw('CONVERT(p.no_poin USING latin1)'));
             })
-            ->where('dpr.no_pr', '<>', '')
-            ->distinct();
+                ->where('dpr.no_pr', '<>', '')
+                ->distinct();
 
             if ($dateFilter === 'today') {
                 $query->whereRaw("{$prDateExpression} between ? and ?", [$now->copy()->toDateString(), $now->copy()->toDateString()]);
@@ -874,14 +713,15 @@ class PurchaseOrderInController
             $this->applyCreatedDateFilter($query, $dateFilter, $startDate, $endDate);
         }
 
-        $deadline = "p.delivery_date";
+        $deadline = 'p.delivery_date';
         if ($deadlineFilter === 'overdue') {
             $query->whereRaw("{$deadline} <= {$todaySql}");
         } elseif ($deadlineFilter === 'soon') {
             $query->whereRaw("{$deadline} > {$todaySql} and {$deadline} <= {$soonSql}");
         }
 
-        $total = (clone $query)->count();
+        // DISTINCT material rows must also be counted distinctly when PR/DO joins multiply them.
+        $total = $perPage === null ? null : (clone $query)->count('d.id');
 
         if (in_array($statusFilter, ['outstanding_pr', 'outstanding_do', 'sisa_pr', 'sisa_do'])) {
             $this->applyDeliveryDeadlineOrder($query, 'd.id');
@@ -892,6 +732,7 @@ class PurchaseOrderInController
         $rows = $perPage === null
             ? $query->get()
             : $query->forPage($page, $perPage)->get();
+        $total ??= $rows->count();
 
         return [
             'materials' => $rows,
@@ -937,12 +778,12 @@ class PurchaseOrderInController
 
                 return $this->readMysql(function ($conn) use ($prefix, $dateFilter, $startDate, $endDate, $startToday, $startWeek, $startMonth, $startYear) {
                     $query = $conn->table('tb_poin')
-                        ->where('kode_poin', 'like', $prefix . '.POIN-%');
+                        ->where('kode_poin', 'like', $prefix.'.POIN-%');
 
                     if ($dateFilter === 'range' && $startDate !== '' && $endDate !== '') {
                         $periodCounts = (clone $query)
-                            ->where('created_at', '>=', $startDate . ' 00:00:00')
-                            ->where('created_at', '<', \Illuminate\Support\Carbon::parse($endDate)->addDay()->startOfDay())
+                            ->where('created_at', '>=', $startDate.' 00:00:00')
+                            ->where('created_at', '<', Carbon::parse($endDate)->addDay()->startOfDay())
                             ->selectRaw('count(*) as count, coalesce(sum(grand_total), 0) as total_amount')
                             ->first();
 
@@ -1026,11 +867,11 @@ class PurchaseOrderInController
                 }
             };
 
-            if ($statusFilter === 'all' && !$summaryOnly) {
+            if ($statusFilter === 'all' && ! $summaryOnly) {
                 $now = now();
                 $query = $readConnection->table('tb_poin as p')
                     ->where(function ($q) use ($prefix) {
-                        $q->where('p.kode_poin', 'like', $prefix . '.POIN-%')
+                        $q->where('p.kode_poin', 'like', $prefix.'.POIN-%')
                             ->orWhere('p.kode_poin', 'like', '%.POIN-%')
                             ->orWhere('p.kode_poin', 'like', 'POIN-%');
                     })
@@ -1079,10 +920,10 @@ class PurchaseOrderInController
 
                 if ($isPartial || $rowsOnly) {
                     $response = [];
-                    if (!$paginationOnly) {
+                    if (! $paginationOnly) {
                         $response['purchaseOrderIns'] = $rows;
                     }
-                    if (!$rowsOnly) {
+                    if (! $rowsOnly) {
                         $response['pagination'] = $pagination;
                     }
 
@@ -1095,15 +936,15 @@ class PurchaseOrderInController
                 ];
             }
 
-            $sisaPrCondition = "(coalesce(ds.sisa_pr_items, 0) > 0 or (coalesce(ds.changed_count, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0))";
-            $sisaDoCondition = "(coalesce(ds.sisa_do_items, 0) > 0 or (coalesce(ds.do_changed_count, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0))";
+            $sisaPrCondition = '(coalesce(ds.sisa_pr_items, 0) > 0 or (coalesce(ds.changed_count, 0) > 0 and coalesce(ds.unrealized_items, 0) > 0))';
+            $sisaDoCondition = '(coalesce(ds.sisa_do_items, 0) > 0 or (coalesce(ds.do_changed_count, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0))';
 
             $qtyValue = $this->poinNumericSql($readConnection, 'qty');
             $prValue = $this->poinNumericSql($readConnection, 'sisa_qtypr');
             $doValue = $this->poinNumericSql($readConnection, 'sisa_qtydo');
             $priceValue = $this->poinNumericSql($readConnection, 'price_po_in');
             $detailStats = $readConnection->table('tb_detailpoin')
-                ->where('kode_poin', 'like', $prefix . '.POIN-%')
+                ->where('kode_poin', 'like', $prefix.'.POIN-%')
                 ->select('kode_poin')
                 ->selectRaw('count(*) as total_items')
                 ->selectRaw("sum(case when coalesce({$prValue}, {$qtyValue}, 0) <> coalesce({$qtyValue}, 0) then 1 else 0 end) as changed_count")
@@ -1131,6 +972,7 @@ class PurchaseOrderInController
                     if ($summaryOnly && $summaryScope === 'realized' && (str_ends_with($sql, ' as pr_remaining_amount') || str_ends_with($sql, ' as do_remaining_amount'))) {
                         return false;
                     }
+
                     return true;
                 }));
             }
@@ -1161,7 +1003,7 @@ class PurchaseOrderInController
                 ->where('kdo.ref_po', '<>', '')
                 ->groupBy('kdo.ref_po');
 
-            $prStats = $readConnection->table('tb_poin as pr_p')->where('pr_p.kode_poin', 'like', $prefix . '.POIN-%')
+            $prStats = $readConnection->table('tb_poin as pr_p')->where('pr_p.kode_poin', 'like', $prefix.'.POIN-%')
                 ->join('tb_detailpoin as dp', 'dp.kode_poin', '=', 'pr_p.kode_poin')
                 ->join('tb_detailpr as dpr', function ($join) {
                     $join->on('dpr.ref_po', '=', DB::raw('CONVERT(dp.no_poin USING latin1)'));
@@ -1183,18 +1025,18 @@ class PurchaseOrderInController
 
             if ($summaryOnly && $summaryScope !== 'all') {
                 if ($summaryScope === 'operational' || $summaryScope === 'outstanding' || $summaryScope === 'outstanding_pr' || $summaryScope === 'outstanding_do') {
-                    $deadlineDateExpr = "p.delivery_date";
+                    $deadlineDateExpr = 'p.delivery_date';
                     $isOverdueExpr = "{$deadlineDateExpr} <= {$todaySql}";
                     $isSoonExpr = "{$deadlineDateExpr} > {$todaySql} and {$deadlineDateExpr} <= {$soonSql}";
-                    
-                    $row = $readConnection->table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
+
+                    $row = $readConnection->table('tb_poin as p')->where('p.kode_poin', 'like', $prefix.'.POIN-%')
                         ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
-                        ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then 1 end) as outstanding_pr")
-                        ->selectRaw("coalesce(sum(case when coalesce(ds.changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then p.grand_total else 0 end), 0) as outstanding_pr_amount")
+                        ->selectRaw('count(case when coalesce(ds.changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then 1 end) as outstanding_pr')
+                        ->selectRaw('coalesce(sum(case when coalesce(ds.changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then p.grand_total else 0 end), 0) as outstanding_pr_amount')
                         ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 and {$isSoonExpr} then 1 end) as outstanding_pr_soon")
                         ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 and {$isOverdueExpr} then 1 end) as outstanding_pr_overdue")
-                        ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then 1 end) as outstanding_do")
-                        ->selectRaw("coalesce(sum(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then p.grand_total else 0 end), 0) as outstanding_do_amount")
+                        ->selectRaw('count(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then 1 end) as outstanding_do')
+                        ->selectRaw('coalesce(sum(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then p.grand_total else 0 end), 0) as outstanding_do_amount')
                         ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 and {$isSoonExpr} then 1 end) as outstanding_do_soon")
                         ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 and {$isOverdueExpr} then 1 end) as outstanding_do_overdue");
 
@@ -1237,11 +1079,11 @@ class PurchaseOrderInController
                 }
 
                 if ($summaryScope === 'sisa' || $summaryScope === 'sisa_pr' || $summaryScope === 'sisa_do') {
-                    $deadlineDateExpr = "p.delivery_date";
+                    $deadlineDateExpr = 'p.delivery_date';
                     $isOverdueExpr = "{$deadlineDateExpr} <= {$todaySql}";
                     $isSoonExpr = "{$deadlineDateExpr} > {$todaySql} and {$deadlineDateExpr} <= {$soonSql}";
 
-                    $row = $readConnection->table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
+                    $row = $readConnection->table('tb_poin as p')->where('p.kode_poin', 'like', $prefix.'.POIN-%')
                         ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                         ->selectRaw("count(case when {$sisaPrCondition} then 1 end) as sisa_pr")
                         ->selectRaw("coalesce(sum(case when {$sisaPrCondition} then ds.pr_remaining_amount else 0 end), 0) as sisa_pr_amount")
@@ -1280,7 +1122,7 @@ class PurchaseOrderInController
                             ->selectRaw('ref_po as ref_po_key, lower(trim(no_do)) as no_do, pos_tgl')->distinct();
                         $doCountsQuery = $readConnection->query()->fromSub($doReferences, 'kdo')
                             ->join('tb_poin as p', function ($join) use ($prefix) {
-                                $join->where('p.kode_poin', 'like', $prefix . '.POIN-%');
+                                $join->where('p.kode_poin', 'like', $prefix.'.POIN-%');
                                 $join->whereRaw('kdo.ref_po_key = CONVERT(p.no_poin USING latin1)');
                             })
                             ->joinSub($detailStats, 'do_ds', function ($join) {
@@ -1289,7 +1131,7 @@ class PurchaseOrderInController
                             ->whereRaw("trim(coalesce(kdo.no_do, '')) <> ''")
                             ->whereRaw('coalesce(do_ds.total_items, 0) > 0')
                             ->whereRaw('coalesce(do_ds.do_unrealized_items, 0) = 0');
-                            
+
                         if ($dateFilter === 'today') {
                             $doCountsQuery->whereRaw("str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y') between ? and ?", [$startToday, $endToday]);
                         } elseif ($dateFilter === 'this_week') {
@@ -1301,7 +1143,7 @@ class PurchaseOrderInController
                         } elseif ($dateFilter === 'range' && $startDate !== '' && $endDate !== '') {
                             $doCountsQuery->whereRaw("date(str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y')) between ? and ?", [$startDate, $endDate]);
                         }
-                        
+
                         $doCounts = $doCountsQuery->selectRaw('count(distinct lower(trim(kdo.no_do))) as realized_do')->first();
                         $summary['realized_do'] = (int) ($doCounts->realized_do ?? 0);
                     }
@@ -1315,7 +1157,7 @@ class PurchaseOrderInController
                             ->selectRaw('ref_po as ref_po_key, date')->distinct();
                         $prCountsQuery = $readConnection->query()->fromSub($prReferences, 'dpr')
                             ->join('tb_poin as p', function ($join) use ($prefix) {
-                                $join->where('p.kode_poin', 'like', $prefix . '.POIN-%');
+                                $join->where('p.kode_poin', 'like', $prefix.'.POIN-%');
                                 $join->whereRaw('dpr.ref_po_key = CONVERT(p.no_poin USING latin1)');
                             })
                             ->joinSub($detailStats, 'pr_ds', function ($join) {
@@ -1352,7 +1194,7 @@ class PurchaseOrderInController
                 $doDateExpression = "str_to_date(trim(kdo.pos_tgl), '%d.%m.%Y')";
                 $query = $readConnection->table('tb_kddo as kdo')
                     ->join('tb_poin as p', function ($join) use ($prefix) {
-                        $join->where('p.kode_poin', 'like', $prefix . '.POIN-%');
+                        $join->where('p.kode_poin', 'like', $prefix.'.POIN-%');
                         $join->on('kdo.ref_po', '=', DB::raw('CONVERT(p.no_poin USING latin1)'));
                     })
                     ->joinSub($detailStats, 'ds', function ($join) {
@@ -1417,12 +1259,13 @@ class PurchaseOrderInController
 
                 if ($isPartial || $rowsOnly) {
                     $response = [];
-                    if (!$paginationOnly) {
+                    if (! $paginationOnly) {
                         $response['purchaseOrderIns'] = $rows;
                     }
-                    if (!$rowsOnly) {
+                    if (! $rowsOnly) {
                         $response['pagination'] = $pagination;
                     }
+
                     return $response;
                 }
 
@@ -1438,7 +1281,7 @@ class PurchaseOrderInController
                 $query = $readConnection->table('tb_detailpr as dpr')
                     ->join('tb_poin as p', function ($join) use ($prefix) {
                         $join->where(function ($q) use ($prefix) {
-                            $q->where('p.kode_poin', 'like', $prefix . '.POIN-%')
+                            $q->where('p.kode_poin', 'like', $prefix.'.POIN-%')
                                 ->orWhere('p.kode_poin', 'like', '%.POIN-%')
                                 ->orWhere('p.kode_poin', 'like', 'POIN-%');
                         });
@@ -1508,12 +1351,13 @@ class PurchaseOrderInController
 
                 if ($isPartial || $rowsOnly) {
                     $response = [];
-                    if (!$paginationOnly) {
+                    if (! $paginationOnly) {
                         $response['purchaseOrderIns'] = $rows;
                     }
-                    if (!$rowsOnly) {
+                    if (! $rowsOnly) {
                         $response['pagination'] = $pagination;
                     }
+
                     return $response;
                 }
 
@@ -1525,7 +1369,7 @@ class PurchaseOrderInController
 
             $query = $readConnection->table('tb_poin as p')
                 ->where(function ($q) use ($prefix) {
-                    $q->where('p.kode_poin', 'like', $prefix . '.POIN-%')
+                    $q->where('p.kode_poin', 'like', $prefix.'.POIN-%')
                         ->orWhere('p.kode_poin', 'like', '%.POIN-%')
                         ->orWhere('p.kode_poin', 'like', 'POIN-%');
                 })
@@ -1542,7 +1386,7 @@ class PurchaseOrderInController
 
             $requiresDs = in_array($statusFilter, [
                 'outstanding', 'outstanding_do', 'outstanding_pr',
-                'sisa_pr', 'sisa_do', 'realized', 'realized_do'
+                'sisa_pr', 'sisa_do', 'realized', 'realized_do',
             ], true);
 
             if ($requiresDs) {
@@ -1597,10 +1441,10 @@ class PurchaseOrderInController
 
                 if ($isPartial || $rowsOnly) {
                     $response = [];
-                    if (!$paginationOnly) {
+                    if (! $paginationOnly) {
                         $response['purchaseOrderIns'] = $rows;
                     }
-                    if (!$rowsOnly) {
+                    if (! $rowsOnly) {
                         $response['pagination'] = [
                             'total' => $total,
                             'page' => $page,
@@ -1608,30 +1452,31 @@ class PurchaseOrderInController
                             'total_pages' => $perPage === null ? 1 : max(1, (int) ceil($total / $perPage)),
                         ];
                     }
+
                     return $response;
                 }
             }
 
-            $deadlineDateExpr = "p.delivery_date";
+            $deadlineDateExpr = 'p.delivery_date';
             $isOverdueExpr = "{$deadlineDateExpr} <= {$todaySql}";
             $isSoonExpr = "{$deadlineDateExpr} > {$todaySql} and {$deadlineDateExpr} <= {$soonSql}";
 
-            $statusData = $readConnection->table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
+            $statusData = $readConnection->table('tb_poin as p')->where('p.kode_poin', 'like', $prefix.'.POIN-%')
                 ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                 ->leftJoinSub($doStats, 'dos', function ($join) {
                     $join->on('dos.ref_po_key', '=', DB::raw('CONVERT(p.no_poin USING latin1)'));
                 })
                 ->leftJoinSub($prStats, 'prs', 'prs.ref_po', '=', 'p.no_poin')
-                ->selectRaw("count(*) as total")
-                ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then 1 end) as outstanding")
-                ->selectRaw("count(case when coalesce(ds.do_started_items, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0 then 1 end) as belum_pr")
-                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null then 1 end) as realized")
-                ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then 1 end) as outstanding_pr")
-                ->selectRaw("coalesce(sum(case when coalesce(ds.changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then p.grand_total else 0 end), 0) as outstanding_pr_amount")
+                ->selectRaw('count(*) as total')
+                ->selectRaw('count(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then 1 end) as outstanding')
+                ->selectRaw('count(case when coalesce(ds.do_started_items, 0) > 0 and coalesce(ds.do_unrealized_items, 0) > 0 then 1 end) as belum_pr')
+                ->selectRaw('count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date is not null then 1 end) as realized')
+                ->selectRaw('count(case when coalesce(ds.changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then 1 end) as outstanding_pr')
+                ->selectRaw('coalesce(sum(case when coalesce(ds.changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then p.grand_total else 0 end), 0) as outstanding_pr_amount')
                 ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 and {$isSoonExpr} then 1 end) as outstanding_pr_soon")
                 ->selectRaw("count(case when coalesce(ds.changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 and {$isOverdueExpr} then 1 end) as outstanding_pr_overdue")
-                ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then 1 end) as outstanding_do")
-                ->selectRaw("coalesce(sum(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then p.grand_total else 0 end), 0) as outstanding_do_amount")
+                ->selectRaw('count(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then 1 end) as outstanding_do')
+                ->selectRaw('coalesce(sum(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 then p.grand_total else 0 end), 0) as outstanding_do_amount')
                 ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 and {$isSoonExpr} then 1 end) as outstanding_do_soon")
                 ->selectRaw("count(case when coalesce(ds.do_changed_count, 0) = 0 and coalesce(ds.total_items, 0) > 0 and {$isOverdueExpr} then 1 end) as outstanding_do_overdue")
                 ->selectRaw("count(case when {$sisaPrCondition} then 1 end) as sisa_pr")
@@ -1642,37 +1487,37 @@ class PurchaseOrderInController
                 ->selectRaw("coalesce(sum(case when {$sisaDoCondition} then ds.do_remaining_amount else 0 end), 0) as sisa_do_amount")
                 ->selectRaw("count(case when {$sisaDoCondition} and {$isSoonExpr} then 1 end) as sisa_do_soon")
                 ->selectRaw("count(case when {$sisaDoCondition} and {$isOverdueExpr} then 1 end) as sisa_do_overdue")
-                ->selectRaw("count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date is not null then 1 end) as realized_pr")
-                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and coalesce(dos.do_count, 0) > 0 then 1 end) as realized_do")
-                ->selectRaw("count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_today", [$startToday, $endToday])
-                ->selectRaw("count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_week", [$startWeek, $endWeek])
-                ->selectRaw("count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_month", [$startMonth, $endMonth])
-                ->selectRaw("count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_year", [$startYear, $endYear])
-                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_today", [$startToday, $endToday])
-                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_week", [$startWeek, $endWeek])
-                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_month", [$startMonth, $endMonth])
-                ->selectRaw("count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_year", [$startYear, $endYear])
+                ->selectRaw('count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date is not null then 1 end) as realized_pr')
+                ->selectRaw('count(case when coalesce(ds.do_unrealized_items, 0) = 0 and coalesce(dos.do_count, 0) > 0 then 1 end) as realized_do')
+                ->selectRaw('count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_today', [$startToday, $endToday])
+                ->selectRaw('count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_week', [$startWeek, $endWeek])
+                ->selectRaw('count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_month', [$startMonth, $endMonth])
+                ->selectRaw('count(case when coalesce(ds.total_items, 0) > 0 and coalesce(ds.unrealized_items, 0) = 0 and prs.last_pr_date between ? and ? then 1 end) as realized_pr_year', [$startYear, $endYear])
+                ->selectRaw('count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_today', [$startToday, $endToday])
+                ->selectRaw('count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_week', [$startWeek, $endWeek])
+                ->selectRaw('count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_month', [$startMonth, $endMonth])
+                ->selectRaw('count(case when coalesce(ds.do_unrealized_items, 0) = 0 and dos.last_do_date between ? and ? then 1 end) as realized_do_year', [$startYear, $endYear])
                 ->first();
 
-            $periodCounts = $readConnection->table('tb_poin')->where('kode_poin', 'like', $prefix . '.POIN-%')
-                ->selectRaw("count(*) as total")
-                ->selectRaw("coalesce(sum(grand_total), 0) as total_amount")
-                ->selectRaw("count(case when created_at >= ? then 1 end) as today", [$startToday])
-                ->selectRaw("coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_today", [$startToday])
-                ->selectRaw("count(case when created_at >= ? then 1 end) as week", [$startWeek])
-                ->selectRaw("coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_week", [$startWeek])
-                ->selectRaw("count(case when created_at >= ? then 1 end) as month", [$startMonth])
-                ->selectRaw("coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_month", [$startMonth])
-                ->selectRaw("count(case when created_at >= ? then 1 end) as year", [$startYear])
-                ->selectRaw("coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_year", [$startYear])
+            $periodCounts = $readConnection->table('tb_poin')->where('kode_poin', 'like', $prefix.'.POIN-%')
+                ->selectRaw('count(*) as total')
+                ->selectRaw('coalesce(sum(grand_total), 0) as total_amount')
+                ->selectRaw('count(case when created_at >= ? then 1 end) as today', [$startToday])
+                ->selectRaw('coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_today', [$startToday])
+                ->selectRaw('count(case when created_at >= ? then 1 end) as week', [$startWeek])
+                ->selectRaw('coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_week', [$startWeek])
+                ->selectRaw('count(case when created_at >= ? then 1 end) as month', [$startMonth])
+                ->selectRaw('coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_month', [$startMonth])
+                ->selectRaw('count(case when created_at >= ? then 1 end) as year', [$startYear])
+                ->selectRaw('coalesce(sum(case when created_at >= ? then grand_total else 0 end), 0) as amount_year', [$startYear])
                 ->first();
 
             $summary = [
-                'total'      => (int) $statusData->total,
+                'total' => (int) $statusData->total,
                 'total_amount' => (float) ($periodCounts->total_amount ?? 0),
                 'outstanding' => (int) $statusData->outstanding,
-                'belum_pr'   => (int) $statusData->belum_pr,
-                'realized'   => (int) $statusData->realized,
+                'belum_pr' => (int) $statusData->belum_pr,
+                'realized' => (int) $statusData->realized,
                 'outstanding_pr' => (int) ($statusData->outstanding_pr ?? 0),
                 'outstanding_pr_amount' => (float) ($statusData->outstanding_pr_amount ?? 0),
                 'outstanding_pr_soon' => (int) ($statusData->outstanding_pr_soon ?? 0),
@@ -1707,20 +1552,20 @@ class PurchaseOrderInController
                 ],
                 'data_counts' => [
                     'today' => (int) $periodCounts->today,
-                    'week'  => (int) $periodCounts->week,
+                    'week' => (int) $periodCounts->week,
                     'month' => (int) $periodCounts->month,
-                    'year'  => (int) $periodCounts->year,
+                    'year' => (int) $periodCounts->year,
                 ],
                 'data_amounts' => [
                     'today' => (float) ($periodCounts->amount_today ?? 0),
-                    'week'  => (float) ($periodCounts->amount_week ?? 0),
+                    'week' => (float) ($periodCounts->amount_week ?? 0),
                     'month' => (float) ($periodCounts->amount_month ?? 0),
-                    'year'  => (float) ($periodCounts->amount_year ?? 0),
-                    'all'   => (float) ($periodCounts->total_amount ?? 0),
+                    'year' => (float) ($periodCounts->amount_year ?? 0),
+                    'all' => (float) ($periodCounts->total_amount ?? 0),
                 ],
             ];
 
-            $base = $readConnection->table('tb_poin as p')->where('p.kode_poin', 'like', $prefix . '.POIN-%')
+            $base = $readConnection->table('tb_poin as p')->where('p.kode_poin', 'like', $prefix.'.POIN-%')
                 ->leftJoinSub($detailStats, 'ds', 'ds.kode_poin', '=', 'p.kode_poin')
                 ->leftJoinSub($doStats, 'dos', function ($join) {
                     $join->on('dos.ref_po_key', '=', DB::raw('CONVERT(p.no_poin USING latin1)'));
@@ -1771,22 +1616,22 @@ class PurchaseOrderInController
             ->where('kode_poin', $kodePoin)
             ->first();
 
-        if (!$purchaseOrderIn) {
+        if (! $purchaseOrderIn) {
             return redirect()
                 ->route('marketing.purchase-order-in.index')
                 ->with('error', 'Data PO In tidak ditemukan.');
         }
 
+        $prUsage = DB::table('tb_detailpr as pr')
+            ->where('pr.ref_po', trim((string) $purchaseOrderIn->no_poin))
+            ->whereRaw('lower(trim(pr.for_customer)) = lower(trim(?))', [(string) $purchaseOrderIn->customer_name])
+            ->select('pr.kd_material')->selectRaw('count(*) as has_pr')
+            ->groupBy('pr.kd_material');
+
         $purchaseOrderInItems = DB::table('tb_detailpoin as d')
-            ->where('d.kode_poin',  $kodePoin)
-            ->addSelect([
-                'd.*',
-                'has_pr' => DB::table('tb_detailpr as pr')
-                    ->where('pr.ref_po', trim((string) $purchaseOrderIn->no_poin))
-                    ->whereRaw("lower(trim(pr.for_customer)) = lower(trim(?))", [(string)$purchaseOrderIn->customer_name])
-                    ->whereColumn('pr.kd_material', 'd.kd_material')
-                    ->selectRaw('count(*)')
-            ])
+            ->leftJoinSub($prUsage, 'pr_usage', 'pr_usage.kd_material', '=', 'd.kd_material')
+            ->where('d.kode_poin', $kodePoin)
+            ->select('d.*')->selectRaw('coalesce(pr_usage.has_pr, 0) as has_pr')
             ->orderBy('d.id')
             ->get();
 
@@ -1801,70 +1646,70 @@ class PurchaseOrderInController
         ]);
     }
 
-
     public function track(Request $request)
     {
         $refPo = $request->query('ref_po');
         if (empty($refPo)) {
             return response()->json(['success' => false, 'message' => 'Silakan masukkan Ref PO.', 'data' => []]);
         }
-        
+
         $refPoLower = strtolower(trim($refPo));
         $flow = [];
-        
+        $tables = DB::connection()->getSchemaBuilder()->getTableListing(schemaQualified: false);
+
         // Level 1: PO In (tb_poin)
-        if (Schema::hasTable('tb_poin')) {
+        if (in_array('tb_poin', $tables, true)) {
             $poIns = DB::table('tb_poin')->whereRaw('lower(trim(no_poin)) = ?', [$refPoLower])->get();
             foreach ($poIns as $poin) {
                 $date = $poin->created_at ?? $poin->date_poin ?? '-';
                 $flow[] = "Ref PO Customer telah di input pada {$date} dengan nomor document {$poin->kode_poin}";
             }
         }
-        
+
         // Level 2: PR (tb_pr)
-        if (Schema::hasTable('tb_pr')) {
+        if (in_array('tb_pr', $tables, true)) {
             $prs = DB::table('tb_pr')->whereRaw('lower(trim(ref_po)) = ?', [$refPoLower])->get();
             foreach ($prs as $pr) {
                 $flow[] = "Purchase Requirement telah dibuat pada {$pr->date} dengan nomor document {$pr->no_pr}";
             }
         }
-        
+
         // Level 3: PO (tb_po)
         $poNos = [];
-        if (Schema::hasTable('tb_po')) {
+        if (in_array('tb_po', $tables, true)) {
             $pos = DB::table('tb_po')->whereRaw('lower(trim(ref_poin)) = ?', [$refPoLower])->get();
             foreach ($pos as $po) {
                 $flow[] = "Purchase order telah dibuat pada {$po->tgl} dengan nomor document {$po->no_po}";
-                if (!empty($po->no_po)) {
+                if (! empty($po->no_po)) {
                     $poNos[] = strtolower(trim($po->no_po));
                 }
             }
         }
-        
+
         // Level 4: Penerimaan Material (tb_mi)
-        if (Schema::hasTable('tb_mi') && count($poNos) > 0) {
+        if (in_array('tb_mi', $tables, true) && count($poNos) > 0) {
             $mis = DB::table('tb_mi')->whereIn(DB::raw('lower(trim(ref_po))'), $poNos)->get();
             $seenMi = [];
             foreach ($mis as $mi) {
-                if (!empty($mi->no_doc) && in_array(strtolower(trim($mi->no_doc)), $seenMi)) {
+                if (! empty($mi->no_doc) && in_array(strtolower(trim($mi->no_doc)), $seenMi)) {
                     continue;
                 }
-                if (!empty($mi->no_doc)) {
+                if (! empty($mi->no_doc)) {
                     $seenMi[] = strtolower(trim($mi->no_doc));
                 }
-                
+
                 $tgl = $mi->posting_date ?? $mi->posting_tgl ?? $mi->tgl_mi ?? $mi->tgl_doc ?? $mi->tgl ?? '-';
                 $flow[] = "barang sudah diterimakan pada {$tgl} dengan nomor document {$mi->no_doc}";
             }
         }
-        
+
         // Level 5: Delivery Order (tb_kddo & tb_kddob)
         $doNos = [];
-        if (Schema::hasTable('tb_kddo')) {
+        if (in_array('tb_kddo', $tables, true)) {
             $dos = DB::table('tb_kddo')->where('ref_po', trim((string) $refPo))->get();
             $doNos = $dos->map(fn ($row) => strtolower(trim($row->no_do)))->unique()->values()->all();
             $doBantuByRef = collect();
-            if ($doNos !== [] && Schema::hasTable('tb_kddob')) {
+            if ($doNos !== [] && in_array('tb_kddob', $tables, true)) {
                 $doBantuByRef = DB::table('tb_kddob')
                     ->whereIn(DB::raw('lower(trim(ref_do))'), $doNos)
                     ->get(['ref_do', 'date', 'no_dob'])
@@ -1879,39 +1724,39 @@ class PurchaseOrderInController
                 $flow[] = $doInfo;
             }
         }
-        
+
         // Level 6: Faktur Penjualan (tb_kdfakturpenjualan)
         $fakturNos = [];
-        if (Schema::hasTable('tb_kdfakturpenjualan')) {
+        if (in_array('tb_kdfakturpenjualan', $tables, true)) {
             $fakturs = DB::table('tb_kdfakturpenjualan')->whereRaw('lower(trim(ref_po)) = ?', [$refPoLower])->get();
             foreach ($fakturs as $faktur) {
                 $flow[] = "faktur penjualan telah dibuat pada tanggal {$faktur->tgl_doc} dengan nomor document {$faktur->no_fakturpenjualan}";
-                if (!empty($faktur->no_fakturpenjualan)) {
+                if (! empty($faktur->no_fakturpenjualan)) {
                     $fakturNos[] = strtolower(trim($faktur->no_fakturpenjualan));
                 }
             }
         }
-        
+
         // Level 7: Kwitansi (tb_kwitansi)
-        if (Schema::hasTable('tb_kwitansi') && count($fakturNos) > 0) {
+        if (in_array('tb_kwitansi', $tables, true) && count($fakturNos) > 0) {
             $kwitansis = DB::table('tb_kwitansi')->whereIn(DB::raw('lower(trim(ref_faktur))'), $fakturNos)->get();
             foreach ($kwitansis as $kw) {
                 $flow[] = "kwitansi telah dibuat pada tanggal {$kw->tgl} dengan nomor document {$kw->no_kwitansi}";
             }
         }
-        
+
         // Level 8: Tanda Terima Invoice (tb_ttinv)
-        if (Schema::hasTable('tb_ttinv')) {
+        if (in_array('tb_ttinv', $tables, true)) {
             $ttinvs = DB::table('tb_ttinv')->whereRaw('lower(trim(ref_po)) = ?', [$refPoLower])->get();
             foreach ($ttinvs as $tt) {
                 $flow[] = "faktur penjualan telah diterima oleh {$tt->nm_penerima} pada tanggal {$tt->tgl_terima} dengan nomor document {$tt->no_ttinv}";
             }
         }
-        
+
         // Level 9: Pembayaran / Kas (tb_kas)
-        if (Schema::hasTable('tb_kas') && count($fakturNos) > 0) {
+        if (in_array('tb_kas', $tables, true) && count($fakturNos) > 0) {
             $query = DB::table('tb_kas');
-            $query->where(function($q) use ($fakturNos) {
+            $query->where(function ($q) use ($fakturNos) {
                 foreach ($fakturNos as $fn) {
                     $q->orWhereRaw('lower(trim(keterangan)) like ?', ['%'.$fn.'%']);
                 }
@@ -1923,62 +1768,66 @@ class PurchaseOrderInController
                 $flow[] = "transaksi sudah dibukukan pada tanggal {$tglVoucher} dengan nomor document {$kodeVoucher}";
             }
         }
-        
+
         return response()->json(['success' => true, 'data' => $flow]);
     }
+
     public function show(Request $request, $kodePoin)
     {
         $search = trim((string) $request->query('search', ''));
         $perPageInput = $request->query('per_page', 5);
         $page = max(1, (int) $request->query('page', 1));
-        
+
         $conn = DB::connection();
         $this->readSource = 'mysql';
 
         $header = $conn->table('tb_poin')->where('kode_poin', $kodePoin)->first();
 
-        if (!$header) {
+        if (! $header) {
             return response()->json(['message' => 'PO In tidak ditemukan'], 404);
         }
 
-            $perPage = $perPageInput === 'all'
-                ? null
-                : (is_numeric($perPageInput) ? (int) $perPageInput : 5);
-            if ($perPage !== null && $perPage < 1) {
-                $perPage = 5;
-            }
+        $perPage = $perPageInput === 'all'
+            ? null
+            : (is_numeric($perPageInput) ? max(1, (int) $perPageInput) : 5);
+        if ($perPage !== null && $perPage < 1) {
+            $perPage = 5;
+        }
 
-            $query = $conn->table('tb_detailpoin')->where('kode_poin', $kodePoin);
-            if ($search !== '') {
-                $like = '%'.strtolower($search).'%';
-                $query->whereRaw('lower(material) like ?', [$like]);
-            }
+        $query = $conn->table('tb_detailpoin')->where('kode_poin', $kodePoin);
+        if ($search !== '') {
+            $like = '%'.strtolower($search).'%';
+            $query->whereRaw('lower(material) like ?', [$like]);
+        }
 
-            $total = (clone $query)->count();
+        $total = $perPage === null ? null : (clone $query)->count();
 
-            if ($perPage === null) {
-                $items = (clone $query)->orderBy('id')->get();
-            } else {
-                $items = (clone $query)->orderBy('id')->forPage($page, $perPage)->get();
-            }
+        if ($perPage === null) {
+            $items = (clone $query)->orderBy('id')->get();
+        } else {
+            $items = (clone $query)->orderBy('id')->forPage($page, $perPage)->get();
+        }
+        $total ??= $items->count();
 
-            return response()->json([
-                'header' => $header,
-                'items' => $items,
-                'pagination' => [
-                    'total' => $total,
-                    'page' => $page,
-                    'per_page' => $perPage === null ? 'all' : $perPage,
-                    'total_pages' => $perPage === null ? 1 : max(1, (int) ceil($total / $perPage)),
-                ],
-            ])->header('X-Data-Source', $this->readSource)->header('Cache-Control', 'no-store');
+        return response()->json([
+            'header' => $header,
+            'items' => $items,
+            'pagination' => [
+                'total' => $total,
+                'page' => $page,
+                'per_page' => $perPage === null ? 'all' : $perPage,
+                'total_pages' => $perPage === null ? 1 : max(1, (int) ceil($total / $perPage)),
+            ],
+        ])->header('X-Data-Source', $this->readSource)->header('Cache-Control', 'no-store');
     }
 
     public function print($kodePoin)
     {
         $data = (function () use ($kodePoin) {
             $header = DB::table('tb_poin')->where('kode_poin', $kodePoin)->first();
-            if (!$header) return null;
+            if (! $header) {
+                return null;
+            }
 
             $items = DB::table('tb_detailpoin')->where('kode_poin', $kodePoin)->orderBy('id')->get();
 
@@ -1990,7 +1839,7 @@ class PurchaseOrderInController
             return ['header' => $header, 'items' => $items, 'customer' => $customer];
         })();
 
-        if (!$data) {
+        if (! $data) {
             return redirect()->route('marketing.purchase-order-in.index')->with('error', 'Data PO In tidak ditemukan.');
         }
 
@@ -2047,6 +1896,7 @@ class PurchaseOrderInController
 
         if ($perPageInput === null) {
             $materials = (clone $query)->orderBy($nameColumn)->get();
+
             return response()->json(['materials' => $materials, 'total' => $materials->count()]);
         }
 
@@ -2059,6 +1909,7 @@ class PurchaseOrderInController
 
         if ($perPage === null) {
             $materials = (clone $query)->orderBy($nameColumn)->get();
+
             return response()->json(['materials' => $materials, 'total' => $materials->count()]);
         }
 
@@ -2115,8 +1966,9 @@ class PurchaseOrderInController
                 'tgl_buat' => now()->toDateString(),
                 'pembuat' => $pembuat,
             ] as $column => $value) {
-                if (Schema::hasColumn('tb_barang', $column)) {
-                    $insertData[$column] = $value;
+                $actualColumn = $this->columnsForTable('tb_barang')[strtolower($column)] ?? null;
+                if ($actualColumn !== null) {
+                    $insertData[$actualColumn] = $value;
                 }
             }
 
@@ -2151,7 +2003,7 @@ class PurchaseOrderInController
 
         $perPage = $perPageInput === 'all'
             ? null
-            : (is_numeric($perPageInput) ? (int) $perPageInput : 5);
+            : (is_numeric($perPageInput) ? max(1, (int) $perPageInput) : 5);
         if ($perPage !== null && $perPage < 1) {
             $perPage = 5;
         }
@@ -2197,7 +2049,7 @@ class PurchaseOrderInController
             ->select('pic_name');
 
         if ($search !== '') {
-            $like = '%' . strtolower($search) . '%';
+            $like = '%'.strtolower($search).'%';
             $query->whereRaw('lower(pic_name) like ?', [$like]);
         }
 
@@ -2281,127 +2133,15 @@ class PurchaseOrderInController
                 ->where('kd_cs', $kdCustomer)
                 ->where('pic_name', trim($senderName))
                 ->exists();
-            if (!$picExists) {
+            if (! $picExists) {
                 throw ValidationException::withMessages([
                     'sender_name' => 'PIC PO Customer tidak ditemukan. Pilih PIC dari daftar yang tersedia.',
                 ]);
             }
         }
 
-        $noPoin = trim((string) $validated['no_poin']);
-        $duplicateExists = DB::table('tb_poin')
-            ->whereRaw('lower(trim(no_poin)) = lower(trim(?))', [$noPoin])
-            ->exists();
-
-        if ($duplicateExists) {
-            throw ValidationException::withMessages([
-                'no_poin' => "No PO In {$noPoin} sudah ada di database.",
-            ]);
-        }
-
         try {
-            DB::transaction(function () use ($request, $validated, $noPoin) {
-                $duplicateExists = DB::table('tb_poin')
-                    ->whereRaw('lower(trim(no_poin)) = lower(trim(?))', [$noPoin])
-                    ->lockForUpdate()
-                    ->exists();
-
-                if ($duplicateExists) {
-                    throw ValidationException::withMessages([
-                        'no_poin' => "No PO In {$noPoin} sudah ada di database.",
-                    ]);
-                }
-
-                $nowGmt8 = now('Asia/Singapore');
-                $kodePoin = $this->generateKodePoin($request);
-                $datePoin = $this->parseDateOrNull($validated['date'] ?? null);
-                $deliveryDate = $this->parseDateOrNull($validated['delivery_date'] ?? null);
-
-                $ppnPercentInput = (float) ($validated['ppn_percent'] ?? 0);
-                $ppnPercentInputValue = $ppnPercentInput <= 0 ? 0.0 : $ppnPercentInput;
-                $ppnPercentUsed = $ppnPercentInputValue <= 0 ? 0.0 : min(11.0, $ppnPercentInputValue);
-
-                $totalPrice = (float) ($validated['total_price'] ?? 0);
-                if ($totalPrice <= 0 && is_array($validated['materials'] ?? null)) {
-                    $totalPrice = collect($validated['materials'])->sum(function ($item) {
-                        $qty = (float) ($item['qty'] ?? 0);
-                        $price = (float) ($item['price_po_in'] ?? 0);
-                        return $qty * $price;
-                    });
-                }
-
-                $dpp = $ppnPercentInput > 0
-                    ? round((11 / $ppnPercentInput) * $totalPrice, 2)
-                    : $totalPrice;
-                $ppnValue = round($totalPrice * ($ppnPercentUsed / 100), 2);
-                $grandTotal = round($totalPrice + $ppnValue, 2);
-                $resolvedCustomer = $this->resolveCustomerForPoin($validated);
-
-                $headerId = (int) (DB::table('tb_poin')->max('id') ?? 0) + 1;
-                DB::table('tb_poin')->insert([
-                    'id' => $headerId,
-                    'kode_poin' => $kodePoin,
-                    'no_poin' => $noPoin,
-                    'date_poin' => $datePoin,
-                    'delivery_date' => $deliveryDate,
-                    'kode_customer' => trim((string) $resolvedCustomer->kd_cs),
-                    'customer_name' => trim((string) $resolvedCustomer->nm_cs),
-                    'payment_term' => trim((string) ($validated['payment_term'] ?? '')),
-                    'franco_loco' => trim((string) $validated['franco_loco']),
-                    'sender_name' => trim((string) $validated['sender_name']),
-                    'note_doc' => trim((string) ($validated['note'] ?? '')),
-                    'ppn_input_percent' => $ppnPercentInputValue,
-                    'ppn_percent_used' => $ppnPercentUsed,
-                    'total_price' => $totalPrice,
-                    'dpp' => $dpp,
-                    'ppn_amount' => $ppnValue,
-                    'grand_total' => $grandTotal,
-                    'created_at' => $nowGmt8,
-                    'updated_at' => $nowGmt8,
-                ]);
-
-                $detailId = (int) (DB::table('tb_detailpoin')->max('id') ?? 0) + 1;
-                $detailData = [];
-                foreach (($validated['materials'] ?? []) as $index => $item) {
-                    $qty = (float) ($item['qty'] ?? 0);
-                    $price = (float) ($item['price_po_in'] ?? 0);
-                    $totalDetail = isset($item['total_price_po_in'])
-                        ? (float) $item['total_price_po_in']
-                        : ($qty * $price);
-
-                    $kdMaterial = $this->normalizeMaterialCode($item['kd_material'] ?? null);
-
-                    $detailRow = [
-                        'id' => $detailId + $index,
-                        'id_poin' => $headerId,
-                        'kode_poin' => $kodePoin,
-                        'kd_material' => $kdMaterial,
-                        'material' => trim((string) ($item['material'] ?? '')),
-                        'qty' => $qty,
-                        'sisa_qtypr' => $qty,
-                        'sisa_qtydo' => $qty,
-                        'satuan' => trim((string) ($item['satuan'] ?? '')),
-                        'price_po_in' => $price,
-                        'total_price_po_in' => $totalDetail,
-                        'remark' => trim((string) ($item['remark'] ?? '')),
-                        'created_at' => $nowGmt8,
-                        'updated_at' => $nowGmt8,
-                    ];
-
-                    $detailRow['no_poin'] = $noPoin;
-
-                    $detailData[] = $detailRow;
-                }
-
-                if (!empty($detailData)) {
-                    DB::table('tb_detailpoin')->insert($detailData);
-                    DB::table('tb_detailpoin')
-                        ->where('kode_poin', $kodePoin)
-                        ->update([
-                            'sisa_qtypr' => DB::raw('qty'),
-                        ]);
-                }
-            });
+            $this->purchaseOrderInService->createPurchaseOrderIn($validated, $this->resolveDatabasePrefix($request));
 
             $this->broadcastPoInChanged();
 
@@ -2416,12 +2156,13 @@ class PurchaseOrderInController
                     'redirect' => route('marketing.purchase-order-in.index'),
                 ]);
             }
+
             return redirect()
                 ->route('marketing.purchase-order-in.index')
                 ->with('success', 'PO In berhasil disimpan.');
         } catch (ValidationException $e) {
             throw $e;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             if ($request->expectsJson()) {
                 return response()->json([
                     'message' => $this->formatFailureMessage('menyimpan', $e),
@@ -2440,7 +2181,7 @@ class PurchaseOrderInController
             ->where('kode_poin', $kodePoin)
             ->exists();
 
-        if (!$exists) {
+        if (! $exists) {
             return redirect()
                 ->route('marketing.purchase-order-in.index')
                 ->with('error', 'Data PO In tidak ditemukan.');
@@ -2476,7 +2217,7 @@ class PurchaseOrderInController
                 ->where('kd_cs', $kdCustomerUpd)
                 ->where('pic_name', trim($senderNameUpd))
                 ->exists();
-            if (!$picExistsUpd) {
+            if (! $picExistsUpd) {
                 throw ValidationException::withMessages([
                     'sender_name' => 'PIC PO Customer tidak ditemukan. Pilih PIC dari daftar yang tersedia.',
                 ]);
@@ -2484,109 +2225,13 @@ class PurchaseOrderInController
         }
 
         try {
-            DB::transaction(function () use ($validated, $kodePoin) {
-                $header = DB::table('tb_poin')
-                    ->where('kode_poin', $kodePoin)
-                    ->lockForUpdate()
-                    ->first(['kode_poin', 'no_poin']);
-
-                if (!$header) {
-                    throw new \RuntimeException('Data PO In tidak ditemukan.');
-                }
-
-                $hasPartialDo = $this->hasPartialDo($kodePoin);
-                if ($hasPartialDo) {
-                    $current = DB::table('tb_poin')
-                        ->where('kode_poin', $kodePoin)
-                        ->first();
-                    if ($current) {
-                        $hasChanged = 
-                            trim((string)$validated['no_poin']) !== trim((string)($current->no_poin ?? '')) ||
-                            $this->parseDateOrNull($validated['date'] ?? null) !== $current->date_poin ||
-                            $this->parseDateOrNull($validated['delivery_date'] ?? null) !== $current->delivery_date ||
-                            trim((string)$validated['customer_name']) !== trim((string)($current->customer_name ?? '')) ||
-                            trim((string)($validated['payment_term'] ?? '')) !== trim((string)($current->payment_term ?? '')) ||
-                            trim((string)$validated['franco_loco']) !== trim((string)($current->franco_loco ?? '')) ||
-                            trim((string)$validated['sender_name']) !== trim((string)($current->sender_name ?? '')) ||
-                            trim((string)($validated['note'] ?? '')) !== trim((string)($current->note_doc ?? '')) ||
-                            (float)($validated['ppn_percent'] ?? 0) !== (float)($current->ppn_input_percent ?? 0);
-
-                        if ($hasChanged) {
-                            throw ValidationException::withMessages([
-                                'no_poin' => 'Header PO tidak boleh diubah karena sudah ada DO terkirim (status partial).',
-                            ]);
-                        }
-                    }
-                }
-
-                $oldNoPoin = trim((string) ($header->no_poin ?? ''));
-                $newNoPoin = trim((string) $validated['no_poin']);
-
-                $duplicateExists = DB::table('tb_poin')
-                    ->whereRaw('lower(trim(no_poin)) = lower(trim(?))', [$newNoPoin])
-                    ->where('kode_poin', '<>', $kodePoin)
-                    ->exists();
-
-                if ($duplicateExists) {
-                    throw ValidationException::withMessages([
-                        'no_poin' => "No PO In {$newNoPoin} sudah ada di database.",
-                    ]);
-                }
-
-                $nowGmt8 = now('Asia/Singapore');
-                $datePoin = $this->parseDateOrNull($validated['date'] ?? null);
-                $deliveryDate = $this->parseDateOrNull($validated['delivery_date'] ?? null);
-                $resolvedCustomer = $this->resolveCustomerForPoin($validated);
-                $ppnPercentInput = (float) ($validated['ppn_percent'] ?? 0);
-                $ppnPercentInputValue = $ppnPercentInput <= 0 ? 0.0 : $ppnPercentInput;
-                $ppnPercentUsed = $ppnPercentInputValue <= 0 ? 0.0 : min(11.0, $ppnPercentInputValue);
-
-                $totalPrice = (float) (DB::table('tb_detailpoin')
-                    ->where('kode_poin', $kodePoin)
-                    ->selectRaw('coalesce(sum(coalesce(cast(qty as decimal(18,4)), 0) * coalesce(cast(price_po_in as decimal(18,4)), 0)), 0) as total_price')
-                    ->value('total_price') ?? 0);
-
-                $dpp = $ppnPercentInput > 0
-                    ? round((11 / $ppnPercentInput) * $totalPrice, 2)
-                    : $totalPrice;
-                $ppnValue = round($totalPrice * ($ppnPercentUsed / 100), 2);
-                $grandTotal = round($totalPrice + $ppnValue, 2);
-
-                DB::table('tb_poin')
-                    ->where('kode_poin', $kodePoin)
-                    ->update([
-                        'no_poin' => $newNoPoin,
-                        'date_poin' => $datePoin,
-                        'delivery_date' => $deliveryDate,
-                        'kode_customer' => trim((string) $resolvedCustomer->kd_cs),
-                        'customer_name' => trim((string) $resolvedCustomer->nm_cs),
-                        'payment_term' => trim((string) ($validated['payment_term'] ?? '')),
-                        'franco_loco' => trim((string) $validated['franco_loco']),
-                        'sender_name' => trim((string) $validated['sender_name']),
-                        'note_doc' => trim((string) ($validated['note'] ?? '')),
-                        'ppn_input_percent' => $ppnPercentInputValue,
-                        'ppn_percent_used' => $ppnPercentUsed,
-                        'total_price' => $totalPrice,
-                        'dpp' => $dpp,
-                        'ppn_amount' => $ppnValue,
-                        'grand_total' => $grandTotal,
-                        'updated_at' => $nowGmt8,
-                    ]);
-
-                DB::table('tb_detailpoin')
-                    ->where('kode_poin', $kodePoin)
-                    ->update([
-                        'no_poin' => $newNoPoin,
-                        'updated_at' => $nowGmt8,
-                    ]);
-
-                $this->syncPurchaseRequirementRefPo($oldNoPoin, $newNoPoin);
-            });
+            $this->purchaseOrderInService->updatePurchaseOrderIn($kodePoin, $validated);
 
             $this->broadcastPoInChanged();
 
             if ($request->header('X-Inertia')) {
                 session()->flash('success', 'Data PO IN berhasil diperbarui.');
+
                 return redirect('/marketing/purchase-order-in');
             }
             if ($request->expectsJson()) {
@@ -2595,19 +2240,20 @@ class PurchaseOrderInController
                     'redirect' => route('marketing.purchase-order-in.index'),
                 ]);
             }
+
             return redirect()
                 ->route('marketing.purchase-order-in.index')
                 ->with('success', 'PO In berhasil diperbarui.');
         } catch (ValidationException $e) {
             throw $e;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             if ($request->expectsJson()) {
                 return response()->json([
-                    'message' => 'Gagal memperbarui data: ' . $e->getMessage(),
+                    'message' => 'Gagal memperbarui data: '.$e->getMessage(),
                 ], 500);
             }
 
-            return back()->with('error', 'Gagal memperbarui data: ' . $e->getMessage());
+            return back()->with('error', 'Gagal memperbarui data: '.$e->getMessage());
         }
     }
 
@@ -2619,13 +2265,14 @@ class PurchaseOrderInController
 
             if ($request->header('X-Inertia')) {
                 session()->flash('success', 'PO In berhasil dihapus.');
+
                 return redirect('/marketing/purchase-order-in');
             }
 
             return redirect()
                 ->route('marketing.purchase-order-in.index')
                 ->with('success', 'PO In berhasil dihapus.');
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             $status = $e->getCode() === 404 ? 404 : 500;
             if ($request->expectsJson()) {
                 return response()->json(['message' => $e->getMessage()], $status);
@@ -2635,29 +2282,14 @@ class PurchaseOrderInController
                     ->route('marketing.purchase-order-in.index')
                     ->with('error', $e->getMessage());
             }
-            return back()->with('error', 'Gagal menghapus data: ' . $e->getMessage());
+
+            return back()->with('error', 'Gagal menghapus data: '.$e->getMessage());
         }
     }
 
     public function storeDetail(Request $request, $kodePoin)
     {
         try {
-            $header = DB::table('tb_poin')
-                ->where('kode_poin', $kodePoin)
-                ->first(['id', 'no_poin']);
-
-            if (!$header) {
-                return response()->json([
-                    'message' => 'Data PO In tidak ditemukan.',
-                ], 404);
-            }
-
-            if ($this->hasPartialDo($kodePoin)) {
-                return response()->json([
-                    'message' => 'Material tidak dapat ditambahkan karena PO In ini memiliki pengiriman partial.',
-                ], 422);
-            }
-
             $validated = $request->validate([
                 'kd_material' => ['nullable', 'numeric'],
                 'material' => ['required', 'string', 'max:255'],
@@ -2668,82 +2300,25 @@ class PurchaseOrderInController
                 'remark' => ['nullable', 'string'],
             ]);
 
-            $qty = (float) ($validated['qty'] ?? 0);
-            $price = (float) ($validated['price_po_in'] ?? 0);
-            $total = array_key_exists('total_price_po_in', $validated)
-                ? (float) $validated['total_price_po_in']
-                : ($qty * $price);
-            $nowGmt8 = now('Asia/Singapore');
-
-            $kdMaterial = $this->normalizeMaterialCode($validated['kd_material'] ?? null);
-            $sisaQtyPr = $qty;
-            $detailId = ((int) (DB::table('tb_detailpoin')->max('id') ?? 0)) + 1;
-
-            $insertData = [
-                'id' => $detailId,
-                'id_poin' => $header->id,
-                'kode_poin' => $kodePoin,
-                'kd_material' => $kdMaterial,
-                'material' => trim((string) $validated['material']),
-                'qty' => $qty,
-                'sisa_qtypr' => $sisaQtyPr,
-                'sisa_qtydo' => $qty,
-                'satuan' => trim((string) ($validated['satuan'] ?? '')),
-                'price_po_in' => $price,
-                'total_price_po_in' => $total,
-                'remark' => trim((string) ($validated['remark'] ?? '')),
-                'created_at' => $nowGmt8,
-                'updated_at' => $nowGmt8,
-            ];
-
-            $insertData['no_poin'] = trim((string) ($header->no_poin ?? ''));
-
-            DB::table('tb_detailpoin')->insert($insertData);
-
-            $this->recalculateHeaderTotals($kodePoin);
+            $detail = $this->purchaseOrderInService->addPurchaseOrderDetail($kodePoin, $validated);
             $this->broadcastPoInChanged();
 
             return response()->json([
                 'message' => 'Material berhasil ditambahkan.',
-                'detail' => [
-                    'id' => $detailId,
-                    'sisa_qtypr' => $sisaQtyPr,
-                    'sisa_qtydo' => $qty,
-                ],
+                'detail' => $detail,
             ], 201);
         } catch (ValidationException $e) {
             throw $e;
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             return response()->json([
                 'message' => $e->getMessage(),
-            ], 500);
+            ], $this->exceptionStatus($e));
         }
     }
 
     public function updateDetail(Request $request, $kodePoin, $detailId)
     {
         try {
-            $headerExists = DB::table('tb_poin')
-                ->where('kode_poin', $kodePoin)
-                ->exists();
-
-            if (!$headerExists) {
-                return response()->json([
-                    'message' => 'Data PO In tidak ditemukan.',
-                ], 404);
-            }
-
-            $detail = DB::table('tb_detailpoin')
-                ->where('kode_poin', $kodePoin)
-                ->where('id', $detailId)
-                ->first();
-
-            if (!$detail) {
-                return response()->json([
-                    'message' => 'Data material tidak ditemukan.',
-                ], 404);
-            }
-
             $validated = $request->validate([
                 'kd_material' => ['nullable', 'numeric'],
                 'material' => ['required', 'string', 'max:255'],
@@ -2754,208 +2329,35 @@ class PurchaseOrderInController
                 'remark' => ['nullable', 'string'],
             ]);
 
-            $qty = (float) ($validated['qty'] ?? 0);
-            $originalQty = (float) ($detail->qty ?? 0);
-            $sisaQtyPrBefore = (float) ($detail->sisa_qtypr ?? 0);
-            $usedQtyPr = max(0, $originalQty - $sisaQtyPrBefore);
-            $sisaQtyDoBefore = (float) ($detail->sisa_qtydo ?? $originalQty);
-
-            $hasPartialDo = $this->hasPartialDo($kodePoin);
-            if ($hasPartialDo) {
-                $isEditableItem = ($sisaQtyDoBefore != 0.0);
-                if (!$isEditableItem) {
-                    return response()->json([
-                        'message' => 'Material ini tidak dapat diubah karena sudah terkirim sepenuhnya.',
-                    ], 422);
-                }
-
-                $deliveredQty = $originalQty - $sisaQtyDoBefore;
-                if ($qty < $deliveredQty) {
-                    return response()->json([
-                        'message' => 'Qty tidak boleh kurang dari jumlah yang sudah terkirim (' . number_format($deliveredQty, 0, ',', '.') . ').',
-                    ], 422);
-                }
-
-                if ($qty < $usedQtyPr) {
-                    return response()->json([
-                        'message' => 'Qty tidak boleh kurang dari qty yang sudah ada pada tb_detailpr (' . number_format($usedQtyPr, 0, ',', '.') . ').',
-                    ], 422);
-                }
-
-                $hasOtherChanges = 
-                    (string)$this->normalizeMaterialCode($validated['kd_material'] ?? null) !== (string)$detail->kd_material ||
-                    trim((string) $validated['material']) !== trim((string)$detail->material) ||
-                    trim((string) ($validated['satuan'] ?? '')) !== trim((string)($detail->satuan ?? '')) ||
-                    (float)($validated['price_po_in'] ?? 0) !== (float)($detail->price_po_in ?? 0) ||
-                    trim((string) ($validated['remark'] ?? '')) !== trim((string)($detail->remark ?? ''));
-
-                if ($hasOtherChanges) {
-                    return response()->json([
-                        'message' => 'Hanya Qty yang boleh diubah untuk menutup sisa DO.',
-                    ], 422);
-                }
-            } else {
-                if ($sisaQtyPrBefore == 0.0 && $qty <= $originalQty) {
-                    return response()->json([
-                        'message' => 'Sisa Qty PR sudah 0. Qty harus lebih dari qty awal.',
-                    ], 422);
-                }
-
-                if ($sisaQtyPrBefore != 0.0 && $qty < $usedQtyPr) {
-                    return response()->json([
-                        'message' => 'Qty tidak boleh kurang dari qty yang sudah ada pada tb_detailpr.',
-                    ], 422);
-                }
-
-                $usedQtyDo = max(0, $originalQty - $sisaQtyDoBefore);
-                if ($qty < $usedQtyDo) {
-                    return response()->json([
-                        'message' => 'Qty tidak boleh kurang dari qty yang sudah ada penerimaan material (MI).',
-                    ], 422);
-                }
-            }
-
-            $price = (float) ($validated['price_po_in'] ?? 0);
-            $total = array_key_exists('total_price_po_in', $validated)
-                ? (float) $validated['total_price_po_in']
-                : ($qty * $price);
-            $nowGmt8 = now('Asia/Singapore');
-
-            $kdMaterial = $this->normalizeMaterialCode($validated['kd_material'] ?? null);
-            $sisaQtyPr = max(0, $sisaQtyPrBefore + ($qty - $originalQty));
-            $sisaQtyDo = max(0.0, $sisaQtyDoBefore + ($qty - $originalQty));
-
-            DB::table('tb_detailpoin')
-                ->where('kode_poin', $kodePoin)
-                ->where('id', $detailId)
-                ->update([
-                    'kd_material' => $kdMaterial,
-                    'material' => trim((string) $validated['material']),
-                    'qty' => $qty,
-                    'sisa_qtypr' => $sisaQtyPr,
-                    'sisa_qtydo' => $sisaQtyDo,
-                    'satuan' => trim((string) ($validated['satuan'] ?? '')),
-                    'price_po_in' => $price,
-                    'total_price_po_in' => $total,
-                    'remark' => trim((string) ($validated['remark'] ?? '')),
-                    'updated_at' => $nowGmt8,
-                ]);
-
-            $this->recalculateHeaderTotals($kodePoin);
+            $this->purchaseOrderInService->updatePurchaseOrderDetail($kodePoin, (int) $detailId, $validated);
             $this->broadcastPoInChanged();
 
             return response()->json([
                 'message' => 'Material berhasil diperbarui.',
-                'updated_at' => $nowGmt8,
+                'updated_at' => now('Asia/Singapore'),
             ]);
-        } catch (\Throwable $e) {
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (Throwable $e) {
             return response()->json([
                 'message' => $e->getMessage(),
-            ], 500);
+            ], $this->exceptionStatus($e));
         }
     }
 
     public function destroyDetail($kodePoin, $detailId)
     {
         try {
-            $headerExists = DB::table('tb_poin')
-                ->where('kode_poin', $kodePoin)
-                ->exists();
-
-            if (!$headerExists) {
-                return response()->json([
-                    'message' => 'Data PO In tidak ditemukan.',
-                ], 404);
-            }
-
-            if ($this->hasPartialDo($kodePoin)) {
-                return response()->json([
-                    'message' => 'Material tidak dapat dihapus karena PO In ini memiliki pengiriman partial.',
-                ], 422);
-            }
-
-            $detail = DB::table('tb_detailpoin')
-                ->where('kode_poin', $kodePoin)
-                ->where('id', $detailId)
-                ->first();
-
-            if (!$detail) {
-                return response()->json([
-                    'message' => 'Data material tidak ditemukan.',
-                ], 404);
-            }
-
-            $poHeader = DB::table('tb_poin')->where('kode_poin', $kodePoin)->first();
-            if ($poHeader) {
-                $hasPr = DB::table('tb_detailpr')
-                    ->where('ref_po', trim((string) $poHeader->no_poin))
-                    ->whereRaw("lower(trim(for_customer)) = lower(trim(?))", [(string)$poHeader->customer_name])
-                    ->where('kd_material', $detail->kd_material)
-                    ->exists();
-
-                if ($hasPr) {
-                    return response()->json([
-                        'message' => 'Material tidak dapat dihapus karena sudah dibuat PR.',
-                    ], 422);
-                }
-            }
-
-            if (isset($detail->sisa_qtypr) && isset($detail->qty) && isset($detail->sisa_qtydo)) {
-                $sisaQtyPr = (float)($detail->sisa_qtypr ?? 0);
-                $sisaQtyDo = (float)($detail->sisa_qtydo ?? 0);
-                $qty = (float)($detail->qty ?? 0);
-                if ($sisaQtyPr < $qty) {
-                    return response()->json([
-                        'message' => 'Material tidak dapat dihapus karena sudah dibuat PR.',
-                    ], 422);
-                }
-                if ($sisaQtyDo < $qty) {
-                    return response()->json([
-                        'message' => 'Material tidak dapat dihapus karena sudah ada penerimaan material (MI).',
-                    ], 422);
-                }
-            }
-
-            $count = DB::table('tb_detailpoin')
-                ->where('kode_poin', $kodePoin)
-                ->count();
-
-            if ($count <= 1) {
-                return response()->json([
-                    'message' => 'Gagal menghapus. Minimal harus ada 1 material dalam PO In.',
-                ], 400);
-            }
-
-            $deleted = DB::table('tb_detailpoin')
-                ->where('kode_poin', $kodePoin)
-                ->where('id', $detailId)
-                ->delete();
-
-            if (!$deleted) {
-                return response()->json([
-                    'message' => 'Data material tidak ditemukan.',
-                ], 404);
-            }
-
-            $this->recalculateHeaderTotals($kodePoin);
+            $this->purchaseOrderInService->deletePurchaseOrderDetail($kodePoin, (int) $detailId);
             $this->broadcastPoInChanged();
 
             return response()->json([
                 'message' => 'Material berhasil dihapus.',
             ]);
-        } catch (\Throwable $e) {
+        } catch (Throwable $e) {
             return response()->json([
                 'message' => $e->getMessage(),
-            ], 500);
+            ], $this->exceptionStatus($e));
         }
-    }
-
-    private function hasPartialDo($kodePoin)
-    {
-        return DB::table('tb_detailpoin')
-            ->where('kode_poin', $kodePoin)
-            ->whereRaw('coalesce(sisa_qtydo, 0) <> 0')
-            ->whereRaw('coalesce(sisa_qtydo, 0) <> coalesce(qty, 0)')
-            ->exists();
     }
 }

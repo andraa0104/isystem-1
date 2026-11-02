@@ -1,3 +1,4 @@
+import QuotationAttendInput from '@/components/quotation-attend-input';
 import { MenuAction } from '@/components/menu-action';
 import InputError from '@/components/input-error';
 import RichTextEditor from '@/components/rich-text-editor';
@@ -867,14 +868,11 @@ export default function QuotationEdit({
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="attend">Attend</Label>
-                                    <Input
+                                    <QuotationAttendInput
                                         id="attend"
                                         value={customerForm.attend}
-                                        onChange={(event) =>
-                                            setCustomerForm((prev) => ({
-                                                ...prev,
-                                                attend: event.target.value,
-                                            }))
+                                        onValueChange={(attend) =>
+                                            setCustomerForm((prev) => ({ ...prev, attend }))
                                         }
                                     />
                                 </div>

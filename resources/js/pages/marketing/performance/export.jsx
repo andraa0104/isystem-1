@@ -114,7 +114,7 @@ export default function PerformanceExport({
                 <div className="mb-2 text-xs font-bold uppercase tracking-wider text-slate-600">
                     Ringkasan Key Performance Indicator
                 </div>
-                <div className="grid grid-cols-3 gap-4 text-xs sm:grid-cols-6">
+                <div className="grid grid-cols-3 gap-4 text-xs sm:grid-cols-5">
                     <div>
                         <span className="text-slate-500">Total Penjualan:</span>
                         <div className="text-sm font-bold text-slate-900">
@@ -127,14 +127,6 @@ export default function PerformanceExport({
                         </span>
                         <div className="text-sm font-bold text-slate-900">
                             {formatNumber(kpi.total_customers)} Customer
-                        </div>
-                    </div>
-                    <div>
-                        <span className="text-slate-500">
-                            Rata-rata / Customer:
-                        </span>
-                        <div className="text-sm font-bold text-slate-900">
-                            {formatRupiah(kpi.avg_sales_per_customer)}
                         </div>
                     </div>
                     <div>

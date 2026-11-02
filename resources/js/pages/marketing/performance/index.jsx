@@ -1040,8 +1040,8 @@ export default function PerformanceIndex({
 
                 {data && (
                     <>
-                        {/* 2. KPI Cards (6 Kartu) */}
-                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                        {/* 2. KPI Cards (5 Kartu) */}
+                        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
                             {/* Card 1: Total Penjualan */}
                             <div className="relative overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card p-5 shadow-xs transition-all hover:shadow-md">
                                 <div className="flex items-center justify-between">
@@ -1110,29 +1110,7 @@ export default function PerformanceIndex({
                                 </div>
                             </div>
 
-                            {/* Card 3: Rata-rata / Customer */}
-                            <div className="relative overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card p-5 shadow-xs transition-all hover:shadow-md">
-                                <div className="flex items-center justify-between">
-                                    <span className="text-xs font-semibold text-muted-foreground">
-                                        Rata-rata / Customer
-                                    </span>
-                                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
-                                        <BarChart3 className="h-5 w-5" />
-                                    </div>
-                                </div>
-                                <div className="mt-3">
-                                    <div className="text-lg font-bold tracking-tight text-foreground sm:text-xl">
-                                        {formatRupiah(
-                                            data.kpi.avg_sales_per_customer,
-                                        )}
-                                    </div>
-                                    <div className="mt-1 text-xs text-muted-foreground">
-                                        Per customer aktif
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Card 4: Pertumbuhan Penjualan */}
+                            {/* Card 3: Pertumbuhan Penjualan */}
                             <div className="relative overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card p-5 shadow-xs transition-all hover:shadow-md">
                                 <div className="flex items-center justify-between">
                                     <span className="text-xs font-semibold text-muted-foreground">
@@ -1171,7 +1149,7 @@ export default function PerformanceIndex({
                                 </div>
                             </div>
 
-                            {/* Card 5: Total Invoice */}
+                            {/* Card 4: Total Invoice */}
                             <div className="relative overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card p-5 shadow-xs transition-all hover:shadow-md">
                                 <div className="flex items-center justify-between">
                                     <span className="text-xs font-semibold text-muted-foreground">
@@ -1195,7 +1173,7 @@ export default function PerformanceIndex({
                                 </div>
                             </div>
 
-                            {/* Card 6: Customer Tertinggi */}
+                            {/* Card 5: Customer Tertinggi */}
                             <div className="relative overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card p-5 shadow-xs transition-all hover:shadow-md">
                                 <div className="flex items-center justify-between">
                                     <span className="text-xs font-semibold text-muted-foreground">

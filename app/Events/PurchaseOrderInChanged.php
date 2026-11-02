@@ -4,11 +4,13 @@ namespace App\Events;
 
 use Illuminate\Broadcasting\PrivateChannel;
 use Illuminate\Contracts\Broadcasting\ShouldBroadcastNow;
+use Illuminate\Contracts\Broadcasting\ShouldRescue;
 use Illuminate\Contracts\Events\ShouldDispatchAfterCommit;
+use Illuminate\Support\Facades\DB;
 
-class PurchaseOrderInChanged implements ShouldBroadcastNow, ShouldDispatchAfterCommit
+class PurchaseOrderInChanged implements ShouldBroadcastNow, ShouldDispatchAfterCommit, ShouldRescue
 {
-    public function __construct(private string $channel) {}
+    public function __construct(private readonly string $channel) {}
 
     public static function channelForDatabase(string $database): string
     {
@@ -17,9 +19,7 @@ class PurchaseOrderInChanged implements ShouldBroadcastNow, ShouldDispatchAfterC
 
     public static function currentChannel(): string
     {
-        $connection = config('database.default');
-
-        return static::channelForDatabase((string) config("database.connections.$connection.database"));
+        return static::channelForDatabase((string) DB::connection()->getDatabaseName());
     }
 
     public function broadcastOn(): array

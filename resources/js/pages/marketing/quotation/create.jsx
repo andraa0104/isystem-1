@@ -1,3 +1,4 @@
+import QuotationAttendInput from '@/components/quotation-attend-input';
 import { MenuAction } from '@/components/menu-action';
 import InputError from '@/components/input-error';
 import RichTextEditor from '@/components/rich-text-editor';
@@ -320,7 +321,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         }));
         setCustomerModalOpen(false);
 
-        // AI Suggestion for Franco
+        // Ambil Franco dari quotation terakhir customer.
         try {
             const response = await fetch(
                 `/marketing/quotation/suggest-franco?customer=${encodeURIComponent(
@@ -335,7 +336,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                 }));
             }
         } catch (error) {
-            console.error('Failed to fetch franco suggestion:', error);
+            console.error('Gagal mengambil Franco quotation terakhir:', error);
             setDetailForm((prev) => ({
                 ...prev,
                 franco: prev.franco || 'SAMARINDA',
@@ -815,14 +816,11 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                 </div>
                                 <div className="grid gap-2">
                                     <Label htmlFor="attend">Attend</Label>
-                                    <Input
+                                    <QuotationAttendInput
                                         id="attend"
                                         value={customerForm.attend}
-                                        onChange={(event) =>
-                                            setCustomerForm((prev) => ({
-                                                ...prev,
-                                                attend: event.target.value,
-                                            }))
+                                        onValueChange={(attend) =>
+                                            setCustomerForm((prev) => ({ ...prev, attend }))
                                         }
                                     />
                                 </div>

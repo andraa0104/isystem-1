@@ -2,71 +2,128 @@
 
 namespace App\Http\Controllers\Marketing;
 
+use App\Services\Marketing\CollectionAnalyticsService;
 use Carbon\Carbon;
+use Illuminate\Database\Connection;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 use Inertia\Inertia;
 
 class ReviewTagihanController
 {
-    private function dueDateExpr(): string
+    /** @var \WeakMap<Connection, array<string, array<string, string>>> */
+    private \WeakMap $columnTypes;
+
+    public function __construct()
     {
-        return "coalesce(date(jth_tempo), str_to_date(jth_tempo, '%Y-%m-%d'), str_to_date(jth_tempo, '%Y/%m/%d'), str_to_date(jth_tempo, '%d/%m/%Y'), str_to_date(jth_tempo, '%d-%m-%Y'), str_to_date(jth_tempo, '%d.%m.%Y'))";
+        $this->columnTypes = new \WeakMap;
     }
 
-    private function baseInvoiceQuery()
+    private function getDbConnection(): Connection
     {
-        return DB::table('tb_kdfakturpenjualan')
-            ->whereRaw('coalesce(cast(saldo_piutang as decimal(18,4)), 0) > 0')
+        $name = config('tenants.connection', 'mysql');
+        if (config("database.connections.$name.driver") !== 'mysql') {
+            throw new \LogicException('Review Tagihan requires a MySQL tenant connection.');
+        }
+        $connection = DB::connection($name);
+        if ($connection->getDriverName() !== 'mysql') {
+            throw new \LogicException('Review Tagihan requires a MySQL tenant connection.');
+        }
+
+        return $connection;
+    }
+
+    private function columnType(string $column): string
+    {
+        $connection = $this->getDbConnection();
+        $database = $connection->getDatabaseName();
+        $types = $this->columnTypes[$connection] ?? [];
+        if (! isset($types[$database])) {
+            $types[$database] = [];
+            foreach ($connection->getSchemaBuilder()->getColumns('tb_kdfakturpenjualan') as $definition) {
+                $types[$database][strtolower($definition['name'])] = strtolower($definition['type_name']);
+            }
+            $this->columnTypes[$connection] = $types;
+        }
+
+        return $types[$database][strtolower($column)] ?? '';
+    }
+
+    private function dueRangeColumn(): string
+    {
+        return in_array($this->columnType('jth_tempo'), ['date', 'datetime', 'timestamp'], true)
+            ? 'jth_tempo' : $this->dueDateExpr();
+    }
+
+    private function dueDateExpr(): string
+    {
+        return match ($this->columnType('jth_tempo')) {
+            'date' => 'jth_tempo',
+            'datetime', 'timestamp' => 'date(jth_tempo)',
+            default => "coalesce(date(jth_tempo), str_to_date(jth_tempo, '%Y-%m-%d'), str_to_date(jth_tempo, '%Y/%m/%d'), str_to_date(jth_tempo, '%d/%m/%Y'), str_to_date(jth_tempo, '%d-%m-%Y'), str_to_date(jth_tempo, '%d.%m.%Y'))",
+        };
+    }
+
+    private function balanceExpr(): string
+    {
+        return in_array($this->columnType('saldo_piutang'), ['decimal', 'numeric', 'float', 'double', 'real', 'int', 'bigint', 'smallint', 'mediumint', 'tinyint'], true)
+            ? 'saldo_piutang' : 'coalesce(cast(saldo_piutang as decimal(18,4)), 0)';
+    }
+
+    private function baseInvoiceQuery(): Builder
+    {
+        return $this->getDbConnection()->table('tb_kdfakturpenjualan')
+            ->whereRaw($this->balanceExpr().' > 0')
             ->whereRaw("trim(coalesce(nm_cs, '')) <> ''");
     }
 
-    private function applyDueScope($query, string $scope, ?string $overdueRange = null): void
+    /** Shared date bounds for the cards, modal and AI dataset. */
+    private function dueScopeCondition(string $scope, string $overdueRange = '30'): array
     {
         $today = Carbon::today();
-        $dueDateExpr = $this->dueDateExpr();
-
+        $lower = null;
+        $upper = null;
         if ($scope === 'near_due') {
-            $query->whereRaw("{$dueDateExpr} between ? and ?", [
-                $today->copy()->addDay()->toDateString(),
-                $today->copy()->addDays(7)->toDateString(),
-            ]);
-            return;
+            $lower = $today->copy()->addDay()->toDateString();
+            $upper = $today->copy()->addDays(8)->toDateString();
+        } elseif ($scope === 'current_month') {
+            $lower = $today->copy()->startOfMonth()->toDateString();
+            $upper = $today->copy()->startOfMonth()->addMonth()->toDateString();
+        } elseif ($scope === 'overdue') {
+            $upper = $today->toDateString();
+            if ($overdueRange === 'gt720') {
+                $upper = $today->copy()->subDays(720)->toDateString();
+            } elseif ($overdueRange !== 'all' && (int) $overdueRange > 0) {
+                $lower = $today->copy()->subDays((int) $overdueRange)->toDateString();
+            }
+        }
+        $conditions = [];
+        $bindings = [];
+        if ($lower !== null) {
+            $conditions[] = $this->dueRangeColumn().' >= ?';
+            $bindings[] = $lower;
+        }
+        if ($upper !== null) {
+            $conditions[] = $this->dueRangeColumn().' < ?';
+            $bindings[] = $upper;
+        }
+        if ($scope === 'overdue' && $overdueRange === 'gt720') {
+            // Preserve exclusion of invalid MySQL zero dates when calculating ages.
+            $conditions[] = 'datediff(?, '.$this->dueDateExpr().') > 720';
+            $bindings[] = $today->toDateString();
         }
 
-        if ($scope === 'current_month') {
-            $query->whereRaw("{$dueDateExpr} between ? and ?", [
-                $today->copy()->startOfMonth()->toDateString(),
-                $today->copy()->endOfMonth()->toDateString(),
-            ]);
-            return;
-        }
-
-        if ($scope === 'overdue') {
-            $query->whereRaw("{$dueDateExpr} < ?", [$today->toDateString()]);
-            $this->applyOverdueRange($query, $overdueRange ?? '30');
-        }
+        return [$conditions === [] ? '1 = 1' : implode(' and ', $conditions), $bindings];
     }
 
-    private function applyOverdueRange($query, string $range): void
+    private function applyDueScope(Builder $query, string $scope, string $overdueRange = '30'): void
     {
-        if ($range === 'all') {
-            return;
-        }
-
-        $ageExpr = "datediff(?, {$this->dueDateExpr()})";
-        $today = Carbon::today()->toDateString();
-
-        if ($range === 'gt720') {
-            $query->whereRaw("{$ageExpr} > 720", [$today]);
-            return;
-        }
-
-        $days = (int) $range;
-        if ($days > 0) {
-            $query->whereRaw("{$ageExpr} between 1 and ?", [$today, $days]);
-        }
+        [$condition, $bindings] = $this->dueScopeCondition($scope, $overdueRange);
+        $query->whereRaw($condition, $bindings);
     }
 
     public function index()
@@ -76,28 +133,25 @@ class ReviewTagihanController
 
     public function summary(Request $request)
     {
-        $overdueRange = (string) $request->query('overdue_range', '30');
+        $range = (string) $request->query('overdue_range', '30');
+        $query = $this->baseInvoiceQuery();
+        $balance = $this->balanceExpr();
+        foreach (['near_due', 'current_month', 'overdue'] as $scope) {
+            [$condition, $bindings] = $this->dueScopeCondition($scope, $range);
+            $query->selectRaw("COUNT(DISTINCT CASE WHEN {$condition} THEN nm_cs END) as {$scope}_customers", $bindings)
+                ->selectRaw("COUNT(CASE WHEN {$condition} THEN 1 END) as {$scope}_invoices", $bindings)
+                ->selectRaw("SUM(CASE WHEN {$condition} THEN {$balance} ELSE 0 END) as {$scope}_amount", $bindings);
+        }
+        $row = $query->first();
+        $result = [];
+        foreach (['near_due', 'current_month', 'overdue'] as $scope) {
+            foreach (['customers', 'invoices', 'amount'] as $metric) {
+                $key = $scope.'_'.$metric;
+                $result[$key] = $metric === 'amount' ? (float) ($row->{$key} ?? 0) : (int) ($row->{$key} ?? 0);
+            }
+        }
 
-        $nearDue = $this->baseInvoiceQuery();
-        $this->applyDueScope($nearDue, 'near_due');
-
-        $currentMonth = $this->baseInvoiceQuery();
-        $this->applyDueScope($currentMonth, 'current_month');
-
-        $overdue = $this->baseInvoiceQuery();
-        $this->applyDueScope($overdue, 'overdue', $overdueRange);
-
-        return response()->json([
-            'near_due_customers' => (int) (clone $nearDue)->selectRaw('count(distinct nm_cs) as total')->value('total'),
-            'near_due_invoices' => (int) (clone $nearDue)->count(),
-            'near_due_amount' => (float) (clone $nearDue)->sum(DB::raw('coalesce(cast(saldo_piutang as decimal(18,4)), 0)')),
-            'current_month_customers' => (int) (clone $currentMonth)->selectRaw('count(distinct nm_cs) as total')->value('total'),
-            'current_month_invoices' => (int) (clone $currentMonth)->count(),
-            'current_month_amount' => (float) (clone $currentMonth)->sum(DB::raw('coalesce(cast(saldo_piutang as decimal(18,4)), 0)')),
-            'overdue_customers' => (int) (clone $overdue)->selectRaw('count(distinct nm_cs) as total')->value('total'),
-            'overdue_invoices' => (int) (clone $overdue)->count(),
-            'overdue_amount' => (float) (clone $overdue)->sum(DB::raw('coalesce(cast(saldo_piutang as decimal(18,4)), 0)')),
-        ]);
+        return response()->json($result);
     }
 
     public function customers(Request $request)
@@ -111,19 +165,19 @@ class ReviewTagihanController
         $dueDateExpr = $this->dueDateExpr();
 
         $query = $this->baseInvoiceQuery()
-            ->whereRaw("{$dueDateExpr} < ?", [$today]);
+            ->whereRaw($this->dueRangeColumn().' < ?', [$today]);
 
         if ($search !== '') {
-            $query->whereRaw('lower(nm_cs) like ?', ['%' . Str::lower($search) . '%']);
+            $query->whereRaw('lower(nm_cs) like ?', ['%'.Str::lower($search).'%']);
         }
 
         $rowsQuery = $query
             ->select(
                 'nm_cs',
-                DB::raw('count(*) as total_faktur'),
-                DB::raw('sum(coalesce(cast(saldo_piutang as decimal(18,4)), 0)) as total_saldo_piutang'),
-                DB::raw("max(datediff('{$today}', {$dueDateExpr})) as umur_tempo_terlama")
+                $this->getDbConnection()->raw('count(*) as total_faktur'),
+                $this->getDbConnection()->raw('sum('.$this->balanceExpr().') as total_saldo_piutang')
             )
+            ->selectRaw("max(datediff(?, {$dueDateExpr})) as umur_tempo_terlama", [$today])
             ->groupBy('nm_cs');
 
         match ($sort) {
@@ -135,7 +189,8 @@ class ReviewTagihanController
             default => $rowsQuery->orderByDesc('umur_tempo_terlama'),
         };
 
-        $rows = $rowsQuery->get()->map(function ($row) {
+        $paginator = $rowsQuery->orderBy('nm_cs')->paginate($perPage, ['*'], 'page', $page);
+        $rows = collect($paginator->items())->map(function ($row) {
             $maxAge = (int) ($row->umur_tempo_terlama ?? 0);
             $saldo = (float) ($row->total_saldo_piutang ?? 0);
 
@@ -159,16 +214,17 @@ class ReviewTagihanController
             $row->priority_tier = $priority;
             $row->priority_label = $priorityLabel;
             $row->badge_class = $badgeClass;
+
             return $row;
         });
 
-        $total = $rows->count();
+        $total = $paginator->total();
 
         return response()->json([
-            'data' => $rows->forPage($page, $perPage)->values(),
+            'data' => $rows->values(),
             'total' => $total,
             'current_page' => $page,
-            'last_page' => max(1, (int) ceil($total / $perPage)),
+            'last_page' => $paginator->lastPage(),
         ]);
     }
 
@@ -179,7 +235,7 @@ class ReviewTagihanController
         $ageExpr = "datediff(?, {$dueDateExpr})";
 
         $customers = $this->baseInvoiceQuery()
-            ->whereRaw("{$dueDateExpr} < ?", [$today])
+            ->whereRaw($this->dueRangeColumn().' < ?', [$today])
             ->whereRaw("{$ageExpr} > 90", [$today])
             ->select('nm_cs')
             ->distinct()
@@ -200,8 +256,8 @@ class ReviewTagihanController
         $today = Carbon::today()->toDateString();
         $dueDateExpr = $this->dueDateExpr();
         $ageSelectExpr = $scope === 'near_due'
-            ? "datediff('{$today}', {$dueDateExpr})"
-            : "greatest(datediff('{$today}', {$dueDateExpr}), 0)";
+            ? "datediff(?, {$dueDateExpr})"
+            : "greatest(datediff(?, {$dueDateExpr}), 0)";
 
         $query = $this->baseInvoiceQuery()
             ->select(
@@ -216,9 +272,8 @@ class ReviewTagihanController
                 'total_bayaran',
                 'saldo_piutang',
                 'jth_tempo',
-                'nm_cs',
-                DB::raw("{$ageSelectExpr} as umur_tempo")
-            );
+                'nm_cs'
+            )->selectRaw("{$ageSelectExpr} as umur_tempo", [$today]);
 
         if ($customer !== '') {
             $query->whereRaw('lower(trim(nm_cs)) = ?', [Str::lower(trim($customer))]);
@@ -239,7 +294,7 @@ class ReviewTagihanController
         ]);
     }
 
-    public function aiAnalyze(Request $request, \App\Services\Marketing\CollectionAnalyticsService $analyticsService)
+    public function aiAnalyze(Request $request, CollectionAnalyticsService $analyticsService)
     {
         @set_time_limit(360);
         @ini_set('max_execution_time', '360');
@@ -247,19 +302,6 @@ class ReviewTagihanController
         $scope = (string) $request->input('scope', 'all');
         $overdueRange = (string) $request->input('overdue_range', 'all');
         $customer = trim((string) $request->input('customer', ''));
-
-        $cacheKey = 'review-tagihan-ai:' . sha1(json_encode([
-            'scope' => $scope,
-            'overdue_range' => $overdueRange,
-            'customer' => $customer,
-        ]));
-
-        if (!$request->boolean('force')) {
-            $cachedResult = \Illuminate\Support\Facades\Cache::get($cacheKey);
-            if (is_array($cachedResult)) {
-                return response()->json(array_merge($cachedResult, ['cached' => true]));
-            }
-        }
 
         try {
             $query = $this->baseInvoiceQuery()
@@ -284,17 +326,30 @@ class ReviewTagihanController
                 $this->applyDueScope($query, $scope, $overdueRange);
             }
 
-            $invoices = $query->get()->map(fn ($row) => (array) $row)->toArray();
+            $invoices = $query->orderBy('no_fakturpenjualan')->get()->map(fn ($row) => (array) $row)->toArray();
+            $connection = $this->getDbConnection();
+            $cacheKey = 'review-tagihan-ai:'.sha1(json_encode([
+                'tenant' => [$connection->getName(), $connection->getDatabaseName()],
+                'reference_date' => Carbon::today()->toDateString(),
+                'scope' => $scope, 'overdue_range' => $overdueRange, 'customer' => $customer,
+                'invoices' => $invoices,
+            ], JSON_THROW_ON_ERROR));
+            if (! $request->boolean('force')) {
+                $cachedResult = Cache::get($cacheKey);
+                if (is_array($cachedResult)) {
+                    return response()->json(array_merge($cachedResult, ['cached' => true]));
+                }
+            }
 
             $result = $analyticsService->analyzeCollections($invoices, Carbon::today()->toDateString());
 
-            if (!empty($result['success'])) {
-                \Illuminate\Support\Facades\Cache::put($cacheKey, $result, now()->addMinutes(15));
+            if (! empty($result['success'])) {
+                Cache::put($cacheKey, $result, now()->addMinutes(15));
             }
 
             return response()->json($result);
         } catch (\Throwable $e) {
-            \Illuminate\Support\Facades\Log::error('ReviewTagihanController aiAnalyze failed: ' . $e->getMessage(), [
+            Log::error('ReviewTagihanController aiAnalyze failed: '.$e->getMessage(), [
                 'exception' => get_class($e),
                 'trace' => $e->getTraceAsString(),
             ]);
@@ -303,7 +358,7 @@ class ReviewTagihanController
                 'success' => false,
                 'engine' => 'Error Handler Fallback',
                 'is_fallback' => true,
-                'notice' => 'Gagal memproses analitik penagihan: ' . $e->getMessage(),
+                'notice' => 'Gagal memproses analitik penagihan: '.$e->getMessage(),
                 'data' => null,
             ], 500);
         }

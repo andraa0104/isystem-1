@@ -215,6 +215,8 @@ Route::get('marketing/quotation/suggest-franco', [QuotationController::class, 's
     ->name('marketing.quotation.suggest-franco');
 Route::get('marketing/quotation/customers', [QuotationController::class, 'customers'])
     ->name('marketing.quotation.customers');
+Route::get('marketing/quotation/attends', [QuotationController::class, 'attends'])
+    ->name('marketing.quotation.attends');
 Route::get('marketing/quotation/data', [QuotationController::class, 'data'])
     ->name('marketing.quotation.data');
 Route::get('marketing/quotation/materials', [QuotationController::class, 'materials'])
@@ -297,8 +299,6 @@ Route::get('/marketing/purchase-requirement/get-last-price', [PurchaseRequiremen
     ->name('marketing.purchase-requirement.getLastPrice');
 Route::get('marketing/purchase-requirement/materials', [PurchaseRequirementController::class, 'materials'])
     ->name('marketing.purchase-requirement.materials');
-Route::get('marketing/purchase-requirement/customers', [PurchaseRequirementController::class, 'customers'])
-    ->name('marketing.purchase-requirement.customers');
 Route::get('marketing/purchase-requirement/customers', [PurchaseRequirementController::class, 'customers'])
     ->name('marketing.purchase-requirement.customers');
 Route::get('marketing/purchase-requirement/poin-details', [PurchaseRequirementController::class, 'poinDetails'])

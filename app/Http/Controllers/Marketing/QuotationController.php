@@ -4,10 +4,10 @@ namespace App\Http\Controllers\Marketing;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Str;
 use Inertia\Inertia;
-use App\Services\Marketing\QuotationDss;
 use App\Services\Marketing\QuotationService;
 
 class QuotationController
@@ -47,11 +47,7 @@ class QuotationController
     private function resolveColumn(string $table, array $candidates, string $fallback): string
     {
         if (!isset($this->columnCache[$table])) {
-            $columns = DB::select('SHOW COLUMNS FROM '.$table);
-            $this->columnCache[$table] = array_map(
-                static fn ($column) => $column->Field ?? '',
-                $columns
-            );
+            $this->columnCache[$table] = DB::connection()->getSchemaBuilder()->getColumnListing($table);
         }
 
         foreach ($candidates as $candidate) {
@@ -67,7 +63,7 @@ class QuotationController
 
     private function wrapColumn(string $column): string
     {
-        return '`'.str_replace('`', '``', $column).'`';
+        return DB::connection()->getQueryGrammar()->wrap($column);
     }
 
     public function getLastPrice(Request $request)
@@ -88,7 +84,7 @@ class QuotationController
                 'harga' => $lastRecord ? round($lastRecord->harga) : 0
             ]);
         } catch (\Exception $e) {
-            \Log::error('Gagal mengambil harga terakhir: ' . $e->getMessage());
+            Log::error('Gagal mengambil harga terakhir: ' . $e->getMessage());
             
             return response()->json(['harga' => 0, 'message' => 'Terjadi kesalahan pada database'], 500);
         }
@@ -103,7 +99,7 @@ class QuotationController
             ->get();
         
         // Tambahkan log untuk memastikan data ditemukan di server
-        \Log::info("Fetching details for $detailNo: " . $details->count() . " records found.");
+        Log::info("Fetching details for $detailNo: " . $details->count() . " records found.");
     
         return response()->json(['details' => $details]);
     }
@@ -112,7 +108,7 @@ class QuotationController
         try {
             $this->quotationService->deleteQuotation((string) $noPenawaran);
         } catch (\Throwable $e) {
-            $status = $e->getCode() ?: 500;
+            $status = $this->exceptionHttpStatus($e, 500);
             return response()->json(['message' => $e->getMessage()], $status);
         }
 
@@ -136,10 +132,25 @@ class QuotationController
         $period = $request->query('period', 'today');
         $search = trim((string) $request->query('search', ''));
         
-        $penawaran = $this->getPenawaranQuery($period, $search)->get();
+        $page = max(1, (int) $request->query('page', 1));
+        $perPage = $request->query('per_page', 5);
+        $query = $this->getPenawaranQuery($period, $search);
+
+        if ($perPage === 'all') {
+            $penawaran = $query->get();
+            $total = $penawaran->count();
+        } else {
+            $perPage = max(1, (int) $perPage);
+            $paginator = $query->paginate($perPage, ['*'], 'page', $page);
+            $penawaran = $paginator->items();
+            $total = $paginator->total();
+        }
     
         return response()->json([
             'penawaran' => $penawaran,
+            'total' => $total,
+            'page' => $page,
+            'per_page' => $perPage,
         ]);
     }
 
@@ -201,23 +212,10 @@ class QuotationController
     // ==========================================
     public function getQuotationMaterialsDetails(Request $request)
     {
-        \Log::info('getQuotationMaterialsDetails called', $request->all());
-        
         try {
-            $page = (int) $request->query('page', 1);
-            $perPage = (int) $request->query('per_page', 5);
-            $search = trim($request->query('search', ''));
-    
-            \Log::info("Params: page=$page, perPage=$perPage, search=$search");
-    
-            // Cek apakah tabel ada
-            if (!DB::connection()->getSchemaBuilder()->hasTable('tb_penawarandetail')) {
-                throw new \Exception('Tabel tb_penawarandetail tidak ditemukan');
-            }
-    
-            // Cek kolom
-            $columns = DB::getSchemaBuilder()->getColumnListing('tb_penawarandetail');
-            \Log::info('Columns in tb_penawarandetail: ', $columns);
+            $page = max(1, (int) $request->query('page', 1));
+            $perPage = $request->query('per_page', 5);
+            $search = trim((string) $request->query('search', ''));
     
             // Query sederhana tanpa alias
             $query = DB::table('tb_penawarandetail')
@@ -232,10 +230,14 @@ class QuotationController
     
             $query->orderBy('ID', 'desc');
     
-            // Gunakan paginate manual untuk menghindari bug
-            $total = $query->count();
-            $offset = ($page - 1) * $perPage;
-            $items = $query->offset($offset)->limit($perPage)->get();
+            if ($perPage === 'all') {
+                $items = $query->get();
+                $total = $items->count();
+            } else {
+                $perPage = max(1, (int) $perPage);
+                $total = (clone $query)->count();
+                $items = $query->forPage($page, $perPage)->get();
+            }
     
             // Tambahkan can_delete
             $items = $items->map(function($item) {
@@ -252,7 +254,7 @@ class QuotationController
             ]);
             
         } catch (\Exception $e) {
-            \Log::error('Error in getQuotationMaterialsDetails: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
+            Log::error('Error in getQuotationMaterialsDetails: ' . $e->getMessage() . "\n" . $e->getTraceAsString());
             return response()->json([
                 'error' => 'Terjadi kesalahan: ' . $e->getMessage()
             ], 500);
@@ -287,12 +289,6 @@ class QuotationController
         $pageSizeRaw = request()->query('pageSize', 'all');
         $pageSize = $pageSizeRaw === 'all' ? 'all' : max(1, (int) $pageSizeRaw);
 
-        $cacheKey = 'quotation_customers_' . md5(json_encode([
-            'search' => $search,
-            'page' => $page,
-            'pageSize' => $pageSizeRaw,
-        ]));
-
         $query = DB::table('tb_cs')
             ->select(
                 'kd_cs as kd_cs',
@@ -313,16 +309,18 @@ class QuotationController
             });
         }
 
-        $total = (clone $query)->count();
+        $total = $pageSize === 'all' ? null : (clone $query)->count();
         $query->orderBy('nm_cs');
 
         if ($pageSize !== 'all') {
             $query->forPage($page, $pageSize);
         }
 
+        $customers = $query->get();
+
         return response()->json([
-            'customers' => $query->get(),
-            'total' => $total,
+            'customers' => $customers,
+            'total' => $total ?? $customers->count(),
         ]);
     }
 
@@ -332,12 +330,6 @@ class QuotationController
         $page = max(1, (int) request()->query('page', 1));
         $pageSizeRaw = request()->query('pageSize', 'all');
         $pageSize = $pageSizeRaw === 'all' ? 'all' : max(1, (int) $pageSizeRaw);
-
-        $cacheKey = 'quotation_materials_tb_barang_v2_' . md5(json_encode([
-            'search' => $search,
-            'page' => $page,
-            'pageSize' => $pageSizeRaw,
-        ]));
 
         $codeColumn = $this->resolveColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
         $nameColumn = $this->resolveColumn('tb_barang', ['material', 'nama_barang', 'nm_barang', 'barang'], 'material');
@@ -367,16 +359,18 @@ class QuotationController
             });
         }
 
-        $total = (clone $query)->count();
+        $total = $pageSize === 'all' ? null : (clone $query)->count();
         $query->orderBy($nameColumn);
 
         if ($pageSize !== 'all') {
             $query->forPage($page, $pageSize);
         }
 
+        $materials = $query->get();
+
         return response()->json([
-            'materials' => $query->get(),
-            'total' => $total,
+            'materials' => $materials,
+            'total' => $total ?? $materials->count(),
         ]);
     }
 
@@ -581,13 +575,49 @@ class QuotationController
             ->with('success', 'Data quotation berhasil disimpan.');
     }
 
+    public function attends(Request $request)
+    {
+        $validated = $request->validate([
+            'search' => ['nullable', 'string', 'max:255'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+        $search = trim($validated['search'] ?? '');
+        $history = DB::table('tb_penawaran')
+            ->whereNotNull('Attend')->selectRaw('cast(Attend as char) as attend')
+            ->unionAll(DB::table('tb_cs')->whereNotNull('Attnd')->selectRaw('cast(Attnd as char) as attend'));
+        $query = DB::query()->fromSub($history, 'attend_history')
+            ->whereRaw("trim(attend) <> ''")
+            ->selectRaw('min(trim(attend)) as attend')
+            ->groupByRaw('lower(trim(attend))');
+
+        if ($search !== '') {
+            $pattern = '%'.str_replace(['!', '%', '_'], ['!!', '!%', '!_'], Str::lower($search)).'%';
+            $query->whereRaw("lower(trim(attend)) like ? escape '!'", [$pattern]);
+        }
+
+        $attends = $query->orderBy('attend')->simplePaginate(30, ['*'], 'page', (int) ($validated['page'] ?? 1));
+
+        return response()->json([
+            'attends' => $attends->getCollection()->pluck('attend')->values(),
+            'has_more' => $attends->hasMorePages(),
+            'page' => $attends->currentPage(),
+        ]);
+    }
+
     public function suggestFranco(Request $request)
     {
-        $customerName = $request->query('customer');
-        
-        $dss = new \App\Services\Marketing\QuotationDss();
-        $franco = $dss->suggestFranco($customerName ?: '');
+        $validated = $request->validate(['customer' => ['nullable', 'string']]);
+        $customerName = trim($validated['customer'] ?? '');
+        $franco = '';
 
-        return response()->json(['franco' => $franco]);
+        if ($customerName !== '') {
+            $franco = trim((string) DB::table('tb_penawaran')
+                ->where('Customer', $customerName)
+                ->orderByDesc('Tgl_Posting')
+                ->orderByDesc('No_penawaran')
+                ->value('Franco'));
+        }
+
+        return response()->json(['franco' => $franco !== '' ? $franco : 'SAMARINDA']);
     }
 }

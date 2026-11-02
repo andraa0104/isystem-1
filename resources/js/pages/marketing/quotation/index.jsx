@@ -52,6 +52,7 @@ export default function QuotationIndex({
     const [currentPage, setCurrentPage] = useState(1);
     const [statusFilter, setStatusFilter] = useState(period);
     const [remotePenawaran, setRemotePenawaran] = useState(penawaran);
+    const [totalItems, setTotalItems] = useState(penawaran.length);
 
     const [loading, setLoading] = useState(false);
 
@@ -81,49 +82,59 @@ export default function QuotationIndex({
     // ========================================================
     // FETCH DATA TAB 1 (CUSTOMER)
     // ========================================================
-    const fetchQuotationData = useCallback(async (newPeriod, search = '') => {
+    const fetchQuotationData = useCallback(async (newPeriod, search, page, perPage, signal) => {
         setLoading(true);
         try {
             const params = new URLSearchParams({
                 period: newPeriod,
                 search,
+                page: String(page),
+                per_page: perPage === Infinity ? 'all' : String(perPage),
             });
             const resPenawaran = await fetch(`/marketing/quotation/data?${params.toString()}`, {
-                headers: { Accept: 'application/json' }
+                headers: { Accept: 'application/json' },
+                signal,
             });
+            if (!resPenawaran.ok) throw new Error('Gagal memuat quotation.');
             const dataPenawaran = await resPenawaran.json();
+            if (signal?.aborted) return;
             setRemotePenawaran(dataPenawaran.penawaran || []);
+            setTotalItems(Number(dataPenawaran.total || 0));
 
         } catch (error) {
-            console.error('Error fetching data:', error);
+            if (!signal?.aborted) console.error('Error fetching data:', error);
         } finally {
-            setLoading(false);
+            if (!signal?.aborted) setLoading(false);
         }
     }, []);
 
     // ========================================================
     // FETCH DATA TAB 2 (MATERIAL) - SERVER SIDE PAGINATION
     // ========================================================
-    const fetchMaterialData = useCallback(async (page, perPage, search) => {
+    const fetchMaterialData = useCallback(async (page, perPage, search, signal) => {
         setMaterialLoading(true);
         try {
             const params = new URLSearchParams({
                 page: page,
-                per_page: perPage,
+                per_page: perPage === Infinity ? 'all' : perPage,
                 search: search
             });
             const resMaterial = await fetch(`/marketing/quotation/materials-data?${params.toString()}`, {
-                headers: { Accept: 'application/json' }
+                headers: { Accept: 'application/json' },
+                signal,
             });
+            if (!resMaterial.ok) throw new Error('Gagal memuat material quotation.');
             const dataMaterial = await resMaterial.json();
+            if (signal?.aborted) return;
             setRemoteMaterialDetails(dataMaterial.materials || []);
             setMaterialTotal(dataMaterial.total || 0);
         } catch (error) {
+            if (signal?.aborted) return;
             console.error('Error fetching material data:', error);
             setRemoteMaterialDetails([]);
             setMaterialTotal(0);
         } finally {
-            setMaterialLoading(false);
+            if (!signal?.aborted) setMaterialLoading(false);
         }
     }, []);
 
@@ -137,8 +148,11 @@ export default function QuotationIndex({
     }, [searchTerm]);
 
     useEffect(() => {
-        fetchQuotationData(statusFilter, debouncedSearchTerm);
-    }, [statusFilter, debouncedSearchTerm, fetchQuotationData]);
+        if (activeTab !== 'customer') return;
+        const controller = new AbortController();
+        fetchQuotationData(statusFilter, debouncedSearchTerm, currentPage, pageSize, controller.signal);
+        return () => controller.abort();
+    }, [activeTab, statusFilter, debouncedSearchTerm, currentPage, pageSize, fetchQuotationData]);
 
     const handlePeriodChange = (newPeriod) => {
         setStatusFilter(newPeriod);
@@ -150,32 +164,17 @@ export default function QuotationIndex({
     // ========================================================
     const handleTabChange = (tab) => {
         setActiveTab(tab);
-        if (tab === 'material') {
-            const effectivePerPage = materialPageSize === Infinity ? 999999 : materialPageSize;
-            fetchMaterialData(materialCurrentPage, effectivePerPage, materialSearch);
-        }
     };
 
     // ========================================================
     // FILTER & PAGINATION TAB 1 (CUSTOMER)
     // ========================================================
-    const filteredPenawaran = useMemo(() => {
-        const dataToFilter = remotePenawaran || [];
-        return dataToFilter;
-    }, [remotePenawaran]);
-
-    const totalItems = useMemo(() => filteredPenawaran.length, [filteredPenawaran]);
-
     const totalPages = useMemo(() => {
         if (pageSize === Infinity) return 1;
         return Math.max(1, Math.ceil(totalItems / pageSize));
     }, [pageSize, totalItems]);
 
-    const displayedPenawaran = useMemo(() => {
-        if (pageSize === Infinity) return filteredPenawaran;
-        const startIndex = (currentPage - 1) * pageSize;
-        return filteredPenawaran.slice(startIndex, startIndex + pageSize);
-    }, [currentPage, filteredPenawaran, pageSize]);
+    const displayedPenawaran = remotePenawaran;
 
     const handlePageSizeChange = (event) => {
         const value = event.target.value;
@@ -215,9 +214,11 @@ export default function QuotationIndex({
     }, [materialSearch]);
 
     useEffect(() => {
-        const effectivePerPage = materialPageSize === Infinity ? 999999 : materialPageSize;
-        fetchMaterialData(materialCurrentPage, effectivePerPage, debouncedMaterialSearch);
-    }, [materialCurrentPage, materialPageSize, debouncedMaterialSearch, fetchMaterialData]);
+        if (activeTab !== 'material') return;
+        const controller = new AbortController();
+        fetchMaterialData(materialCurrentPage, materialPageSize, debouncedMaterialSearch, controller.signal);
+        return () => controller.abort();
+    }, [activeTab, materialCurrentPage, materialPageSize, debouncedMaterialSearch, fetchMaterialData]);
 
     useEffect(() => {
         if (materialCurrentPage > tab2TotalPages) {
@@ -265,14 +266,10 @@ export default function QuotationIndex({
         setDetailRowsNo(noPenawaran);
 
         // 1. Ambil data Header dengan cara yang konsisten
-        let header;
-        if (item.Customer !== undefined) {
-            // Data lengkap dari Tab 1
-            header = item;
-        } else {
-            // Data dari Tab 2 (perlu fetch header)
-            header = await fetchHeaderData(noPenawaran);
-        }
+        const [header, details] = await Promise.all([
+            item.Customer !== undefined ? Promise.resolve(item) : fetchHeaderData(noPenawaran),
+            fetchDetailData(noPenawaran),
+        ]);
 
         // 2. Normalisasi Data (PENTING!)
         // Pastikan properti "No_penawaran", "Tgl_Penawaran", dan "Tgl_Posting" selalu ada
@@ -286,7 +283,6 @@ export default function QuotationIndex({
         setSelectedPenawaran(normalizedHeader);
 
         // 3. Ambil Detail
-        const details = await fetchDetailData(noPenawaran);
         setDetailRows(Array.isArray(details) ? details : (details.details || []));
         setDetailRowsNo(noPenawaran);
         setDetailLoading(false);
@@ -391,10 +387,9 @@ export default function QuotationIndex({
                     });
 
                     if (activeTab === 'customer') {
-                        fetchQuotationData(statusFilter, debouncedSearchTerm);
+                        fetchQuotationData(statusFilter, debouncedSearchTerm, currentPage, pageSize);
                     } else {
-                        const effectivePerPage = materialPageSize === Infinity ? 999999 : materialPageSize;
-                        fetchMaterialData(materialCurrentPage, effectivePerPage, debouncedMaterialSearch);
+                        fetchMaterialData(materialCurrentPage, materialPageSize, debouncedMaterialSearch);
                     }
                 })
                 .catch((error) => {

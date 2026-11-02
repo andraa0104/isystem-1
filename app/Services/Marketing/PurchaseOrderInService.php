@@ -7,115 +7,123 @@ use Illuminate\Validation\ValidationException;
 
 class PurchaseOrderInService
 {
-    private function parseDateOrNull(?string $value)
+    private const DETAIL_BATCH_SIZE = 50;
+
+    private function parseDateOrNull(?string $value): ?string
     {
-        if (empty($value)) return null;
-        if (preg_match('/^\d{2}-\d{2}-\d{4}$/', $value)) {
-            $parts = explode('-', $value);
-            return "{$parts[2]}-{$parts[1]}-{$parts[0]}";
+        $text = trim((string) ($value ?? ''));
+        if ($text === '') {
+            return null;
         }
-        return $value;
+
+        if (preg_match('/^\d{4}-\d{2}-\d{2}$/', $text) === 1) {
+            return $text;
+        }
+
+        if (preg_match('/^(\d{2})\/(\d{2})\/(\d{4})$/', $text, $matches) === 1) {
+            return $matches[3].'-'.$matches[2].'-'.$matches[1];
+        }
+
+        return null;
     }
 
-    private function generateKodePoin(string $dbPrefix)
+    private function generateKodePoin(string $prefix): string
     {
-        $dateGmt8 = now('Asia/Singapore');
-        $year = $dateGmt8->format('y');
-        $month = $dateGmt8->format('m');
-        $prefix = "PIN{$dbPrefix}{$year}{$month}";
-
-        $lastPoin = DB::table('tb_poin')
-            ->where('kode_poin', 'like', $prefix . '%')
-            ->orderByRaw('CAST(SUBSTRING(kode_poin, ' . (strlen($prefix) + 1) . ') AS UNSIGNED) DESC')
+        $latest = DB::table('tb_poin')
+            ->select('kode_poin')
+            ->where('kode_poin', 'like', $prefix.'.POIN-%')
+            ->orderByDesc('id')
+            ->lockForUpdate()
             ->first();
 
-        if ($lastPoin) {
-            $lastIndex = (int) substr($lastPoin->kode_poin, strlen($prefix));
-            $nextIndex = $lastIndex + 1;
-        } else {
-            $nextIndex = 1;
+        $nextNumber = 1;
+        if ($latest && isset($latest->kode_poin)) {
+            $current = (string) $latest->kode_poin;
+            if (preg_match('/(\d{1,})$/', $current, $matches) === 1) {
+                $nextNumber = ((int) $matches[1]) + 1;
+            }
         }
 
-        return $prefix . str_pad($nextIndex, 4, '0', STR_PAD_LEFT);
+        return $prefix.'.POIN-'.str_pad((string) $nextNumber, 8, '0', STR_PAD_LEFT);
     }
 
-    private function normalizeMaterialCode(mixed $value)
+    private function normalizeMaterialCode(mixed $value): ?int
     {
-        if ($value === null || $value === '' || (is_string($value) && trim($value) === '')) {
-            return 0;
+        if ($value === null || $value === '') {
+            return null;
         }
-        $val = (float) $value;
-        return ($val == 0.0) ? 0 : $val;
+
+        return (int) $value;
     }
 
-    private function resolveCustomerForPoin(array $validated)
+    private function resolveCustomerForPoin(array $validated): object
     {
-        $customerName = trim((string) $validated['customer_name']);
-        
-        $customer = null;
-        if (!empty($validated['kd_customer'])) {
-            $customer = DB::table('tb_cs')->where('kd_cs', $validated['kd_customer'])->first();
+        $customerCode = trim((string) ($validated['kd_customer'] ?? ''));
+        $customerName = trim((string) ($validated['customer_name'] ?? ''));
+        $customerByCode = null;
+
+        if ($customerCode !== '') {
+            $customerByCode = DB::table('tb_cs')
+                ->whereRaw('lower(trim(kd_cs)) = lower(trim(?))', [$customerCode])
+                ->first(['kd_cs', 'nm_cs']);
+
+            if (
+                $customerByCode &&
+                $customerName !== '' &&
+                strtolower(trim((string) $customerByCode->nm_cs)) === strtolower($customerName)
+            ) {
+                return $customerByCode;
+            }
         }
-        
-        if (!$customer) {
-            $customer = DB::table('tb_cs')
+
+        if ($customerName !== '') {
+            $customerByName = DB::table('tb_cs')
                 ->whereRaw('lower(trim(nm_cs)) = lower(trim(?))', [$customerName])
-                ->first();
-        }
+                ->orderByDesc('kd_cs')
+                ->first(['kd_cs', 'nm_cs']);
 
-        if (!$customer) {
-            if (empty($validated['kd_customer'])) {
-                $maxKd = DB::table('tb_cs')->max('kd_cs');
-                $nextNum = $maxKd ? ((int) substr($maxKd, 2)) + 1 : 1;
-                $newKdCs = 'CS' . str_pad($nextNum, 4, '0', STR_PAD_LEFT);
-            } else {
-                $newKdCs = $validated['kd_customer'];
-            }
-
-            DB::table('tb_cs')->insert([
-                'kd_cs' => $newKdCs,
-                'nm_cs' => $customerName,
-                'Attnd' => trim((string) ($validated['sender_name'] ?? '')),
-            ]);
-
-            $customer = DB::table('tb_cs')->where('kd_cs', $newKdCs)->first();
-        } else {
-            if (!empty($validated['sender_name'])) {
-                $existingSender = trim((string) ($customer->Attnd ?? ''));
-                $newSender = trim((string) $validated['sender_name']);
-
-                if (empty($existingSender) || strcasecmp($existingSender, $newSender) !== 0) {
-                    DB::table('tb_cs')
-                        ->where('kd_cs', $customer->kd_cs)
-                        ->update(['Attnd' => $newSender]);
-                }
+            if ($customerByName) {
+                return $customerByName;
             }
         }
 
-        return $customer;
+        if ($customerCode !== '') {
+            if ($customerByCode) {
+                return $customerByCode;
+            }
+        }
+
+        throw ValidationException::withMessages([
+            'customer_name' => "Customer {$customerName} tidak ditemukan di master customer.",
+        ]);
     }
 
     public function hasPartialDo(string $kodePoin): bool
     {
-        return DB::table('tb_do')
+        return DB::table('tb_detailpoin')
             ->where('kode_poin', $kodePoin)
-            ->where('stat', 'partial')
+            ->whereRaw('coalesce(sisa_qtydo, 0) <> 0')
+            ->whereRaw('coalesce(sisa_qtydo, 0) <> coalesce(qty, 0)')
             ->exists();
     }
 
     public function recalculateHeaderTotals(string $kodePoin): void
     {
-        $header = DB::table('tb_poin')->where('kode_poin', $kodePoin)->first();
-        if (!$header) return;
+        $header = DB::table('tb_poin')
+            ->where('kode_poin', $kodePoin)
+            ->first(['ppn_input_percent']);
+
+        if (! $header) {
+            return;
+        }
 
         $totalPrice = (float) (DB::table('tb_detailpoin')
             ->where('kode_poin', $kodePoin)
             ->selectRaw('coalesce(sum(coalesce(cast(qty as decimal(18,4)), 0) * coalesce(cast(price_po_in as decimal(18,4)), 0)), 0) as total_price')
             ->value('total_price') ?? 0);
-
         $ppnPercentInput = (float) ($header->ppn_input_percent ?? 0);
-        $ppnPercentUsed = (float) ($header->ppn_percent_used ?? 0);
-
+        $ppnPercentInputValue = $ppnPercentInput <= 0 ? 0.0 : $ppnPercentInput;
+        $ppnPercentUsed = $ppnPercentInputValue <= 0 ? 0.0 : min(11.0, $ppnPercentInputValue);
         $dpp = $ppnPercentInput > 0
             ? round((11 / $ppnPercentInput) * $totalPrice, 2)
             : $totalPrice;
@@ -135,15 +143,12 @@ class PurchaseOrderInService
 
     public function deletePurchaseOrderIn(string $kodePoin): void
     {
-        $header = DB::table('tb_poin')
-            ->where('kode_poin', $kodePoin)
-            ->first();
-
-        if (!$header) {
-            throw new \Exception('Data PO In tidak ditemukan.', 404);
-        }
-
         DB::transaction(function () use ($kodePoin) {
+            $header = DB::table('tb_poin')->where('kode_poin', $kodePoin)
+                ->lockForUpdate()->first(['kode_poin']);
+            if (! $header) {
+                throw new \RuntimeException('Data PO In tidak ditemukan.', 404);
+            }
             DB::table('tb_detailpoin')
                 ->where('kode_poin', $kodePoin)
                 ->delete();
@@ -151,13 +156,13 @@ class PurchaseOrderInService
             DB::table('tb_poin')
                 ->where('kode_poin', $kodePoin)
                 ->delete();
-        });
+        }, attempts: 3);
     }
 
     public function createPurchaseOrderIn(array $validated, string $dbPrefix): string
     {
         $noPoin = trim((string) $validated['no_poin']);
-        
+
         return DB::transaction(function () use ($validated, $noPoin, $dbPrefix) {
             $duplicateExists = DB::table('tb_poin')
                 ->whereRaw('lower(trim(no_poin)) = lower(trim(?))', [$noPoin])
@@ -184,6 +189,7 @@ class PurchaseOrderInService
                 $totalPrice = collect($validated['materials'])->sum(function ($item) {
                     $qty = (float) ($item['qty'] ?? 0);
                     $price = (float) ($item['price_po_in'] ?? 0);
+
                     return $qty * $price;
                 });
             }
@@ -223,37 +229,40 @@ class PurchaseOrderInService
             foreach (($validated['materials'] ?? []) as $index => $item) {
                 $qty = (float) ($item['qty'] ?? 0);
                 $price = (float) ($item['price_po_in'] ?? 0);
-                $total = array_key_exists('total_price_po_in', $item)
+                $totalDetail = isset($item['total_price_po_in'])
                     ? (float) $item['total_price_po_in']
                     : ($qty * $price);
-                
-                $sisaQtyPr = $qty;
 
-                $detailData[] = [
-                    'id' => $detailId++,
+                $kdMaterial = $this->normalizeMaterialCode($item['kd_material'] ?? null);
+
+                $detailRow = [
+                    'id' => $detailId + $index,
                     'id_poin' => $headerId,
                     'kode_poin' => $kodePoin,
-                    'no_poin' => $noPoin,
-                    'kd_material' => $this->normalizeMaterialCode($item['kd_material'] ?? null),
-                    'material' => trim((string) $item['material']),
+                    'kd_material' => $kdMaterial,
+                    'material' => trim((string) ($item['material'] ?? '')),
                     'qty' => $qty,
-                    'sisa_qtypr' => $sisaQtyPr,
+                    'sisa_qtypr' => $qty,
                     'sisa_qtydo' => $qty,
                     'satuan' => trim((string) ($item['satuan'] ?? '')),
                     'price_po_in' => $price,
-                    'total_price_po_in' => $total,
+                    'total_price_po_in' => $totalDetail,
                     'remark' => trim((string) ($item['remark'] ?? '')),
                     'created_at' => $nowGmt8,
                     'updated_at' => $nowGmt8,
                 ];
+
+                $detailRow['no_poin'] = $noPoin;
+
+                $detailData[] = $detailRow;
             }
 
-            if (!empty($detailData)) {
-                DB::table('tb_detailpoin')->insert($detailData);
+            foreach (array_chunk($detailData, self::DETAIL_BATCH_SIZE) as $batch) {
+                DB::table('tb_detailpoin')->insert($batch);
             }
 
             return $kodePoin;
-        });
+        }, attempts: 3);
     }
 
     public function updatePurchaseOrderIn(string $kodePoin, array $validated): void
@@ -262,28 +271,26 @@ class PurchaseOrderInService
             $header = DB::table('tb_poin')
                 ->where('kode_poin', $kodePoin)
                 ->lockForUpdate()
-                ->first(['kode_poin', 'no_poin']);
+                ->first();
 
-            if (!$header) {
+            if (! $header) {
                 throw new \RuntimeException('Data PO In tidak ditemukan.');
             }
 
             $hasPartialDo = $this->hasPartialDo($kodePoin);
             if ($hasPartialDo) {
-                $current = DB::table('tb_poin')
-                    ->where('kode_poin', $kodePoin)
-                    ->first();
+                $current = $header;
                 if ($current) {
-                    $hasChanged = 
-                        trim((string)$validated['no_poin']) !== trim((string)($current->no_poin ?? '')) ||
+                    $hasChanged =
+                        trim((string) $validated['no_poin']) !== trim((string) ($current->no_poin ?? '')) ||
                         $this->parseDateOrNull($validated['date'] ?? null) !== $current->date_poin ||
                         $this->parseDateOrNull($validated['delivery_date'] ?? null) !== $current->delivery_date ||
-                        trim((string)$validated['customer_name']) !== trim((string)($current->customer_name ?? '')) ||
-                        trim((string)($validated['payment_term'] ?? '')) !== trim((string)($current->payment_term ?? '')) ||
-                        trim((string)$validated['franco_loco']) !== trim((string)($current->franco_loco ?? '')) ||
-                        trim((string)$validated['sender_name']) !== trim((string)($current->sender_name ?? '')) ||
-                        trim((string)($validated['note'] ?? '')) !== trim((string)($current->note_doc ?? '')) ||
-                        (float)($validated['ppn_percent'] ?? 0) !== (float)($current->ppn_input_percent ?? 0);
+                        trim((string) $validated['customer_name']) !== trim((string) ($current->customer_name ?? '')) ||
+                        trim((string) ($validated['payment_term'] ?? '')) !== trim((string) ($current->payment_term ?? '')) ||
+                        trim((string) $validated['franco_loco']) !== trim((string) ($current->franco_loco ?? '')) ||
+                        trim((string) $validated['sender_name']) !== trim((string) ($current->sender_name ?? '')) ||
+                        trim((string) ($validated['note'] ?? '')) !== trim((string) ($current->note_doc ?? '')) ||
+                        (float) ($validated['ppn_percent'] ?? 0) !== (float) ($current->ppn_input_percent ?? 0);
 
                     if ($hasChanged) {
                         throw ValidationException::withMessages([
@@ -293,6 +300,7 @@ class PurchaseOrderInService
                 }
             }
 
+            $oldNoPoin = trim((string) ($header->no_poin ?? ''));
             $newNoPoin = trim((string) $validated['no_poin']);
 
             $duplicateExists = DB::table('tb_poin')
@@ -350,171 +358,302 @@ class PurchaseOrderInService
                 ->where('kode_poin', $kodePoin)
                 ->update([
                     'no_poin' => $newNoPoin,
+                    'updated_at' => $nowGmt8,
                 ]);
-        });
+
+            $this->syncPurchaseRequirementRefPo($oldNoPoin, $newNoPoin);
+        }, attempts: 3);
+    }
+
+    /** Update PR references in bounded statements, rather than one UPDATE per related row. */
+    private function syncPurchaseRequirementRefPo(string $oldRefPo, string $newRefPo): void
+    {
+        $oldRefPo = trim($oldRefPo);
+        $newRefPo = trim($newRefPo);
+        if ($oldRefPo === '' || $newRefPo === '' || strcasecmp($oldRefPo, $newRefPo) === 0) {
+            return;
+        }
+
+        $connection = DB::connection();
+        $grammar = $connection->getQueryGrammar();
+        foreach (['tb_pr' => ['no_pr'], 'tb_detailpr' => ['no_pr', 'no']] as $table => $keys) {
+            // LIKE finds candidates; exact comma-separated tokens are checked below in PHP.
+            $pattern = '%'.str_replace(['!', '%', '_'], ['!!', '!%', '!_'], strtolower($oldRefPo)).'%';
+            $query = $connection->table($table)->whereRaw("lower(ref_po) like ? escape '!'", [$pattern]);
+            foreach ($keys as $key) {
+                $query->orderBy($key);
+            }
+            // Read keys before updating: offset pagination would skip rows as ref_po stops matching.
+            $query->get([...$keys, 'ref_po'])->chunk(100)->each(function ($rows) use ($connection, $grammar, $table, $keys, $oldRefPo, $newRefPo) {
+                $cases = [];
+                $conditions = [];
+                $caseBindings = [];
+                $whereBindings = [];
+                foreach ($rows as $row) {
+                    $parts = array_map('trim', explode(',', (string) $row->ref_po));
+                    $changed = false;
+                    foreach ($parts as &$part) {
+                        if (strcasecmp($part, $oldRefPo) === 0) {
+                            $part = $newRefPo;
+                            $changed = true;
+                        }
+                    }
+                    unset($part);
+                    if (! $changed) {
+                        continue;
+                    }
+                    $condition = implode(' and ', array_map(fn ($key) => $grammar->wrap($key).' = ?', $keys));
+                    $values = array_map(fn ($key) => $row->{$key}, $keys);
+                    $cases[] = 'when ('.$condition.') then ?';
+                    array_push($caseBindings, ...$values);
+                    $caseBindings[] = implode(', ', $parts);
+                    $conditions[] = '('.$condition.')';
+                    array_push($whereBindings, ...$values);
+                }
+                if ($cases !== []) {
+                    $column = $grammar->wrap('ref_po');
+                    $sql = 'update '.$grammar->wrapTable($table).' set '.$column.' = case '
+                        .implode(' ', $cases).' else '.$column.' end where '.implode(' or ', $conditions);
+                    $connection->update($sql, array_merge($caseBindings, $whereBindings));
+                }
+            });
+        }
     }
 
     public function addPurchaseOrderDetail(string $kodePoin, array $validated): array
     {
-        $header = DB::table('tb_poin')
-            ->where('kode_poin', $kodePoin)
-            ->first(['id', 'no_poin']);
+        return DB::transaction(function () use ($kodePoin, $validated) {
+            $header = DB::table('tb_poin')
+                ->where('kode_poin', $kodePoin)
+                ->lockForUpdate()->first(['id', 'no_poin']);
 
-        if (!$header) {
-            throw new \Exception('Data PO In tidak ditemukan.', 404);
-        }
+            if (! $header) {
+                throw new \Exception('Data PO In tidak ditemukan.', 404);
+            }
 
-        if ($this->hasPartialDo($kodePoin)) {
-            throw ValidationException::withMessages([
-                'kd_material' => 'Material tidak dapat ditambahkan karena PO In ini memiliki pengiriman partial.',
-            ]);
-        }
-
-        $qty = (float) ($validated['qty'] ?? 0);
-        $price = (float) ($validated['price_po_in'] ?? 0);
-        $total = array_key_exists('total_price_po_in', $validated)
-            ? (float) $validated['total_price_po_in']
-            : ($qty * $price);
-        $nowGmt8 = now('Asia/Singapore');
-
-        $kdMaterial = $this->normalizeMaterialCode($validated['kd_material'] ?? null);
-        $sisaQtyPr = $qty;
-        $detailId = ((int) (DB::table('tb_detailpoin')->max('id') ?? 0)) + 1;
-
-        $insertData = [
-            'id' => $detailId,
-            'id_poin' => $header->id,
-            'kode_poin' => $kodePoin,
-            'kd_material' => $kdMaterial,
-            'material' => trim((string) $validated['material']),
-            'qty' => $qty,
-            'sisa_qtypr' => $sisaQtyPr,
-            'sisa_qtydo' => $qty,
-            'satuan' => trim((string) ($validated['satuan'] ?? '')),
-            'price_po_in' => $price,
-            'total_price_po_in' => $total,
-            'remark' => trim((string) ($validated['remark'] ?? '')),
-            'created_at' => $nowGmt8,
-            'updated_at' => $nowGmt8,
-            'no_poin' => trim((string) ($header->no_poin ?? ''))
-        ];
-
-        DB::table('tb_detailpoin')->insert($insertData);
-        $this->recalculateHeaderTotals($kodePoin);
-
-        return [
-            'id' => $detailId,
-            'sisa_qtypr' => $sisaQtyPr,
-            'sisa_qtydo' => $qty,
-        ];
-    }
-    
-    public function updatePurchaseOrderDetail(string $kodePoin, int $detailId, array $validated): void
-    {
-        $headerExists = DB::table('tb_poin')
-            ->where('kode_poin', $kodePoin)
-            ->exists();
-
-        if (!$headerExists) {
-            throw new \Exception('Data PO In tidak ditemukan.', 404);
-        }
-
-        $detail = DB::table('tb_detailpoin')
-            ->where('kode_poin', $kodePoin)
-            ->where('id', $detailId)
-            ->first();
-
-        if (!$detail) {
-            throw new \Exception('Data material tidak ditemukan.', 404);
-        }
-
-        $qty = (float) ($validated['qty'] ?? 0);
-        $originalQty = (float) ($detail->qty ?? 0);
-        $sisaQtyPrBefore = (float) ($detail->sisa_qtypr ?? 0);
-        $usedQtyPr = max(0, $originalQty - $sisaQtyPrBefore);
-        $sisaQtyDoBefore = (float) ($detail->sisa_qtydo ?? $originalQty);
-
-        $hasPartialDo = $this->hasPartialDo($kodePoin);
-        if ($hasPartialDo) {
-            $isEditableItem = ($sisaQtyDoBefore != 0.0);
-            if (!$isEditableItem) {
+            if ($this->hasPartialDo($kodePoin)) {
                 throw ValidationException::withMessages([
-                    'qty' => 'Material ini tidak dapat diubah karena sudah terkirim sepenuhnya.',
+                    'kd_material' => 'Material tidak dapat ditambahkan karena PO In ini memiliki pengiriman partial.',
                 ]);
             }
 
-            $deliveredQty = $originalQty - $sisaQtyDoBefore;
-            if ($qty < $deliveredQty) {
-                throw ValidationException::withMessages([
-                    'qty' => 'Qty tidak boleh kurang dari jumlah yang sudah terkirim (' . number_format($deliveredQty, 0, ',', '.') . ').',
-                ]);
-            }
+            $qty = (float) ($validated['qty'] ?? 0);
+            $price = (float) ($validated['price_po_in'] ?? 0);
+            $total = array_key_exists('total_price_po_in', $validated)
+                ? (float) $validated['total_price_po_in']
+                : ($qty * $price);
+            $nowGmt8 = now('Asia/Singapore');
 
-            if ($qty < $usedQtyPr) {
-                throw ValidationException::withMessages([
-                    'qty' => 'Qty tidak boleh kurang dari qty yang sudah ada pada tb_detailpr (' . number_format($usedQtyPr, 0, ',', '.') . ').',
-                ]);
-            }
+            $kdMaterial = $this->normalizeMaterialCode($validated['kd_material'] ?? null);
+            $sisaQtyPr = $qty;
+            $detailId = ((int) (DB::table('tb_detailpoin')->max('id') ?? 0)) + 1;
 
-            $hasOtherChanges = 
-                (string)$this->normalizeMaterialCode($validated['kd_material'] ?? null) !== (string)$detail->kd_material ||
-                trim((string) $validated['material']) !== trim((string)$detail->material) ||
-                trim((string) ($validated['satuan'] ?? '')) !== trim((string)($detail->satuan ?? '')) ||
-                (float)($validated['price_po_in'] ?? 0) !== (float)($detail->price_po_in ?? 0) ||
-                trim((string) ($validated['remark'] ?? '')) !== trim((string)($detail->remark ?? ''));
-
-            if ($hasOtherChanges) {
-                throw ValidationException::withMessages([
-                    'qty' => 'Hanya Qty yang boleh diubah untuk menutup sisa DO.',
-                ]);
-            }
-        } else {
-            if ($sisaQtyPrBefore == 0.0 && $qty <= $originalQty) {
-                throw ValidationException::withMessages([
-                    'qty' => 'Sisa Qty PR sudah 0. Qty harus lebih dari qty awal.',
-                ]);
-            }
-
-            if ($sisaQtyPrBefore != 0.0 && $qty < $usedQtyPr) {
-                throw ValidationException::withMessages([
-                    'qty' => 'Qty tidak boleh kurang dari qty yang sudah ada pada tb_detailpr.',
-                ]);
-            }
-
-            $usedQtyDo = max(0, $originalQty - $sisaQtyDoBefore);
-            if ($qty < $usedQtyDo) {
-                throw ValidationException::withMessages([
-                    'qty' => 'Qty tidak boleh kurang dari qty yang sudah ada penerimaan material (MI).',
-                ]);
-            }
-        }
-
-        $price = (float) ($validated['price_po_in'] ?? 0);
-        $total = array_key_exists('total_price_po_in', $validated)
-            ? (float) $validated['total_price_po_in']
-            : ($qty * $price);
-        $nowGmt8 = now('Asia/Singapore');
-
-        $kdMaterial = $this->normalizeMaterialCode($validated['kd_material'] ?? null);
-        $sisaQtyPr = max(0, $sisaQtyPrBefore + ($qty - $originalQty));
-        $sisaQtyDo = max(0.0, $sisaQtyDoBefore + ($qty - $originalQty));
-
-        DB::table('tb_detailpoin')
-            ->where('kode_poin', $kodePoin)
-            ->where('id', $detailId)
-            ->update([
+            $insertData = [
+                'id' => $detailId,
+                'id_poin' => $header->id,
+                'kode_poin' => $kodePoin,
                 'kd_material' => $kdMaterial,
                 'material' => trim((string) $validated['material']),
                 'qty' => $qty,
                 'sisa_qtypr' => $sisaQtyPr,
-                'sisa_qtydo' => $sisaQtyDo,
+                'sisa_qtydo' => $qty,
                 'satuan' => trim((string) ($validated['satuan'] ?? '')),
                 'price_po_in' => $price,
                 'total_price_po_in' => $total,
                 'remark' => trim((string) ($validated['remark'] ?? '')),
+                'created_at' => $nowGmt8,
                 'updated_at' => $nowGmt8,
-            ]);
+                'no_poin' => trim((string) ($header->no_poin ?? '')),
+            ];
 
-        $this->recalculateHeaderTotals($kodePoin);
+            DB::table('tb_detailpoin')->insert($insertData);
+            $this->recalculateHeaderTotals($kodePoin);
+
+            return [
+                'id' => $detailId,
+                'sisa_qtypr' => $sisaQtyPr,
+                'sisa_qtydo' => $qty,
+            ];
+        }, attempts: 3);
+    }
+
+    public function updatePurchaseOrderDetail(string $kodePoin, int $detailId, array $validated): void
+    {
+        DB::transaction(function () use ($kodePoin, $detailId, $validated) {
+            $headerExists = DB::table('tb_poin')
+                ->where('kode_poin', $kodePoin)
+                ->lockForUpdate()->first(['kode_poin']);
+
+            if (! $headerExists) {
+                throw new \Exception('Data PO In tidak ditemukan.', 404);
+            }
+
+            $detail = DB::table('tb_detailpoin')
+                ->where('kode_poin', $kodePoin)
+                ->where('id', $detailId)
+                ->lockForUpdate()->first();
+
+            if (! $detail) {
+                throw new \Exception('Data material tidak ditemukan.', 404);
+            }
+
+            $qty = (float) ($validated['qty'] ?? 0);
+            $originalQty = (float) ($detail->qty ?? 0);
+            $sisaQtyPrBefore = (float) ($detail->sisa_qtypr ?? 0);
+            $usedQtyPr = max(0, $originalQty - $sisaQtyPrBefore);
+            $sisaQtyDoBefore = (float) ($detail->sisa_qtydo ?? $originalQty);
+
+            $hasPartialDo = $this->hasPartialDo($kodePoin);
+            if ($hasPartialDo) {
+                $isEditableItem = ($sisaQtyDoBefore != 0.0);
+                if (! $isEditableItem) {
+                    throw ValidationException::withMessages([
+                        'qty' => 'Material ini tidak dapat diubah karena sudah terkirim sepenuhnya.',
+                    ]);
+                }
+
+                $deliveredQty = $originalQty - $sisaQtyDoBefore;
+                if ($qty < $deliveredQty) {
+                    throw ValidationException::withMessages([
+                        'qty' => 'Qty tidak boleh kurang dari jumlah yang sudah terkirim ('.number_format($deliveredQty, 0, ',', '.').').',
+                    ]);
+                }
+
+                if ($qty < $usedQtyPr) {
+                    throw ValidationException::withMessages([
+                        'qty' => 'Qty tidak boleh kurang dari qty yang sudah ada pada tb_detailpr ('.number_format($usedQtyPr, 0, ',', '.').').',
+                    ]);
+                }
+
+                $hasOtherChanges =
+                    (string) $this->normalizeMaterialCode($validated['kd_material'] ?? null) !== (string) $detail->kd_material ||
+                    trim((string) $validated['material']) !== trim((string) $detail->material) ||
+                    trim((string) ($validated['satuan'] ?? '')) !== trim((string) ($detail->satuan ?? '')) ||
+                    (float) ($validated['price_po_in'] ?? 0) !== (float) ($detail->price_po_in ?? 0) ||
+                    trim((string) ($validated['remark'] ?? '')) !== trim((string) ($detail->remark ?? ''));
+
+                if ($hasOtherChanges) {
+                    throw ValidationException::withMessages([
+                        'qty' => 'Hanya Qty yang boleh diubah untuk menutup sisa DO.',
+                    ]);
+                }
+            } else {
+                if ($sisaQtyPrBefore == 0.0 && $qty <= $originalQty) {
+                    throw ValidationException::withMessages([
+                        'qty' => 'Sisa Qty PR sudah 0. Qty harus lebih dari qty awal.',
+                    ]);
+                }
+
+                if ($sisaQtyPrBefore != 0.0 && $qty < $usedQtyPr) {
+                    throw ValidationException::withMessages([
+                        'qty' => 'Qty tidak boleh kurang dari qty yang sudah ada pada tb_detailpr.',
+                    ]);
+                }
+
+                $usedQtyDo = max(0, $originalQty - $sisaQtyDoBefore);
+                if ($qty < $usedQtyDo) {
+                    throw ValidationException::withMessages([
+                        'qty' => 'Qty tidak boleh kurang dari qty yang sudah ada penerimaan material (MI).',
+                    ]);
+                }
+            }
+
+            $price = (float) ($validated['price_po_in'] ?? 0);
+            $total = array_key_exists('total_price_po_in', $validated)
+                ? (float) $validated['total_price_po_in']
+                : ($qty * $price);
+            $nowGmt8 = now('Asia/Singapore');
+
+            $kdMaterial = $this->normalizeMaterialCode($validated['kd_material'] ?? null);
+            $sisaQtyPr = max(0, $sisaQtyPrBefore + ($qty - $originalQty));
+            $sisaQtyDo = max(0.0, $sisaQtyDoBefore + ($qty - $originalQty));
+
+            DB::table('tb_detailpoin')
+                ->where('kode_poin', $kodePoin)
+                ->where('id', $detailId)
+                ->update([
+                    'kd_material' => $kdMaterial,
+                    'material' => trim((string) $validated['material']),
+                    'qty' => $qty,
+                    'sisa_qtypr' => $sisaQtyPr,
+                    'sisa_qtydo' => $sisaQtyDo,
+                    'satuan' => trim((string) ($validated['satuan'] ?? '')),
+                    'price_po_in' => $price,
+                    'total_price_po_in' => $total,
+                    'remark' => trim((string) ($validated['remark'] ?? '')),
+                    'updated_at' => $nowGmt8,
+                ]);
+
+            $this->recalculateHeaderTotals($kodePoin);
+        }, attempts: 3);
+    }
+
+    public function deletePurchaseOrderDetail(string $kodePoin, int $detailId): void
+    {
+        DB::transaction(function () use ($kodePoin, $detailId) {
+            $poHeader = DB::table('tb_poin')
+                ->where('kode_poin', $kodePoin)
+                ->lockForUpdate()->first(['no_poin', 'customer_name']);
+
+            if (! $poHeader) {
+                throw new \RuntimeException('Data PO In tidak ditemukan.', 404);
+            }
+
+            if ($this->hasPartialDo($kodePoin)) {
+                throw new \RuntimeException('Material tidak dapat dihapus karena PO In ini memiliki pengiriman partial.', 422);
+            }
+
+            $detail = DB::table('tb_detailpoin')
+                ->where('kode_poin', $kodePoin)
+                ->where('id', $detailId)
+                ->first();
+
+            if (! $detail) {
+                throw new \RuntimeException('Data material tidak ditemukan.', 404);
+            }
+
+            if ($poHeader) {
+                $hasPr = DB::table('tb_detailpr')
+                    ->where('ref_po', trim((string) $poHeader->no_poin))
+                    ->whereRaw('lower(trim(for_customer)) = lower(trim(?))', [(string) $poHeader->customer_name])
+                    ->where('kd_material', $detail->kd_material)
+                    ->exists();
+
+                if ($hasPr) {
+                    throw new \RuntimeException('Material tidak dapat dihapus karena sudah dibuat PR.', 422);
+                }
+            }
+
+            if (isset($detail->sisa_qtypr) && isset($detail->qty) && isset($detail->sisa_qtydo)) {
+                $sisaQtyPr = (float) ($detail->sisa_qtypr ?? 0);
+                $sisaQtyDo = (float) ($detail->sisa_qtydo ?? 0);
+                $qty = (float) ($detail->qty ?? 0);
+                if ($sisaQtyPr < $qty) {
+                    throw new \RuntimeException('Material tidak dapat dihapus karena sudah dibuat PR.', 422);
+                }
+                if ($sisaQtyDo < $qty) {
+                    throw new \RuntimeException('Material tidak dapat dihapus karena sudah ada penerimaan material (MI).', 422);
+                }
+            }
+
+            $count = DB::table('tb_detailpoin')
+                ->where('kode_poin', $kodePoin)
+                ->count();
+
+            if ($count <= 1) {
+                throw new \RuntimeException('Gagal menghapus. Minimal harus ada 1 material dalam PO In.', 400);
+            }
+
+            $deleted = DB::table('tb_detailpoin')
+                ->where('kode_poin', $kodePoin)
+                ->where('id', $detailId)
+                ->delete();
+
+            if (! $deleted) {
+                throw new \RuntimeException('Data material tidak ditemukan.', 404);
+            }
+
+            $this->recalculateHeaderTotals($kodePoin);
+        }, attempts: 3);
     }
 }
