@@ -15,8 +15,9 @@ import {
     TrendingUp,
     UserRound,
     Wallet,
+    Zap,
 } from 'lucide-react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import '../../../css/login.css';
 
 const databaseLabels = {
@@ -28,6 +29,26 @@ const databaseLabels = {
     dbjms: 'DB JMS',
 };
 
+/* ─── Clock widget ─────────────────────────────────────────────────────── */
+function LiveClock() {
+    const [time, setTime] = useState(() => new Date());
+    useEffect(() => {
+        const id = setInterval(() => setTime(new Date()), 1000);
+        return () => clearInterval(id);
+    }, []);
+    const pad = (n) => String(n).padStart(2, '0');
+    const days = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+    const months = ['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Agt','Sep','Okt','Nov','Des'];
+    return (
+        <div className="login-clock" aria-live="off" aria-hidden="true">
+            {days[time.getDay()]}, {time.getDate()} {months[time.getMonth()]} {time.getFullYear()}
+            &ensp;·&ensp;
+            {pad(time.getHours())}:{pad(time.getMinutes())}:{pad(time.getSeconds())}
+        </div>
+    );
+}
+
+/* ─── Intention note ────────────────────────────────────────────────────── */
 function IntentionNote({ compact = false }) {
     return (
         <aside
@@ -38,7 +59,7 @@ function IntentionNote({ compact = false }) {
             }
         >
             <div className="login-eyebrow login-intention-label">
-                <Sparkles size={14} aria-hidden="true" />
+                <Sparkles size={13} aria-hidden="true" />
                 AWALI DENGAN NIAT BAIK
             </div>
             <p className="login-intention-title">
@@ -52,50 +73,118 @@ function IntentionNote({ compact = false }) {
     );
 }
 
-function WorkspaceVisual() {
+/* ─── Stats row ─────────────────────────────────────────────────────────── */
+function StatsRow() {
     return (
-        <div className="login-visual" aria-hidden="true">
-            <svg
-                className="login-connections"
-                viewBox="0 0 480 184"
-                fill="none"
-            >
-                <path
-                    d="M240 62V88M240 88H77V128M240 88V128M240 88H403V128"
-                    stroke="#467082"
-                    strokeWidth="1.5"
-                />
-                <path
-                    d="M77 118V128M240 118V128M403 118V128"
-                    stroke="#8ce4c4"
-                    strokeWidth="2"
-                />
-                <circle cx="240" cy="88" r="4" fill="#8ce4c4" />
-            </svg>
-            <div className="login-flow-hub">
-                <Layers3 size={20} />
-                <span>i-System</span>
-                <span className="login-flow-dot" />
+        <div className="login-stats" aria-hidden="true">
+            <div className="login-stat">
+                <div className="login-stat-value">6</div>
+                <div className="login-stat-label">Perusahaan</div>
             </div>
-            <div className="login-flow-modules">
-                <div>
-                    <TrendingUp size={17} />
-                    <span>Penjualan</span>
-                </div>
-                <div>
-                    <Package size={17} />
-                    <span>Persediaan</span>
-                </div>
-                <div>
-                    <Wallet size={17} />
-                    <span>Keuangan</span>
-                </div>
+            <div className="login-stat">
+                <div className="login-stat-value">3</div>
+                <div className="login-stat-label">Modul Utama</div>
             </div>
-            <p className="login-visual-caption">SATU ALUR. SEMUA TERHUBUNG.</p>
+            <div className="login-stat">
+                <div className="login-stat-value">1</div>
+                <div className="login-stat-label">Platform ERP</div>
+            </div>
         </div>
     );
 }
 
+/* ─── Workspace visual (animated SVG diagram) ───────────────────────────── */
+function WorkspaceVisual() {
+    return (
+        <div className="login-visual" aria-hidden="true">
+            {/* Animated connection lines */}
+            <svg
+                className="login-connections"
+                viewBox="0 0 480 184"
+                fill="none"
+                preserveAspectRatio="xMidYMid meet"
+            >
+                {/* Trunk lines */}
+                <path
+                    className="login-conn-line"
+                    d="M240 64V90M240 90H77V130M240 90V130M240 90H403V130"
+                    stroke="#00d4aa"
+                    strokeWidth="1.5"
+                    strokeLinecap="round"
+                />
+                {/* Branch glow lines */}
+                <path
+                    className="login-conn-glow"
+                    d="M77 120V130M240 120V130M403 120V130"
+                    stroke="#3b82f6"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                />
+                {/* Hub pulse circle */}
+                <circle cx="240" cy="90" r="5" fill="#00d4aa" opacity="0.9">
+                    <animate
+                        attributeName="r"
+                        values="4;7;4"
+                        dur="2.5s"
+                        repeatCount="indefinite"
+                    />
+                    <animate
+                        attributeName="opacity"
+                        values="0.9;0.3;0.9"
+                        dur="2.5s"
+                        repeatCount="indefinite"
+                    />
+                </circle>
+                {/* Node dots */}
+                <circle cx="77" cy="130" r="3" fill="#3b82f6" opacity="0.8" />
+                <circle cx="240" cy="130" r="3" fill="#3b82f6" opacity="0.8" />
+                <circle cx="403" cy="130" r="3" fill="#3b82f6" opacity="0.8" />
+            </svg>
+
+            {/* Hub chip */}
+            <div className="login-flow-hub">
+                <Layers3 size={18} />
+                <span>i-System</span>
+                <span className="login-flow-dot" />
+            </div>
+
+            {/* Module chips */}
+            <div className="login-flow-modules">
+                <div>
+                    <TrendingUp size={15} />
+                    <span>Penjualan</span>
+                </div>
+                <div>
+                    <Package size={15} />
+                    <span>Persediaan</span>
+                </div>
+                <div>
+                    <Wallet size={15} />
+                    <span>Keuangan</span>
+                </div>
+            </div>
+
+            <p className="login-visual-caption">SATU ALUR · SEMUA TERHUBUNG</p>
+        </div>
+    );
+}
+
+/* ─── Animated background canvas ───────────────────────────────────────── */
+function BackgroundCanvas() {
+    return (
+        <div className="login-bg-canvas" aria-hidden="true">
+            <div className="login-grid" />
+            <div className="login-blob login-blob-1" />
+            <div className="login-blob login-blob-2" />
+            <div className="login-blob login-blob-3" />
+            {[1,2,3,4,5,6,7,8].map((i) => (
+                <span key={i} className="login-particle" />
+            ))}
+        </div>
+    );
+}
+
+/* ─── Main login page ───────────────────────────────────────────────────── */
 export default function Login({ status, databases = [], selectedDatabase }) {
     const page = usePage();
     const defaultDatabase = databases.includes(selectedDatabase)
@@ -128,7 +217,10 @@ export default function Login({ status, databases = [], selectedDatabase }) {
     return (
         <>
             <Head title="Masuk" />
+            <BackgroundCanvas />
+
             <div className="login-page">
+                {/* ── Top bar ──────────────────────────────────────────── */}
                 <header className="login-topbar">
                     <a
                         className="login-brand"
@@ -141,20 +233,25 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                             <small>Enterprise Resource Planning</small>
                         </span>
                     </a>
-                    <span className="login-topbar-note">
-                        Ruang kerja. Lebih terarah.
-                    </span>
+
+                    <div className="login-topbar-badge" aria-hidden="true">
+                        <span className="login-topbar-badge-dot" />
+                        Sistem Online
+                    </div>
                 </header>
 
+                {/* ── Main card ────────────────────────────────────────── */}
                 <main className="login-workspace">
+
+                    {/* Left: story panel */}
                     <section
                         className="login-story"
                         aria-label="Selamat datang di i-System"
                     >
                         <div className="login-story-heading">
                             <div className="login-eyebrow">
-                                <span className="login-eyebrow-line" /> RUANG
-                                KERJA TERINTEGRASI
+                                <Zap size={12} aria-hidden="true" />
+                                RUANG KERJA TERINTEGRASI
                             </div>
                             <h2>
                                 Langkah yang baik.
@@ -167,8 +264,11 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                                 satu ruang kerja.
                             </p>
                         </div>
+
+                        <StatsRow />
                         <WorkspaceVisual />
                         <IntentionNote />
+
                         <span
                             className="login-story-orbit login-story-orbit-one"
                             aria-hidden="true"
@@ -179,11 +279,14 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                         />
                     </section>
 
+                    {/* Right: form panel */}
                     <section
                         className="login-access"
                         aria-labelledby="login-title"
                     >
                         <div className="login-form-container">
+                            <LiveClock />
+
                             <div className="login-access-label">
                                 <span />
                                 <span>AKSES WORKSPACE</span>
@@ -217,6 +320,7 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                                 className="login-form"
                                 aria-busy={processing}
                             >
+                                {/* Database */}
                                 <div className="login-field">
                                     <label htmlFor="database">
                                         Perusahaan <span>/ Database</span>
@@ -240,9 +344,7 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                                             }
                                             disabled={processing}
                                             data-empty={!data.database}
-                                            aria-invalid={Boolean(
-                                                databaseError,
-                                            )}
+                                            aria-invalid={Boolean(databaseError)}
                                             aria-describedby={
                                                 databaseError
                                                     ? 'database-error'
@@ -279,6 +381,7 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                                     )}
                                 </div>
 
+                                {/* Username */}
                                 <div className="login-field">
                                     <label htmlFor="pengguna">Username</label>
                                     <div className="login-control">
@@ -305,9 +408,7 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                                             spellCheck={false}
                                             placeholder="Masukkan username"
                                             disabled={processing}
-                                            aria-invalid={Boolean(
-                                                usernameError,
-                                            )}
+                                            aria-invalid={Boolean(usernameError)}
                                             aria-describedby={
                                                 usernameError
                                                     ? 'username-error'
@@ -326,6 +427,7 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                                     )}
                                 </div>
 
+                                {/* Password */}
                                 <div className="login-field">
                                     <label htmlFor="password">Password</label>
                                     <div className="login-control">
@@ -368,9 +470,7 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                                             autoComplete="current-password"
                                             placeholder="Masukkan password"
                                             disabled={processing}
-                                            aria-invalid={Boolean(
-                                                passwordError,
-                                            )}
+                                            aria-invalid={Boolean(passwordError)}
                                             aria-describedby={
                                                 passwordError
                                                     ? 'password-error'
@@ -398,12 +498,12 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                                         >
                                             {showPassword ? (
                                                 <EyeOff
-                                                    size={18}
+                                                    size={17}
                                                     aria-hidden="true"
                                                 />
                                             ) : (
                                                 <Eye
-                                                    size={18}
+                                                    size={17}
                                                     aria-hidden="true"
                                                 />
                                             )}
@@ -424,11 +524,12 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                                             id="caps-lock-hint"
                                             role="status"
                                         >
-                                            Caps Lock sedang aktif.
+                                            ⚠ Caps Lock sedang aktif.
                                         </p>
                                     )}
                                 </div>
 
+                                {/* Submit */}
                                 <button
                                     className="login-submit"
                                     type="submit"
@@ -447,26 +548,29 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                                         />
                                     ) : (
                                         <ArrowRight
-                                            size={18}
+                                            size={17}
                                             aria-hidden="true"
                                         />
                                     )}
                                 </button>
                             </form>
 
+                            {/* Security note */}
                             <div className="login-access-help">
-                                <ShieldCheck size={17} aria-hidden="true" />
+                                <ShieldCheck size={16} aria-hidden="true" />
                                 <p>
                                     Gunakan akun yang telah diberikan
-                                    <br className="login-help-break" /> oleh
-                                    administrator perusahaan Anda.
+                                    <br />
+                                    oleh administrator perusahaan Anda.
                                 </p>
                             </div>
+
                             <IntentionNote compact />
                         </div>
                     </section>
                 </main>
 
+                {/* ── Footer ───────────────────────────────────────────── */}
                 <footer className="login-footer">
                     <span>© {new Date().getFullYear()} i-System</span>
                     <span>Dibangun untuk pekerjaan yang berarti.</span>
