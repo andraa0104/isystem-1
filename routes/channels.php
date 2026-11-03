@@ -3,9 +3,17 @@
 use Illuminate\Support\Facades\Broadcast;
 use App\Events\PurchaseOrderInChanged;
 use App\Events\PurchaseRequirementChanged;
+use App\Events\QuotationChanged;
 
 Broadcast::channel('App.Models.User.{id}', function ($user, $id) {
     return (int) $user->id === (int) $id;
+});
+
+Broadcast::channel('quotation.{tenant}', function ($user, string $tenant) {
+    return $user !== null && hash_equals(
+        QuotationChanged::currentChannel(),
+        'quotation.'.$tenant,
+    );
 });
 
 Broadcast::channel('purchase-order-in.{tenant}', function ($user, string $tenant) {

@@ -22,14 +22,19 @@ export default defineConfig(() => {
             tailwindcss(),
             ...(enableWayfinder
                 ? [
-                    // wayfinder({
-                    //    formVariants: true,
-                    // }),
-                ]
+                      // wayfinder({
+                      //    formVariants: true,
+                      // }),
+                  ]
                 : []),
         ],
         esbuild: {
             jsx: 'automatic' as const,
+        },
+        build: {
+            // Chrome/Edge 109 are the last Chromium releases for Windows 7/8.
+            target: ['chrome109', 'edge109', 'firefox115', 'safari15.4'],
+            cssTarget: ['chrome109', 'firefox115', 'safari15.4'],
         },
         resolve: {
             alias: {

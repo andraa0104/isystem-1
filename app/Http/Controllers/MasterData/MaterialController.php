@@ -2,11 +2,12 @@
 
 namespace App\Http\Controllers\MasterData;
 
+use App\Http\Requests\MasterDataRowsRequest;
+use App\Services\MasterData\MasterDataTable;
+use Illuminate\Database\Query\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 use Throwable;
@@ -14,124 +15,48 @@ use Throwable;
 class MaterialController
 {
     private array $columnCache = [];
-    private ?bool $isClickhouse = null;
-    private ?\Illuminate\Database\ConnectionInterface $readConnection = null;
 
-    /**
-     * Dapatkan koneksi untuk read data:
-     * - VPS Production: Membaca dari ClickHouse (tersinkronisasi dengan MySQL).
-     * - Komputer Lokal: Otomatis fallback ke MySQL jika ClickHouse tidak ada / tidak berjalan.
-     */
-    private function getReadConnection(): \Illuminate\Database\ConnectionInterface
+    private function tableColumns(string $table): array
     {
-        if ($this->readConnection !== null) {
-            return $this->readConnection;
+        $connection = DB::connection();
+        $key = $connection->getName().':'.$connection->getDatabaseName().':'.$table;
+        if (! isset($this->columnCache[$key])) {
+            $columns = $connection->getSchemaBuilder()->getColumnListing($table);
+            $this->columnCache[$key] = array_combine(array_map('strtolower', $columns), $columns);
         }
 
-        $requestedDriver = strtolower((string) request()->query('driver', request()->query('source', env('MATERIAL_DB_DRIVER', 'clickhouse'))));
-        if ($requestedDriver === 'mysql') {
-            $this->readConnection = DB::connection();
-            $this->isClickhouse = false;
-            return $this->readConnection;
-        }
-
-        try {
-            $connection = DB::connection('clickhouse');
-            if ($connection && $connection->getConfig('driver') === 'clickhouse') {
-                $connection->select('SELECT 1');
-                $this->readConnection = $connection;
-                $this->isClickhouse = true;
-                return $this->readConnection;
-            }
-        } catch (\Throwable $e) {
-            // Komputer lokal tidak ada ClickHouse -> otomatis fallback ke MySQL tanpa error
-            Log::info("MaterialController: ClickHouse tidak tersedia, otomatis fallback ke MySQL: " . $e->getMessage());
-        }
-
-        $this->readConnection = DB::connection();
-        $this->isClickhouse = false;
-        return $this->readConnection;
+        return $this->columnCache[$key];
     }
 
-    private function isClickhouse(): bool
+    private function hasColumn(string $table, string $column): bool
     {
-        if ($this->isClickhouse === null) {
-            $this->getReadConnection();
-        }
-
-        return (bool) $this->isClickhouse;
-    }
-
-    /**
-     * Eksekusi callback read data dengan proteksi failover:
-     * Jika ClickHouse mengalami kendala query/timeout, otomatis fallback ke MySQL.
-     */
-    private function safeRead(callable $callback)
-    {
-        try {
-            return $callback();
-        } catch (\Throwable $e) {
-            if ($this->isClickhouse()) {
-                Log::warning("MaterialController ClickHouse query error, fallback ke MySQL: " . $e->getMessage());
-                $this->readConnection = DB::connection();
-                $this->isClickhouse = false;
-                return $callback();
-            }
-            throw $e;
-        }
+        return isset($this->tableColumns($table)[strtolower($column)]);
     }
 
     private function sqlCastSigned(string $expr): string
     {
-        if ($this->isClickhouse()) {
-            return "toInt64(coalesce(toDecimal64OrZero(toString({$expr}), 4), 0))";
-        }
-
         return "cast(coalesce(cast({$expr} as decimal(65,4)), 0) as signed)";
     }
 
     private function sqlTotalStock(): string
     {
-        if ($this->isClickhouse()) {
-            return "(toInt64(coalesce(toDecimal64OrZero(toString(stok_g1), 4), 0)) +
-                     toInt64(coalesce(toDecimal64OrZero(toString(stok_g2), 4), 0)) +
-                     toInt64(coalesce(toDecimal64OrZero(toString(stok_g3), 4), 0)) +
-                     toInt64(coalesce(toDecimal64OrZero(toString(stok_g4), 4), 0)))";
-        }
-
-        return "cast((
+        return 'cast((
             coalesce(cast(stok_g1 as decimal(65,4)), 0) +
             coalesce(cast(stok_g2 as decimal(65,4)), 0) +
             coalesce(cast(stok_g3 as decimal(65,4)), 0) +
             coalesce(cast(stok_g4 as decimal(65,4)), 0)
-        ) as signed)";
+        ) as signed)';
     }
 
     private function resolveColumn(string $table, array $candidates, string $fallback): string
     {
-        if (!isset($this->columnCache[$table])) {
-            $columns = DB::select('SHOW COLUMNS FROM '.$table);
-            $this->columnCache[$table] = array_map(
-                static fn ($column) => $column->Field ?? '',
-                $columns
-            );
-        }
-
-        foreach ($candidates as $candidate) {
-            foreach ($this->columnCache[$table] as $column) {
-                if ($column !== '' && strcasecmp($column, $candidate) === 0) {
-                    return $column;
-                }
-            }
-        }
-
-        return $fallback;
+        return $this->firstExistingColumn($table, $candidates) ?? $fallback;
     }
 
     private function optionalColumnSelect(string $table, array $candidates, string $alias, string $default = "''"): string
     {
         foreach ($candidates as $candidate) {
-            if (Schema::hasColumn($table, $candidate)) {
+            if ($this->hasColumn($table, $candidate)) {
                 return "{$candidate} as {$alias}";
             }
         }
@@ -142,8 +67,9 @@ class MaterialController
     private function optionalNumberColumnSelect(string $table, array $candidates, string $alias): string
     {
         foreach ($candidates as $candidate) {
-            if (Schema::hasColumn($table, $candidate)) {
+            if ($this->hasColumn($table, $candidate)) {
                 $castExpr = $this->sqlCastSigned($candidate);
+
                 return "{$castExpr} as {$alias}";
             }
         }
@@ -153,9 +79,10 @@ class MaterialController
 
     private function firstExistingColumn(string $table, array $candidates): ?string
     {
+        $columns = $this->tableColumns($table);
         foreach ($candidates as $candidate) {
-            if (Schema::hasColumn($table, $candidate)) {
-                return $candidate;
+            if (isset($columns[strtolower($candidate)])) {
+                return $columns[strtolower($candidate)];
             }
         }
 
@@ -195,7 +122,7 @@ class MaterialController
     private function movementBaseQuery(?string $targetWarehouse = null)
     {
         $codeColumn = $this->resolveColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
-        $readConn = $this->getReadConnection();
+        $readConn = DB::connection();
 
         $warehouseDefs = collect($this->movementWarehouseExpressions())
             ->filter(fn (array $columns) => $columns['category'] !== null);
@@ -207,12 +134,10 @@ class MaterialController
         $queries = $warehouseDefs->map(function (array $columns) use ($codeColumn, $readConn) {
             $priceColumn = $columns['price'];
             $priceExpression = $priceColumn
-                ? ($this->isClickhouse() ? "toDecimal64OrZero(toString({$priceColumn}), 4)" : "coalesce(cast({$priceColumn} as decimal(65,4)), 0)")
+                ? "coalesce(cast({$priceColumn} as decimal(65,4)), 0)"
                 : '0';
 
-            $stockExpression = $this->isClickhouse()
-                ? "toDecimal64OrZero(toString({$columns['stock']}), 4)"
-                : "coalesce(cast({$columns['stock']} as decimal(65,4)), 0)";
+            $stockExpression = "coalesce(cast({$columns['stock']} as decimal(65,4)), 0)";
 
             return $readConn->table('tb_barang')
                 ->selectRaw("
@@ -256,7 +181,7 @@ class MaterialController
 
         $query->whereRaw('lower(coalesce(kategori, \'\')) like ?', ["%{$matcher}%"]);
 
-        $readConn = $this->getReadConnection();
+        $readConn = DB::connection();
 
         if ($metric === 'items') {
             return (int) $readConn->query()
@@ -275,59 +200,69 @@ class MaterialController
 
     public function index()
     {
-        // Inertia::lazy() memastikan kerangka halaman (UI) dirender secara instan,
-        // sementara pengambilan data ribuan material dikerjakan menyusul di background.
-        return Inertia::render('master-data/material/index', [
-            'materials' => Inertia::lazy(function () {
-                return $this->safeRead(function () {
-                    $codeColumn = $this->resolveColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
-                    $nameColumn = $this->resolveColumn('tb_barang', ['material', 'nama_barang', 'nm_barang', 'barang'], 'material');
-                    $unitColumn = $this->resolveColumn('tb_barang', ['unit', 'satuan'], 'unit');
-                    $hargaG1 = $this->optionalNumberColumnSelect('tb_barang', ['harga_stokg1', 'harga_g1', 'harga1'], 'harga_stokg1');
-                    $hargaG2 = $this->optionalNumberColumnSelect('tb_barang', ['harga_stokg2', 'harga_g2', 'harga2'], 'harga_stokg2');
-                    $hargaG3 = $this->optionalNumberColumnSelect('tb_barang', ['harga_stokg3', 'harga_g3', 'harga3'], 'harga_stokg3');
-                    $hargaG4 = $this->optionalNumberColumnSelect('tb_barang', ['harga_stokg4', 'harga_g4', 'harga4'], 'harga_stokg4');
-                    $kategoriG1 = $this->optionalColumnSelect('tb_barang', ['katagori_stok1', 'kategori_stok1', 'katagori_g1', 'kategori_g1', 'katagori1', 'kategori1'], 'kategori_stok1');
-                    $kategoriG2 = $this->optionalColumnSelect('tb_barang', ['katagori_stok2', 'kategori_stok2', 'katagori_g2', 'kategori_g2', 'katagori2', 'kategori2'], 'kategori_stok2');
-                    $kategoriG3 = $this->optionalColumnSelect('tb_barang', ['katagori_stok3', 'kategori_stok3', 'katagori_g3', 'kategori_g3', 'katagori3', 'kategori3'], 'kategori_stok3');
-                    $kategoriG4 = $this->optionalColumnSelect('tb_barang', ['katagori_stok4', 'kategori_stok4', 'katagori_g4', 'kategori_g4', 'katagori4', 'kategori4'], 'kategori_stok4');
+        return Inertia::render('master-data/material/index');
+    }
 
-                    $stokG1 = $this->sqlCastSigned('stok_g1');
-                    $stokG2 = $this->sqlCastSigned('stok_g2');
-                    $stokG3 = $this->sqlCastSigned('stok_g3');
-                    $stokG4 = $this->sqlCastSigned('stok_g4');
-                    $totalStok = $this->sqlTotalStock();
+    private function materialQuery(): Builder
+    {
+        $codeColumn = $this->resolveColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
+        $nameColumn = $this->resolveColumn('tb_barang', ['material', 'nama_barang', 'nm_barang', 'barang'], 'material');
+        $unitColumn = $this->resolveColumn('tb_barang', ['unit', 'satuan'], 'unit');
+        $hargaG1 = $this->optionalNumberColumnSelect('tb_barang', ['harga_stokg1', 'harga_g1', 'harga1'], 'harga_stokg1');
+        $hargaG2 = $this->optionalNumberColumnSelect('tb_barang', ['harga_stokg2', 'harga_g2', 'harga2'], 'harga_stokg2');
+        $hargaG3 = $this->optionalNumberColumnSelect('tb_barang', ['harga_stokg3', 'harga_g3', 'harga3'], 'harga_stokg3');
+        $hargaG4 = $this->optionalNumberColumnSelect('tb_barang', ['harga_stokg4', 'harga_g4', 'harga4'], 'harga_stokg4');
+        $kategoriG1 = $this->optionalColumnSelect('tb_barang', ['katagori_stok1', 'kategori_stok1', 'katagori_g1', 'kategori_g1', 'katagori1', 'kategori1'], 'kategori_stok1');
+        $kategoriG2 = $this->optionalColumnSelect('tb_barang', ['katagori_stok2', 'kategori_stok2', 'katagori_g2', 'kategori_g2', 'katagori2', 'kategori2'], 'kategori_stok2');
+        $kategoriG3 = $this->optionalColumnSelect('tb_barang', ['katagori_stok3', 'kategori_stok3', 'katagori_g3', 'kategori_g3', 'katagori3', 'kategori3'], 'kategori_stok3');
+        $kategoriG4 = $this->optionalColumnSelect('tb_barang', ['katagori_stok4', 'kategori_stok4', 'katagori_g4', 'kategori_g4', 'katagori4', 'kategori4'], 'kategori_stok4');
 
-                    // Query memanfaatkan index pada kode material (kd_material) untuk urutan cepat
-                    return $this->getReadConnection()->table('tb_barang')
-                        ->selectRaw("
-                            {$codeColumn} as kd_material,
-                            {$nameColumn} as material,
-                            {$unitColumn} as unit,
-                            {$stokG1} as stok_g1,
-                            {$hargaG1},
-                            {$kategoriG1},
-                            {$stokG2} as stok_g2,
-                            {$hargaG2},
-                            {$kategoriG2},
-                            {$stokG3} as stok_g3,
-                            {$hargaG3},
-                            {$kategoriG3},
-                            {$stokG4} as stok_g4,
-                            {$hargaG4},
-                            {$kategoriG4},
-                            {$totalStok} as stok
-                        ")
-                        ->orderBy($codeColumn)
-                        ->get();
-                });
-            }),
-            'materialCount' => Inertia::lazy(function () {
-                return $this->safeRead(function () {
-                    return $this->getReadConnection()->table('tb_barang')->count();
-                });
-            }),
-        ]);
+        $stokG1 = $this->sqlCastSigned('stok_g1');
+        $stokG2 = $this->sqlCastSigned('stok_g2');
+        $stokG3 = $this->sqlCastSigned('stok_g3');
+        $stokG4 = $this->sqlCastSigned('stok_g4');
+        $totalStok = $this->sqlTotalStock();
+
+        // Query memanfaatkan index pada kode material (kd_material) untuk urutan cepat
+        return DB::connection()->table('tb_barang')
+            ->selectRaw("
+                {$codeColumn} as kd_material,
+                {$nameColumn} as material,
+                {$unitColumn} as unit,
+                {$stokG1} as stok_g1,
+                {$hargaG1},
+                {$kategoriG1},
+                {$stokG2} as stok_g2,
+                {$hargaG2},
+                {$kategoriG2},
+                {$stokG3} as stok_g3,
+                {$hargaG3},
+                {$kategoriG3},
+                {$stokG4} as stok_g4,
+                {$hargaG4},
+                {$kategoriG4},
+                {$totalStok} as stok
+            ");
+    }
+
+    public function rows(MasterDataRowsRequest $request, MasterDataTable $table)
+    {
+        $filters = $request->validated();
+        $code = $this->resolveColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
+        $name = $this->resolveColumn('tb_barang', ['material', 'nama_barang', 'nm_barang', 'barang'], 'material');
+        $unit = $this->resolveColumn('tb_barang', ['unit', 'satuan'], 'unit');
+        $query = $this->materialQuery();
+        $table->search($query, [$code, $name, $unit], trim($filters['search'] ?? ''));
+        $stock = $this->sqlTotalStock();
+        match ($filters['stock'] ?? 'all') {
+            'top' => $query->orderByRaw("{$stock} desc"),
+            'low' => $query->whereRaw("{$stock} > 0")->orderByRaw("{$stock} asc"),
+            'empty' => $query->whereRaw("{$stock} <= 0"),
+            default => null,
+        };
+        $query->orderBy($code, $filters['order'] ?? 'asc');
+
+        return response()->json($table->paginate($query, $filters));
     }
 
     public function movementMetric(Request $request)
@@ -338,65 +273,41 @@ class MaterialController
             'warehouse' => ['nullable', 'string', 'in:g1,g2,g3,g4'],
         ]);
 
-        return response()->json([
-            'value' => $this->safeRead(function () use ($validated) {
-                return $this->movementMetricValue(
-                    $validated['category'],
-                    $validated['metric'],
-                    $validated['warehouse'] ?? null
-                );
-            }),
-        ]);
+        return response()->json(['value' => $this->movementMetricValue(
+            $validated['category'], $validated['metric'], $validated['warehouse'] ?? null,
+        )]);
     }
 
     public function warehouseSummary(Request $request)
     {
-        $validated = $request->validate([
-            'warehouse' => ['required', 'string', 'in:g1,g2,g3,g4'],
+        $validated = $request->validate(['warehouse' => ['required', 'string', 'in:g1,g2,g3,g4']]);
+        $query = $this->movementBaseQuery($validated['warehouse']);
+        if ($query === null) {
+            return response()->json(['total' => ['stock' => 0, 'items' => 0, 'total' => 0], 'categories' => []]);
+        }
+
+        $rows = $query->whereRaw("lower(trim(coalesce(kategori, ''))) not in ('', '0')")
+            ->selectRaw('trim(kategori) as label, sum(stok) as stock, count(distinct kd_material) as items, sum(stok * harga) as total')
+            ->groupByRaw('trim(kategori)')->orderBy('label')->get();
+
+        return response()->json([
+            'total' => [
+                'stock' => (int) $rows->sum('stock'),
+                'items' => (int) $rows->sum('items'),
+                'total' => (int) $rows->sum('total'),
+            ],
+            'categories' => $rows->map(fn ($row) => [
+                'key' => str($row->label)->lower()->slug('-')->toString(),
+                'label' => $row->label,
+                'stock' => (int) $row->stock,
+                'items' => (int) $row->items,
+                'total' => (int) $row->total,
+            ]),
         ]);
-
-        return response()->json($this->safeRead(function () use ($validated) {
-            $query = $this->movementBaseQuery($validated['warehouse']);
-            if ($query === null) {
-                return [
-                    'total' => ['stock' => 0, 'items' => 0, 'total' => 0],
-                    'categories' => [],
-                ];
-            }
-
-            $rows = $query
-                ->where('gudang', $validated['warehouse'])
-                ->whereRaw("lower(trim(coalesce(kategori, ''))) not in ('', '0')")
-                ->get();
-
-            $categories = $rows
-                ->groupBy(fn ($row) => trim((string) ($row->kategori ?? '')))
-                ->map(function ($categoryRows, string $category) {
-                    return [
-                        'key' => str($category)->lower()->slug('-')->toString(),
-                        'label' => $category,
-                        'stock' => (int) $categoryRows->sum(fn ($row) => (float) $row->stok),
-                        'items' => $categoryRows->pluck('kd_material')->unique()->count(),
-                        'total' => (int) $categoryRows->sum(fn ($row) => (float) $row->stok * (float) $row->harga),
-                    ];
-                })
-                ->sortBy('label', SORT_NATURAL | SORT_FLAG_CASE)
-                ->values();
-
-            return [
-                'total' => [
-                    'stock' => (int) $rows->sum(fn ($row) => (float) $row->stok),
-                    'items' => $rows->pluck('kd_material')->unique()->count(),
-                    'total' => (int) $rows->sum(fn ($row) => (float) $row->stok * (float) $row->harga),
-                ],
-                'categories' => $categories,
-            ];
-        }));
     }
 
     public function store(Request $request)
     {
-        // Operasi Write (INSERT) TETAP ke MySQL sebagai master source of truth
         $validated = $request->validate([
             'material' => ['required', 'string', 'max:255'],
             'unit' => ['required', 'string', 'max:100'],
@@ -409,12 +320,12 @@ class MaterialController
         $selectedWarehouse = $validated['gudang'] ?? null;
         $selectedCategory = $validated['kategori'] ?? null;
 
-        if ($stok > 0 && (!$selectedWarehouse || !$selectedCategory)) {
+        if ($stok > 0 && (! $selectedWarehouse || ! $selectedCategory)) {
             $messages = [];
-            if (!$selectedWarehouse) {
+            if (! $selectedWarehouse) {
                 $messages['gudang'] = 'Gudang wajib dipilih jika stok lebih dari 0.';
             }
-            if (!$selectedCategory) {
+            if (! $selectedCategory) {
                 $messages['kategori'] = 'Kategori wajib dipilih jika stok lebih dari 0.';
             }
 
@@ -425,7 +336,7 @@ class MaterialController
             ?? $request->cookie('login_user')
             ?? $request->cookie('login_user_name')
             ?? null;
-            
+
         // Catatan: Query max() di MySQL untuk menghindari duplikasi ID saat input bersamaan
         $codeColumn = $this->resolveColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
         $nameColumn = $this->resolveColumn('tb_barang', ['material', 'nama_barang', 'nm_barang', 'barang'], 'material');
@@ -473,7 +384,7 @@ class MaterialController
                 'harga_stokg3' => 0.00,
                 'harga_stokg4' => 0.00,
             ] as $column => $value) {
-                if (Schema::hasColumn('tb_barang', $column)) {
+                if ($this->hasColumn('tb_barang', $column)) {
                     $insertData[$column] = $value;
                 }
             }
@@ -493,7 +404,7 @@ class MaterialController
                 'tgl_buat' => Carbon::now()->toDateString(),
                 'pembuat' => $pembuat,
             ] as $column => $value) {
-                if (Schema::hasColumn('tb_barang', $column)) {
+                if ($this->hasColumn('tb_barang', $column)) {
                     $insertData[$column] = $value;
                 }
             }
@@ -522,87 +433,79 @@ class MaterialController
         $category = $filters['category'] ?? 'all';
         $stockFilter = $filters['stock'] ?? 'all';
 
-        $materials = $this->safeRead(function () use ($warehouse, $category, $stockFilter) {
-            $codeColumn = $this->resolveColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
-            $nameColumn = $this->resolveColumn('tb_barang', ['material', 'nama_barang', 'nm_barang', 'barang'], 'material');
-            $unitColumn = $this->resolveColumn('tb_barang', ['unit', 'satuan'], 'unit');
-            $hargaG1 = $this->optionalNumberColumnSelect('tb_barang', ['harga_stokg1', 'harga_g1', 'harga1'], 'harga_stokg1');
-            $hargaG2 = $this->optionalNumberColumnSelect('tb_barang', ['harga_stokg2', 'harga_g2', 'harga2'], 'harga_stokg2');
-            $hargaG3 = $this->optionalNumberColumnSelect('tb_barang', ['harga_stokg3', 'harga_g3', 'harga3'], 'harga_stokg3');
-            $hargaG4 = $this->optionalNumberColumnSelect('tb_barang', ['harga_stokg4', 'harga_g4', 'harga4'], 'harga_stokg4');
-            $kategoriG1 = $this->optionalColumnSelect('tb_barang', ['katagori_stok1', 'kategori_stok1', 'katagori_g1', 'kategori_g1', 'katagori1', 'kategori1'], 'kategori_stok1');
-            $kategoriG2 = $this->optionalColumnSelect('tb_barang', ['katagori_stok2', 'kategori_stok2', 'katagori_g2', 'kategori_g2', 'katagori2', 'kategori2'], 'kategori_stok2');
-            $kategoriG3 = $this->optionalColumnSelect('tb_barang', ['katagori_stok3', 'kategori_stok3', 'katagori_g3', 'kategori_g3', 'katagori3', 'kategori3'], 'kategori_stok3');
-            $kategoriG4 = $this->optionalColumnSelect('tb_barang', ['katagori_stok4', 'kategori_stok4', 'katagori_g4', 'kategori_g4', 'katagori4', 'kategori4'], 'kategori_stok4');
+        $codeColumn = $this->resolveColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
+        $nameColumn = $this->resolveColumn('tb_barang', ['material', 'nama_barang', 'nm_barang', 'barang'], 'material');
+        $unitColumn = $this->resolveColumn('tb_barang', ['unit', 'satuan'], 'unit');
+        $hargaG1 = $this->optionalNumberColumnSelect('tb_barang', ['harga_stokg1', 'harga_g1', 'harga1'], 'harga_stokg1');
+        $hargaG2 = $this->optionalNumberColumnSelect('tb_barang', ['harga_stokg2', 'harga_g2', 'harga2'], 'harga_stokg2');
+        $hargaG3 = $this->optionalNumberColumnSelect('tb_barang', ['harga_stokg3', 'harga_g3', 'harga3'], 'harga_stokg3');
+        $hargaG4 = $this->optionalNumberColumnSelect('tb_barang', ['harga_stokg4', 'harga_g4', 'harga4'], 'harga_stokg4');
+        $kategoriG1 = $this->optionalColumnSelect('tb_barang', ['katagori_stok1', 'kategori_stok1', 'katagori_g1', 'kategori_g1', 'katagori1', 'kategori1'], 'kategori_stok1');
+        $kategoriG2 = $this->optionalColumnSelect('tb_barang', ['katagori_stok2', 'kategori_stok2', 'katagori_g2', 'kategori_g2', 'katagori2', 'kategori2'], 'kategori_stok2');
+        $kategoriG3 = $this->optionalColumnSelect('tb_barang', ['katagori_stok3', 'kategori_stok3', 'katagori_g3', 'kategori_g3', 'katagori3', 'kategori3'], 'kategori_stok3');
+        $kategoriG4 = $this->optionalColumnSelect('tb_barang', ['katagori_stok4', 'kategori_stok4', 'katagori_g4', 'kategori_g4', 'katagori4', 'kategori4'], 'kategori_stok4');
 
-            if ($this->isClickhouse()) {
-                $stockExpression = $warehouse === 'all'
-                    ? '(toDecimal64OrZero(toString(stok_g1), 4) + toDecimal64OrZero(toString(stok_g2), 4) + toDecimal64OrZero(toString(stok_g3), 4) + toDecimal64OrZero(toString(stok_g4), 4))'
-                    : "toDecimal64OrZero(toString(stok_{$warehouse}), 4)";
-                $stokCast = "toInt64({$stockExpression})";
-            } else {
-                $stockExpression = $warehouse === 'all'
-                    ? '(coalesce(cast(stok_g1 as decimal(65,4)), 0) + coalesce(cast(stok_g2 as decimal(65,4)), 0) + coalesce(cast(stok_g3 as decimal(65,4)), 0) + coalesce(cast(stok_g4 as decimal(65,4)), 0))'
-                    : 'coalesce(cast(stok_'.$warehouse.' as decimal(65,4)), 0)';
-                $stokCast = "cast({$stockExpression} as signed)";
-            }
+        $stockExpression = $warehouse === 'all'
+            ? '(coalesce(cast(stok_g1 as decimal(65,4)), 0) + coalesce(cast(stok_g2 as decimal(65,4)), 0) + coalesce(cast(stok_g3 as decimal(65,4)), 0) + coalesce(cast(stok_g4 as decimal(65,4)), 0))'
+            : 'coalesce(cast(stok_'.$warehouse.' as decimal(65,4)), 0)';
+        $stokCast = "cast({$stockExpression} as signed)";
 
-            $categoryColumns = collect($this->movementWarehouseExpressions())
-                ->filter(fn (array $columns) => $warehouse === 'all' || $columns['warehouse'] === $warehouse)
-                ->pluck('category')
-                ->filter()
-                ->values();
+        $categoryColumns = collect($this->movementWarehouseExpressions())
+            ->filter(fn (array $columns) => $warehouse === 'all' || $columns['warehouse'] === $warehouse)
+            ->pluck('category')
+            ->filter()
+            ->values();
 
-            $query = $this->getReadConnection()->table('tb_barang')
-                ->selectRaw("
-                    {$codeColumn} as kd_material,
-                    {$nameColumn} as material,
-                    {$unitColumn} as unit,
-                    {$stokCast} as stok,
-                    stok_g1,
-                    {$hargaG1},
-                    {$kategoriG1},
-                    stok_g2,
-                    {$hargaG2},
-                    {$kategoriG2},
-                    stok_g3,
-                    {$hargaG3},
-                    {$kategoriG3},
-                    stok_g4,
-                    {$hargaG4},
-                    {$kategoriG4}
-                ");
+        $query = DB::connection()->table('tb_barang')
+            ->selectRaw("
+                {$codeColumn} as kd_material,
+                {$nameColumn} as material,
+                {$unitColumn} as unit,
+                {$stokCast} as stok,
+                stok_g1,
+                {$hargaG1},
+                {$kategoriG1},
+                stok_g2,
+                {$hargaG2},
+                {$kategoriG2},
+                stok_g3,
+                {$hargaG3},
+                {$kategoriG3},
+                stok_g4,
+                {$hargaG4},
+                {$kategoriG4}
+            ");
 
-            if ($category !== 'all' && $categoryColumns->isNotEmpty()) {
-                $categoryNeedle = match ($category) {
-                    'fast' => 'fast',
-                    'slow' => 'slow',
-                    'dead' => 'dead',
-                };
-                $query->where(function ($categoryQuery) use ($categoryColumns, $categoryNeedle) {
-                    foreach ($categoryColumns as $column) {
-                        $categoryQuery->orWhereRaw('lower(trim(coalesce('.$column.", ''))) like ?", ['%'.$categoryNeedle.'%']);
-                    }
-                });
-            }
+        if ($category !== 'all' && $categoryColumns->isNotEmpty()) {
+            $categoryNeedle = match ($category) {
+                'fast' => 'fast',
+                'slow' => 'slow',
+                'dead' => 'dead',
+            };
+            $query->where(function ($categoryQuery) use ($categoryColumns, $categoryNeedle) {
+                foreach ($categoryColumns as $column) {
+                    $categoryQuery->orWhereRaw('lower(trim(coalesce('.$column.", ''))) like ?", ['%'.$categoryNeedle.'%']);
+                }
+            });
+        }
 
-            if ($stockFilter === 'empty') {
-                $query->whereRaw("{$stockExpression} = 0");
-            } elseif ($stockFilter === 'lowest') {
-                $query->whereRaw("{$stockExpression} > 0")
-                    ->orderByRaw("{$stockExpression} asc");
-            } elseif ($stockFilter === 'highest') {
-                $query->orderByRaw("{$stockExpression} desc");
-            }
+        if ($stockFilter === 'empty') {
+            $query->whereRaw("{$stockExpression} = 0");
+        } elseif ($stockFilter === 'lowest') {
+            $query->whereRaw("{$stockExpression} > 0")
+                ->orderByRaw("{$stockExpression} asc");
+        } elseif ($stockFilter === 'highest') {
+            $query->orderByRaw("{$stockExpression} desc");
+        }
 
-            // Memanfaatkan index Primary Key / kd_material untuk sorting
-            return $query->orderBy($codeColumn)->get();
-        });
+        // Memanfaatkan index Primary Key / kd_material untuk sorting
+        $materials = $query->orderBy($codeColumn)->get();
 
         return response()->view('exports.material', [
             'materials' => $materials,
             'warehouse' => $warehouse,
         ]);
+
     }
 
     public function inventorySummary(Request $request)
@@ -611,35 +514,35 @@ class MaterialController
             'type' => ['required', 'in:mis,mib,mibs'],
             'metric' => ['required', 'in:items,qty,total'],
         ]);
-        $type = $validated['type'];
-        $metric = $validated['metric'];
 
-        return response()->json([
-            'value' => $this->safeRead(function () use ($type, $metric) {
-                $readConn = $this->getReadConnection();
+        return response()->json(['value' => $this->inventoryMetricValue($validated['type'], $validated['metric'])]);
+    }
 
-                if ($type === 'mis' || $type === 'mib') {
-                    $qtyColumn = $type;
-                    $totalColumn = 'harga_'.$type;
-                    // Memanfaatkan index pada kolom kuantitas mis/mib
-                    $query = $readConn->table('tb_mi')->where($qtyColumn, '>', 0);
-                    return match ($metric) {
-                        'items' => $query->count(),
-                        'qty' => (float) $query->sum($qtyColumn),
-                        'total' => (float) $query->sum($totalColumn),
-                    };
-                }
+    private function inventoryMetricValue(string $type, string $metric): int|float
+    {
+        $readConn = DB::connection();
 
-                $query = $readConn->table('tb_mib')
-                    ->whereRaw('coalesce(cast(qty as decimal(65,4)), 0) <> coalesce(cast(transfer as decimal(65,4)), 0)');
+        if ($type === 'mis' || $type === 'mib') {
+            $qtyColumn = $type;
+            $totalColumn = 'harga_'.$type;
+            // Memanfaatkan index pada kolom kuantitas mis/mib
+            $query = $readConn->table('tb_mi')->where($qtyColumn, '>', 0);
 
-                return match ($metric) {
-                    'items' => $query->count(),
-                    'qty' => (float) $query->sum(DB::raw('coalesce(cast(qty as decimal(65,4)), 0) - coalesce(cast(transfer as decimal(65,4)), 0)')),
-                    'total' => (float) $query->sum(DB::raw('coalesce(cast(total_price as decimal(65,4)), 0)')),
-                };
-            }),
-        ]);
+            return match ($metric) {
+                'items' => $query->count(),
+                'qty' => (float) $query->sum($qtyColumn),
+                'total' => (float) $query->sum($totalColumn),
+            };
+        }
+
+        $query = $readConn->table('tb_mib')
+            ->whereRaw('coalesce(cast(qty as decimal(65,4)), 0) <> coalesce(cast(transfer as decimal(65,4)), 0)');
+
+        return match ($metric) {
+            'items' => $query->count(),
+            'qty' => (float) $query->sum(DB::raw('coalesce(cast(qty as decimal(65,4)), 0) - coalesce(cast(transfer as decimal(65,4)), 0)')),
+            'total' => (float) $query->sum(DB::raw('coalesce(cast(total_price as decimal(65,4)), 0)')),
+        };
     }
 
     public function inventoryRows(Request $request)
@@ -656,63 +559,60 @@ class MaterialController
         $perPageRaw = $validated['per_page'] ?? 5;
         $perPage = $perPageRaw === 'all' ? null : max(1, (int) $perPageRaw);
 
-        return response()->json($this->safeRead(function () use ($type, $search, $page, $perPage) {
-            $readConn = $this->getReadConnection();
+        $readConn = DB::connection();
 
-            if ($type === 'mis' || $type === 'mib') {
-                $qtyColumn = $type;
-                $totalColumn = 'harga_'.$type;
-                // Query memanfaatkan index mis/mib > 0
-                $query = $readConn->table('tb_mi')->where($qtyColumn, '>', 0);
-                if ($search !== '') {
-                    $query->where(function ($nested) use ($search) {
-                        // Memanfaatkan index pada no_doc, ref_po, material, dan kd_mat
-                        $nested->where('no_doc', 'like', '%'.$search.'%')
-                            ->orWhere('ref_po', 'like', '%'.$search.'%')
-                            ->orWhere('material', 'like', '%'.$search.'%');
-                        if (Schema::hasColumn('tb_mi', 'kd_mat')) {
-                            $nested->orWhere('kd_mat', 'like', '%'.$search.'%');
-                        }
-                    });
-                }
-                $query->select([
-                    'no_doc', 'doc_tgl', 'ref_po', 'material', 'qty', 'unit', 'price',
-                    DB::raw($totalColumn.' as total_price'),
-                    DB::raw($qtyColumn.' as balance_qty'),
-                ]);
-            } else {
-                $query = $readConn->table('tb_mib')
-                    ->whereRaw('coalesce(cast(qty as decimal(65,4)), 0) <> coalesce(cast(transfer as decimal(65,4)), 0)');
-                if ($search !== '') {
-                    $query->where(function ($nested) use ($search) {
-                        // Memanfaatkan index pada no_doc, material, dan kd_mat
-                        $nested->where('no_doc', 'like', '%'.$search.'%')
-                            ->orWhere('material', 'like', '%'.$search.'%');
-                        if (Schema::hasColumn('tb_mib', 'kd_mat')) {
-                            $nested->orWhere('kd_mat', 'like', '%'.$search.'%');
-                        }
-                    });
-                }
-                $query->select([
-                    'no_doc', 'material', 'qty', 'unit', 'price', 'total_price',
-                    DB::raw('coalesce(cast(qty as decimal(65,4)), 0) - coalesce(cast(transfer as decimal(65,4)), 0) as balance_qty'),
-                ]);
+        if ($type === 'mis' || $type === 'mib') {
+            $qtyColumn = $type;
+            $totalColumn = 'harga_'.$type;
+            // Query memanfaatkan index mis/mib > 0
+            $query = $readConn->table('tb_mi')->where($qtyColumn, '>', 0);
+            if ($search !== '') {
+                $query->where(function ($nested) use ($search) {
+                    // Memanfaatkan index pada no_doc, ref_po, material, dan kd_mat
+                    $nested->where('no_doc', 'like', '%'.$search.'%')
+                        ->orWhere('ref_po', 'like', '%'.$search.'%')
+                        ->orWhere('material', 'like', '%'.$search.'%');
+                    if ($this->hasColumn('tb_mi', 'kd_mat')) {
+                        $nested->orWhere('kd_mat', 'like', '%'.$search.'%');
+                    }
+                });
             }
-
-            $total = (clone $query)->count();
-            // Memanfaatkan index no_doc untuk sorting efisien
-            $query->orderByDesc('no_doc');
-            if ($perPage !== null) {
-                $query->forPage($page, $perPage);
+            $query->select([
+                'no_doc', 'doc_tgl', 'ref_po', 'material', 'qty', 'unit', 'price',
+                DB::raw($totalColumn.' as total_price'),
+                DB::raw($qtyColumn.' as balance_qty'),
+            ]);
+        } else {
+            $query = $readConn->table('tb_mib')
+                ->whereRaw('coalesce(cast(qty as decimal(65,4)), 0) <> coalesce(cast(transfer as decimal(65,4)), 0)');
+            if ($search !== '') {
+                $query->where(function ($nested) use ($search) {
+                    // Memanfaatkan index pada no_doc, material, dan kd_mat
+                    $nested->where('no_doc', 'like', '%'.$search.'%')
+                        ->orWhere('material', 'like', '%'.$search.'%');
+                    if ($this->hasColumn('tb_mib', 'kd_mat')) {
+                        $nested->orWhere('kd_mat', 'like', '%'.$search.'%');
+                    }
+                });
             }
+            $query->select([
+                'no_doc', 'material', 'qty', 'unit', 'price', 'total_price',
+                DB::raw('coalesce(cast(qty as decimal(65,4)), 0) - coalesce(cast(transfer as decimal(65,4)), 0) as balance_qty'),
+            ]);
+        }
 
-            return ['rows' => $query->get(), 'total' => $total];
-        }));
+        $total = (clone $query)->count();
+        // Memanfaatkan index no_doc untuk sorting efisien
+        $query->orderByDesc('no_doc');
+        if ($perPage !== null) {
+            $query->forPage($page, $perPage);
+        }
+
+        return response()->json(['rows' => $query->get(), 'total' => $total]);
     }
 
     public function update(Request $request, string $kdMaterial)
     {
-        // Operasi Write (UPDATE) TETAP ke MySQL sebagai master source of truth
         $validated = $request->validate([
             'material' => ['required', 'string', 'max:255'],
             'unit' => ['required', 'string', 'max:100'],
@@ -732,9 +632,9 @@ class MaterialController
                 $unitColumn => $validated['unit'],
                 'stok_g1' => $stok,
             ];
-            if (Schema::hasColumn('tb_barang', 'katagori_stok1')) {
+            if ($this->hasColumn('tb_barang', 'katagori_stok1')) {
                 $updateData['katagori_stok1'] = $validated['remark'] ?? null;
-            } elseif (Schema::hasColumn('tb_barang', 'kategori_stok1')) {
+            } elseif ($this->hasColumn('tb_barang', 'kategori_stok1')) {
                 $updateData['kategori_stok1'] = $validated['remark'] ?? null;
             }
 
@@ -755,7 +655,6 @@ class MaterialController
 
     public function destroy(string $kdMaterial)
     {
-        // Operasi Write (DELETE) TETAP ke MySQL sebagai master source of truth
         try {
             $codeColumn = $this->resolveColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
 

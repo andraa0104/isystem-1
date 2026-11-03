@@ -145,7 +145,7 @@ export default function Dashboard({
     }, []);
 
     const quotationRequest = useCachedRequest({
-        key: `quotation:v2:${quotationRange}`,
+        key: `quotation:v3:${quotationRange}`,
         enabled:
             canViewCard('quotation') &&
             (quotationView.inView || prefetchPriorityCards),
@@ -216,7 +216,7 @@ export default function Dashboard({
     });
 
     const salesHppRequest = useCachedRequest({
-        key: `salesHpp:v2:${salesHppRange}`,
+        key: `salesHpp:v3:${salesHppRange}`,
         enabled:
             canViewCard('sales_hpp') &&
             (salesHppView.inView || prefetchPriorityCards),
@@ -574,6 +574,7 @@ export default function Dashboard({
                                     <p className="text-sm text-muted-foreground">
                                         Ringkasan jumlah quotation per{' '}
                                         {quotationGranularityLabel}.
+                                        {quotationRange === '1_week' && ' Menampilkan 6 hari terakhir.'}
                                     </p>
 
                                     {quotationRequest.status === 'success' ? (
@@ -1266,6 +1267,7 @@ export default function Dashboard({
                                                 Biaya per{' '}
                                                 {salesHppGranularityLabel}{' '}
                                                 berdasarkan periode.
+                                                {salesHppRange === '1_week' && ' Menampilkan 6 hari terakhir.'}
                                             </p>
                                         </div>
 

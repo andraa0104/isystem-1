@@ -20,6 +20,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/app-layout';
+import { useMasterDataRows } from '@/hooks/use-master-data-rows';
 import { normalizeApiError, readApiError } from '@/lib/api-error';
 import { confirmDelete } from '@/lib/confirm-delete';
 import { formatDateId } from '@/lib/formatters';
@@ -37,12 +38,6 @@ const breadcrumbs = [
 const renderValue = (value) =>
     value === null || value === undefined || value === '' ? '-' : value;
 
-const compareCode = (a, b) =>
-    String(a ?? '').localeCompare(String(b ?? ''), 'id', {
-        numeric: true,
-        sensitivity: 'base',
-    });
-
 const initialFormState = {
     nm_cs: '',
     alamat_cs: '',
@@ -58,10 +53,8 @@ const initialFormState = {
 // Global cache untuk menyimpan data modal customer
 const customerDetailCache = {};
 
-export default function CustomerIndex({ customers }) {
+export default function CustomerIndex() {
     // --- States Utama ---
-    const [customersList, setCustomersList] = useState([]);
-    const [tableLoading, setTableLoading] = useState(true);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
@@ -108,26 +101,18 @@ export default function CustomerIndex({ customers }) {
 
     const { flash, errors } = usePage().props;
 
-    // --- Pemisahan Frontend & Backend (Initial Fetch) ---
-    useEffect(() => {
-        // Jika data dari backend belum ada (karena Inertia::lazy)
-        if (!customers || customers.length === 0) {
-            setTableLoading(true);
-            router.reload({
-                only: ['customers'],
-                preserveState: true,
-                onSuccess: (page) => {
-                    setCustomersList(page.props.customers || []);
-                },
-                onFinish: () => {
-                    setTableLoading(false);
-                },
-            });
-        } else {
-            setCustomersList(customers);
-            setTableLoading(false);
-        }
-    }, [customers]);
+    const {
+        rows: customersList,
+        total: totalItems,
+        loading: tableLoading,
+        error: tableError,
+        refresh: refreshRows,
+    } = useMasterDataRows('/master-data/customer/rows', {
+        search: debouncedSearchTerm.trim(),
+        page: currentPage,
+        per_page: pageSize === Infinity ? 'all' : pageSize,
+        order: codeOrder,
+    });
 
     // --- Debounce Input Pencarian (Optimasi Filter Tabel) ---
     useEffect(() => {
@@ -144,25 +129,6 @@ export default function CustomerIndex({ customers }) {
     }, [doSearchTerm]);
 
     // --- Pemrosesan Data List Utama ---
-    const filteredCustomers = useMemo(() => {
-        const term = debouncedSearchTerm.trim().toLowerCase();
-        let items = [...customersList];
-        items.sort((a, b) =>
-            codeOrder === 'desc'
-                ? compareCode(b.kd_cs, a.kd_cs)
-                : compareCode(a.kd_cs, b.kd_cs),
-        );
-        if (!term) {
-            return items;
-        }
-        return items.filter((item) =>
-            String(item.nm_cs ?? '')
-                .toLowerCase()
-                .includes(term),
-        );
-    }, [customersList, debouncedSearchTerm, codeOrder]);
-
-    const totalItems = filteredCustomers.length;
     const totalPages = useMemo(() => {
         if (pageSize === Infinity) {
             return 1;
@@ -170,13 +136,7 @@ export default function CustomerIndex({ customers }) {
         return Math.max(1, Math.ceil(totalItems / pageSize));
     }, [pageSize, totalItems]);
 
-    const displayedCustomers = useMemo(() => {
-        if (pageSize === Infinity) {
-            return filteredCustomers;
-        }
-        const startIndex = (currentPage - 1) * pageSize;
-        return filteredCustomers.slice(startIndex, startIndex + pageSize);
-    }, [filteredCustomers, currentPage, pageSize]);
+    const displayedCustomers = customersList;
 
     useEffect(() => {
         if (currentPage > totalPages) {
@@ -400,13 +360,7 @@ export default function CustomerIndex({ customers }) {
                             'Customer berhasil dihapus.',
                     });
 
-                    router.reload({
-                        only: ['customers', 'customerCount'],
-                        onSuccess: (pg) => {
-                            if (pg.props.customers)
-                                setCustomersList(pg.props.customers);
-                        },
-                    });
+                    refreshRows();
                 },
             },
         );
@@ -455,13 +409,7 @@ export default function CustomerIndex({ customers }) {
 
                 resetCreate();
                 setIsCreateModalOpen(false);
-                router.reload({
-                    only: ['customers', 'customerCount'],
-                    onSuccess: (pg) => {
-                        if (pg.props.customers)
-                            setCustomersList(pg.props.customers);
-                    },
-                });
+                refreshRows();
             },
             onError: (errs) => {
                 Swal.fire({
@@ -522,13 +470,7 @@ export default function CustomerIndex({ customers }) {
                 resetEdit();
                 setEditCustomerId(null);
                 setIsEditModalOpen(false);
-                router.reload({
-                    only: ['customers', 'customerCount'],
-                    onSuccess: (pg) => {
-                        if (pg.props.customers)
-                            setCustomersList(pg.props.customers);
-                    },
-                });
+                refreshRows();
             },
             onError: (errs) => {
                 Swal.fire({
@@ -546,6 +488,12 @@ export default function CustomerIndex({ customers }) {
     return (
         <>
             <Head title="Data Customer" />
+            {tableError && (
+                <div role="alert" className="mx-6 mt-4 flex items-center justify-between gap-3 rounded-md border border-destructive/30 p-3 text-sm text-destructive">
+                    {tableError}
+                    <Button type="button" variant="outline" onClick={refreshRows}>Coba lagi</Button>
+                </div>
+            )}
             <div className="flex flex-col gap-6 p-6">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>

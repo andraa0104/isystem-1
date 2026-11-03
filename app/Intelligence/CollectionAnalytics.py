@@ -205,16 +205,18 @@ class CashflowInflowForecaster:
                 "inflow_30d_pct": 0.0,
                 "recovery_rate_expected": 0.0,
                 "invoices_count": 0,
+                "average_invoice_balance": 0.0,
                 "summary": "Tidak ada saldo piutang tertunggak yang perlu diproyeksikan.",
                 "forecast_narrative": "Tidak ada saldo piutang tertunggak yang perlu diproyeksikan.",
-                "horizon_7d": {"expected_recovery": 0.0, "recovery_rate": 0.0, "formatted_recovery": "Rp 0", "invoices_count": 0},
-                "horizon_14d": {"expected_recovery": 0.0, "recovery_rate": 0.0, "formatted_recovery": "Rp 0", "invoices_count": 0},
-                "horizon_30d": {"expected_recovery": 0.0, "recovery_rate": 0.0, "formatted_recovery": "Rp 0", "invoices_count": 0},
+                "horizon_7d": {"expected_recovery": 0.0, "recovery_rate": 0.0, "formatted_recovery": "Rp 0", "invoices_count": 0, "expected_invoices_count": 0.0},
+                "horizon_14d": {"expected_recovery": 0.0, "recovery_rate": 0.0, "formatted_recovery": "Rp 0", "invoices_count": 0, "expected_invoices_count": 0.0},
+                "horizon_30d": {"expected_recovery": 0.0, "recovery_rate": 0.0, "formatted_recovery": "Rp 0", "invoices_count": 0, "expected_invoices_count": 0.0},
             }
 
         exp_7d = None
         exp_14d = None
         exp_30d = None
+        average_invoice_balance = total_outstanding / len(invoices)
 
         # Mode A: NumPy Vectorized Dot Product (Aktif otomatis di VPS Production)
         if HAS_SKLEARN and len(invoices) > 0:
@@ -307,6 +309,7 @@ class CashflowInflowForecaster:
             "inflow_30d_pct": pct_30d,
             "recovery_rate_expected": pct_30d,
             "invoices_count": len(invoices),
+            "average_invoice_balance": round(average_invoice_balance, 2),
             "summary": summary,
             "forecast_narrative": summary,
             **{
@@ -315,6 +318,8 @@ class CashflowInflowForecaster:
                     "recovery_rate": percent / 100.0,
                     "formatted_recovery": format_rupiah(expected),
                     "invoices_count": len(invoices),
+                    # Equivalent invoice volume for this horizon's rupiah amount.
+                    "expected_invoices_count": round(expected / average_invoice_balance, 2),
                 }
                 for days, expected, percent in (
                     (7, exp_7d, pct_7d), (14, exp_14d, pct_14d), (30, exp_30d, pct_30d)
@@ -856,9 +861,10 @@ class CollectionAnalyticsEngine:
 
     def _empty_result(self):
         empty_cashflow = {
-            'horizon_7d': {'expected_recovery': 0.0, 'recovery_rate': 0.0, 'formatted_recovery': 'Rp 0', 'invoices_count': 0},
-            'horizon_14d': {'expected_recovery': 0.0, 'recovery_rate': 0.0, 'formatted_recovery': 'Rp 0', 'invoices_count': 0},
-            'horizon_30d': {'expected_recovery': 0.0, 'recovery_rate': 0.0, 'formatted_recovery': 'Rp 0', 'invoices_count': 0},
+            'average_invoice_balance': 0.0,
+            'horizon_7d': {'expected_recovery': 0.0, 'recovery_rate': 0.0, 'formatted_recovery': 'Rp 0', 'invoices_count': 0, 'expected_invoices_count': 0.0},
+            'horizon_14d': {'expected_recovery': 0.0, 'recovery_rate': 0.0, 'formatted_recovery': 'Rp 0', 'invoices_count': 0, 'expected_invoices_count': 0.0},
+            'horizon_30d': {'expected_recovery': 0.0, 'recovery_rate': 0.0, 'formatted_recovery': 'Rp 0', 'invoices_count': 0, 'expected_invoices_count': 0.0},
             'inflow_7d_fmt': 'Rp 0',
             'inflow_14d_fmt': 'Rp 0',
             'inflow_30d_fmt': 'Rp 0',

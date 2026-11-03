@@ -7,7 +7,7 @@ import { useEffect, useState } from 'react';
 const pageSizes = [5, 10, 25, 50, 100];
 const currency = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 });
 
-export default function ReviewTagihanDetailDialog({ bucket, referenceDate, onClose, onInvoiceClick }) {
+export default function ReviewTagihanDetailDialog({ bucket, referenceDate, onClose, onInvoiceClick, onCustomerClick }) {
     const mode = bucket.type ?? 'aging';
     const risk = mode === 'risk';
     const cashflow = mode === 'cashflow';
@@ -141,7 +141,11 @@ export default function ReviewTagihanDetailDialog({ bucket, referenceDate, onClo
                                 <TableRow key={`${row.no_fakturpenjualan ?? row.nm_cs}:${index}`}>
                                     <TableCell>{(result.from ?? 1) + index}</TableCell>
                                     {risk ? <>
-                                        <TableCell className="font-medium">{row.nm_cs}</TableCell>
+                                        <TableCell className="font-medium">
+                                            <button type="button" className="text-left text-primary underline-offset-4 hover:underline" onClick={() => onCustomerClick(row.nm_cs)}>
+                                                {row.nm_cs}
+                                            </button>
+                                        </TableCell>
                                         <TableCell>{row.invoice_count}</TableCell>
                                         <TableCell>{row.default_prob}%</TableCell>
                                         <TableCell>{row.max_overdue_days} hari</TableCell>
@@ -152,7 +156,11 @@ export default function ReviewTagihanDetailDialog({ bucket, referenceDate, onClo
                                                 {row.no_fakturpenjualan}
                                             </button>
                                         </TableCell>
-                                        <TableCell>{row.nm_cs}</TableCell>
+                                        <TableCell>
+                                            <button type="button" className="text-left text-primary underline-offset-4 hover:underline" onClick={() => onCustomerClick(row.nm_cs)}>
+                                                {row.nm_cs}
+                                            </button>
+                                        </TableCell>
                                         <TableCell>{row.ref_po || '-'}</TableCell>
                                         <TableCell>{row.tgl_doc || '-'}</TableCell>
                                         <TableCell>{row.effective_due_date || row.jth_tempo || '-'}</TableCell>

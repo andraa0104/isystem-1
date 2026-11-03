@@ -365,7 +365,7 @@ class DashboardController
 
         if ($range === '1_week') {
             $end = Carbon::now()->startOfDay();
-            $start = $end->copy()->subDays(6);
+            $start = $end->copy()->subDays(5);
 
             $raw = $this->getDbConnection()->table('tb_penawaran')
                 ->selectRaw(''.$this->sqlDf('Tgl_penawaran', '%Y-%m-%d').' as period, COUNT(*) as total')
@@ -377,7 +377,7 @@ class DashboardController
                 ->pluck('total', 'period');
 
             $stats = [];
-            for ($i = 0; $i < 7; $i += 1) {
+            for ($i = 0; $i < 6; $i += 1) {
                 $day = $start->copy()->addDays($i);
                 $key = $day->format('Y-m-d');
                 $stats[] = [
@@ -693,7 +693,7 @@ class DashboardController
             default => $group,
         };
         if ($mode === 'day') {
-            $start = $now->copy()->startOfDay()->subDays(6);
+            $start = $now->copy()->startOfDay()->subDays(5);
             $lastBucket = $now->copy()->startOfDay();
         } elseif ($mode === 'week') {
             $lastBucket = $now->copy()->startOfWeek(Carbon::MONDAY);

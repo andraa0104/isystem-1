@@ -8,7 +8,7 @@ use Symfony\Component\Process\Process;
 
 class CollectionAnalyticsService
 {
-    public const ANALYSIS_VERSION = 4;
+    public const ANALYSIS_VERSION = 6;
 
     /**
     * Run Python Data Analytics Engine for Invoices and enrich with Gemini.

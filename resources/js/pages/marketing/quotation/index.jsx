@@ -16,6 +16,7 @@ import {
     SelectValue,
 } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
+import { subscribeToPoInChanges } from '@/lib/po-in-realtime';
 import { Head, Link, router } from '@inertiajs/react';
 import { Eye, Pencil, Printer, Trash2, Search } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -44,6 +45,7 @@ export default function QuotationIndex({
     penawaranDetail = [],
     detailNo = null,
     period = 'today',
+    realtimeChannel = null,
 }) {
     // State Tab 1 (Customer)
     const [searchTerm, setSearchTerm] = useState('');
@@ -78,6 +80,22 @@ export default function QuotationIndex({
     const [materialLoading, setMaterialLoading] = useState(false);
     const [remoteMaterialDetails, setRemoteMaterialDetails] = useState([]);
     const [materialTotal, setMaterialTotal] = useState(0);
+    const [realtimeRevision, setRealtimeRevision] = useState(0);
+
+    useEffect(() => {
+        let timer;
+        const unsubscribe = subscribeToPoInChanges(realtimeChannel, () => {
+            if (timer) return;
+            timer = setTimeout(() => {
+                timer = null;
+                setRealtimeRevision((revision) => revision + 1);
+            }, 200);
+        }, 'quotation.changed');
+        return () => {
+            clearTimeout(timer);
+            unsubscribe();
+        };
+    }, [realtimeChannel]);
 
     // ========================================================
     // FETCH DATA TAB 1 (CUSTOMER)
@@ -152,7 +170,7 @@ export default function QuotationIndex({
         const controller = new AbortController();
         fetchQuotationData(statusFilter, debouncedSearchTerm, currentPage, pageSize, controller.signal);
         return () => controller.abort();
-    }, [activeTab, statusFilter, debouncedSearchTerm, currentPage, pageSize, fetchQuotationData]);
+    }, [activeTab, statusFilter, debouncedSearchTerm, currentPage, pageSize, fetchQuotationData, realtimeRevision]);
 
     const handlePeriodChange = (newPeriod) => {
         setStatusFilter(newPeriod);
@@ -218,7 +236,7 @@ export default function QuotationIndex({
         const controller = new AbortController();
         fetchMaterialData(materialCurrentPage, materialPageSize, debouncedMaterialSearch, controller.signal);
         return () => controller.abort();
-    }, [activeTab, materialCurrentPage, materialPageSize, debouncedMaterialSearch, fetchMaterialData]);
+    }, [activeTab, materialCurrentPage, materialPageSize, debouncedMaterialSearch, fetchMaterialData, realtimeRevision]);
 
     useEffect(() => {
         if (materialCurrentPage > tab2TotalPages) {
@@ -229,64 +247,56 @@ export default function QuotationIndex({
     // ========================================================
     // MODAL DETAIL - DIPERBAIKI UNTUK MENAMPILKAN HEADER DARI TAB 2
     // ========================================================
-    const fetchHeaderData = useCallback(async (noPenawaran) => {
-        try {
-            const response = await fetch(`/marketing/quotation/${encodeURIComponent(noPenawaran)}/header`, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-            if (!response.ok) return null;
-            return await response.json();
-        } catch (error) {
-            console.error('Error fetching header:', error);
-            return null;
-        }
-    }, []);
-
-    const fetchDetailData = useCallback(async (noPenawaran) => {
-        try {
-            const response = await fetch(`/marketing/quotation/${encodeURIComponent(noPenawaran)}/details`, {
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-            if (!response.ok) return [];
-            const data = await response.json();
-            return Array.isArray(data?.details) ? data.details : [];
-        } catch (error) {
-            console.error('Error fetching details:', error);
-            return [];
-        }
-    }, []);
-
-    const handleOpenModal = async (item) => {
+    const handleOpenModal = (item) => {
         const noPenawaran = item.No_penawaran || item.No_Penawaran;
         if (!noPenawaran) return;
 
         setDetailLoading(true);
         setIsModalOpen(true);
         setDetailRows([]);
-        setDetailRowsNo(noPenawaran);
-
-        // 1. Ambil data Header dengan cara yang konsisten
-        const [header, details] = await Promise.all([
-            item.Customer !== undefined ? Promise.resolve(item) : fetchHeaderData(noPenawaran),
-            fetchDetailData(noPenawaran),
-        ]);
-
-        // 2. Normalisasi Data (PENTING!)
-        // Pastikan properti "No_penawaran", "Tgl_Penawaran", dan "Tgl_Posting" selalu ada
-        const normalizedHeader = {
-            ...header,
-            No_penawaran: header?.No_penawaran || noPenawaran,
-            Tgl_Penawaran: header?.Tgl_Penawaran || '-',
-            Tgl_Posting: header?.Tgl_Posting || '-'
-        };
-
-        setSelectedPenawaran(normalizedHeader);
-
-        // 3. Ambil Detail
-        setDetailRows(Array.isArray(details) ? details : (details.details || []));
-        setDetailRowsNo(noPenawaran);
-        setDetailLoading(false);
+        setDetailRowsNo(null);
+        setSelectedPenawaran({ ...item, No_penawaran: noPenawaran });
     };
+
+    const selectedQuotationNo = selectedPenawaran?.No_penawaran;
+
+    useEffect(() => {
+        if (!isModalOpen || !selectedQuotationNo) return;
+        const controller = new AbortController();
+        const load = async () => {
+            setDetailLoading(true);
+            try {
+                const base = `/marketing/quotation/${encodeURIComponent(selectedQuotationNo)}`;
+                const options = { headers: { Accept: 'application/json' }, signal: controller.signal };
+                const [headerResponse, detailResponse] = await Promise.all([
+                    fetch(`${base}/header`, options),
+                    fetch(`${base}/details`, options),
+                ]);
+                if (controller.signal.aborted) return;
+                if (headerResponse.status === 404) {
+                    setIsModalOpen(false);
+                    setSelectedPenawaran(null);
+                    return;
+                }
+                if (!headerResponse.ok || !detailResponse.ok) throw new Error('Gagal memuat detail quotation.');
+                const [header, details] = await Promise.all([headerResponse.json(), detailResponse.json()]);
+                if (controller.signal.aborted) return;
+                setSelectedPenawaran({
+                    ...header,
+                    No_penawaran: header.No_penawaran || selectedQuotationNo,
+                    Tgl_Penawaran: header.Tgl_Penawaran || header.Tgl_penawaran || '-',
+                });
+                setDetailRows(Array.isArray(details.details) ? details.details : []);
+                setDetailRowsNo(selectedQuotationNo);
+            } catch (error) {
+                if (!controller.signal.aborted) console.error('Error fetching quotation details:', error);
+            } finally {
+                if (!controller.signal.aborted) setDetailLoading(false);
+            }
+        };
+        void load();
+        return () => controller.abort();
+    }, [isModalOpen, selectedQuotationNo, realtimeRevision]);
     // Untuk kasus item dari tab 1 yang mungkin langsung punya detail
     const selectedDetails = useMemo(() => {
         if (!selectedPenawaran) return [];
@@ -346,7 +356,7 @@ export default function QuotationIndex({
             setDetailRowsNo(null);
             setDetailLoading(false);
         }
-    }, [isModalOpen, selectedPenawaran]);
+    }, [isModalOpen, selectedQuotationNo]);
 
     const handleDelete = (noPenawaran) => {
         if (!noPenawaran || isDeleting) return;
@@ -386,11 +396,7 @@ export default function QuotationIndex({
                         showConfirmButton: false,
                     });
 
-                    if (activeTab === 'customer') {
-                        fetchQuotationData(statusFilter, debouncedSearchTerm, currentPage, pageSize);
-                    } else {
-                        fetchMaterialData(materialCurrentPage, materialPageSize, debouncedMaterialSearch);
-                    }
+                    setRealtimeRevision((revision) => revision + 1);
                 })
                 .catch((error) => {
                     Swal.fire({

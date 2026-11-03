@@ -2,6 +2,7 @@
 
 namespace App\Services\Marketing;
 
+use App\Events\QuotationChanged;
 use Illuminate\Database\Connection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Carbon;
@@ -25,6 +26,18 @@ class QuotationService
     public function __construct()
     {
         $this->columnCache = new \WeakMap;
+    }
+
+    private function broadcastChanged(Connection $connection): void
+    {
+        try {
+            event(new QuotationChanged(QuotationChanged::channelForDatabase(
+                (string) $connection->getDatabaseName(),
+            )));
+        } catch (\Throwable $exception) {
+            // A socket outage must not turn a committed save into an error.
+            report($exception);
+        }
     }
 
     private function resolveColumn(Connection $connection, array $candidates, string $fallback): string
@@ -182,6 +195,7 @@ class QuotationService
                     $this->insertDetails($connection, $number, $data, normalizeMargin: true);
                 }, attempts: 3);
 
+                $this->broadcastChanged($connection);
                 return true;
             } catch (\Throwable $exception) {
                 $counterConflict = $exception instanceof RuntimeException
@@ -224,6 +238,7 @@ class QuotationService
             $this->insertDetails($connection, $noPenawaran, $data);
         }, attempts: 3);
 
+        $this->broadcastChanged($connection);
         return true;
     }
 
@@ -241,6 +256,7 @@ class QuotationService
             $connection->table('tb_penawaran')->where('No_penawaran', $noPenawaran)->delete();
         }, attempts: 3);
 
+        $this->broadcastChanged($connection);
         return true;
     }
 
@@ -256,6 +272,7 @@ class QuotationService
             throw new RuntimeException('Detail quotation tidak ditemukan.', 404);
         }
 
+        $this->broadcastChanged($connection);
         return true;
     }
 
@@ -268,6 +285,7 @@ class QuotationService
             throw new RuntimeException('Detail quotation tidak ditemukan.', 404);
         }
 
+        $this->broadcastChanged($connection);
         return true;
     }
 }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Marketing;
 
+use App\Events\QuotationChanged;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -124,6 +125,7 @@ class QuotationController
             'penawaranDetail' => [],
             'detailNo' => null,
             'period' => $period,
+            'realtimeChannel' => QuotationChanged::currentChannel(),
         ]);
     }
 
@@ -590,18 +592,73 @@ class QuotationController
             ->selectRaw('min(trim(attend)) as attend')
             ->groupByRaw('lower(trim(attend))');
 
-        if ($search !== '') {
-            $pattern = '%'.str_replace(['!', '%', '_'], ['!!', '!%', '!_'], Str::lower($search)).'%';
-            $query->whereRaw("lower(trim(attend)) like ? escape '!'", [$pattern]);
+        // Group the complete history before searching/paging so aliases cannot
+        // reappear on another page or become the representative during a search.
+        $groups = [];
+        $names = $query->get()->pluck('attend')->map(function ($attend) {
+            $name = preg_replace('/\s+/u', ' ', trim($attend));
+
+            return ['name' => $name, 'key' => $this->normalizeAttend($name)];
+        })->sort(function ($left, $right) {
+            return mb_strlen($left['key']) <=> mb_strlen($right['key'])
+                ?: strcasecmp($left['name'], $right['name'])
+                ?: strcmp($left['name'], $right['name']);
+        });
+
+        foreach ($names as $name) {
+            $key = $name['key'];
+            $groupKey = $key;
+            $multiplePeople = preg_match('/[&\/]|\bdan\b/u', Str::lower($name['name'])) === 1;
+
+            if (!$multiplePeople && $key !== '') {
+                // Prefer the shortest name: marvel, marvelna, marvelna vidica.
+                // Do not use very short prefixes (e.g. Al versus Alvin).
+                for ($length = 4; $length < mb_strlen($key); $length++) {
+                    $prefix = mb_substr($key, 0, $length);
+                    if (isset($groups['single:'.$prefix])) {
+                        $groupKey = $prefix;
+                        break;
+                    }
+                }
+            }
+
+            $groupKey = ($multiplePeople ? 'multiple:' : 'single:').$groupKey;
+            $groups[$groupKey] ??= ['name' => $name['name'], 'aliases' => []];
+            $groups[$groupKey]['aliases'][] = $name;
         }
 
-        $attends = $query->orderBy('attend')->simplePaginate(30, ['*'], 'page', (int) ($validated['page'] ?? 1));
+        $normalizedSearch = $this->normalizeAttend($search);
+        $attends = collect($groups)->filter(function ($group) use ($search, $normalizedSearch) {
+            if ($search === '') {
+                return true;
+            }
+
+            foreach ($group['aliases'] as $alias) {
+                if (str_contains(Str::lower($alias['name']), Str::lower($search))
+                    || ($normalizedSearch !== '' && str_contains($alias['key'], $normalizedSearch))) {
+                    return true;
+                }
+            }
+
+            return false;
+        })->pluck('name')->sort(SORT_NATURAL | SORT_FLAG_CASE)->values();
+        $page = (int) ($validated['page'] ?? 1);
+        $perPage = 30;
 
         return response()->json([
-            'attends' => $attends->getCollection()->pluck('attend')->values(),
-            'has_more' => $attends->hasMorePages(),
-            'page' => $attends->currentPage(),
+            'attends' => $attends->slice(($page - 1) * $perPage, $perPage)->values(),
+            'has_more' => $attends->count() > $page * $perPage,
+            'page' => $page,
         ]);
+    }
+
+    private function normalizeAttend(string $name): string
+    {
+        $name = Str::lower($name);
+        $name = preg_replace('/\b(?:bapak|bpk|bp|pak|ibu|bu)\b\.?\s*/u', '', $name);
+
+        // Keep person separators so a combined Attend stays distinct.
+        return preg_replace('/[\s.]+/u', '', $name);
     }
 
     public function suggestFranco(Request $request)

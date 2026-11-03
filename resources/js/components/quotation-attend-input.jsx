@@ -4,6 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 export default function QuotationAttendInput({ id, value, onValueChange }) {
     const listId = useId();
     const listRef = useRef(null);
+    const tabCompletionRef = useRef(null);
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
@@ -13,6 +14,10 @@ export default function QuotationAttendInput({ id, value, onValueChange }) {
     const [error, setError] = useState('');
     const [active, setActive] = useState(-1);
     const [retry, setRetry] = useState(0);
+
+    useEffect(() => {
+        return () => tabCompletionRef.current?.abort();
+    }, [value]);
 
     useEffect(() => {
         if (!open) return;
@@ -70,7 +75,8 @@ export default function QuotationAttendInput({ id, value, onValueChange }) {
 
     const openList = () => {
         if (open) return;
-        setSearch('');
+        tabCompletionRef.current?.abort();
+        setSearch(value.trim());
         setPage(1);
         setOptions([]);
         setHasMore(false);
@@ -79,9 +85,45 @@ export default function QuotationAttendInput({ id, value, onValueChange }) {
     };
 
     const choose = (attend) => {
+        tabCompletionRef.current?.abort();
         onValueChange(attend);
         setOpen(false);
         setActive(-1);
+    };
+
+    const completeOnTab = async () => {
+        if (options.length > 0) {
+            choose(options[active >= 0 ? active : 0]);
+            return;
+        }
+
+        // Tab may be pressed before the debounced suggestions have loaded.
+        // Keep normal focus navigation while finishing this lookup.
+        tabCompletionRef.current?.abort();
+        const controller = new AbortController();
+        tabCompletionRef.current = controller;
+        setOpen(false);
+        try {
+            const params = new URLSearchParams({
+                search: value.trim(),
+                page: '1',
+            });
+            const response = await fetch(
+                `/marketing/quotation/attends?${params}`,
+                {
+                    headers: { Accept: 'application/json' },
+                    signal: controller.signal,
+                },
+            );
+            if (!response.ok) return;
+            const data = await response.json();
+            const attend = data.attends?.[0];
+            if (!controller.signal.aborted && typeof attend === 'string') {
+                choose(attend);
+            }
+        } catch {
+            // Keep the typed name if the lookup fails or is cancelled.
+        }
     };
 
     return (
@@ -106,6 +148,7 @@ export default function QuotationAttendInput({ id, value, onValueChange }) {
                 onFocus={openList}
                 onClick={openList}
                 onChange={(event) => {
+                    tabCompletionRef.current?.abort();
                     onValueChange(event.target.value);
                     setSearch(event.target.value);
                     setPage(1);
@@ -129,6 +172,17 @@ export default function QuotationAttendInput({ id, value, onValueChange }) {
                                       options.length ? 0 : -1,
                                   ),
                         );
+                    } else if (
+                        event.key === 'Tab' &&
+                        !event.shiftKey &&
+                        !event.ctrlKey &&
+                        !event.altKey &&
+                        !event.metaKey &&
+                        !event.nativeEvent.isComposing &&
+                        open &&
+                        value.trim() !== ''
+                    ) {
+                        void completeOnTab();
                     } else if (event.key === 'Enter' && open && active >= 0) {
                         event.preventDefault();
                         choose(options[active]);
@@ -173,7 +227,7 @@ export default function QuotationAttendInput({ id, value, onValueChange }) {
                             : error ||
                               (options.length === 0
                                   ? 'Tidak ada Attend yang cocok. Anda tetap dapat mengetik nama baru.'
-                                  : 'Pilih Attend atau ketik nama baru.')}
+                                  : 'Tekan Tab untuk melengkapi Attend, pilih nama, atau ketik nama baru.')}
                     </div>
                     {!loading && error && (
                         <button

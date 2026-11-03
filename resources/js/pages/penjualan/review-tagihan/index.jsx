@@ -100,6 +100,13 @@ const formatPercent = (value) => {
     return `${num.toFixed(1)}%`;
 };
 
+const formatExpectedInvoices = (value) => {
+    if (value == null) return '—';
+    const count = toNumber(value);
+    if (count > 0 && count < 1) return '< 1 faktur';
+    return `≈ ${new Intl.NumberFormat('id-ID', { maximumFractionDigits: 0 }).format(count)} faktur`;
+};
+
 const currentMonthName = new Intl.DateTimeFormat('id-ID', {
     month: 'long',
 }).format(new Date());
@@ -319,6 +326,7 @@ export default function ReviewTagihanIndex() {
         const data = await response.json();
         setModalData({
             ...data,
+            scope,
             showPaymentFilter,
         });
         setInvoicePaymentFilter('all');
@@ -850,8 +858,8 @@ export default function ReviewTagihanIndex() {
                                                                 {aiData.cashflow_forecast.inflow_7d_fmt}
                                                             </div>
                                                             <div className="text-[11px] text-muted-foreground border-t border-emerald-500/20 pt-1.5 flex items-center justify-between">
-                                                                <span>Estimasi Faktur:</span>
-                                                                <strong className="text-foreground">{aiData.cashflow_forecast.horizon_7d?.invoices_count || aiData.cashflow_forecast.invoices_count || aiData.analytics?.total_invoices_count || 0} faktur</strong>
+                                                                <span>Estimasi Faktur Cair:</span>
+                                                                <strong className="text-foreground">{formatExpectedInvoices(aiData.cashflow_forecast.horizon_7d?.expected_invoices_count)}</strong>
                                                             </div>
                                                         </button>
 
@@ -867,8 +875,8 @@ export default function ReviewTagihanIndex() {
                                                                 {aiData.cashflow_forecast.inflow_14d_fmt}
                                                             </div>
                                                             <div className="text-[11px] text-muted-foreground border-t border-blue-500/20 pt-1.5 flex items-center justify-between">
-                                                                <span>Estimasi Faktur:</span>
-                                                                <strong className="text-foreground">{aiData.cashflow_forecast.horizon_14d?.invoices_count || aiData.cashflow_forecast.invoices_count || aiData.analytics?.total_invoices_count || 0} faktur</strong>
+                                                                <span>Estimasi Faktur Cair:</span>
+                                                                <strong className="text-foreground">{formatExpectedInvoices(aiData.cashflow_forecast.horizon_14d?.expected_invoices_count)}</strong>
                                                             </div>
                                                         </button>
 
@@ -884,12 +892,15 @@ export default function ReviewTagihanIndex() {
                                                                 {aiData.cashflow_forecast.inflow_30d_fmt}
                                                             </div>
                                                             <div className="text-[11px] text-muted-foreground border-t border-purple-500/20 pt-1.5 flex items-center justify-between">
-                                                                <span>Estimasi Faktur:</span>
-                                                                <strong className="text-foreground">{aiData.cashflow_forecast.horizon_30d?.invoices_count || aiData.cashflow_forecast.invoices_count || aiData.analytics?.total_invoices_count || 0} faktur</strong>
+                                                                <span>Estimasi Faktur Cair:</span>
+                                                                <strong className="text-foreground">{formatExpectedInvoices(aiData.cashflow_forecast.horizon_30d?.expected_invoices_count)}</strong>
                                                             </div>
                                                         </button>
                                                     </div>
 
+                                                    <p className="text-xs text-muted-foreground">
+                                                        Estimasi jumlah faktur = nilai proyeksi rupiah ÷ rata-rata sisa piutang per faktur ({formatRupiah(aiData.cashflow_forecast.average_invoice_balance)}), dibulatkan ke faktur terdekat. Angka ini merupakan perkiraan setara jumlah faktur. Horizon 14 dan 30 hari mencakup periode sebelumnya.
+                                                    </p>
                                                     {aiData.cashflow_forecast.forecast_narrative && (
                                                         <p className="text-xs text-muted-foreground leading-relaxed bg-muted/30 rounded-lg p-2.5 border border-sidebar-border/40">
                                                             {aiData.cashflow_forecast.forecast_narrative}
@@ -1024,7 +1035,7 @@ export default function ReviewTagihanIndex() {
                                             </div>
 
                                             {/* Aging Grid Cards */}
-                                            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-7">
+                                            <div className="flex flex-wrap gap-2">
                                                 {visibleAgingBuckets.map((b) => {
                                                     const style = agingStyles[b.key] ?? { color: 'bg-slate-400', border: 'border-sidebar-border/60' };
                                                     const borderClass = style.border;
@@ -1035,7 +1046,7 @@ export default function ReviewTagihanIndex() {
                                                             type="button"
                                                             key={b.key}
                                                             onClick={() => setDetailSelection(b)}
-                                                            className={`rounded-xl border ${borderClass} bg-card p-2.5 text-left text-xs shadow-2xs transition hover:border-primary focus-visible:outline-2 focus-visible:outline-primary`}
+                                                            className={`min-w-0 flex-1 basis-[150px] rounded-xl border ${borderClass} bg-card p-2.5 text-left text-xs shadow-2xs transition hover:border-primary focus-visible:outline-2 focus-visible:outline-primary`}
                                                             aria-label={`Lihat rincian ${b.label}`}
                                                         >
                                                             <div className="flex items-center gap-1.5 font-semibold text-foreground">
@@ -1546,6 +1557,7 @@ export default function ReviewTagihanIndex() {
                     bucket={detailSelection}
                     referenceDate={aiData?.analytics?.reference_date}
                     onClose={() => setDetailSelection(null)}
+                    onCustomerClick={(customer) => openInvoiceModal({ scope: 'all', customer, showPaymentFilter: true })}
                     onInvoiceClick={(invoice) => {
                         setSelectedInvoiceNo(invoice.no_fakturpenjualan);
                         setInvoiceDetailOpen(true);
@@ -1558,6 +1570,8 @@ export default function ReviewTagihanIndex() {
                 open={modalOpen}
                 onOpenChange={setModalOpen}
                 data={filteredModalData}
+                enableAgeFilter={modalData?.scope !== 'all'}
+                onCustomerClick={(customer) => openInvoiceModal({ scope: 'all', customer, showPaymentFilter: true })}
                 onInvoiceClick={(invoice) => {
                     setSelectedInvoiceNo(invoice.no_fakturpenjualan);
                     setInvoiceDetailOpen(true);

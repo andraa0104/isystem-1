@@ -27,6 +27,7 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/app-layout';
+import { useMasterDataRows } from '@/hooks/use-master-data-rows';
 import { confirmDelete } from '@/lib/confirm-delete';
 import { Head, router, useForm } from '@inertiajs/react';
 import { ChevronDown, Eye, Pencil, Plus, Trash2 } from 'lucide-react';
@@ -146,10 +147,8 @@ const materialMovementRows = (material) =>
 const MetricValue = ({ loading, children, className = 'h-5 w-16' }) =>
     loading ? <Skeleton className={className} /> : children;
 
-export default function MaterialIndex({ materials }) {
+export default function MaterialIndex() {
     // --- States Utama ---
-    const [materialsList, setMaterialsList] = useState([]);
-    const [tableLoading, setTableLoading] = useState(true);
     const [activeCardTab, setActiveCardTab] = useState('');
     const loadedCardTabs = useRef(new Set());
 
@@ -311,26 +310,30 @@ export default function MaterialIndex({ materials }) {
         remark: '',
     });
 
-    // --- Pemisahan Frontend & Backend (Initial Fetch) ---
-    useEffect(() => {
-        // Jika data dari backend belum ada (karena Inertia::lazy)
-        if (!materials || materials.length === 0) {
-            setTableLoading(true);
-            router.reload({
-                only: ['materials'],
-                preserveState: true,
-                onSuccess: (page) => {
-                    setMaterialsList(page.props.materials || []);
-                },
-                onFinish: () => {
-                    setTableLoading(false);
-                },
-            });
-        } else {
-            setMaterialsList(materials);
-            setTableLoading(false);
-        }
-    }, [materials]);
+    const {
+        rows: materialsList,
+        total: totalItems,
+        loading: tableLoading,
+        error: tableError,
+        refresh: refreshRows,
+    } = useMasterDataRows('/master-data/material/rows', {
+        search: debouncedSearchTerm.trim(),
+        page: currentPage,
+        per_page: pageSize === Infinity ? 'all' : pageSize,
+        order: codeOrder,
+        stock: stockFilter,
+    });
+
+    const {
+        rows: movementMaterials,
+        loading: movementRowsLoading,
+        error: movementRowsError,
+        refresh: refreshMovementRows,
+    } = useMasterDataRows(
+        '/master-data/material/rows',
+        { per_page: 'all' },
+        { enabled: Boolean(movementModal || warehouseModal) },
+    );
 
     const setMetricLoading = (category, metric, loading, warehouse = null) => {
         if (warehouse) {
@@ -646,41 +649,6 @@ export default function MaterialIndex({ materials }) {
     }, [searchTerm]);
 
     // --- Pemrosesan Data List ---
-    const filteredMaterials = useMemo(() => {
-        const term = debouncedSearchTerm.trim().toLowerCase();
-        let items = [...materialsList];
-
-        if (stockFilter === 'top') {
-            items.sort((a, b) => Number(b.stok ?? 0) - Number(a.stok ?? 0));
-        } else if (stockFilter === 'low') {
-            items = items
-                .filter((item) => Number(item.stok ?? 0) > 0)
-                .sort((a, b) => Number(a.stok ?? 0) - Number(b.stok ?? 0));
-        } else if (stockFilter === 'empty') {
-            items = items.filter((item) => Number(item.stok ?? 0) <= 0);
-        } else {
-            items.sort((a, b) =>
-                codeOrder === 'desc'
-                    ? compareCode(b.kd_material, a.kd_material)
-                    : compareCode(a.kd_material, b.kd_material),
-            );
-        }
-
-        if (!term) {
-            return items;
-        }
-
-        return items.filter((item) => {
-            const values = [item.kd_material, item.material, item.unit];
-            return values.some((value) =>
-                String(value ?? '')
-                    .toLowerCase()
-                    .includes(term),
-            );
-        });
-    }, [materialsList, debouncedSearchTerm, stockFilter, codeOrder]);
-
-    const totalItems = filteredMaterials.length;
     const totalPages = useMemo(() => {
         if (pageSize === Infinity) {
             return 1;
@@ -688,13 +656,7 @@ export default function MaterialIndex({ materials }) {
         return Math.max(1, Math.ceil(totalItems / pageSize));
     }, [pageSize, totalItems]);
 
-    const displayedMaterials = useMemo(() => {
-        if (pageSize === Infinity) {
-            return filteredMaterials;
-        }
-        const startIndex = (currentPage - 1) * pageSize;
-        return filteredMaterials.slice(startIndex, startIndex + pageSize);
-    }, [filteredMaterials, currentPage, pageSize]);
+    const displayedMaterials = materialsList;
 
     const outstandingDeliveryOrders = useMemo(() => {
         const term = outstandingSearchTerm.trim().toLowerCase();
@@ -903,7 +865,7 @@ export default function MaterialIndex({ materials }) {
             return acc;
         }, {});
 
-        materialsList.forEach((material) => {
+        movementMaterials.forEach((material) => {
             const grouped = movementCategories.reduce((acc, category) => {
                 acc[category.key] = null;
                 return acc;
@@ -958,7 +920,7 @@ export default function MaterialIndex({ materials }) {
         });
 
         return base;
-    }, [materialsList]);
+    }, [movementMaterials]);
 
     const selectedMovement = movementModal ? movementData[movementModal] : null;
     const movementWarehouses = selectedMovement?.warehouses ?? [];
@@ -973,7 +935,7 @@ export default function MaterialIndex({ materials }) {
         const rows =
             selectedMovement?.rows ??
             (selectedWarehouse
-                ? materialsList.flatMap((material) =>
+                ? movementMaterials.flatMap((material) =>
                       materialMovementRows(material)
                           .filter(
                               (row) =>
@@ -1002,7 +964,7 @@ export default function MaterialIndex({ materials }) {
             compareCode(a.kd_material, b.kd_material),
         );
     }, [
-        materialsList,
+        movementMaterials,
         movementSearchTerm,
         selectedMovement,
         selectedWarehouse,
@@ -1161,6 +1123,8 @@ export default function MaterialIndex({ materials }) {
     };
 
     const refreshLoadedCardMetrics = () => {
+        refreshRows();
+        refreshMovementRows();
         if (loadedCardTabs.current.has('category')) fetchAllMovementMetrics();
         if (loadedCardTabs.current.has('warehouse'))
             fetchAllWarehouseSummaries();
@@ -1298,6 +1262,12 @@ export default function MaterialIndex({ materials }) {
     return (
         <>
             <Head title="Data Material" />
+            {tableError && (
+                <div role="alert" className="mx-6 mt-4 flex items-center justify-between gap-3 rounded-md border border-destructive/30 p-3 text-sm text-destructive">
+                    {tableError}
+                    <Button type="button" variant="outline" onClick={refreshRows}>Coba lagi</Button>
+                </div>
+            )}
             <div className="flex flex-col gap-6 p-6">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
@@ -3966,8 +3936,7 @@ export default function MaterialIndex({ materials }) {
                                                             2
                                                     }
                                                 >
-                                                    Data material tidak
-                                                    tersedia.
+                                                    {movementRowsLoading ? 'Memuat data material...' : movementRowsError || 'Data material tidak tersedia.'}
                                                 </td>
                                             </tr>
                                         ) : (
@@ -4235,8 +4204,7 @@ export default function MaterialIndex({ materials }) {
                                                     className="px-4 py-6 text-center text-muted-foreground"
                                                     colSpan={7}
                                                 >
-                                                    Data material tidak
-                                                    tersedia.
+                                                    {movementRowsLoading ? 'Memuat data material...' : movementRowsError || 'Data material tidak tersedia.'}
                                                 </td>
                                             </tr>
                                         ) : (

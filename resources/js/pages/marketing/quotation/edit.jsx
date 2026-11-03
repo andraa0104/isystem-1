@@ -365,7 +365,7 @@ export default function QuotationEdit({
             telepon: renderValue(item.telp_cs),
             fax: renderValue(item.fax_cs),
             email: renderValue(item.email_cs ?? item.email ?? ''),
-            attend: renderValue(item.attnd),
+            attend: '',
             kode: renderValue(item.kd_cs),
         }));
         setCustomerModalOpen(false);

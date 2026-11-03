@@ -170,6 +170,8 @@ Route::get('laporan/perubahan-modal/print', [PerubahanModalController::class, 'p
 
 Route::get('master-data/material', [MaterialController::class, 'index'])
     ->name('master-data.material.index');
+Route::get('master-data/material/rows', [MaterialController::class, 'rows'])
+    ->name('master-data.material.rows');
 Route::get('master-data/material/movement-metric', [MaterialController::class, 'movementMetric'])
     ->name('master-data.material.movement-metric');
 Route::get('master-data/material/warehouse-summary', [MaterialController::class, 'warehouseSummary'])
@@ -188,6 +190,8 @@ Route::delete('master-data/material/{kdMaterial}', [MaterialController::class, '
     ->name('master-data.material.destroy');
 Route::get('master-data/vendor', [VendorController::class, 'index'])
     ->name('master-data.vendor.index');
+Route::get('master-data/vendor/rows', [VendorController::class, 'rows'])
+    ->name('master-data.vendor.rows');
 Route::get('master-data/vendor/{kdVendor}', [VendorController::class, 'show'])
     ->name('master-data.vendor.show');
 Route::post('master-data/vendor', [VendorController::class, 'store'])
@@ -198,6 +202,8 @@ Route::delete('master-data/vendor/{kdVendor}', [VendorController::class, 'destro
     ->name('master-data.vendor.destroy');
 Route::get('master-data/customer', [CustomerController::class, 'index'])
     ->name('master-data.customer.index');
+Route::get('master-data/customer/rows', [CustomerController::class, 'rows'])
+    ->name('master-data.customer.rows');
 Route::get('master-data/customer/export', [CustomerController::class, 'export'])
     ->name('master-data.customer.export');
 Route::get('master-data/customer/{kdCustomer}', [CustomerController::class, 'show'])

@@ -58,6 +58,7 @@ export default function OverdueInvoiceWarningDialog({
     onOpenChange,
     data,
     onInvoiceClick = null,
+    onCustomerClick = null,
     onConfirm,
     isSubmitting = false,
     showActions = true,
@@ -279,7 +280,11 @@ export default function OverdueInvoiceWarningDialog({
                                             {renderValue(invoice.ref_po)}
                                         </TableCell>
                                         <TableCell>
-                                            {renderValue(invoice.nm_cs)}
+                                            {onCustomerClick && invoice.nm_cs ? (
+                                                <button type="button" className="text-left text-primary underline-offset-4 hover:underline" onClick={() => onCustomerClick(invoice.nm_cs)}>
+                                                    {invoice.nm_cs}
+                                                </button>
+                                            ) : renderValue(invoice.nm_cs)}
                                         </TableCell>
                                         <TableCell>
                                             {formatAmount(

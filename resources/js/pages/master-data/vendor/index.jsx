@@ -19,6 +19,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Skeleton } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/app-layout';
+import { useMasterDataRows } from '@/hooks/use-master-data-rows';
 import { normalizeApiError, readApiError } from '@/lib/api-error';
 import { confirmDelete } from '@/lib/confirm-delete';
 import { Head, router, useForm } from '@inertiajs/react';
@@ -42,12 +43,6 @@ const formatRupiah = (value) => {
     return `Rp ${Number(value).toLocaleString('id-ID')}`;
 };
 
-const compareCode = (a, b) =>
-    String(a ?? '').localeCompare(String(b ?? ''), 'id', {
-        numeric: true,
-        sensitivity: 'base',
-    });
-
 const initialFormState = {
     kd_vdr: '',
     nm_vdr: '',
@@ -70,10 +65,8 @@ const initialFormState = {
 // Global cache untuk menyimpan data pre-fetch modal
 const vendorDetailCache = {};
 
-export default function VendorIndex({ vendors = [] }) {
+export default function VendorIndex() {
     // --- States ---
-    const [vendorsList, setVendorsList] = useState([]);
-    const [tableLoading, setTableLoading] = useState(true);
 
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
@@ -120,29 +113,18 @@ export default function VendorIndex({ vendors = [] }) {
         errors: editErrors,
     } = useForm(initialFormState);
 
-    // --- Pemisahan Frontend & Backend (Initial Fetch) ---
-    useEffect(() => {
-        // Melakukan reload background untuk mengambil data "vendors" saja
-        // Membiarkan UI frontend ter-render instan terlebih dahulu
-        setTableLoading(true);
-        router.reload({
-            only: ['vendors'],
-            preserveState: true,
-            onSuccess: (page) => {
-                setVendorsList(page.props.vendors || []);
-            },
-            onFinish: () => {
-                setTableLoading(false);
-            },
-        });
-    }, []);
-
-    // Sinkronisasi prop vendors jika terjadi mutasi/hapus/tambah dari luar
-    useEffect(() => {
-        if (vendors?.length > 0) {
-            setVendorsList(vendors);
-        }
-    }, [vendors]);
+    const {
+        rows: vendorsList,
+        total: totalItems,
+        loading: tableLoading,
+        error: tableError,
+        refresh: refreshRows,
+    } = useMasterDataRows('/master-data/vendor/rows', {
+        search: debouncedSearchTerm.trim(),
+        page: currentPage,
+        per_page: pageSize === Infinity ? 'all' : pageSize,
+        order: codeOrder,
+    });
 
     // --- Debounce untuk input pencarian (Optimasi Loading Filter) ---
     useEffect(() => {
@@ -156,25 +138,6 @@ export default function VendorIndex({ vendors = [] }) {
     }, [poSearchTerm]);
 
     // --- Pemrosesan Data List ---
-    const filteredVendors = useMemo(() => {
-        const term = debouncedSearchTerm.trim().toLowerCase();
-        let items = [...vendorsList];
-        items.sort((a, b) =>
-            codeOrder === 'desc'
-                ? compareCode(b.kd_vdr, a.kd_vdr)
-                : compareCode(a.kd_vdr, b.kd_vdr),
-        );
-        if (!term) {
-            return items;
-        }
-        return items.filter((item) =>
-            String(item.nm_vdr ?? '')
-                .toLowerCase()
-                .includes(term),
-        );
-    }, [vendorsList, debouncedSearchTerm, codeOrder]);
-
-    const totalItems = filteredVendors.length;
     const totalPages = useMemo(() => {
         if (pageSize === Infinity) {
             return 1;
@@ -182,13 +145,7 @@ export default function VendorIndex({ vendors = [] }) {
         return Math.max(1, Math.ceil(totalItems / pageSize));
     }, [pageSize, totalItems]);
 
-    const displayedVendors = useMemo(() => {
-        if (pageSize === Infinity) {
-            return filteredVendors;
-        }
-        const startIndex = (currentPage - 1) * pageSize;
-        return filteredVendors.slice(startIndex, startIndex + pageSize);
-    }, [filteredVendors, currentPage, pageSize]);
+    const displayedVendors = vendorsList;
 
     useEffect(() => {
         if (currentPage > totalPages) {
@@ -378,6 +335,7 @@ export default function VendorIndex({ vendors = [] }) {
             {
                 preserveScroll: true,
                 onSuccess: () => {
+                    refreshRows();
                     // Hapus data dari cache jika berhasil dihapus dari server
                     delete vendorDetailCache[vendor.kd_vdr];
                 }
@@ -394,6 +352,7 @@ export default function VendorIndex({ vendors = [] }) {
         post('/master-data/vendor', {
             preserveScroll: true,
             onSuccess: () => {
+                refreshRows();
                 resetCreate();
                 setCreateStep(1);
                 setIsCreateModalOpen(false);
@@ -409,6 +368,7 @@ export default function VendorIndex({ vendors = [] }) {
         put(`/master-data/vendor/${encodeURIComponent(editVendorId)}`, {
             preserveScroll: true,
             onSuccess: () => {
+                refreshRows();
                 // Update cache dengan data baru
                 if (vendorDetailCache[editVendorId]) {
                     vendorDetailCache[editVendorId].vendor = { ...editData };
@@ -590,6 +550,12 @@ export default function VendorIndex({ vendors = [] }) {
     return (
         <>
             <Head title="Data Vendor" />
+            {tableError && (
+                <div role="alert" className="mx-6 mt-4 flex items-center justify-between gap-3 rounded-md border border-destructive/30 p-3 text-sm text-destructive">
+                    {tableError}
+                    <Button type="button" variant="outline" onClick={refreshRows}>Coba lagi</Button>
+                </div>
+            )}
             <div className="flex flex-col gap-6 p-6">
                 <div className="flex flex-wrap items-center justify-between gap-4">
                     <div>
