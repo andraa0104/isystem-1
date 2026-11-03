@@ -426,16 +426,168 @@ html.dark .fs-login-root {
     z-index: 3;
 }
 
-/* ─── Bottom: Spiritual Quote Card (Bismillah & Berkah) ─── */
-.fs-quote-card {
+/* ─── Floating Ornaments Layer (Bergerak Bebas & Animatif) ───────────────── */
+.fs-floating-ornaments-layer {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+    z-index: 1;
+}
+
+.fs-ornament {
+    position: absolute;
+    pointer-events: none;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    -webkit-box-pack: center;
+    -ms-flex-pack: center;
+    justify-content: center;
+    will-change: transform;
+}
+
+.fs-ornament-hex {
+    -webkit-filter: drop-shadow(0 0 12px rgba(16, 185, 129, 0.45));
+    filter: drop-shadow(0 0 12px rgba(16, 185, 129, 0.45));
+}
+
+.fs-ornament-plus {
+    -webkit-filter: drop-shadow(0 0 10px rgba(6, 182, 212, 0.5));
+    filter: drop-shadow(0 0 10px rgba(6, 182, 212, 0.5));
+}
+
+.fs-ornament-sparkle {
+    -webkit-filter: drop-shadow(0 0 14px rgba(52, 211, 153, 0.65));
+    filter: drop-shadow(0 0 14px rgba(52, 211, 153, 0.65));
+}
+
+.fs-ornament-cube {
+    -webkit-filter: drop-shadow(0 0 12px rgba(129, 140, 248, 0.5));
+    filter: drop-shadow(0 0 12px rgba(129, 140, 248, 0.5));
+}
+
+.fs-ornament-radar {
+    -webkit-filter: drop-shadow(0 0 12px rgba(16, 185, 129, 0.45));
+    filter: drop-shadow(0 0 12px rgba(16, 185, 129, 0.45));
+}
+
+.fs-ornament-triad {
+    -webkit-filter: drop-shadow(0 0 10px rgba(251, 113, 133, 0.45));
+    filter: drop-shadow(0 0 10px rgba(251, 113, 133, 0.45));
+}
+
+/* Glassmorphism Floating Tech Pills */
+.fs-ornament-badge {
+    padding: 5px 12px;
+    border-radius: 20px;
+    background: rgba(15, 23, 42, 0.78);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    display: -webkit-inline-box;
+    display: -ms-inline-flexbox;
+    display: inline-flex;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    gap: 7px;
+    color: #34d399;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1.2px;
+    -webkit-box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+}
+
+.fs-ornament-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: #34d399;
+    -webkit-box-shadow: 0 0 8px #34d399;
+    box-shadow: 0 0 8px #34d399;
+}
+
+.fs-ornament-code {
+    padding: 5px 12px;
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.78);
+    border: 1px solid rgba(129, 140, 248, 0.35);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    color: #a5b4fc;
+    font-size: 11px;
+    font-family: Consolas, Monaco, 'Courier New', monospace;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    -webkit-box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 4px 18px rgba(0, 0, 0, 0.35);
+}
+
+/* ─── Bottom: Spiritual Quote Card with Gemini Loading Glowing Border ─────── */
+.fs-quote-wrapper {
     position: relative;
     z-index: 3;
-    padding: clamp(14px, 2vh, 22px) clamp(18px, 2.5vw, 26px);
-    border-radius: 20px;
-    background: var(--fs-quote-bg);
-    border: 1px solid var(--fs-quote-border);
-    -webkit-backdrop-filter: blur(12px);
-    backdrop-filter: blur(12px);
+    padding: 2.5px;
+    border-radius: 24px;
+    overflow: hidden;
+    -webkit-box-shadow: 0 0 35px rgba(16, 185, 129, 0.22);
+    box-shadow: 0 0 35px rgba(16, 185, 129, 0.22);
+}
+
+/* Gemini Rotating Light Beam running infinitely around card border */
+.fs-quote-wrapper::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: -webkit-conic-gradient(
+        from 0deg,
+        transparent 0deg,
+        #10b981 45deg,
+        #06b6d4 110deg,
+        #818cf8 160deg,
+        #f43f5e 210deg,
+        transparent 280deg,
+        transparent 360deg
+    );
+    background: conic-gradient(
+        from 0deg,
+        transparent 0deg,
+        #10b981 45deg,
+        #06b6d4 110deg,
+        #818cf8 160deg,
+        #f43f5e 210deg,
+        transparent 280deg,
+        transparent 360deg
+    );
+    -webkit-animation: fs-gemini-border-spin 4s linear infinite;
+    animation: fs-gemini-border-spin 4s linear infinite;
+}
+
+@-webkit-keyframes fs-gemini-border-spin {
+    from { -webkit-transform: rotate(0deg); transform: rotate(0deg); }
+    to   { -webkit-transform: rotate(360deg); transform: rotate(360deg); }
+}
+@keyframes fs-gemini-border-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+.fs-quote-card {
+    position: relative;
+    z-index: 2;
+    padding: clamp(22px, 3vh, 32px) clamp(24px, 3vw, 36px);
+    border-radius: 22px;
+    background: rgba(9, 19, 34, 0.94);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
     overflow: hidden;
 }
 
@@ -446,10 +598,10 @@ html.dark .fs-login-root {
     left: -100%;
     width: 60%;
     height: 100%;
-    background: -webkit-linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.18), transparent);
-    background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.18), transparent);
-    -webkit-animation: fs-shimmer-pass 5s ease-in-out infinite;
-    animation: fs-shimmer-pass 5s ease-in-out infinite;
+    background: -webkit-linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.22), transparent);
+    background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.22), transparent);
+    -webkit-animation: fs-shimmer-pass 4.5s ease-in-out infinite;
+    animation: fs-shimmer-pass 4.5s ease-in-out infinite;
 }
 
 @-webkit-keyframes fs-shimmer-pass {
@@ -463,6 +615,7 @@ html.dark .fs-login-root {
     100% { left: 160%; }
 }
 
+/* Gemini Circular Loading Element inside Header */
 .fs-quote-eyebrow {
     display: -webkit-box;
     display: -ms-flexbox;
@@ -470,20 +623,75 @@ html.dark .fs-login-root {
     -webkit-box-align: center;
     -ms-flex-align: center;
     align-items: center;
-    gap: 7px;
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 1.5px;
+    gap: 10px;
+    font-size: 11.5px;
+    font-weight: 800;
+    letter-spacing: 1.8px;
     color: #34d399;
     text-transform: uppercase;
-    margin-bottom: 6px;
+    margin-bottom: 10px;
+}
+
+.fs-gemini-spinner {
+    position: relative;
+    width: 20px;
+    height: 20px;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    -webkit-box-pack: center;
+    -ms-flex-pack: center;
+    justify-content: center;
+}
+
+.fs-gemini-spinner-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    border-top-color: #34d399;
+    border-right-color: #06b6d4;
+    border-bottom-color: #818cf8;
+    -webkit-animation: fs-gemini-spin 1.4s linear infinite;
+    animation: fs-gemini-spin 1.4s linear infinite;
+    -webkit-box-shadow: 0 0 8px rgba(52, 211, 153, 0.6);
+    box-shadow: 0 0 8px rgba(52, 211, 153, 0.6);
+}
+
+@-webkit-keyframes fs-gemini-spin {
+    from { -webkit-transform: rotate(0deg); transform: rotate(0deg); }
+    to   { -webkit-transform: rotate(360deg); transform: rotate(360deg); }
+}
+@keyframes fs-gemini-spin {
+    from { transform: rotate(0deg); }
+    to   { transform: rotate(360deg); }
+}
+
+.fs-gemini-sparkle {
+    position: relative;
+    z-index: 2;
+    color: #34d399;
+    -webkit-animation: fs-gemini-pulse 2s ease-in-out infinite;
+    animation: fs-gemini-pulse 2s ease-in-out infinite;
+}
+
+@-webkit-keyframes fs-gemini-pulse {
+    0%, 100% { -webkit-transform: scale(0.9); opacity: 0.8; }
+    50% { -webkit-transform: scale(1.15); opacity: 1; }
+}
+@keyframes fs-gemini-pulse {
+    0%, 100% { transform: scale(0.9); opacity: 0.8; }
+    50% { transform: scale(1.15); opacity: 1; }
 }
 
 .fs-quote-title {
-    margin: 0 0 8px;
+    margin: 0 0 10px;
     font-family: 'Georgia', serif;
-    font-size: clamp(17px, 1.8vw, 22px);
-    font-weight: 600;
+    font-size: clamp(20px, 2.2vw, 26px);
+    font-weight: 700;
     line-height: 1.35;
     color: #ffffff;
     letter-spacing: -0.3px;
@@ -491,13 +699,14 @@ html.dark .fs-login-root {
 
 .fs-quote-title span {
     color: #34d399;
+    text-shadow: 0 0 18px rgba(52, 211, 153, 0.45);
 }
 
 .fs-quote-desc {
     margin: 0;
-    font-size: clamp(11px, 1.1vw, 13px);
-    line-height: 1.75;
-    color: rgba(255, 255, 255, 0.72);
+    font-size: clamp(12.5px, 1.25vw, 14.5px);
+    line-height: 1.8;
+    color: rgba(255, 255, 255, 0.82);
 }
 
 /* --------------------------------------------------------------------------
@@ -569,13 +778,13 @@ html.dark .fs-login-root {
 /* Main Form Container */
 .fs-form-core {
     width: 100%;
-    max-width: 420px;
+    max-width: 480px;
     margin: auto;
     padding: clamp(12px, 2vh, 24px) 0;
 }
 
 .fs-form-head {
-    margin-bottom: clamp(22px, 3.2vh, 32px);
+    margin-bottom: clamp(26px, 4vh, 38px);
 }
 
 .fs-badge-tag {
@@ -585,22 +794,22 @@ html.dark .fs-login-root {
     -webkit-box-align: center;
     -ms-flex-align: center;
     align-items: center;
-    gap: 6px;
-    padding: 5px 14px;
+    gap: 7px;
+    padding: 6px 16px;
     border-radius: 30px;
     background: rgba(13, 148, 136, 0.1);
     color: var(--fs-primary);
     border: 1px solid rgba(13, 148, 136, 0.22);
-    font-size: 11px;
+    font-size: 13px;
     font-weight: 700;
     letter-spacing: 1.2px;
     text-transform: uppercase;
-    margin-bottom: 12px;
+    margin-bottom: 14px;
 }
 
 .fs-title {
-    margin: 0 0 8px;
-    font-size: clamp(28px, 3.2vw, 38px);
+    margin: 0 0 10px;
+    font-size: clamp(32px, 3.8vw, 46px);
     font-weight: 800;
     letter-spacing: -1.2px;
     line-height: 1.15;
@@ -609,7 +818,7 @@ html.dark .fs-login-root {
 
 .fs-subtitle {
     margin: 0;
-    font-size: clamp(13px, 1.2vw, 14px);
+    font-size: clamp(14px, 1.4vw, 16px);
     color: var(--fs-text-muted);
     line-height: 1.6;
 }
@@ -625,7 +834,7 @@ html.dark .fs-login-root {
     -webkit-box-direction: normal;
     -ms-flex-direction: column;
     flex-direction: column;
-    gap: clamp(18px, 2.5vh, 24px);
+    gap: clamp(20px, 3vh, 28px);
 }
 
 .fs-field-group {
@@ -647,13 +856,13 @@ html.dark .fs-login-root {
 /* Control Input */
 .fs-control {
     width: 100%;
-    height: clamp(48px, 5.5vh, 54px);
+    height: clamp(52px, 6vh, 58px);
     padding: 0 46px 0 48px;
     border-radius: 14px;
     background: var(--fs-input-bg);
     border: 1.5px solid var(--fs-input-border);
     color: var(--fs-input-text);
-    font-size: 14px;
+    font-size: 15px;
     font-family: inherit;
     outline: none;
     -webkit-transition: border-color 0.2s ease, -webkit-box-shadow 0.2s ease, background 0.2s ease;
@@ -686,7 +895,7 @@ html.dark select.fs-control option {
     -webkit-transform: translateY(-50%);
     transform: translateY(-50%);
     color: var(--fs-input-label);
-    font-size: 13px;
+    font-size: 14px;
     pointer-events: none;
     padding: 0 6px;
     border-radius: 4px;
@@ -698,9 +907,9 @@ html.dark select.fs-control option {
 
 /* State Aktif (Ketika Diklik / Ada Isi) */
 .fs-field-group.is-active .fs-floating-label {
-    top: -9px;
+    top: -10px;
     left: 14px;
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 700;
     color: var(--fs-input-label-active);
     background: var(--fs-bg-right);
@@ -842,13 +1051,13 @@ html.dark .fs-pw-btn:hover {
 .fs-submit-btn {
     position: relative;
     width: 100%;
-    height: clamp(50px, 5.6vh, 54px);
-    margin-top: 6px;
+    height: clamp(54px, 6.2vh, 60px);
+    margin-top: 8px;
     border: none;
     border-radius: 14px;
     background: var(--fs-primary-gradient);
     color: var(--fs-primary-text);
-    font-size: 14px;
+    font-size: 15px;
     font-weight: 700;
     font-family: inherit;
     letter-spacing: 0.3px;
@@ -1050,77 +1259,59 @@ html.dark .fs-spinner {
     }
 }
 
-/* Tablet & Mobile Portrait (Layar <= 900px) */
+/* Tablet & Mobile Portrait (Layar <= 900px): Khusus Mode HP, Bagian i-System Ditiadakan */
 @media (max-width: 900px) {
     .fs-stage {
-        -webkit-box-orient: vertical;
-        -webkit-box-direction: normal;
-        -ms-flex-direction: column;
-        flex-direction: column;
+        display: block;
+        width: 100%;
         min-height: 100vh;
     }
 
-    /* Di layar kecil, visual kiri disederhanakan/dipindah ke atas */
+    /* Sembunyikan bagian visual i-System pada mode HP/Tablet */
     .fs-visual-side {
-        min-height: 0;
-        padding: 32px 20px 24px;
-        border-right: none;
-        border-bottom: 1px solid var(--fs-divider);
-    }
-
-    .fs-cosmos-stage {
-        width: 100%;
-        max-width: 440px;
-        height: 260px;
-    }
-
-    .fs-orbit-1 { width: 170px; height: 170px; }
-    .fs-orbit-2 { width: 240px; height: 240px; }
-    .fs-orbit-3 { width: 320px; height: 320px; }
-
-    .fs-satellite-node {
-        padding: 6px 10px;
-    }
-    .fs-node-text strong {
-        font-size: 11px;
-    }
-    .fs-node-text small {
-        display: none;
-    }
-
-    /* Sembunyikan quote card desktop di visual-side pada mobile */
-    .fs-visual-side .fs-quote-card {
-        display: none;
+        display: none !important;
     }
 
     .fs-form-side {
-        min-height: 0;
-        padding: 32px 24px 28px;
+        width: 100%;
+        min-height: 100vh;
+        padding: clamp(24px, 5vh, 44px) clamp(20px, 4vw, 36px);
+        background-color: var(--fs-bg-right);
+        background-image: var(--fs-bg-right-accent);
     }
 
     .fs-form-core {
-        max-width: none;
+        max-width: 480px;
+        margin: 0 auto;
+        padding: 16px 0;
     }
 
-    /* Tampilkan quote card versi mobile di bawah form */
+    /* Tampilkan quote card versi mobile di bawah form dengan border & glow elegan */
     .fs-quote-card-mobile {
         display: block;
         margin-top: 28px;
-        padding: 18px 20px;
-        border-radius: 16px;
+        padding: 20px 22px;
+        border-radius: 18px;
         background: rgba(13, 148, 136, 0.08);
-        border: 1px solid rgba(13, 148, 136, 0.2);
+        border: 1.5px solid rgba(13, 148, 136, 0.28);
+        -webkit-box-shadow: 0 4px 20px rgba(13, 148, 136, 0.12);
+        box-shadow: 0 4px 20px rgba(13, 148, 136, 0.12);
     }
     .fs-quote-card-mobile .fs-quote-eyebrow {
         color: var(--fs-primary);
+        font-size: 11px;
+        font-weight: 800;
+        letter-spacing: 1.5px;
     }
     .fs-quote-card-mobile .fs-quote-title {
         color: var(--fs-text-main);
-        font-size: 18px;
+        font-size: 19px;
+        margin: 4px 0 8px;
     }
     .fs-quote-card-mobile .fs-quote-desc {
         color: var(--fs-text-muted);
-        font-size: 12px;
+        font-size: 13px;
+        line-height: 1.7;
     }
 
     /* iOS auto-zoom prevention: min 16px */
@@ -1142,35 +1333,18 @@ html.dark .fs-spinner {
 
 /* Small Smartphone (Layar <= 480px) */
 @media (max-width: 480px) {
-    .fs-visual-side {
-        padding: 24px 16px 20px;
-    }
-    .fs-cosmos-stage {
-        height: 220px;
-    }
-    .fs-core-chip {
-        padding: 10px 16px;
-        border-radius: 16px;
-    }
-    .fs-core-icon {
-        width: 32px;
-        height: 32px;
-    }
-    .fs-core-name {
-        font-size: 17px;
-    }
-    .fs-core-desc {
-        font-size: 9px;
-    }
     .fs-form-side {
-        padding: 24px 18px 22px;
+        padding: 20px 16px;
     }
     .fs-title {
-        font-size: 26px;
+        font-size: 28px;
+    }
+    .fs-subtitle {
+        font-size: 13px;
     }
     .fs-submit-btn {
-        height: 48px;
-        font-size: 13px;
+        height: 52px;
+        font-size: 14px;
     }
 }
 

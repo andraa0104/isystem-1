@@ -35,31 +35,204 @@ const databaseLabels = {
     dbjms: 'DB JMS',
 };
 
-/* ─── Animated Spiritual Quote Card ─────────────────────────────────────── */
+/* ─── Animated Spiritual Quote Card (Gemini Loading Glow Effect) ─────────── */
 function SpiritualQuoteCard({ mobile = false }) {
     return (
-        <motion.div
-            className={mobile ? 'fs-quote-card-mobile' : 'fs-quote-card'}
-            initial={{ opacity: 0, y: 28, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{
-                duration: 0.7,
-                delay: mobile ? 0.3 : 0.65,
-                ease: [0.16, 1, 0.3, 1],
-            }}
-        >
-            <div className="fs-quote-eyebrow">
-                <Sparkles size={13} aria-hidden="true" />
-                <span>Niat Baik Bekerja</span>
-            </div>
-            <p className="fs-quote-title">
-                Sebelum bekerja, <span>ucapkan bismillah.</span>
-            </p>
-            <p className="fs-quote-desc">
-                Niatkan bekerja untuk mencari pahala, urusan rejeki bisa
-                mengikuti dan mengalir dengan sendirinya.
-            </p>
-        </motion.div>
+        <div className={mobile ? 'fs-quote-mobile-wrapper' : 'fs-quote-wrapper'}>
+            <motion.div
+                className={mobile ? 'fs-quote-card-mobile' : 'fs-quote-card'}
+                initial={{ opacity: 0, y: 28, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{
+                    duration: 0.7,
+                    delay: mobile ? 0.3 : 0.65,
+                    ease: [0.16, 1, 0.3, 1],
+                }}
+            >
+                <div className="fs-quote-eyebrow">
+                    <div className="fs-gemini-spinner" aria-hidden="true">
+                        <div className="fs-gemini-spinner-ring" />
+                        <Sparkles size={13} className="fs-gemini-sparkle" />
+                    </div>
+                    <span>Niat Baik Bekerja</span>
+                </div>
+                <p className="fs-quote-title">
+                    Sebelum bekerja, <span>ucapkan bismillah.</span>
+                </p>
+                <p className="fs-quote-desc">
+                    Niatkan bekerja sebagai ibadah, urusan rezeki akan mengikuti
+                    dan mengalir dengan sendirinya.
+                </p>
+            </motion.div>
+        </div>
+    );
+}
+
+/* ─── Freely Drifting Background Ornaments (Bergerak Bebas & Animatif) ─────── */
+function FloatingBackgroundOrnaments() {
+    return (
+        <div className="fs-floating-ornaments-layer" aria-hidden="true">
+            {/* 1. Hologram Hexagon Node (Drifting top-left to center-left) */}
+            <motion.div
+                className="fs-ornament fs-ornament-hex"
+                style={{ top: '10%', left: '8%' }}
+                animate={{
+                    x: [0, 80, -35, 65, -20, 0],
+                    y: [0, -45, 55, -30, 40, 0],
+                    rotate: [0, 90, 180, 270, 360],
+                    scale: [1, 1.12, 0.92, 1.08, 1],
+                }}
+                transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut' }}
+            >
+                <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
+                    <polygon
+                        points="22,3 39,13 39,31 22,41 5,31 5,13"
+                        stroke="#10b981"
+                        strokeWidth="1.5"
+                        strokeDasharray="4 3"
+                        opacity="0.65"
+                    />
+                    <circle cx="22" cy="22" r="3.5" fill="#34d399" opacity="0.8" />
+                </svg>
+            </motion.div>
+
+            {/* 2. Floating Tech Crosshair / Plus (Cyan HUD Precision) */}
+            <motion.div
+                className="fs-ornament fs-ornament-plus"
+                style={{ top: '62%', left: '10%' }}
+                animate={{
+                    x: [0, 55, -45, 75, -25, 0],
+                    y: [0, -65, 45, -50, 60, 0],
+                    rotate: [0, 180, 360],
+                    scale: [0.9, 1.15, 0.85, 1.1, 0.9],
+                }}
+                transition={{ duration: 19, repeat: Infinity, ease: 'easeInOut' }}
+            >
+                <svg width="30" height="30" viewBox="0 0 30 30" fill="none">
+                    <line x1="15" y1="4" x2="15" y2="26" stroke="#06b6d4" strokeWidth="2" strokeLinecap="round" opacity="0.6" />
+                    <line x1="4" y1="15" x2="26" y2="15" stroke="#06b6d4" strokeWidth="2" strokeLinecap="round" opacity="0.6" />
+                    <circle cx="15" cy="15" r="7" stroke="#06b6d4" strokeWidth="1" strokeDasharray="2 2" opacity="0.45" />
+                </svg>
+            </motion.div>
+
+            {/* 3. Floating ERP Live Pill Badge */}
+            <motion.div
+                className="fs-ornament fs-ornament-badge"
+                style={{ top: '18%', right: '12%' }}
+                animate={{
+                    x: [0, -70, 45, -85, 25, 0],
+                    y: [0, 65, -45, 55, -30, 0],
+                    rotate: [-3, 5, -4, 3, -3],
+                }}
+                transition={{ duration: 25, repeat: Infinity, ease: 'easeInOut' }}
+            >
+                <span className="fs-ornament-dot" />
+                <span>ERP::CORE</span>
+            </motion.div>
+
+            {/* 4. Floating 4-Point Sparkling Star */}
+            <motion.div
+                className="fs-ornament fs-ornament-sparkle"
+                style={{ top: '35%', left: '18%' }}
+                animate={{
+                    x: [0, 65, -55, 70, -35, 0],
+                    y: [0, 75, -45, 50, -55, 0],
+                    rotate: [0, 180, 360],
+                    scale: [0.8, 1.3, 0.75, 1.2, 0.8],
+                }}
+                transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut' }}
+            >
+                <svg width="34" height="34" viewBox="0 0 34 34" fill="none">
+                    <path
+                        d="M17 2 L20 13 L31 17 L20 21 L17 32 L14 21 L3 17 L14 13 Z"
+                        fill="#34d399"
+                        opacity="0.75"
+                    />
+                </svg>
+            </motion.div>
+
+            {/* 5. Floating Rhombus / Diamond Cube (Indigo) */}
+            <motion.div
+                className="fs-ornament fs-ornament-cube"
+                style={{ top: '44%', right: '9%' }}
+                animate={{
+                    x: [0, -80, 40, -65, 35, 0],
+                    y: [0, -60, 70, -40, 50, 0],
+                    rotate: [0, -90, -180, -270, -360],
+                    scale: [0.9, 1.1, 0.95, 1.15, 0.9],
+                }}
+                transition={{ duration: 27, repeat: Infinity, ease: 'easeInOut' }}
+            >
+                <svg width="38" height="38" viewBox="0 0 38 38" fill="none">
+                    <rect
+                        x="7"
+                        y="7"
+                        width="24"
+                        height="24"
+                        rx="5"
+                        transform="rotate(45 19 19)"
+                        stroke="#818cf8"
+                        strokeWidth="1.5"
+                        opacity="0.6"
+                    />
+                    <circle cx="19" cy="19" r="4" fill="#818cf8" opacity="0.5" />
+                </svg>
+            </motion.div>
+
+            {/* 6. Floating Code Pill `<system />` */}
+            <motion.div
+                className="fs-ornament fs-ornament-code"
+                style={{ bottom: '26%', right: '14%' }}
+                animate={{
+                    x: [0, -65, 35, -50, 55, 0],
+                    y: [0, -65, 55, -30, 45, 0],
+                    rotate: [0, 12, -12, 8, 0],
+                    scale: [0.95, 1.08, 0.9, 1.05, 0.95],
+                }}
+                transition={{ duration: 23, repeat: Infinity, ease: 'easeInOut' }}
+            >
+                <code>&lt;system /&gt;</code>
+            </motion.div>
+
+            {/* 7. Floating Data Stream Radar Ring */}
+            <motion.div
+                className="fs-ornament fs-ornament-radar"
+                style={{ bottom: '16%', left: '32%' }}
+                animate={{
+                    x: [0, -55, 65, -35, 45, 0],
+                    y: [0, -75, 45, -55, 45, 0],
+                    scale: [1, 1.25, 0.9, 1.18, 1],
+                }}
+                transition={{ duration: 24, repeat: Infinity, ease: 'easeInOut' }}
+            >
+                <svg width="38" height="38" viewBox="0 0 38 38" fill="none">
+                    <circle cx="19" cy="19" r="15" stroke="#10b981" strokeWidth="1" strokeDasharray="3 3" opacity="0.45" />
+                    <circle cx="19" cy="19" r="8" stroke="#34d399" strokeWidth="1" opacity="0.65" />
+                    <circle cx="19" cy="19" r="2.5" fill="#34d399" />
+                </svg>
+            </motion.div>
+
+            {/* 8. Floating Micro Constellation Triad */}
+            <motion.div
+                className="fs-ornament fs-ornament-triad"
+                style={{ bottom: '40%', left: '7%' }}
+                animate={{
+                    x: [0, 65, -35, 75, -40, 0],
+                    y: [0, -70, 50, -40, 60, 0],
+                    rotate: [0, 120, 240, 360],
+                }}
+                transition={{ duration: 26, repeat: Infinity, ease: 'easeInOut' }}
+            >
+                <svg width="42" height="42" viewBox="0 0 42 42" fill="none">
+                    <line x1="10" y1="32" x2="21" y2="10" stroke="#fb7185" strokeWidth="1" opacity="0.5" />
+                    <line x1="21" y1="10" x2="33" y2="30" stroke="#fb7185" strokeWidth="1" opacity="0.5" />
+                    <line x1="33" y1="30" x2="10" y2="32" stroke="#fb7185" strokeWidth="1" strokeDasharray="3 3" opacity="0.35" />
+                    <circle cx="10" cy="32" r="3" fill="#fb7185" opacity="0.8" />
+                    <circle cx="21" cy="10" r="3" fill="#fb7185" opacity="0.8" />
+                    <circle cx="33" cy="30" r="3" fill="#fb7185" opacity="0.8" />
+                </svg>
+            </motion.div>
+        </div>
     );
 }
 
@@ -383,6 +556,9 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                                 transition={{ duration: 24, repeat: Infinity, ease: 'easeInOut', delay: 4 }}
                             />
                         </div>
+
+                        {/* Ornamen Background Bergerak Bebas (Floating Tech HUD Elements) */}
+                        <FloatingBackgroundOrnaments />
 
                         {/* Visual Cosmos Hub (Core Chip + 4 Modules: Penjualan, Persediaan, Keuangan, Marketing) */}
                         <CosmosHubVisual />
