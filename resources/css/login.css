@@ -1,383 +1,142 @@
 /* ==========================================================================
-   i-System Enterprise - Modern Trending UI (Glassmorphic & Animated Morphing)
-   Full Animated, Floating Labels, Motion Powered
-   Compatible: Windows 7/8/10/11, macOS, Linux, iOS, Android, Tablets & Desktops
+   i-System Enterprise - Full-Screen Immersive Modern UI
+   Full Viewport, Animated Dynamic Hub (Penjualan, Persediaan, Keuangan, Marketing)
+   Interactive Floating Morphing Labels, Cross-OS & Cross-Device Compatible
+   Mendukung resolusi < 1080p (1366x768, 1280x720, 1440x900, dsb.)
    ========================================================================== */
 
 /* --------------------------------------------------------------------------
    1. RESET & THEMING TOKENS
    -------------------------------------------------------------------------- */
-.modern-login-page,
-.modern-login-page * {
+.fs-login-root,
+.fs-login-root * {
     -webkit-box-sizing: border-box;
     box-sizing: border-box;
+    margin: 0;
+    padding: 0;
 }
 
-/* Light Theme Variables (Default) */
-.modern-login-page {
-    --ml-bg: #f8fafc;
-    --ml-bg-gradient: radial-gradient(at 0% 0%, rgba(204, 251, 241, 0.45) 0px, transparent 50%),
-                       radial-gradient(at 100% 100%, rgba(224, 231, 255, 0.5) 0px, transparent 50%),
-                       radial-gradient(at 50% 50%, rgba(241, 245, 249, 1) 0px, transparent 100%);
-    --ml-grid: rgba(15, 23, 42, 0.035);
+/* Light Mode Variables */
+.fs-login-root {
+    --fs-bg-left: linear-gradient(155deg, #091322 0%, #0f1f38 50%, #0a182c 100%);
+    --fs-bg-right: #ffffff;
+    --fs-bg-right-accent: radial-gradient(circle at 100% 0%, rgba(13, 148, 136, 0.05) 0%, transparent 50%),
+                          radial-gradient(circle at 0% 100%, rgba(2, 132, 199, 0.04) 0%, transparent 50%);
 
-    --ml-card-bg: rgba(255, 255, 255, 0.88);
-    --ml-card-solid-bg: #ffffff;
-    --ml-card-border: rgba(15, 23, 42, 0.08);
-    --ml-card-border-glow: rgba(13, 148, 136, 0.3);
-    --ml-card-shadow: 0 25px 70px -15px rgba(15, 23, 42, 0.12), 0 0 1px 1px rgba(15, 23, 42, 0.05);
+    --fs-text-main: #0f172a;
+    --fs-text-muted: #64748b;
+    --fs-text-faint: #94a3b8;
+    --fs-text-white: #ffffff;
 
-    --ml-hero-bg: linear-gradient(145deg, #0f172a 0%, #1e293b 60%, #0d233a 100%);
-    --ml-hero-border: rgba(255, 255, 255, 0.08);
+    --fs-primary: #0d9488;
+    --fs-primary-hover: #0f766e;
+    --fs-primary-glow: rgba(13, 148, 136, 0.35);
+    --fs-primary-gradient: linear-gradient(135deg, #0d9488 0%, #0284c7 100%);
+    --fs-primary-text: #ffffff;
 
-    --ml-text: #0f172a;
-    --ml-text-muted: #64748b;
-    --ml-text-faint: #94a3b8;
-    --ml-text-white: #ffffff;
+    --fs-accent-emerald: #10b981;
+    --fs-accent-cyan: #06b6d4;
+    --fs-accent-indigo: #6366f1;
+    --fs-accent-amber: #f59e0b;
+    --fs-accent-rose: #f43f5e;
 
-    --ml-primary: #0d9488;
-    --ml-primary-hover: #0f766e;
-    --ml-primary-glow: rgba(13, 148, 136, 0.28);
-    --ml-primary-gradient: linear-gradient(135deg, #0d9488 0%, #0284c7 100%);
-    --ml-primary-text: #ffffff;
+    --fs-input-bg: #f8fafc;
+    --fs-input-border: #cbd5e1;
+    --fs-input-border-focus: #0d9488;
+    --fs-input-focus-ring: rgba(13, 148, 136, 0.18);
+    --fs-input-text: #0f172a;
+    --fs-input-label: #64748b;
+    --fs-input-label-active: #0d9488;
 
-    --ml-input-bg: #ffffff;
-    --ml-input-border: #cbd5e1;
-    --ml-input-border-focus: #0d9488;
-    --ml-input-focus-glow: rgba(13, 148, 136, 0.18);
-    --ml-input-text: #0f172a;
-    --ml-input-label: #64748b;
-    --ml-input-label-active: #0d9488;
+    --fs-quote-bg: rgba(255, 255, 255, 0.05);
+    --fs-quote-border: rgba(255, 255, 255, 0.12);
 
-    --ml-quote-bg: linear-gradient(135deg, rgba(13, 148, 136, 0.08) 0%, rgba(2, 132, 199, 0.06) 100%);
-    --ml-quote-border: rgba(13, 148, 136, 0.22);
-    --ml-quote-glow: rgba(13, 148, 136, 0.12);
+    --fs-btn-switch-bg: #f1f5f9;
+    --fs-btn-switch-border: #e2e8f0;
+    --fs-btn-switch-text: #334155;
 
-    --ml-btn-bg: #ffffff;
-    --ml-btn-border: rgba(15, 23, 42, 0.08);
-    --ml-btn-text: #334155;
+    --fs-error: #ef4444;
+    --fs-error-bg: #fef2f2;
+    --fs-error-border: #fecaca;
 
-    --ml-error: #ef4444;
-    --ml-error-bg: #fef2f2;
-    --ml-error-border: #fecaca;
+    --fs-divider: rgba(15, 23, 42, 0.08);
 
-    --ml-warning: #f59e0b;
-    --ml-warning-bg: #fffbeb;
-
+    width: 100vw;
     min-height: 100vh;
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
-    -webkit-box-orient: vertical;
-    -webkit-box-direction: normal;
-    -ms-flex-direction: column;
-    flex-direction: column;
-    position: relative;
     overflow-x: hidden;
-    background: var(--ml-bg);
-    background-image: var(--ml-bg-gradient);
-    color: var(--ml-text);
+    background-color: var(--fs-bg-right);
+    color: var(--fs-text-main);
     font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
-    -webkit-transition: background 0.3s ease, color 0.3s ease;
-    transition: background 0.3s ease, color 0.3s ease;
+    -webkit-transition: background-color 0.3s ease, color 0.3s ease;
+    transition: background-color 0.3s ease, color 0.3s ease;
 }
 
-/* Dark Theme Variables (<html class="dark">) */
-html.dark .modern-login-page {
-    --ml-bg: #070b14;
-    --ml-bg-gradient: radial-gradient(at 0% 0%, rgba(13, 148, 136, 0.14) 0px, transparent 50%),
-                       radial-gradient(at 100% 100%, rgba(59, 130, 246, 0.12) 0px, transparent 50%),
-                       radial-gradient(at 50% 50%, rgba(7, 11, 20, 1) 0px, transparent 100%);
-    --ml-grid: rgba(255, 255, 255, 0.035);
+/* Dark Mode Variables (html.dark) */
+html.dark .fs-login-root {
+    --fs-bg-left: linear-gradient(155deg, #050b14 0%, #0a1426 50%, #070e1c 100%);
+    --fs-bg-right: #090e17;
+    --fs-bg-right-accent: radial-gradient(circle at 100% 0%, rgba(16, 185, 129, 0.08) 0%, transparent 50%),
+                          radial-gradient(circle at 0% 100%, rgba(6, 182, 212, 0.06) 0%, transparent 50%);
 
-    --ml-card-bg: rgba(15, 23, 42, 0.75);
-    --ml-card-solid-bg: #0f172a;
-    --ml-card-border: rgba(255, 255, 255, 0.09);
-    --ml-card-border-glow: rgba(16, 185, 129, 0.4);
-    --ml-card-shadow: 0 30px 90px -20px rgba(0, 0, 0, 0.8), 0 0 40px -10px rgba(16, 185, 129, 0.15);
+    --fs-text-main: #f8fafc;
+    --fs-text-muted: #94a3b8;
+    --fs-text-faint: #64748b;
+    --fs-text-white: #ffffff;
 
-    --ml-hero-bg: linear-gradient(145deg, #080d1a 0%, #0f1a30 60%, #0a1728 100%);
-    --ml-hero-border: rgba(255, 255, 255, 0.06);
+    --fs-primary: #10b981;
+    --fs-primary-hover: #34d399;
+    --fs-primary-glow: rgba(16, 185, 129, 0.38);
+    --fs-primary-gradient: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
+    --fs-primary-text: #022c22;
 
-    --ml-text: #f8fafc;
-    --ml-text-muted: #94a3b8;
-    --ml-text-faint: #64748b;
-    --ml-text-white: #ffffff;
+    --fs-input-bg: rgba(15, 23, 42, 0.7);
+    --fs-input-border: rgba(255, 255, 255, 0.12);
+    --fs-input-border-focus: #10b981;
+    --fs-input-focus-ring: rgba(16, 185, 129, 0.25);
+    --fs-input-text: #f8fafc;
+    --fs-input-label: #94a3b8;
+    --fs-input-label-active: #34d399;
 
-    --ml-primary: #10b981;
-    --ml-primary-hover: #34d399;
-    --ml-primary-glow: rgba(16, 185, 129, 0.35);
-    --ml-primary-gradient: linear-gradient(135deg, #10b981 0%, #06b6d4 100%);
-    --ml-primary-text: #022c22;
+    --fs-quote-bg: rgba(0, 0, 0, 0.35);
+    --fs-quote-border: rgba(255, 255, 255, 0.08);
 
-    --ml-input-bg: rgba(15, 23, 42, 0.65);
-    --ml-input-border: rgba(255, 255, 255, 0.12);
-    --ml-input-border-focus: #10b981;
-    --ml-input-focus-glow: rgba(16, 185, 129, 0.25);
-    --ml-input-text: #f8fafc;
-    --ml-input-label: #94a3b8;
-    --ml-input-label-active: #34d399;
+    --fs-btn-switch-bg: #1e293b;
+    --fs-btn-switch-border: rgba(255, 255, 255, 0.1);
+    --fs-btn-switch-text: #cbd5e1;
 
-    --ml-quote-bg: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(6, 182, 212, 0.08) 100%);
-    --ml-quote-border: rgba(16, 185, 129, 0.32);
-    --ml-quote-glow: rgba(16, 185, 129, 0.2);
+    --fs-error: #f87171;
+    --fs-error-bg: rgba(239, 68, 68, 0.12);
+    --fs-error-border: rgba(239, 68, 68, 0.25);
 
-    --ml-btn-bg: #1e293b;
-    --ml-btn-border: rgba(255, 255, 255, 0.1);
-    --ml-btn-text: #cbd5e1;
-
-    --ml-error: #f87171;
-    --ml-error-bg: rgba(239, 68, 68, 0.12);
-    --ml-error-border: rgba(239, 68, 68, 0.25);
-
-    --ml-warning: #fbbf24;
-    --ml-warning-bg: rgba(245, 158, 11, 0.12);
+    --fs-divider: rgba(255, 255, 255, 0.08);
 }
 
 /* --------------------------------------------------------------------------
-   2. AMBIENT BACKGROUND & FLOATING GLOW LIGHTS
+   2. FULL SCREEN SPLIT CONTAINER (DESKTOP / LAPTOP)
    -------------------------------------------------------------------------- */
-.ml-ambient-canvas {
-    position: fixed;
-    inset: 0;
+.fs-stage {
     width: 100%;
-    height: 100%;
-    pointer-events: none;
-    z-index: 0;
-    overflow: hidden;
-}
-
-.ml-grid-mesh {
-    position: absolute;
-    inset: 0;
-    background-image: radial-gradient(circle, var(--ml-grid) 1px, transparent 1px);
-    background-size: 32px 32px;
-}
-
-.ml-glow-orb {
-    position: absolute;
-    border-radius: 50%;
-    filter: blur(80px);
-    -webkit-filter: blur(80px);
-    pointer-events: none;
-    opacity: 0.65;
-}
-
-html.dark .ml-glow-orb {
-    opacity: 0.35;
-}
-
-.ml-orb-teal {
-    width: 500px;
-    height: 500px;
-    background: radial-gradient(circle, rgba(13, 148, 136, 0.4) 0%, transparent 70%);
-    top: -100px;
-    left: -100px;
-}
-
-.ml-orb-blue {
-    width: 550px;
-    height: 550px;
-    background: radial-gradient(circle, rgba(59, 130, 246, 0.35) 0%, transparent 70%);
-    bottom: -150px;
-    right: -100px;
-}
-
-.ml-orb-purple {
-    width: 380px;
-    height: 380px;
-    background: radial-gradient(circle, rgba(147, 51, 234, 0.25) 0%, transparent 70%);
-    top: 40%;
-    left: 45%;
+    min-height: 100vh;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
 }
 
 /* --------------------------------------------------------------------------
-   3. HEADER / TOPBAR
+   3. LEFT SIDE: FULL IMMERSIVE ENTERPRISE COSMOS
    -------------------------------------------------------------------------- */
-.ml-topbar {
-    position: relative;
-    z-index: 10;
-    width: 100%;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 24px 28px 14px;
-    display: -webkit-box;
-    display: -ms-flexbox;
-    display: flex;
-    -webkit-box-align: center;
-    -ms-flex-align: center;
-    align-items: center;
-    -webkit-box-pack: justify;
-    -ms-flex-pack: justify;
-    justify-content: space-between;
-}
-
-.ml-brand-link {
-    display: -webkit-inline-box;
-    display: -ms-inline-flexbox;
-    display: inline-flex;
-    -webkit-box-align: center;
-    -ms-flex-align: center;
-    align-items: center;
-    gap: 12px;
-    text-decoration: none;
-    color: inherit;
-}
-
-.ml-logo-box {
-    width: 44px;
-    height: 44px;
-    border-radius: 12px;
-    background: #ffffff;
-    border: 1px solid var(--ml-card-border);
-    display: -webkit-box;
-    display: -ms-flexbox;
-    display: flex;
-    -webkit-box-align: center;
-    -ms-flex-align: center;
-    align-items: center;
-    -webkit-box-pack: center;
-    -ms-flex-pack: center;
-    justify-content: center;
-    -webkit-box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
-    overflow: hidden;
-}
-
-html.dark .ml-logo-box {
-    background: #1e293b;
-    border-color: rgba(255, 255, 255, 0.12);
-}
-
-.ml-logo-img {
-    width: 30px;
-    height: 30px;
-    object-fit: contain;
-}
-
-.ml-brand-text h1 {
-    margin: 0;
-    font-size: 20px;
-    font-weight: 800;
-    letter-spacing: -0.6px;
-    line-height: 1.1;
-    color: var(--ml-text);
-}
-
-.ml-brand-text span {
-    font-size: 10px;
-    font-weight: 600;
-    color: var(--ml-text-faint);
-    letter-spacing: 0.8px;
-    text-transform: uppercase;
-}
-
-.ml-topbar-controls {
-    display: -webkit-box;
-    display: -ms-flexbox;
-    display: flex;
-    -webkit-box-align: center;
-    -ms-flex-align: center;
-    align-items: center;
-    gap: 12px;
-}
-
-.ml-theme-switch {
-    display: -webkit-inline-box;
-    display: -ms-inline-flexbox;
-    display: inline-flex;
-    -webkit-box-align: center;
-    -ms-flex-align: center;
-    align-items: center;
-    gap: 8px;
-    padding: 7px 14px;
-    border-radius: 50px;
-    background: var(--ml-btn-bg);
-    border: 1px solid var(--ml-btn-border);
-    color: var(--ml-btn-text);
-    font-size: 12px;
-    font-weight: 600;
-    cursor: pointer;
-    -webkit-transition: all 0.2s ease;
-    transition: all 0.2s ease;
-    -webkit-box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.04);
-}
-
-.ml-theme-switch:hover {
-    border-color: var(--ml-primary);
-    color: var(--ml-primary);
-    -webkit-transform: translateY(-1px);
-    transform: translateY(-1px);
-}
-
-/* --------------------------------------------------------------------------
-   4. MAIN WORKSPACE GLASS CARD
-   -------------------------------------------------------------------------- */
-.ml-workspace-wrap {
-    position: relative;
-    z-index: 5;
-    width: 100%;
-    max-width: 1160px;
-    margin: auto;
-    padding: 10px 24px 24px;
-    -webkit-box-flex: 1;
-    -ms-flex: 1 0 auto;
-    flex: 1 0 auto;
-    display: -webkit-box;
-    display: -ms-flexbox;
-    display: flex;
-    -webkit-box-align: center;
-    -ms-flex-align: center;
-    align-items: center;
-    -webkit-box-pack: center;
-    -ms-flex-pack: center;
-    justify-content: center;
-}
-
-.ml-glass-card {
-    position: relative;
-    width: 100%;
-    min-height: 580px;
-    border-radius: 28px;
-    display: -webkit-box;
-    display: -ms-flexbox;
-    display: flex;
-    overflow: hidden;
-    background: var(--ml-card-bg);
-    border: 1px solid var(--ml-card-border);
-    -webkit-box-shadow: var(--ml-card-shadow);
-    box-shadow: var(--ml-card-shadow);
-    -webkit-backdrop-filter: blur(20px);
-    backdrop-filter: blur(20px);
-}
-
-/* Glowing Border Sweep Beam */
-.ml-card-beam-border {
-    position: absolute;
-    inset: -1px;
-    border-radius: 28px;
-    padding: 1.5px;
-    background: -webkit-linear-gradient(135deg, transparent 20%, var(--ml-primary) 50%, transparent 80%);
-    background: linear-gradient(135deg, transparent 20%, var(--ml-primary) 50%, transparent 80%);
-    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    -webkit-mask-composite: xor;
-    mask-composite: exclude;
-    pointer-events: none;
-    opacity: 0.45;
-}
-
-/* --------------------------------------------------------------------------
-   5. LEFT HERO / MOTIVATIONAL SHOWCASE PANEL
-   -------------------------------------------------------------------------- */
-.ml-hero-panel {
+.fs-visual-side {
     position: relative;
     -webkit-box-flex: 1;
-    -ms-flex: 1 1 50%;
-    flex: 1 1 50%;
+    -ms-flex: 1 1 54%;
+    flex: 1 1 54%;
     min-width: 0;
-    padding: 44px;
+    min-height: 100vh;
+    padding: clamp(24px, 4vh, 48px) clamp(28px, 4vw, 56px);
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
@@ -388,42 +147,90 @@ html.dark .ml-logo-box {
     -webkit-box-pack: justify;
     -ms-flex-pack: justify;
     justify-content: space-between;
-    background: var(--ml-hero-bg);
-    color: var(--ml-text-white);
-    border-right: 1px solid var(--ml-hero-border);
+    background: var(--fs-bg-left);
+    color: var(--fs-text-white);
+    border-right: 1px solid var(--fs-divider);
     overflow: hidden;
 }
 
-/* Radial light aura inside hero panel */
-.ml-hero-panel::before {
-    content: '';
+/* Background Cyber Grid Lines & Deep Orbs */
+.fs-cyber-canvas {
     position: absolute;
+    inset: 0;
+    pointer-events: none;
+    overflow: hidden;
+}
+
+.fs-cyber-grid {
+    position: absolute;
+    inset: 0;
+    background-image:
+        radial-gradient(circle, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+        linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+    background-size: 36px 36px, 72px 72px, 72px 72px;
+}
+
+.fs-light-nebula {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(90px);
+    -webkit-filter: blur(90px);
+    opacity: 0.35;
+    pointer-events: none;
+}
+
+.fs-nebula-emerald {
+    width: 480px;
+    height: 480px;
+    background: radial-gradient(circle, #10b981 0%, transparent 70%);
     top: -80px;
-    right: -80px;
-    width: 320px;
-    height: 320px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(16, 185, 129, 0.18) 0%, transparent 70%);
-    pointer-events: none;
-}
-
-.ml-hero-panel::after {
-    content: '';
-    position: absolute;
-    bottom: -100px;
     left: -80px;
-    width: 300px;
-    height: 300px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(56, 189, 248, 0.15) 0%, transparent 70%);
-    pointer-events: none;
 }
 
-/* Interactive 3D Cyber Core Animation */
-.ml-core-visual-wrap {
+.fs-nebula-blue {
+    width: 520px;
+    height: 520px;
+    background: radial-gradient(circle, #0284c7 0%, transparent 70%);
+    bottom: -100px;
+    right: -60px;
+}
+
+.fs-nebula-violet {
+    width: 360px;
+    height: 360px;
+    background: radial-gradient(circle, #8b5cf6 0%, transparent 70%);
+    top: 45%;
+    left: 40%;
+}
+
+/* ─── Center Visual: i-System Hub & 4 Pillars (Penjualan, Persediaan, Keuangan, Marketing) ─── */
+.fs-hub-wrapper {
     position: relative;
     z-index: 2;
-    height: 200px;
+    -webkit-box-flex: 1;
+    -ms-flex: 1;
+    flex: 1;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-orient: vertical;
+    -webkit-box-direction: normal;
+    -ms-flex-direction: column;
+    flex-direction: column;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    -webkit-box-pack: center;
+    -ms-flex-pack: center;
+    justify-content: center;
+    padding: 10px 0;
+}
+
+.fs-cosmos-stage {
+    position: relative;
+    width: clamp(340px, 42vw, 540px);
+    height: clamp(300px, 38vh, 420px);
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
@@ -435,13 +242,41 @@ html.dark .ml-logo-box {
     justify-content: center;
 }
 
-.ml-core-center {
+/* Rotating Dashed Orbit Rings */
+.fs-orbit-circle {
+    position: absolute;
+    border-radius: 50%;
+    pointer-events: none;
+}
+
+.fs-orbit-1 {
+    width: 220px;
+    height: 220px;
+    border: 1.5px dashed rgba(16, 185, 129, 0.35);
+}
+
+.fs-orbit-2 {
+    width: 320px;
+    height: 320px;
+    border: 1px dashed rgba(6, 182, 212, 0.25);
+}
+
+.fs-orbit-3 {
+    width: 440px;
+    height: 440px;
+    border: 1px solid rgba(99, 102, 241, 0.15);
+}
+
+/* Central i-System Core Chip (Dengan Kepanjangan Enterprise Resource Planning) */
+.fs-core-chip {
     position: relative;
-    width: 90px;
-    height: 90px;
-    border-radius: 26px;
+    z-index: 5;
+    padding: clamp(16px, 2.4vh, 24px) clamp(20px, 2.8vw, 32px);
+    border-radius: 24px;
     background: rgba(16, 185, 129, 0.12);
-    border: 1px solid rgba(16, 185, 129, 0.35);
+    border: 1.5px solid rgba(16, 185, 129, 0.45);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
@@ -449,6 +284,23 @@ html.dark .ml-logo-box {
     -webkit-box-direction: normal;
     -ms-flex-direction: column;
     flex-direction: column;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    text-align: center;
+    gap: 4px;
+    -webkit-box-shadow: 0 0 45px rgba(16, 185, 129, 0.35);
+    box-shadow: 0 0 45px rgba(16, 185, 129, 0.35);
+}
+
+.fs-core-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: rgba(16, 185, 129, 0.2);
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
     -webkit-box-align: center;
     -ms-flex-align: center;
     align-items: center;
@@ -456,122 +308,162 @@ html.dark .ml-logo-box {
     -ms-flex-pack: center;
     justify-content: center;
     color: #34d399;
-    -webkit-box-shadow: 0 0 35px rgba(16, 185, 129, 0.25);
-    box-shadow: 0 0 35px rgba(16, 185, 129, 0.25);
+    margin-bottom: 4px;
 }
 
-.ml-core-center span {
-    font-size: 11px;
-    font-weight: 700;
-    margin-top: 4px;
+.fs-core-name {
+    font-size: clamp(20px, 2.2vw, 26px);
+    font-weight: 800;
+    letter-spacing: -0.5px;
     color: #ffffff;
-    letter-spacing: 0.5px;
+    line-height: 1.1;
 }
 
-.ml-orbit-ring {
+.fs-core-desc {
+    font-size: clamp(10px, 1.1vw, 12px);
+    font-weight: 600;
+    color: #34d399;
+    letter-spacing: 0.8px;
+    text-transform: uppercase;
+}
+
+/* ─── 4 Satellite Modul Cards: Penjualan, Persediaan, Keuangan, Marketing ─── */
+.fs-satellite-node {
     position: absolute;
-    border-radius: 50%;
-    pointer-events: none;
-}
-
-.ml-ring-1 {
-    width: 170px;
-    height: 170px;
-    border: 1.5px dashed rgba(52, 211, 153, 0.3);
-}
-
-.ml-ring-2 {
-    width: 250px;
-    height: 250px;
-    border: 1px solid rgba(56, 189, 248, 0.18);
-}
-
-/* Floating Satellite Mini Cards */
-.ml-satellite-tag {
-    position: absolute;
-    padding: 6px 12px;
-    border-radius: 30px;
+    padding: clamp(8px, 1.2vh, 12px) clamp(12px, 1.4vw, 18px);
+    border-radius: 16px;
     background: rgba(15, 23, 42, 0.85);
     border: 1px solid rgba(255, 255, 255, 0.15);
-    font-size: 10px;
-    font-weight: 600;
-    color: #e2e8f0;
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
     -webkit-box-align: center;
     -ms-flex-align: center;
     align-items: center;
-    gap: 6px;
-    -webkit-backdrop-filter: blur(8px);
-    backdrop-filter: blur(8px);
-    -webkit-box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+    gap: 10px;
+    -webkit-box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    z-index: 4;
 }
 
-.ml-satellite-tag.top-left {
-    top: 15px;
-    left: 20px;
+.fs-node-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    -webkit-box-pack: center;
+    -ms-flex-pack: center;
+    justify-content: center;
 }
 
-.ml-satellite-tag.bottom-right {
-    bottom: 15px;
-    right: 20px;
+.fs-node-text strong {
+    display: block;
+    font-size: 13px;
+    font-weight: 700;
+    color: #ffffff;
+    line-height: 1.2;
 }
 
-.ml-satellite-tag.bottom-left {
-    bottom: 20px;
-    left: 30px;
+.fs-node-text small {
+    display: block;
+    font-size: 9px;
+    color: rgba(255, 255, 255, 0.55);
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
 }
 
-.ml-satellite-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: #10b981;
+/* Posisi 4 Penjuru Node */
+.fs-node-sales {
+    top: 6%;
+    left: 4%;
+}
+.fs-node-sales .fs-node-icon {
+    background: rgba(16, 185, 129, 0.2);
+    color: #34d399;
 }
 
-/* --------------------------------------------------------------------------
-   6. SPIRITUAL & MOTIVATIONAL CARD (TETAP DIPERTAHANKAN)
-   -------------------------------------------------------------------------- */
-.ml-quote-banner {
+.fs-node-inventory {
+    bottom: 8%;
+    left: 2%;
+}
+.fs-node-inventory .fs-node-icon {
+    background: rgba(6, 182, 212, 0.2);
+    color: #38bdf8;
+}
+
+.fs-node-finance {
+    top: 10%;
+    right: 4%;
+}
+.fs-node-finance .fs-node-icon {
+    background: rgba(99, 102, 241, 0.2);
+    color: #818cf8;
+}
+
+.fs-node-marketing {
+    bottom: 6%;
+    right: 2%;
+}
+.fs-node-marketing .fs-node-icon {
+    background: rgba(244, 63, 94, 0.2);
+    color: #fb7185;
+}
+
+/* Connecting Dynamic Energy SVG Lines */
+.fs-energy-lines {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 3;
+}
+
+/* ─── Bottom: Spiritual Quote Card (Bismillah & Berkah) ─── */
+.fs-quote-card {
     position: relative;
-    z-index: 2;
-    padding: 22px 24px;
+    z-index: 3;
+    padding: clamp(14px, 2vh, 22px) clamp(18px, 2.5vw, 26px);
     border-radius: 20px;
-    background: var(--ml-quote-bg);
-    border: 1px solid var(--ml-quote-border);
-    -webkit-box-shadow: 0 8px 30px -6px var(--ml-quote-glow);
-    box-shadow: 0 8px 30px -6px var(--ml-quote-glow);
+    background: var(--fs-quote-bg);
+    border: 1px solid var(--fs-quote-border);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
     overflow: hidden;
 }
 
-/* Shimmer light reflection over quote card */
-.ml-quote-banner::after {
+.fs-quote-card::after {
     content: '';
     position: absolute;
     top: 0;
     left: -100%;
-    width: 50%;
+    width: 60%;
     height: 100%;
-    background: -webkit-linear-gradient(90deg, transparent, rgba(52, 211, 153, 0.15), transparent);
-    background: linear-gradient(90deg, transparent, rgba(52, 211, 153, 0.15), transparent);
-    -webkit-animation: ml-quote-shimmer 4.5s ease-in-out infinite;
-    animation: ml-quote-shimmer 4.5s ease-in-out infinite;
+    background: -webkit-linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.18), transparent);
+    background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.18), transparent);
+    -webkit-animation: fs-shimmer-pass 5s ease-in-out infinite;
+    animation: fs-shimmer-pass 5s ease-in-out infinite;
 }
 
-@-webkit-keyframes ml-quote-shimmer {
+@-webkit-keyframes fs-shimmer-pass {
     0% { left: -100%; }
     40% { left: 160%; }
     100% { left: 160%; }
 }
-@keyframes ml-quote-shimmer {
+@keyframes fs-shimmer-pass {
     0% { left: -100%; }
     40% { left: 160%; }
     100% { left: 160%; }
 }
 
-.ml-quote-eyebrow {
+.fs-quote-eyebrow {
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
@@ -581,103 +473,44 @@ html.dark .ml-logo-box {
     gap: 7px;
     font-size: 10px;
     font-weight: 700;
-    letter-spacing: 1.4px;
+    letter-spacing: 1.5px;
     color: #34d399;
     text-transform: uppercase;
-    margin-bottom: 8px;
+    margin-bottom: 6px;
 }
 
-.ml-quote-text {
-    margin: 0 0 10px;
+.fs-quote-title {
+    margin: 0 0 8px;
     font-family: 'Georgia', serif;
-    font-size: 21px;
+    font-size: clamp(17px, 1.8vw, 22px);
     font-weight: 600;
     line-height: 1.35;
     color: #ffffff;
     letter-spacing: -0.3px;
 }
 
-.ml-quote-text span {
+.fs-quote-title span {
     color: #34d399;
 }
 
-.ml-quote-sub {
+.fs-quote-desc {
     margin: 0;
-    font-size: 13px;
+    font-size: clamp(11px, 1.1vw, 13px);
     line-height: 1.75;
     color: rgba(255, 255, 255, 0.72);
 }
 
 /* --------------------------------------------------------------------------
-   7. RIGHT FORM PANEL & FLOATING LABELS (ANIMATED MORPHING)
+   4. RIGHT SIDE: FULL IMMERSIVE FORM PANEL
    -------------------------------------------------------------------------- */
-.ml-form-panel {
+.fs-form-side {
     position: relative;
     -webkit-box-flex: 1;
-    -ms-flex: 1 1 50%;
-    flex: 1 1 50%;
+    -ms-flex: 1 1 46%;
+    flex: 1 1 46%;
     min-width: 0;
-    padding: 44px 48px;
-    display: -webkit-box;
-    display: -ms-flexbox;
-    display: flex;
-    -webkit-box-align: center;
-    -ms-flex-align: center;
-    align-items: center;
-    -webkit-box-pack: center;
-    -ms-flex-pack: center;
-    justify-content: center;
-    background: var(--ml-card-solid-bg);
-}
-
-.ml-form-inner {
-    width: 100%;
-    max-width: 380px;
-}
-
-.ml-form-header {
-    margin-bottom: 30px;
-}
-
-.ml-form-badge {
-    display: -webkit-inline-box;
-    display: -ms-inline-flexbox;
-    display: inline-flex;
-    -webkit-box-align: center;
-    -ms-flex-align: center;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 12px;
-    border-radius: 30px;
-    background: rgba(13, 148, 136, 0.1);
-    color: var(--ml-primary);
-    border: 1px solid rgba(13, 148, 136, 0.2);
-    font-size: 10px;
-    font-weight: 700;
-    letter-spacing: 1.2px;
-    text-transform: uppercase;
-    margin-bottom: 12px;
-}
-
-.ml-form-title {
-    margin: 0 0 6px;
-    font-size: 32px;
-    font-weight: 800;
-    letter-spacing: -1.2px;
-    line-height: 1.15;
-    color: var(--ml-text);
-}
-
-.ml-form-subtitle {
-    margin: 0;
-    font-size: 13px;
-    color: var(--ml-text-muted);
-}
-
-/* --------------------------------------------------------------------------
-   8. INTERACTIVE FLOATING LABEL COMPONENT
-   -------------------------------------------------------------------------- */
-.ml-form-stack {
+    min-height: 100vh;
+    padding: clamp(24px, 4vh, 48px) clamp(24px, 4vw, 64px);
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
@@ -685,15 +518,122 @@ html.dark .ml-logo-box {
     -webkit-box-direction: normal;
     -ms-flex-direction: column;
     flex-direction: column;
-    gap: 22px;
+    -webkit-box-pack: justify;
+    -ms-flex-pack: justify;
+    justify-content: space-between;
+    background-color: var(--fs-bg-right);
+    background-image: var(--fs-bg-right-accent);
 }
 
-.ml-floating-field {
+/* Topbar Kanan (Theme Toggle Button) */
+.fs-right-topbar {
+    width: 100%;
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    -webkit-box-pack: end;
+    -ms-flex-pack: end;
+    justify-content: flex-end;
+}
+
+.fs-theme-btn {
+    display: -webkit-inline-box;
+    display: -ms-inline-flexbox;
+    display: inline-flex;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 50px;
+    background: var(--fs-btn-switch-bg);
+    border: 1px solid var(--fs-btn-switch-border);
+    color: var(--fs-btn-switch-text);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    -webkit-transition: all 0.2s ease;
+    transition: all 0.2s ease;
+}
+
+.fs-theme-btn:hover {
+    border-color: var(--fs-primary);
+    color: var(--fs-primary);
+    -webkit-transform: translateY(-1px);
+    transform: translateY(-1px);
+}
+
+/* Main Form Container */
+.fs-form-core {
+    width: 100%;
+    max-width: 420px;
+    margin: auto;
+    padding: clamp(12px, 2vh, 24px) 0;
+}
+
+.fs-form-head {
+    margin-bottom: clamp(22px, 3.2vh, 32px);
+}
+
+.fs-badge-tag {
+    display: -webkit-inline-box;
+    display: -ms-inline-flexbox;
+    display: inline-flex;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 14px;
+    border-radius: 30px;
+    background: rgba(13, 148, 136, 0.1);
+    color: var(--fs-primary);
+    border: 1px solid rgba(13, 148, 136, 0.22);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1.2px;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+}
+
+.fs-title {
+    margin: 0 0 8px;
+    font-size: clamp(28px, 3.2vw, 38px);
+    font-weight: 800;
+    letter-spacing: -1.2px;
+    line-height: 1.15;
+    color: var(--fs-text-main);
+}
+
+.fs-subtitle {
+    margin: 0;
+    font-size: clamp(13px, 1.2vw, 14px);
+    color: var(--fs-text-muted);
+    line-height: 1.6;
+}
+
+/* --------------------------------------------------------------------------
+   5. FLOATING MORPHING LABELS COMPONENT (TETAP DIPERTAHANKAN & DIPERHALUS)
+   -------------------------------------------------------------------------- */
+.fs-form-body {
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-orient: vertical;
+    -webkit-box-direction: normal;
+    -ms-flex-direction: column;
+    flex-direction: column;
+    gap: clamp(18px, 2.5vh, 24px);
+}
+
+.fs-field-group {
     position: relative;
     width: 100%;
 }
 
-.ml-floating-box {
+.fs-input-box {
     position: relative;
     display: -webkit-box;
     display: -ms-flexbox;
@@ -704,15 +644,15 @@ html.dark .ml-logo-box {
     width: 100%;
 }
 
-/* Floating Input Control */
-.ml-floating-input {
+/* Control Input */
+.fs-control {
     width: 100%;
-    height: 52px;
-    padding: 0 46px 0 46px;
+    height: clamp(48px, 5.5vh, 54px);
+    padding: 0 46px 0 48px;
     border-radius: 14px;
-    background: var(--ml-input-bg);
-    border: 1.5px solid var(--ml-input-border);
-    color: var(--ml-input-text);
+    background: var(--fs-input-bg);
+    border: 1.5px solid var(--fs-input-border);
+    color: var(--fs-input-text);
     font-size: 14px;
     font-family: inherit;
     outline: none;
@@ -723,29 +663,29 @@ html.dark .ml-logo-box {
 }
 
 /* Native Select Styling */
-select.ml-floating-input {
+select.fs-control {
     cursor: pointer;
 }
-select.ml-floating-input[data-empty='true'] {
+select.fs-control[data-empty='true'] {
     color: transparent;
 }
-select.ml-floating-input option {
+select.fs-control option {
     background: #ffffff;
     color: #0f172a;
 }
-html.dark select.ml-floating-input option {
+html.dark select.fs-control option {
     background: #1e293b;
     color: #f8fafc;
 }
 
-/* The Animated Morphing Label */
-.ml-floating-label {
+/* The Animated Morphing Label: Bergerak Naik ke Atas saat Diklik */
+.fs-floating-label {
     position: absolute;
-    left: 46px;
+    left: 48px;
     top: 50%;
     -webkit-transform: translateY(-50%);
     transform: translateY(-50%);
-    color: var(--ml-input-label);
+    color: var(--fs-input-label);
     font-size: 13px;
     pointer-events: none;
     padding: 0 6px;
@@ -756,50 +696,48 @@ html.dark select.ml-floating-input option {
     transform-origin: left top;
 }
 
-/* Ketika Field Diklik / Aktif / Ada Teks: Label Meluncur ke Atas */
-.ml-floating-field.is-active .ml-floating-label {
+/* State Aktif (Ketika Diklik / Ada Isi) */
+.fs-field-group.is-active .fs-floating-label {
     top: -9px;
     left: 14px;
     font-size: 11px;
     font-weight: 700;
-    color: var(--ml-input-label-active);
-    background: var(--ml-card-solid-bg);
+    color: var(--fs-input-label-active);
+    background: var(--fs-bg-right);
     -webkit-transform: translateY(0) scale(0.92);
     transform: translateY(0) scale(0.92);
-    -webkit-box-shadow: 0 0 6px rgba(0, 0, 0, 0.04);
-    box-shadow: 0 0 6px rgba(0, 0, 0, 0.04);
 }
 
-/* Input Focus Glow Ring */
-.ml-floating-input:focus {
-    border-color: var(--ml-input-border-focus);
-    -webkit-box-shadow: 0 0 0 4px var(--ml-input-focus-glow);
-    box-shadow: 0 0 0 4px var(--ml-input-focus-glow);
+/* Focus Glow Ring */
+.fs-control:focus {
+    border-color: var(--fs-input-border-focus);
+    -webkit-box-shadow: 0 0 0 4px var(--fs-input-focus-ring);
+    box-shadow: 0 0 0 4px var(--fs-input-focus-ring);
 }
 
-.ml-field-icon {
+.fs-field-icon {
     position: absolute;
     left: 16px;
-    color: var(--ml-text-faint);
+    color: var(--fs-text-faint);
     pointer-events: none;
     -webkit-transition: color 0.2s ease, -webkit-transform 0.2s ease;
     transition: color 0.2s ease, transform 0.2s ease;
 }
 
-.ml-floating-field.is-active .ml-field-icon {
-    color: var(--ml-primary);
-    -webkit-transform: scale(1.1);
-    transform: scale(1.1);
+.fs-field-group.is-active .fs-field-icon {
+    color: var(--fs-primary);
+    -webkit-transform: scale(1.08);
+    transform: scale(1.08);
 }
 
-.ml-select-arrow {
+.fs-select-chevron {
     position: absolute;
     right: 16px;
-    color: var(--ml-text-faint);
+    color: var(--fs-text-faint);
     pointer-events: none;
 }
 
-.ml-pw-toggle {
+.fs-pw-btn {
     position: absolute;
     right: 8px;
     width: 38px;
@@ -807,7 +745,7 @@ html.dark select.ml-floating-input option {
     border-radius: 8px;
     border: none;
     background: transparent;
-    color: var(--ml-text-faint);
+    color: var(--fs-text-faint);
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
@@ -822,16 +760,16 @@ html.dark select.ml-floating-input option {
     transition: all 0.2s ease;
 }
 
-.ml-pw-toggle:hover {
-    color: var(--ml-text);
+.fs-pw-btn:hover {
+    color: var(--fs-text-main);
     background: rgba(0, 0, 0, 0.05);
 }
-html.dark .ml-pw-toggle:hover {
+html.dark .fs-pw-btn:hover {
     background: rgba(255, 255, 255, 0.08);
 }
 
 /* Caps Lock Hint */
-.ml-capslock-pill {
+.fs-caps-alert {
     margin-top: 6px;
     display: -webkit-inline-box;
     display: -ms-inline-flexbox;
@@ -842,14 +780,49 @@ html.dark .ml-pw-toggle:hover {
     gap: 6px;
     padding: 3px 10px;
     border-radius: 20px;
-    background: var(--ml-warning-bg);
-    color: var(--ml-warning);
+    background: rgba(245, 158, 11, 0.12);
+    color: var(--fs-accent-amber);
     font-size: 11px;
     font-weight: 600;
 }
 
+/* Field Error State & Animated Shake */
+.fs-field-group.has-error .fs-control,
+.fs-control.is-error-shake {
+    border-color: var(--fs-error) !important;
+    background: var(--fs-error-bg) !important;
+    -webkit-box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.22) !important;
+    box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.22) !important;
+}
+
+.fs-field-group.has-error .fs-floating-label,
+.fs-field-group.has-error.is-active .fs-floating-label {
+    color: var(--fs-error) !important;
+}
+
+.fs-field-group.has-error .fs-field-icon {
+    color: var(--fs-error) !important;
+}
+
+/* Keyframe Shake Horizontal */
+@-webkit-keyframes fs-shake-anim {
+    0%, 100% { -webkit-transform: translateX(0); transform: translateX(0); }
+    15%, 45%, 75% { -webkit-transform: translateX(-8px); transform: translateX(-8px); }
+    30%, 60%, 90% { -webkit-transform: translateX(8px); transform: translateX(8px); }
+}
+@keyframes fs-shake-anim {
+    0%, 100% { -webkit-transform: translateX(0); transform: translateX(0); }
+    15%, 45%, 75% { -webkit-transform: translateX(-8px); transform: translateX(-8px); }
+    30%, 60%, 90% { -webkit-transform: translateX(8px); transform: translateX(8px); }
+}
+
+.fs-shake-active {
+    -webkit-animation: fs-shake-anim 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+    animation: fs-shake-anim 0.6s cubic-bezier(0.36, 0.07, 0.19, 0.97) both;
+}
+
 /* Field Error */
-.ml-error-pill {
+.fs-error-msg {
     margin: 6px 0 0;
     display: -webkit-box;
     display: -ms-flexbox;
@@ -860,21 +833,21 @@ html.dark .ml-pw-toggle:hover {
     gap: 5px;
     font-size: 11px;
     font-weight: 600;
-    color: var(--ml-error);
+    color: var(--fs-error);
 }
 
 /* --------------------------------------------------------------------------
-   9. SUBMIT BUTTON WITH SHIMMER & MAGNETIC RIPPLE
+   6. SUBMIT CTA BUTTON
    -------------------------------------------------------------------------- */
-.ml-submit-button {
+.fs-submit-btn {
     position: relative;
     width: 100%;
-    height: 52px;
-    margin-top: 4px;
+    height: clamp(50px, 5.6vh, 54px);
+    margin-top: 6px;
     border: none;
     border-radius: 14px;
-    background: var(--ml-primary-gradient);
-    color: var(--ml-primary-text);
+    background: var(--fs-primary-gradient);
+    color: var(--fs-primary-text);
     font-size: 14px;
     font-weight: 700;
     font-family: inherit;
@@ -891,14 +864,25 @@ html.dark .ml-pw-toggle:hover {
     gap: 10px;
     cursor: pointer;
     overflow: hidden;
-    -webkit-box-shadow: 0 4px 20px var(--ml-primary-glow);
-    box-shadow: 0 4px 20px var(--ml-primary-glow);
-    -webkit-transition: -webkit-transform 0.2s ease, -webkit-box-shadow 0.2s ease;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    -webkit-box-shadow: 0 4px 22px var(--fs-primary-glow);
+    box-shadow: 0 4px 22px var(--fs-primary-glow);
+    -webkit-transition: all 0.25s ease;
+    transition: all 0.25s ease;
 }
 
-/* Shimmer Wave */
-.ml-submit-button::before {
+/* Button Sukses Login State */
+.fs-submit-btn.is-success {
+    background: -webkit-linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+    background: linear-gradient(135deg, #059669 0%, #10b981 100%) !important;
+    color: #ffffff !important;
+    -webkit-box-shadow: 0 0 30px rgba(16, 185, 129, 0.55) !important;
+    box-shadow: 0 0 30px rgba(16, 185, 129, 0.55) !important;
+    cursor: not-allowed !important;
+    -webkit-transform: none !important;
+    transform: none !important;
+}
+
+.fs-submit-btn::before {
     content: '';
     position: absolute;
     top: 0;
@@ -907,73 +891,73 @@ html.dark .ml-pw-toggle:hover {
     height: 100%;
     background: -webkit-linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
     background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.35), transparent);
-    -webkit-animation: ml-btn-light 3.8s ease-in-out infinite;
-    animation: ml-btn-light 3.8s ease-in-out infinite;
+    -webkit-animation: fs-btn-shine 3.8s ease-in-out infinite;
+    animation: fs-btn-shine 3.8s ease-in-out infinite;
 }
 
-@-webkit-keyframes ml-btn-light {
+@-webkit-keyframes fs-btn-shine {
     0% { left: -100%; }
     40% { left: 160%; }
     100% { left: 160%; }
 }
-@keyframes ml-btn-light {
+@keyframes fs-btn-shine {
     0% { left: -100%; }
     40% { left: 160%; }
     100% { left: 160%; }
 }
 
-.ml-submit-button:hover:not(:disabled) {
+.fs-submit-btn:hover:not(:disabled) {
     -webkit-transform: translateY(-2px);
     transform: translateY(-2px);
-    -webkit-box-shadow: 0 8px 28px var(--ml-primary-glow);
-    box-shadow: 0 8px 28px var(--ml-primary-glow);
+    -webkit-box-shadow: 0 8px 30px var(--fs-primary-glow);
+    box-shadow: 0 8px 30px var(--fs-primary-glow);
 }
 
-.ml-submit-button:active:not(:disabled) {
+.fs-submit-btn:active:not(:disabled) {
     -webkit-transform: translateY(0);
     transform: translateY(0);
 }
 
-.ml-submit-arrow {
+.fs-submit-arrow {
     -webkit-transition: -webkit-transform 0.2s ease;
     transition: transform 0.2s ease;
 }
 
-.ml-submit-button:hover:not(:disabled) .ml-submit-arrow {
+.fs-submit-btn:hover:not(:disabled) .fs-submit-arrow {
     -webkit-transform: translateX(4px);
     transform: translateX(4px);
 }
 
-.ml-submit-button:disabled {
+.fs-submit-btn:disabled {
     opacity: 0.65;
     cursor: not-allowed;
 }
 
 /* Spinner */
-.ml-spinner {
+.fs-spinner {
     width: 18px;
     height: 18px;
     border-radius: 50%;
     border: 2px solid rgba(255, 255, 255, 0.3);
     border-top-color: #ffffff;
-    -webkit-animation: ml-spin 0.7s linear infinite;
-    animation: ml-spin 0.7s linear infinite;
+    -webkit-animation: fs-spin 0.7s linear infinite;
+    animation: fs-spin 0.7s linear infinite;
 }
 
-html.dark .ml-spinner {
+html.dark .fs-spinner {
     border-color: rgba(2, 44, 34, 0.3);
     border-top-color: #022c22;
 }
 
-@-webkit-keyframes ml-spin {
+@-webkit-keyframes fs-spin {
     to { -webkit-transform: rotate(360deg); transform: rotate(360deg); }
 }
-@keyframes ml-spin {
+@keyframes fs-spin {
     to { -webkit-transform: rotate(360deg); transform: rotate(360deg); }
 }
 
 /* Alert Boxes */
-.ml-alert-box {
+.fs-alert {
     margin-bottom: 20px;
     padding: 12px 14px;
     border-radius: 12px;
@@ -988,33 +972,21 @@ html.dark .ml-spinner {
     gap: 8px;
 }
 
-.ml-alert-error {
-    background: var(--ml-error-bg);
-    border: 1px solid var(--ml-error-border);
-    color: var(--ml-error);
+.fs-alert-error {
+    background: var(--fs-error-bg);
+    border: 1px solid var(--fs-error-border);
+    color: var(--fs-error);
 }
 
-.ml-alert-success {
+.fs-alert-success {
     background: rgba(16, 185, 129, 0.1);
     border: 1px solid rgba(16, 185, 129, 0.25);
-    color: var(--ml-primary);
+    color: var(--fs-primary);
 }
 
-/* Mobile Spiritual Quote (Hanya untuk smartphone/tablet) */
-.ml-quote-banner-mobile {
-    display: none;
-}
-
-/* --------------------------------------------------------------------------
-   10. FOOTER
-   -------------------------------------------------------------------------- */
-.ml-footer {
-    position: relative;
-    z-index: 10;
+/* Bottom Footer */
+.fs-form-footer {
     width: 100%;
-    max-width: 1200px;
-    margin: 0 auto;
-    padding: 16px 28px 24px;
     display: -webkit-box;
     display: -ms-flexbox;
     display: flex;
@@ -1025,75 +997,140 @@ html.dark .ml-spinner {
     -ms-flex-pack: justify;
     justify-content: space-between;
     font-size: 11px;
-    color: var(--ml-text-faint);
+    color: var(--fs-text-faint);
+    padding-top: 12px;
+}
+
+/* Mobile Spiritual Card */
+.fs-quote-card-mobile {
+    display: none;
 }
 
 /* --------------------------------------------------------------------------
-   11. RESPONSIVE MEDIA QUERIES (TABLETS, SMARTPHONES, OLD OS)
+   7. RESPONSIVE BREAKPOINTS (ALL SCREENS & OLD OS: WINDOWS 7/8/10, HP, TABLET)
    -------------------------------------------------------------------------- */
-@media (max-width: 1024px) {
-    .ml-hero-panel {
-        padding: 34px;
+
+/* Layar Laptop Ringkas / Resolusi di Bawah 1080p (1366x768, 1280x720) */
+@media (max-height: 760px) and (min-width: 900px) {
+    .fs-visual-side {
+        padding: 20px 32px;
     }
-    .ml-form-panel {
-        padding: 34px;
+    .fs-cosmos-stage {
+        height: 280px;
+    }
+    .fs-orbit-1 { width: 180px; height: 180px; }
+    .fs-orbit-2 { width: 260px; height: 260px; }
+    .fs-orbit-3 { width: 360px; height: 360px; }
+    .fs-core-chip { padding: 12px 20px; }
+    .fs-core-icon { width: 36px; height: 36px; }
+    .fs-core-name { font-size: 18px; }
+    .fs-core-desc { font-size: 10px; }
+    .fs-satellite-node { padding: 6px 12px; }
+    .fs-quote-card { padding: 12px 18px; }
+    .fs-quote-title { font-size: 16px; margin-bottom: 4px; }
+    .fs-quote-desc { font-size: 11px; }
+
+    .fs-form-side {
+        padding: 20px 36px;
+    }
+    .fs-form-head {
+        margin-bottom: 16px;
+    }
+    .fs-title {
+        font-size: 26px;
+    }
+    .fs-form-body {
+        gap: 16px;
+    }
+    .fs-control {
+        height: 46px;
+    }
+    .fs-submit-btn {
+        height: 46px;
     }
 }
 
-@media (max-width: 860px) {
-    .ml-topbar {
-        padding: 16px 20px 10px;
-    }
-    .ml-workspace-wrap {
-        padding: 10px 16px 20px;
-    }
-    .ml-glass-card {
+/* Tablet & Mobile Portrait (Layar <= 900px) */
+@media (max-width: 900px) {
+    .fs-stage {
         -webkit-box-orient: vertical;
         -webkit-box-direction: normal;
         -ms-flex-direction: column;
         flex-direction: column;
-        min-height: 0;
-        max-width: 480px;
-        margin: 0 auto;
-        border-radius: 22px;
+        min-height: 100vh;
     }
-    /* Sembunyikan panel hero desktop pada layar kecil */
-    .ml-hero-panel {
+
+    /* Di layar kecil, visual kiri disederhanakan/dipindah ke atas */
+    .fs-visual-side {
+        min-height: 0;
+        padding: 32px 20px 24px;
+        border-right: none;
+        border-bottom: 1px solid var(--fs-divider);
+    }
+
+    .fs-cosmos-stage {
+        width: 100%;
+        max-width: 440px;
+        height: 260px;
+    }
+
+    .fs-orbit-1 { width: 170px; height: 170px; }
+    .fs-orbit-2 { width: 240px; height: 240px; }
+    .fs-orbit-3 { width: 320px; height: 320px; }
+
+    .fs-satellite-node {
+        padding: 6px 10px;
+    }
+    .fs-node-text strong {
+        font-size: 11px;
+    }
+    .fs-node-text small {
         display: none;
     }
-    .ml-form-panel {
+
+    /* Sembunyikan quote card desktop di visual-side pada mobile */
+    .fs-visual-side .fs-quote-card {
+        display: none;
+    }
+
+    .fs-form-side {
+        min-height: 0;
         padding: 32px 24px 28px;
     }
-    .ml-form-inner {
+
+    .fs-form-core {
         max-width: none;
     }
-    /* Tampilkan kartu motivasi versi mobile */
-    .ml-quote-banner-mobile {
+
+    /* Tampilkan quote card versi mobile di bawah form */
+    .fs-quote-card-mobile {
         display: block;
-        margin-top: 24px;
+        margin-top: 28px;
         padding: 18px 20px;
         border-radius: 16px;
-        background: var(--ml-quote-bg);
-        border: 1px solid var(--ml-quote-border);
+        background: rgba(13, 148, 136, 0.08);
+        border: 1px solid rgba(13, 148, 136, 0.2);
     }
-    .ml-quote-banner-mobile .ml-quote-eyebrow {
-        color: var(--ml-primary);
+    .fs-quote-card-mobile .fs-quote-eyebrow {
+        color: var(--fs-primary);
     }
-    .ml-quote-banner-mobile .ml-quote-text {
-        color: var(--ml-text);
+    .fs-quote-card-mobile .fs-quote-title {
+        color: var(--fs-text-main);
         font-size: 18px;
     }
-    .ml-quote-banner-mobile .ml-quote-sub {
-        color: var(--ml-text-muted);
+    .fs-quote-card-mobile .fs-quote-desc {
+        color: var(--fs-text-muted);
         font-size: 12px;
     }
-    /* Cegah auto-zoom di browser iOS */
-    .ml-floating-input {
+
+    /* iOS auto-zoom prevention: min 16px */
+    .fs-control {
         font-size: 16px;
         height: 52px;
     }
-    .ml-footer {
-        padding: 12px 20px 20px;
+
+    .fs-form-footer {
+        padding-top: 24px;
         -webkit-box-orient: vertical;
         -webkit-box-direction: normal;
         -ms-flex-direction: column;
@@ -1103,20 +1140,35 @@ html.dark .ml-spinner {
     }
 }
 
+/* Small Smartphone (Layar <= 480px) */
 @media (max-width: 480px) {
-    .ml-topbar {
-        padding: 12px 14px 8px;
+    .fs-visual-side {
+        padding: 24px 16px 20px;
     }
-    .ml-workspace-wrap {
-        padding: 4px 12px 16px;
+    .fs-cosmos-stage {
+        height: 220px;
     }
-    .ml-form-panel {
+    .fs-core-chip {
+        padding: 10px 16px;
+        border-radius: 16px;
+    }
+    .fs-core-icon {
+        width: 32px;
+        height: 32px;
+    }
+    .fs-core-name {
+        font-size: 17px;
+    }
+    .fs-core-desc {
+        font-size: 9px;
+    }
+    .fs-form-side {
         padding: 24px 18px 22px;
     }
-    .ml-form-title {
+    .fs-title {
         font-size: 26px;
     }
-    .ml-submit-button {
+    .fs-submit-btn {
         height: 48px;
         font-size: 13px;
     }
@@ -1124,9 +1176,9 @@ html.dark .ml-spinner {
 
 /* Accessibility: prefers-reduced-motion */
 @media (prefers-reduced-motion: reduce) {
-    .modern-login-page *,
-    .modern-login-page *::before,
-    .modern-login-page *::after {
+    .fs-login-root *,
+    .fs-login-root *::before,
+    .fs-login-root *::after {
         -webkit-animation: none !important;
         animation: none !important;
         -webkit-transition: none !important;
