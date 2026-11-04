@@ -2,7 +2,12 @@ import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 import { useEffect, useId, useRef, useState } from 'react';
 
-export default function QuotationAttendInput({ id, value = '', onValueChange }) {
+export default function QuotationAttendInput({
+    id,
+    customer = '',
+    value = '',
+    onValueChange,
+}) {
     const listId = useId();
     const listRef = useRef(null);
     const inputRef = useRef(null);
@@ -17,9 +22,20 @@ export default function QuotationAttendInput({ id, value = '', onValueChange }) 
     const [active, setActive] = useState(-1);
     const [retry, setRetry] = useState(0);
 
-    // Muat saran Attend saat dropdown terbuka atau kueri pencarian berubah
+    const trimmedCustomer = (customer ?? '').trim();
+
+    // Muat saran Attend saat dropdown terbuka, customer berubah, atau kueri pencarian berubah
     useEffect(() => {
         if (!open) return;
+
+        // Jika customer belum dipilih/diisi, jangan tampilkan attend acak dari semua database
+        if (!trimmedCustomer) {
+            setOptions([]);
+            setLoading(false);
+            setHasMore(false);
+            return;
+        }
+
         const controller = new AbortController();
         setLoading(true);
         setError('');
@@ -28,6 +44,7 @@ export default function QuotationAttendInput({ id, value = '', onValueChange }) 
                 try {
                     const params = new URLSearchParams({
                         search: search.trim(),
+                        customer: trimmedCustomer,
                         page: String(page),
                     });
                     const response = await fetch(
@@ -62,7 +79,7 @@ export default function QuotationAttendInput({ id, value = '', onValueChange }) 
             clearTimeout(timer);
             controller.abort();
         };
-    }, [open, search, page, retry]);
+    }, [open, search, trimmedCustomer, page, retry]);
 
     // Scroll opsi aktif ke dalam viewport dropdown
     useEffect(() => {
@@ -300,9 +317,11 @@ export default function QuotationAttendInput({ id, value = '', onValueChange }) 
                         {loading
                             ? 'Memuat saran Attend…'
                             : error ||
-                              (options.length === 0
-                                  ? 'Tidak ada Attend yang cocok. Anda tetap dapat mengetik nama baru.'
-                                  : 'Klik nama, gunakan panah ↑↓, atau ketik Tab untuk memilih.')}
+                              (!trimmedCustomer
+                                  ? 'Pilih / isi Nama Customer terlebih dahulu untuk melihat saran Attend.'
+                                  : options.length === 0
+                                    ? `Belum ada riwayat Attend untuk customer "${trimmedCustomer}". Anda dapat mengetik nama baru.`
+                                    : 'Klik nama, gunakan panah ↑↓, atau ketik Tab untuk memilih.')}
                     </div>
                     {!loading && error && (
                         <button

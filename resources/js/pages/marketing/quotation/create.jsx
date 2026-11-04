@@ -823,6 +823,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                     <Label htmlFor="attend">Attend</Label>
                                     <QuotationAttendInput
                                         id="attend"
+                                        customer={customerForm.nama}
                                         value={customerForm.attend}
                                         onValueChange={(attend) => {
                                             customerSelectionSeq.current += 1;

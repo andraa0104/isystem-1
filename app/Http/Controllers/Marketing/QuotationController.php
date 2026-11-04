@@ -573,14 +573,46 @@ class QuotationController
     {
         $validated = $request->validate([
             'search' => ['nullable', 'string', 'max:255'],
+            'customer' => ['nullable', 'string', 'max:255'],
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
         $search = trim($validated['search'] ?? '');
-        $history = DB::table('tb_penawaran')
-            ->whereNotNull('Attend')->selectRaw('cast(Attend as char) as attend')
-            ->unionAll(DB::table('tb_cs')->whereNotNull('Attnd')->selectRaw('cast(Attnd as char) as attend'));
+        $customer = trim($validated['customer'] ?? '');
+
+        if ($customer === '') {
+            return response()->json([
+                'attends' => [],
+                'has_more' => false,
+                'page' => 1,
+            ]);
+        }
+
+        $penawaranHistory = DB::table('tb_penawaran')
+            ->whereNotNull('Attend')
+            ->whereRaw("trim(Attend) <> ''")
+            ->whereRaw("trim(Attend) <> '-'")
+            ->where(function ($q) use ($customer) {
+                $q->where('Customer', $customer)
+                    ->orWhere('Customer', 'like', $customer.'%')
+                    ->orWhere('Customer', 'like', '%'.$customer.'%');
+            })
+            ->selectRaw('cast(Attend as char) as attend');
+
+        $csHistory = DB::table('tb_cs')
+            ->whereNotNull('Attnd')
+            ->whereRaw("trim(Attnd) <> ''")
+            ->whereRaw("trim(Attnd) <> '-'")
+            ->where(function ($q) use ($customer) {
+                $q->where('nm_cs', $customer)
+                    ->orWhere('nm_cs', 'like', $customer.'%')
+                    ->orWhere('nm_cs', 'like', '%'.$customer.'%');
+            })
+            ->selectRaw('cast(Attnd as char) as attend');
+
+        $history = $penawaranHistory->unionAll($csHistory);
         $query = DB::query()->fromSub($history, 'attend_history')
             ->whereRaw("trim(attend) <> ''")
+            ->whereRaw("trim(attend) <> '-'")
             ->selectRaw('min(trim(attend)) as attend')
             ->groupByRaw('lower(trim(attend))');
 
