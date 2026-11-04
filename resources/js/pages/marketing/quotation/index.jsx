@@ -40,6 +40,15 @@ const formatNumber = (value) => {
 const renderValue = (value) =>
     value === null || value === undefined || value === '' ? '-' : value;
 
+const formatPercent = (value) => {
+    if (value === null || value === undefined || value === '' || value === '-') {
+        return '-';
+    }
+
+    const normalized = String(value).replace(/%/g, '').trim();
+    return normalized === '' || normalized === '-' ? '-' : `${normalized}%`;
+};
+
 export default function QuotationIndex({
     penawaran = [],
     penawaranDetail = [],
@@ -888,7 +897,7 @@ export default function QuotationIndex({
                                                             <td className="w-1 whitespace-nowrap px-2 py-2">{detail.Qty} {detail.Satuan}</td>
                                                             <td className="w-1 whitespace-nowrap px-2 py-2">{formatNumber(detail.Harga)}</td>
                                                             <td className="w-1 whitespace-nowrap px-2 py-2">{formatNumber(detail.Harga_Modal)}</td>
-                                                            <td className="w-1 whitespace-nowrap px-2 py-2">{detail.Margin}</td>
+                                                            <td className="w-1 whitespace-nowrap px-2 py-2">{formatPercent(detail.Margin)}</td>
                                                             <td className="w-full min-w-[14rem] px-2 py-2 align-top">
                                                                 <FormattedRemark
                                                                     value={detail.Remark}
