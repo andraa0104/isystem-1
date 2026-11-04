@@ -935,7 +935,9 @@ html.dark .fs-login-root {
     position: absolute;
     right: 16px;
     top: 50%;
-    margin-top: -8px;
+    margin-top: -10px;
+    width: 20px;
+    height: 20px;
     pointer-events: none;
     display: -webkit-box;
     display: -ms-flexbox;
@@ -946,6 +948,7 @@ html.dark .fs-login-root {
     -webkit-box-pack: center;
     -ms-flex-pack: center;
     justify-content: center;
+    z-index: 2;
 }
 
 .fs-dropdown-group.is-open .fs-select-chevron {
@@ -1252,10 +1255,11 @@ html.dark select.fs-control option {
 }
 
 .fs-select-chevron {
-    position: absolute;
-    right: 16px;
+    display: block;
     color: var(--fs-text-faint);
     pointer-events: none;
+    -webkit-transition: color 0.2s ease;
+    transition: color 0.2s ease;
 }
 
 .fs-pw-btn {

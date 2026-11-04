@@ -38,7 +38,7 @@ const databaseLabels = {
 
 const databaseCompanies = {
     dbsja: 'CV. Semesta Jaya Abadi',
-    dbbbbs: 'Bangun Banua Bersama Sejahtera',
+    dbbbbs: 'CV. Bangun Banua Bersama Sejahtera',
     dbstg: 'CV. Surya Teknik Gemilang',
     dbati: 'PT. Allstar Tekstil Indonesia',
     dbarm: 'AR-MART',

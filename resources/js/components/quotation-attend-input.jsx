@@ -1,94 +1,90 @@
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 
 export default function QuotationAttendInput({ id, value = '', onValueChange }) {
+    const listId = useId();
+    const listRef = useRef(null);
     const inputRef = useRef(null);
     const [scrollLeft, setScrollLeft] = useState(0);
-    const [isFocused, setIsFocused] = useState(false);
+    const [open, setOpen] = useState(false);
+    const [search, setSearch] = useState('');
+    const [page, setPage] = useState(1);
     const [options, setOptions] = useState([]);
-    const [activeIndex, setActiveIndex] = useState(0);
-    const [dismissed, setDismissed] = useState(false);
+    const [hasMore, setHasMore] = useState(false);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+    const [active, setActive] = useState(-1);
+    const [retry, setRetry] = useState(0);
 
-    // Fetch saran Attend saat user mengetik
+    // Muat saran Attend saat dropdown terbuka atau kueri pencarian berubah
     useEffect(() => {
-        const trimmed = (value ?? '').trim();
-        if (!isFocused || trimmed === '' || dismissed) {
-            setOptions([]);
-            return;
-        }
-
+        if (!open) return;
         const controller = new AbortController();
-        const timer = setTimeout(async () => {
-            try {
-                const params = new URLSearchParams({
-                    search: trimmed,
-                    page: '1',
-                });
-                const response = await fetch(
-                    `/marketing/quotation/attends?${params}`,
-                    {
-                        headers: { Accept: 'application/json' },
-                        signal: controller.signal,
-                    },
-                );
-                if (!response.ok) return;
-                const data = await response.json();
-                if (controller.signal.aborted) return;
-
-                const rows = Array.isArray(data.attends) ? data.attends : [];
-                setOptions(rows);
-                setActiveIndex(0);
-            } catch {
-                // Ignore abort / network errors
-            }
-        }, 150);
-
+        setLoading(true);
+        setError('');
+        const timer = setTimeout(
+            async () => {
+                try {
+                    const params = new URLSearchParams({
+                        search: search.trim(),
+                        page: String(page),
+                    });
+                    const response = await fetch(
+                        `/marketing/quotation/attends?${params}`,
+                        {
+                            headers: { Accept: 'application/json' },
+                            signal: controller.signal,
+                        },
+                    );
+                    if (!response.ok) throw new Error('Request failed');
+                    const data = await response.json();
+                    if (controller.signal.aborted) return;
+                    const rows = Array.isArray(data.attends)
+                        ? data.attends
+                        : [];
+                    setOptions((previous) =>
+                        page === 1
+                            ? rows
+                            : [...new Set([...previous, ...rows])],
+                    );
+                    setHasMore(Boolean(data.has_more));
+                } catch {
+                    if (!controller.signal.aborted)
+                        setError('Gagal memuat saran Attend.');
+                } finally {
+                    if (!controller.signal.aborted) setLoading(false);
+                }
+            },
+            search === '' ? 0 : 150,
+        );
         return () => {
             clearTimeout(timer);
             controller.abort();
         };
-    }, [value, isFocused, dismissed]);
+    }, [open, search, page, retry]);
 
-    // Filter & prioritaskan saran: yang startsWith ditaruh di awal
-    const trimmedVal = (value ?? '').trim();
-    const matched = options
-        .filter((opt) =>
-            opt.toLowerCase().includes(trimmedVal.toLowerCase()),
-        )
-        .sort((a, b) => {
-            const aStarts = a.toLowerCase().startsWith(trimmedVal.toLowerCase());
-            const bStarts = b.toLowerCase().startsWith(trimmedVal.toLowerCase());
-            if (aStarts && !bStarts) return -1;
-            if (!aStarts && bStarts) return 1;
-            return a.localeCompare(b);
-        });
+    // Scroll opsi aktif ke dalam viewport dropdown
+    useEffect(() => {
+        if (active >= 0) {
+            listRef.current
+                ?.querySelector('[data-active="true"]')
+                ?.scrollIntoView({ block: 'nearest' });
+        }
+    }, [active]);
 
-    // Ambil saran saat ini jika tidak sama persis dengan value yang diketik
-    const currentSuggestion =
-        !dismissed && matched.length > 0
-            ? matched[Math.min(activeIndex, matched.length - 1)]
-            : null;
-
-    const isExactMatch =
-        currentSuggestion &&
-        currentSuggestion.toLowerCase() === (value ?? '').toLowerCase();
-
-    const suggestedAttend =
-        currentSuggestion && !isExactMatch ? currentSuggestion : null;
-
-    // Hitung completion ghost text jika diawali dengan teks yang diketik
-    const completion =
-        suggestedAttend &&
-        suggestedAttend.toLowerCase().startsWith((value ?? '').toLowerCase())
-            ? suggestedAttend.slice((value ?? '').length)
-            : '';
+    const openList = () => {
+        const currentVal = (value ?? '').trim();
+        setSearch(currentVal);
+        setPage(1);
+        setActive(-1);
+        setOpen(true);
+    };
 
     const choose = (attend) => {
         onValueChange(attend);
-        setDismissed(true);
-        setOptions([]);
-        setActiveIndex(0);
+        setOpen(false);
+        setActive(-1);
         if (inputRef.current) {
             inputRef.current.focus();
             requestAnimationFrame(() => {
@@ -100,112 +96,232 @@ export default function QuotationAttendInput({ id, value = '', onValueChange }) 
         }
     };
 
+    // Cari saran terbaik: prioritaskan yang diawali teks yang diketik (prefix match)
+    const valTrimmed = (value ?? '').trim();
+    const prefixMatch =
+        valTrimmed !== ''
+            ? options.find((opt) =>
+                  opt.toLowerCase().startsWith(valTrimmed.toLowerCase()),
+              )
+            : undefined;
+
+    const activeOption =
+        active >= 0 && active < options.length ? options[active] : undefined;
+
+    const suggestedAttend =
+        open && valTrimmed !== ''
+            ? activeOption ?? prefixMatch ?? options[0]
+            : undefined;
+
+    // Hitung samaran (ghost text) jika saran diawali teks yang diketik user
+    const completion =
+        suggestedAttend &&
+        valTrimmed !== '' &&
+        suggestedAttend.toLowerCase().startsWith(value.toLowerCase()) &&
+        suggestedAttend.toLowerCase() !== value.toLowerCase()
+            ? suggestedAttend.slice(value.length)
+            : '';
+
     return (
-        <div className="relative w-full">
-            {/* Ghost text di dalam kotak isian */}
-            {completion && isFocused && (
-                <div
-                    aria-hidden="true"
-                    className="pointer-events-none absolute inset-0 flex items-center overflow-hidden rounded-md border border-transparent px-3 py-1 text-base select-none whitespace-pre md:text-sm"
-                >
-                    <span
-                        className="shrink-0"
-                        style={{
-                            transform: `translateX(-${scrollLeft}px)`,
-                        }}
+        <div
+            className="relative w-full"
+            onBlur={(event) => {
+                if (!event.currentTarget.contains(event.relatedTarget)) {
+                    setOpen(false);
+                }
+            }}
+        >
+            <div className="relative">
+                <Input
+                    ref={inputRef}
+                    id={id}
+                    value={value}
+                    role="combobox"
+                    autoComplete="off"
+                    spellCheck="false"
+                    aria-autocomplete="both"
+                    aria-describedby={
+                        suggestedAttend ? `${listId}-hint` : undefined
+                    }
+                    onScroll={(event) =>
+                        setScrollLeft(event.currentTarget.scrollLeft)
+                    }
+                    aria-expanded={open}
+                    aria-controls={listId}
+                    aria-activedescendant={
+                        open && active >= 0 ? `${listId}-${active}` : undefined
+                    }
+                    onFocus={openList}
+                    onClick={openList}
+                    onChange={(event) => {
+                        const nextVal = event.target.value;
+                        onValueChange(nextVal);
+                        setSearch(nextVal);
+                        setPage(1);
+                        setActive(-1);
+                        setOpen(true);
+                    }}
+                    onKeyDown={(event) => {
+                        if (
+                            event.key === 'ArrowDown' ||
+                            event.key === 'ArrowUp'
+                        ) {
+                            event.preventDefault();
+                            if (!open) {
+                                openList();
+                                return;
+                            }
+                            setActive((previous) =>
+                                event.key === 'ArrowDown'
+                                    ? Math.min(previous + 1, options.length - 1)
+                                    : Math.max(
+                                          previous - 1,
+                                          options.length ? 0 : -1,
+                                      ),
+                            );
+                        } else if (
+                            event.key === 'Tab' &&
+                            !event.shiftKey &&
+                            !event.ctrlKey &&
+                            !event.altKey &&
+                            !event.metaKey &&
+                            !event.nativeEvent.isComposing &&
+                            open &&
+                            valTrimmed !== '' &&
+                            suggestedAttend
+                        ) {
+                            event.preventDefault();
+                            choose(suggestedAttend);
+                        } else if (
+                            event.key === 'Enter' &&
+                            open &&
+                            suggestedAttend
+                        ) {
+                            event.preventDefault();
+                            choose(suggestedAttend);
+                        } else if (
+                            event.key === 'ArrowRight' &&
+                            completion &&
+                            inputRef.current?.selectionStart === value.length &&
+                            inputRef.current?.selectionEnd === value.length &&
+                            suggestedAttend
+                        ) {
+                            event.preventDefault();
+                            choose(suggestedAttend);
+                        } else if (event.key === 'Escape' && open) {
+                            event.preventDefault();
+                            setOpen(false);
+                        }
+                    }}
+                />
+
+                {/* Samaran (Ghost text) kelanjutan nama persis di dalam kotak isian */}
+                {completion && (
+                    <div
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-0 z-10 flex items-center overflow-hidden rounded-md border border-transparent px-3 py-1 text-base select-none whitespace-pre md:text-sm font-sans"
                     >
-                        <span className="invisible">{value}</span>
-                        <span className="text-muted-foreground/50 font-normal">
-                            {completion}
+                        <span
+                            className="shrink-0"
+                            style={{
+                                transform: `translateX(-${scrollLeft}px)`,
+                            }}
+                        >
+                            <span className="invisible">{value}</span>
+                            <span className="text-muted-foreground/60 dark:text-muted-foreground/60 font-normal">
+                                {completion}
+                            </span>
                         </span>
+                    </div>
+                )}
+            </div>
+
+            {/* Informasi UX ramah pengguna jika nama sesuai */}
+            {suggestedAttend && (
+                <p
+                    id={`${listId}-hint`}
+                    role="status"
+                    className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted-foreground"
+                >
+                    <span>Ketik</span>
+                    <kbd className="inline-flex items-center rounded border border-border bg-muted px-1.5 py-0.5 font-mono text-[11px] font-semibold text-foreground shadow-2xs">
+                        Tab ⇥
+                    </kbd>
+                    <span>jika nama sudah sesuai:</span>
+                    <span className="font-semibold text-foreground">
+                        {suggestedAttend}
                     </span>
-                </div>
+                </p>
             )}
 
-            {/* Input field */}
-            <Input
-                ref={inputRef}
-                id={id}
-                value={value}
-                autoComplete="off"
-                spellCheck="false"
-                className={cn(
-                    'w-full bg-transparent font-normal',
-                    suggestedAttend && isFocused ? 'pr-20' : 'pr-3',
-                )}
-                onScroll={(e) => setScrollLeft(e.currentTarget.scrollLeft)}
-                onFocus={() => {
-                    setIsFocused(true);
-                    setDismissed(false);
-                }}
-                onBlur={(e) => {
-                    // Cek jika blur bukan karena klik badge di dalam container
-                    if (!e.currentTarget.parentElement?.contains(e.relatedTarget)) {
-                        setIsFocused(false);
-                    }
-                }}
-                onChange={(e) => {
-                    onValueChange(e.target.value);
-                    setDismissed(false);
-                }}
-                onKeyDown={(e) => {
-                    if (
-                        e.key === 'Tab' &&
-                        !e.shiftKey &&
-                        !e.ctrlKey &&
-                        !e.altKey &&
-                        !e.metaKey &&
-                        !e.nativeEvent.isComposing &&
-                        suggestedAttend
-                    ) {
-                        e.preventDefault();
-                        choose(suggestedAttend);
-                    } else if (e.key === 'Enter' && suggestedAttend) {
-                        e.preventDefault();
-                        choose(suggestedAttend);
-                    } else if (
-                        e.key === 'ArrowRight' &&
-                        suggestedAttend &&
-                        completion &&
-                        inputRef.current?.selectionStart === (value ?? '').length &&
-                        inputRef.current?.selectionEnd === (value ?? '').length
-                    ) {
-                        e.preventDefault();
-                        choose(suggestedAttend);
-                    } else if (e.key === 'ArrowDown' && matched.length > 1) {
-                        e.preventDefault();
-                        setActiveIndex((prev) => (prev + 1) % matched.length);
-                    } else if (e.key === 'ArrowUp' && matched.length > 1) {
-                        e.preventDefault();
-                        setActiveIndex(
-                            (prev) => (prev - 1 + matched.length) % matched.length,
-                        );
-                    } else if (e.key === 'Escape') {
-                        e.preventDefault();
-                        setDismissed(true);
-                    }
-                }}
-            />
-
-            {/* Indikator saran di dalam kotak isian (sebelah kanan dalam input) */}
-            {suggestedAttend && isFocused && (
-                <div className="pointer-events-auto absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 select-none">
-                    {matched.length > 1 && (
-                        <span className="text-[10px] text-muted-foreground/80 font-medium">
-                            {activeIndex + 1}/{matched.length}
-                        </span>
-                    )}
-                    <button
-                        type="button"
-                        tabIndex={-1}
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => choose(suggestedAttend)}
-                        className="inline-flex items-center gap-0.5 rounded border border-border/60 bg-muted/90 px-1.5 py-0.5 text-[11px] font-medium text-muted-foreground shadow-2xs hover:bg-muted hover:text-foreground transition-colors cursor-pointer"
-                        title="Tekan Tab atau klik untuk melengkapi"
+            {/* Dropdown Rekomendasi Attend saat user mengklik field */}
+            {open && (
+                <div className="absolute top-full z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md">
+                    <ul
+                        id={listId}
+                        ref={listRef}
+                        role="listbox"
+                        aria-label="Rekomendasi Attend"
+                        aria-busy={loading}
+                        className="max-h-56 overflow-y-auto p-1"
                     >
-                        <span>Tab</span>
-                        <span className="text-[10px] opacity-70">⇥</span>
-                    </button>
+                        {options.map((attend, index) => {
+                            const isCurrentActive =
+                                index === active ||
+                                (active === -1 && attend === suggestedAttend);
+
+                            return (
+                                <li
+                                    key={`${attend}-${index}`}
+                                    id={`${listId}-${index}`}
+                                    role="option"
+                                    aria-selected={isCurrentActive}
+                                    data-active={isCurrentActive}
+                                    className={cn(
+                                        'cursor-pointer rounded-sm px-3 py-2 text-sm transition-colors hover:bg-accent hover:text-accent-foreground',
+                                        isCurrentActive &&
+                                            'bg-accent text-accent-foreground font-medium',
+                                    )}
+                                    onMouseDown={(event) =>
+                                        event.preventDefault()
+                                    }
+                                    onMouseEnter={() => setActive(index)}
+                                    onClick={() => choose(attend)}
+                                >
+                                    {attend}
+                                </li>
+                            );
+                        })}
+                    </ul>
+                    <div
+                        className="px-3 py-2 text-xs text-muted-foreground border-t bg-muted/20"
+                        role="status"
+                    >
+                        {loading
+                            ? 'Memuat saran Attend…'
+                            : error ||
+                              (options.length === 0
+                                  ? 'Tidak ada Attend yang cocok. Anda tetap dapat mengetik nama baru.'
+                                  : 'Klik nama, gunakan panah ↑↓, atau ketik Tab untuk memilih.')}
+                    </div>
+                    {!loading && error && (
+                        <button
+                            type="button"
+                            className="w-full px-3 py-2 text-left text-sm text-primary hover:bg-accent"
+                            onClick={() => setRetry((previous) => previous + 1)}
+                        >
+                            Coba lagi
+                        </button>
+                    )}
+                    {!loading && !error && hasMore && (
+                        <button
+                            type="button"
+                            className="w-full border-t px-3 py-2 text-left text-sm text-primary hover:bg-accent font-medium"
+                            onClick={() => setPage((previous) => previous + 1)}
+                        >
+                            Tampilkan lainnya
+                        </button>
+                    )}
                 </div>
             )}
         </div>
