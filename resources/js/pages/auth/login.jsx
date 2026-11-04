@@ -8,6 +8,7 @@ import {
     Check,
     ChevronDown,
     Cpu,
+    Database,
     Eye,
     EyeOff,
     KeyRound,
@@ -23,7 +24,7 @@ import {
     Wallet,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import '../../../css/login.css';
 
 const databaseLabels = {
@@ -33,6 +34,15 @@ const databaseLabels = {
     dbati: 'DB ATI',
     dbarm: 'DB ARM',
     dbjms: 'DB JMS',
+};
+
+const databaseCompanies = {
+    dbsja: 'CV. Semesta Jaya Abadi',
+    dbbbbs: 'CV. Berkah Tiga Bersaudara',
+    dbstg: 'CV. Surya Teknik Gemilang',
+    dbati: 'CV. Anugerah Teknik Indonesia',
+    dbarm: 'CV. Armada Raya Mandiri',
+    dbjms: 'CV. JLX Makmur Sentosa',
 };
 
 /* ─── Animated Spiritual Quote Card (Gemini Loading Glow Effect) ─────────── */
@@ -457,20 +467,52 @@ export default function Login({ status, databases = [], selectedDatabase }) {
     const [showPassword, setShowPassword] = useState(false);
     const [capsLock, setCapsLock] = useState(false);
 
+    // Custom Animated Dropdown State
+    const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+    const dropdownRef = useRef(null);
+
     // Track focused fields for animated floating labels
     const [focusedField, setFocusedField] = useState(null);
 
-    // Authentication States: Sukses & Error Shake
+    // Authentication States: Sukses, Loading & Error Shake
     const [isSuccess, setIsSuccess] = useState(false);
+    const [isSubmitting, setIsSubmitting] = useState(false);
     const [isErrorShake, setIsErrorShake] = useState(false);
+    const [customErrors, setCustomErrors] = useState({});
 
     const pageErrors = page.props?.errors ?? {};
-    const databaseError = errors.database || pageErrors.database;
-    const usernameError = errors.pengguna || pageErrors.pengguna;
-    const passwordError = errors.password || pageErrors.password;
-    const flashError = page.props?.flash?.error;
+    const databaseError = customErrors.database || errors.database || pageErrors.database;
+    const usernameError = customErrors.pengguna || errors.pengguna || pageErrors.pengguna;
+    const passwordError = customErrors.password || errors.password || pageErrors.password;
+    const flashError = customErrors.general || page.props?.flash?.error;
 
     const hasAuthError = Boolean(usernameError || passwordError || flashError);
+
+    // Helper untuk ambil CSRF token dari meta tag atau cookie
+    const getCsrfToken = () => {
+        if (typeof document !== 'undefined') {
+            const meta = document.querySelector('meta[name="csrf-token"]');
+            if (meta && meta.content) return meta.content;
+            const match = document.cookie.match(/XSRF-TOKEN=([^;]+)/);
+            if (match) return decodeURIComponent(match[1]);
+        }
+        return '';
+    };
+
+    // Close dropdown saat user klik di luar area dropdown
+    useEffect(() => {
+        function handleClickOutside(event) {
+            if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+                setIsDropdownOpen(false);
+            }
+        }
+        if (isDropdownOpen) {
+            document.addEventListener('mousedown', handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isDropdownOpen]);
 
     const triggerErrorShake = () => {
         setIsErrorShake(true);
@@ -484,23 +526,87 @@ export default function Login({ status, databases = [], selectedDatabase }) {
         }
     }, [hasAuthError, usernameError, passwordError, flashError]);
 
-    const submit = (event) => {
+    const submit = async (event) => {
         event.preventDefault();
-        if (processing || isSuccess) return;
+        if (isSubmitting || processing || isSuccess) return;
 
-        post('/login-simple', {
-            onSuccess: () => {
+        if (!data.database) {
+            setCustomErrors({ database: 'Silakan pilih database perusahaan terlebih dahulu.' });
+            setIsDropdownOpen(true);
+            return;
+        }
+
+        setIsSubmitting(true);
+        setCustomErrors({});
+
+        try {
+            const csrfToken = getCsrfToken();
+            const response = await fetch('/login-simple', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json, text/html',
+                    'X-Inertia': 'true',
+                    'X-CSRF-TOKEN': csrfToken,
+                    'X-Requested-With': 'XMLHttpRequest',
+                },
+                credentials: 'same-origin',
+                body: JSON.stringify({
+                    database: data.database,
+                    pengguna: data.pengguna,
+                    password: data.password,
+                }),
+            });
+
+            // Status 409 atau header X-Inertia-Location menandakan autentikasi berhasil
+            const inertiaLocation = response.headers.get('x-inertia-location');
+            if (response.status === 409 || inertiaLocation || response.ok) {
                 setIsSuccess(true);
-            },
-            onError: () => {
+                setIsSubmitting(false);
+
+                // Beri jeda 1 detik agar animasi sukses tampil memuaskan sebelum diarahkan ke dashboard
+                const targetUrl = inertiaLocation || '/dashboard';
+                setTimeout(() => {
+                    window.location.href = targetUrl;
+                }, 1000);
+                return;
+            }
+
+            // Validasi gagal (misal username/password salah)
+            if (response.status === 422) {
+                const errData = await response.json().catch(() => ({}));
+                setCustomErrors(errData.errors || { pengguna: 'Username atau password salah.' });
                 triggerErrorShake();
-            },
-            onFinish: () => {
-                reset('password');
-                setShowPassword(false);
-                setCapsLock(false);
-            },
-        });
+                setIsSubmitting(false);
+                setData('password', '');
+                return;
+            }
+
+            const errData = await response.json().catch(() => ({}));
+            setCustomErrors(errData.errors || { general: errData.message || 'Terjadi kesalahan saat autentikasi.' });
+            triggerErrorShake();
+            setIsSubmitting(false);
+        } catch {
+            // Fallback ke post Inertia jika terjadi kendala network
+            post('/login-simple', {
+                onSuccess: () => {
+                    setIsSuccess(true);
+                    setTimeout(() => {
+                        window.location.href = '/dashboard';
+                    }, 1000);
+                },
+                onError: () => {
+                    triggerErrorShake();
+                    setIsSubmitting(false);
+                },
+                onFinish: () => {
+                    reset('password');
+                    setShowPassword(false);
+                    setCapsLock(false);
+                    setIsSubmitting(false);
+                },
+            });
+        }
     };
 
     const toggleTheme = () => {
@@ -659,45 +765,143 @@ export default function Login({ status, databases = [], selectedDatabase }) {
 
                             {/* Form Input dengan Entrance Stagger & Floating Morphing Labels */}
                             <form onSubmit={submit} className="fs-form-body" aria-busy={processing}>
-                                {/* 1. Dropdown Perusahaan / Database */}
+                                {/* 1. Dropdown Perusahaan / Database (Kustom & Beranimasi Modern) */}
                                 <motion.div
-                                    className={`fs-field-group ${
-                                        focusedField === 'database' || Boolean(data.database)
+                                    ref={dropdownRef}
+                                    className={`fs-field-group fs-dropdown-group ${
+                                        focusedField === 'database' || isDropdownOpen || Boolean(data.database)
                                             ? 'is-active'
                                             : ''
-                                    }`}
+                                    } ${isDropdownOpen ? 'is-open' : ''} ${databaseError ? 'has-error' : ''}`}
                                     initial={{ opacity: 0, y: 18 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ duration: 0.5, delay: 0.35, ease: [0.16, 1, 0.3, 1] }}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Escape') {
+                                            setIsDropdownOpen(false);
+                                        }
+                                    }}
                                 >
+                                    <input
+                                        type="hidden"
+                                        name="database"
+                                        value={data.database}
+                                    />
+
                                     <div className="fs-input-box">
                                         <Building2 className="fs-field-icon" size={18} aria-hidden="true" />
-                                        <select
+                                        <button
+                                            type="button"
                                             id="database"
-                                            name="database"
-                                            required
-                                            value={data.database}
-                                            onChange={(e) => setData('database', e.target.value)}
+                                            className="fs-control fs-dropdown-trigger"
+                                            onClick={() => {
+                                                if (processing || isSuccess) return;
+                                                setIsDropdownOpen((prev) => !prev);
+                                            }}
                                             onFocus={() => setFocusedField('database')}
                                             onBlur={() => setFocusedField(null)}
-                                            disabled={processing}
-                                            data-empty={!data.database}
-                                            className="fs-control"
+                                            disabled={processing || isSuccess}
+                                            aria-haspopup="listbox"
+                                            aria-expanded={isDropdownOpen}
                                             aria-invalid={Boolean(databaseError)}
                                             aria-describedby={databaseError ? 'database-error' : undefined}
                                         >
-                                            <option value="" disabled></option>
-                                            {databases.map((database) => (
-                                                <option key={database} value={database}>
-                                                    {databaseLabels[database] || database}
-                                                </option>
-                                            ))}
-                                        </select>
+                                            {data.database ? (
+                                                <span className="fs-dropdown-selected-text">
+                                                    <span className="fs-selected-db-code">
+                                                        {databaseLabels[data.database] || data.database}
+                                                    </span>
+                                                    {databaseCompanies[data.database] && (
+                                                        <span className="fs-selected-db-company">
+                                                            {' '}— {databaseCompanies[data.database]}
+                                                        </span>
+                                                    )}
+                                                </span>
+                                            ) : (
+                                                <span className="fs-dropdown-placeholder" />
+                                            )}
+                                        </button>
                                         <label htmlFor="database" className="fs-floating-label">
                                             Perusahaan / Database
                                         </label>
-                                        <ChevronDown className="fs-select-chevron" size={16} aria-hidden="true" />
+                                        <motion.div
+                                            className="fs-chevron-wrapper"
+                                            animate={{ rotate: isDropdownOpen ? 180 : 0 }}
+                                            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                                        >
+                                            <ChevronDown className="fs-select-chevron" size={16} aria-hidden="true" />
+                                        </motion.div>
                                     </div>
+
+                                    {/* Animated Dropdown Menu Popover */}
+                                    <AnimatePresence>
+                                        {isDropdownOpen && (
+                                            <motion.div
+                                                className="fs-dropdown-menu"
+                                                role="listbox"
+                                                aria-label="Daftar Perusahaan / Database"
+                                                initial={{ opacity: 0, y: -10, scale: 0.96 }}
+                                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                                exit={{ opacity: 0, y: -8, scale: 0.96 }}
+                                                transition={{ duration: 0.22, ease: [0.16, 1, 0.3, 1] }}
+                                            >
+                                                <div className="fs-dropdown-menu-header">
+                                                    <span className="fs-dropdown-menu-title">Pilih Unit Perusahaan</span>
+                                                    <span className="fs-dropdown-menu-count">
+                                                        {(databases.length > 0 ? databases : Object.keys(databaseLabels)).length} Database
+                                                    </span>
+                                                </div>
+
+                                                <div className="fs-dropdown-items-list">
+                                                    {(databases.length > 0 ? databases : Object.keys(databaseLabels)).map((dbKey) => {
+                                                        const isSelected = data.database === dbKey;
+                                                        const label = databaseLabels[dbKey] || dbKey;
+                                                        const company = databaseCompanies[dbKey];
+
+                                                        return (
+                                                            <motion.button
+                                                                key={dbKey}
+                                                                type="button"
+                                                                role="option"
+                                                                aria-selected={isSelected}
+                                                                className={`fs-dropdown-item ${isSelected ? 'is-selected' : ''}`}
+                                                                onClick={() => {
+                                                                    setData('database', dbKey);
+                                                                    setIsDropdownOpen(false);
+                                                                    setFocusedField(null);
+                                                                }}
+                                                                whileHover={{ x: 4, transition: { duration: 0.15 } }}
+                                                                whileTap={{ scale: 0.98 }}
+                                                            >
+                                                                <div className="fs-dropdown-item-left">
+                                                                    <div className={`fs-db-badge-icon ${isSelected ? 'is-active' : ''}`}>
+                                                                        <Database size={15} />
+                                                                    </div>
+                                                                    <div className="fs-dropdown-item-meta">
+                                                                        <span className="fs-dropdown-item-label">{label}</span>
+                                                                        {company && (
+                                                                            <span className="fs-dropdown-item-sub">{company}</span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                                {isSelected && (
+                                                                    <motion.div
+                                                                        className="fs-dropdown-item-check"
+                                                                        initial={{ scale: 0, opacity: 0 }}
+                                                                        animate={{ scale: 1, opacity: 1 }}
+                                                                        transition={{ duration: 0.2 }}
+                                                                    >
+                                                                        <Check size={14} strokeWidth={2.8} />
+                                                                    </motion.div>
+                                                                )}
+                                                            </motion.button>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </motion.div>
+                                        )}
+                                    </AnimatePresence>
+
                                     {databaseError && (
                                         <p className="fs-error-msg" id="database-error" role="alert">
                                             <AlertCircle size={12} />
@@ -732,7 +936,12 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                                             type="text"
                                             name="pengguna"
                                             value={data.pengguna}
-                                            onChange={(e) => setData('pengguna', e.target.value)}
+                                            onChange={(e) => {
+                                                setData('pengguna', e.target.value);
+                                                if (customErrors.pengguna || customErrors.general) {
+                                                    setCustomErrors((prev) => ({ ...prev, pengguna: undefined, general: undefined }));
+                                                }
+                                            }}
                                             onFocus={() => setFocusedField('pengguna')}
                                             onBlur={() => setFocusedField(null)}
                                             required
@@ -740,7 +949,7 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                                             autoCapitalize="none"
                                             autoCorrect="off"
                                             spellCheck={false}
-                                            disabled={processing || isSuccess}
+                                            disabled={isSubmitting || processing || isSuccess}
                                             className={`fs-control ${hasAuthError ? 'is-error-shake' : ''}`}
                                             aria-invalid={Boolean(usernameError || hasAuthError)}
                                             aria-describedby={usernameError ? 'username-error' : undefined}
@@ -783,7 +992,12 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                                             type={showPassword ? 'text' : 'password'}
                                             name="password"
                                             value={data.password}
-                                            onChange={(e) => setData('password', e.target.value)}
+                                            onChange={(e) => {
+                                                setData('password', e.target.value);
+                                                if (customErrors.password || customErrors.general) {
+                                                    setCustomErrors((prev) => ({ ...prev, password: undefined, general: undefined }));
+                                                }
+                                            }}
                                             onFocus={() => setFocusedField('password')}
                                             onBlur={() => {
                                                 setFocusedField(null);
@@ -793,7 +1007,7 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                                             onKeyDown={(e) => setCapsLock(e.getModifierState('CapsLock'))}
                                             required
                                             autoComplete="current-password"
-                                            disabled={processing || isSuccess}
+                                            disabled={isSubmitting || processing || isSuccess}
                                             className={`fs-control ${hasAuthError ? 'is-error-shake' : ''}`}
                                             aria-invalid={Boolean(passwordError || hasAuthError)}
                                             aria-describedby={passwordError ? 'password-error' : undefined}
@@ -848,17 +1062,36 @@ export default function Login({ status, databases = [], selectedDatabase }) {
                                     <motion.button
                                         type="submit"
                                         className={`fs-submit-btn ${isSuccess ? 'is-success' : ''}`}
-                                        disabled={processing || isSuccess}
+                                        disabled={isSubmitting || processing || isSuccess}
                                         data-test="login-button"
-                                        whileHover={{ scale: (processing || isSuccess) ? 1 : 1.012 }}
-                                        whileTap={{ scale: (processing || isSuccess) ? 1 : 0.988 }}
+                                        whileHover={{ scale: (isSubmitting || processing || isSuccess) ? 1 : 1.012 }}
+                                        whileTap={{ scale: (isSubmitting || processing || isSuccess) ? 1 : 0.988 }}
                                     >
                                         {isSuccess ? (
-                                            <>
-                                                <Check size={18} strokeWidth={2.8} />
-                                                <span>Berhasil Login!</span>
-                                            </>
-                                        ) : processing ? (
+                                            <motion.div
+                                                key="success"
+                                                className="fs-btn-content"
+                                                initial={{ opacity: 0, y: 4 }}
+                                                animate={{ opacity: 1, y: 0 }}
+                                                transition={{ duration: 0.25 }}
+                                            >
+                                                <motion.div
+                                                    className="fs-success-badge"
+                                                    initial={{ scale: 0, rotate: -60 }}
+                                                    animate={{ scale: [0, 1.25, 1], rotate: 0 }}
+                                                    transition={{ duration: 0.45, ease: [0.16, 1, 0.3, 1] }}
+                                                >
+                                                    <Check size={17} strokeWidth={3} />
+                                                </motion.div>
+                                                <span className="fs-btn-text-success">Login Berhasil, Silahkan Tunggu...</span>
+                                                <motion.div
+                                                    className="fs-btn-progress-bar"
+                                                    initial={{ width: '0%' }}
+                                                    animate={{ width: '100%' }}
+                                                    transition={{ duration: 1.0, ease: 'easeInOut' }}
+                                                />
+                                            </motion.div>
+                                        ) : isSubmitting || processing ? (
                                             <>
                                                 <span className="fs-spinner" aria-hidden="true" />
                                                 <span>Menghubungkan ke Sistem...</span>

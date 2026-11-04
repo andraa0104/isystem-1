@@ -76,13 +76,15 @@ class QuotationController
         }
 
         try {
+            // SELECT hanya kolom yang dibutuhkan, bukan SELECT *
             $lastRecord = DB::table('tb_invin')
-                ->where('mat', 'LIKE', '%' . $materialName . '%')
+                ->select('harga')
+                ->where('mat', 'LIKE', '%' . trim($materialName) . '%')
                 ->orderBy('id_invin', 'desc')
                 ->first();
 
             return response()->json([
-                'harga' => $lastRecord ? round($lastRecord->harga) : 0
+                'harga' => $lastRecord ? (int) round((float) $lastRecord->harga) : 0,
             ]);
         } catch (\Exception $e) {
             Log::error('Gagal mengambil harga terakhir: ' . $e->getMessage());
@@ -94,14 +96,14 @@ class QuotationController
     public function details($noPenawaran)
     {
         $detailNo = trim($noPenawaran);
-    
+
+        // SELECT kolom spesifik agar tidak kirim data tidak perlu ke frontend
         $details = DB::table('tb_penawarandetail')
+            ->select('ID', 'No_Penawaran', 'Material', 'Qty', 'Satuan', 'Harga', 'Harga_Modal', 'Margin', 'Remark')
             ->where('No_Penawaran', $detailNo)
+            ->orderBy('ID')
             ->get();
-        
-        // Tambahkan log untuk memastikan data ditemukan di server
-        Log::info("Fetching details for $detailNo: " . $details->count() . " records found.");
-    
+
         return response()->json(['details' => $details]);
     }
     public function destroy(Request $request, $noPenawaran)
@@ -265,14 +267,20 @@ class QuotationController
  
     public function header($noPenawaran)
     {
+        // SELECT kolom spesifik yang dibutuhkan frontend
         $header = DB::table('tb_penawaran')
+            ->select(
+                'No_Penawaran', 'Tgl_Penawaran', 'Tgl_Posting', 'Customer', 'Alamat',
+                'Telp', 'Fax', 'Email', 'Attend', 'Payment', 'Validity',
+                'Delivery', 'Franco', 'Note1', 'Note2', 'Note3'
+            )
             ->where('No_Penawaran', trim($noPenawaran))
             ->first();
-    
+
         if (!$header) {
             return response()->json(['error' => 'Not found'], 404);
         }
-    
+
         return response()->json($header);
     }
     
@@ -393,26 +401,21 @@ class QuotationController
                 ->with('error', 'Data quotation tidak ditemukan.');
         }
 
-        $noPenawaranColumn = $this->resolveColumn('tb_penawarandetail', ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
-        $hargaModalColumn = $this->resolveColumn('tb_penawarandetail', ['Harga_Modal', 'Harga_modal', 'harga_modal'], 'Harga_Modal');
-        $hargaColumn = $this->resolveColumn('tb_penawarandetail', ['Harga', 'harga'], 'Harga');
-
+        // Kolom tb_penawarandetail sudah diketahui pasti ada — hardcode langsung
+        // untuk menghindari overhead resolveColumn (schema introspection per request).
         $quotationDetails = DB::table('tb_penawarandetail')
-            ->selectRaw(
-                'ID, ID as id, ' .
-                $this->wrapColumn($noPenawaranColumn).' as No_penawaran, ' .
-                $this->wrapColumn($noPenawaranColumn).' as no_penawaran, ' .
-                'Material, Material as material, ' .
-                $this->wrapColumn($hargaColumn).' as Harga, ' .
-                $this->wrapColumn($hargaColumn).' as harga_penawaran, ' .
-                'Qty, Qty as quantity, ' .
-                'Satuan, Satuan as satuan, ' .
-                $this->wrapColumn($hargaModalColumn).' as Harga_modal, ' .
-                $this->wrapColumn($hargaModalColumn).' as harga_modal, ' .
-                'Margin, Margin as margin, ' .
-                'Remark, Remark as remark'
+            ->select(
+                DB::raw('ID, ID as id'),
+                DB::raw('No_Penawaran, No_Penawaran as no_penawaran'),
+                DB::raw('Material, Material as material'),
+                DB::raw('Harga, Harga as harga_penawaran'),
+                DB::raw('Qty, Qty as quantity'),
+                DB::raw('Satuan, Satuan as satuan'),
+                DB::raw('Harga_Modal as Harga_modal, Harga_Modal as harga_modal'),
+                DB::raw('Margin, Margin as margin'),
+                DB::raw('Remark, Remark as remark')
             )
-            ->where($noPenawaranColumn, trim($noPenawaran))
+            ->where('No_Penawaran', trim($noPenawaran))
             ->orderBy('ID')
             ->get();
 
@@ -441,34 +444,23 @@ class QuotationController
                 ->with('error', 'Data quotation tidak ditemukan.');
         }
 
-        $noPenawaranColumn = $this->resolveColumn('tb_penawarandetail', ['No_Penawaran', 'No_penawaran', 'no_penawaran'], 'No_penawaran');
-        $hargaColumn = $this->resolveColumn('tb_penawarandetail', ['Harga', 'harga'], 'Harga');
-        $hargaModalColumn = $this->resolveColumn('tb_penawarandetail', ['Harga_Modal', 'Harga_modal', 'harga_modal'], 'Harga_Modal');
-
+        // Kolom tb_penawarandetail sudah diketahui ada — hardcode langsung
+        // menghindari overhead schema introspection resolveColumn().
         $quotationDetails = DB::table('tb_penawarandetail')
             ->selectRaw(
-                'ID, ID as id, '.
-                $this->wrapColumn($noPenawaranColumn).' as No_penawaran, '.
-                $this->wrapColumn($noPenawaranColumn).' as no_penawaran, '.
-                'Material, Material as material, '.
-                'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
-                .' THEN '.$this->wrapColumn($hargaModalColumn)
-                .' ELSE '.$this->wrapColumn($hargaColumn).' END as Harga, '.
-                'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
-                .' THEN '.$this->wrapColumn($hargaModalColumn)
-                .' ELSE '.$this->wrapColumn($hargaColumn).' END as harga_penawaran, '.
-                'Qty, Qty as quantity, '.
-                'Satuan, Satuan as satuan, '.
-                'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
-                .' THEN '.$this->wrapColumn($hargaColumn)
-                .' ELSE '.$this->wrapColumn($hargaModalColumn).' END as Harga_modal, '.
-                'CASE WHEN '.$this->wrapColumn($hargaModalColumn).' > '.$this->wrapColumn($hargaColumn)
-                .' THEN '.$this->wrapColumn($hargaColumn)
-                .' ELSE '.$this->wrapColumn($hargaModalColumn).' END as harga_modal, '.
-                'Margin, Margin as margin, '.
-                'Remark, Remark as remark'
+                'ID, ID as id,'
+                .' No_Penawaran, No_Penawaran as no_penawaran,'
+                .' Material, Material as material,'
+                .' CASE WHEN Harga_Modal > Harga THEN Harga_Modal ELSE Harga END as Harga,'
+                .' CASE WHEN Harga_Modal > Harga THEN Harga_Modal ELSE Harga END as harga_penawaran,'
+                .' Qty, Qty as quantity,'
+                .' Satuan, Satuan as satuan,'
+                .' CASE WHEN Harga_Modal > Harga THEN Harga ELSE Harga_Modal END as Harga_modal,'
+                .' CASE WHEN Harga_Modal > Harga THEN Harga ELSE Harga_Modal END as harga_modal,'
+                .' Margin, Margin as margin,'
+                .' Remark, Remark as remark'
             )
-            ->where($noPenawaranColumn, trim($noPenawaran))
+            ->where('No_Penawaran', trim($noPenawaran))
             ->orderBy('ID')
             ->get();
 
@@ -666,15 +658,21 @@ class QuotationController
         $validated = $request->validate(['customer' => ['nullable', 'string']]);
         $customerName = trim($validated['customer'] ?? '');
         $franco = '';
+        $attend = '';
 
         if ($customerName !== '') {
-            $franco = trim((string) DB::table('tb_penawaran')
+            $latest = DB::table('tb_penawaran')
                 ->where('Customer', $customerName)
                 ->orderByDesc('Tgl_Posting')
                 ->orderByDesc('No_penawaran')
-                ->value('Franco'));
+                ->first(['Franco', 'Attend']);
+            $franco = trim((string) ($latest->Franco ?? ''));
+            $attend = trim((string) ($latest->Attend ?? ''));
         }
 
-        return response()->json(['franco' => $franco !== '' ? $franco : 'SAMARINDA']);
+        return response()->json([
+            'franco' => $franco !== '' ? $franco : 'SAMARINDA',
+            'attend' => $attend,
+        ]);
     }
 }

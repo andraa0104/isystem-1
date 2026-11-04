@@ -93,6 +93,15 @@ const formatNumber = (value) => {
     return new Intl.NumberFormat('id-ID').format(number);
 };
 
+const formatPercent = (value) => {
+    if (value === null || value === undefined || value === '' || value === '-') {
+        return '-';
+    }
+
+    const normalized = String(value).replace(/%/g, '').trim();
+    return normalized === '' ? '-' : `${normalized}%`;
+};
+
 // ─── Helpers untuk InsightRecommendationPanel ────────────────────────────────
 
 function getUrgencyBadge(type, item) {
@@ -2662,20 +2671,14 @@ export default function PurchaseRequirementIndex({
                                                                 )}
                                                             </td>
                                                             <td className="w-[1%] px-2 py-3 text-right whitespace-nowrap">
-                                                                {renderValue(
+                                                                {formatPercent(
                                                                     getValue(
                                                                         detail,
                                                                         [
                                                                             'margin',
                                                                         ],
                                                                     ),
-                                                                )}{' '}
-                                                                {getValue(
-                                                                    detail,
-                                                                    ['margin'],
-                                                                )
-                                                                    ? '%'
-                                                                    : ''}
+                                                                )}
                                                             </td>
                                                             <td className="w-[1%] px-2 py-3 text-right whitespace-nowrap">
                                                                 {formatNumber(

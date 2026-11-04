@@ -169,6 +169,7 @@ export default function QuotationEdit({
     const [materialError, setMaterialError] = useState('');
     const hargaPenawaranRef = useRef(null);
     const namaMaterialRef = useRef(null);
+    const customerSelectionSeq = useRef(0);
 
     const [customerForm, setCustomerForm] = useState(() =>
         buildCustomerForm(quotation),
@@ -357,7 +358,9 @@ export default function QuotationEdit({
         }
     }, [materialPage, materialTotalPages]);
 
-    const handleSelectCustomer = (item) => {
+    const handleSelectCustomer = async (item) => {
+        const selectionSeq = ++customerSelectionSeq.current;
+        const customerName = renderValue(item.nm_cs);
         setCustomerForm((prev) => ({
             ...prev,
             nama: renderValue(item.nm_cs),
@@ -369,6 +372,18 @@ export default function QuotationEdit({
             kode: renderValue(item.kd_cs),
         }));
         setCustomerModalOpen(false);
+        try {
+            const response = await fetch(
+                `/marketing/quotation/suggest-franco?customer=${encodeURIComponent(customerName)}`,
+                { headers: { Accept: 'application/json' } },
+            );
+            if (!response.ok) return;
+            const data = await response.json();
+            if (selectionSeq !== customerSelectionSeq.current) return;
+            setCustomerForm((prev) => ({ ...prev, attend: data.attend ?? '' }));
+        } catch (error) {
+            console.error('Gagal mengambil Attend quotation terakhir:', error);
+        }
     };
 
     const focusHargaPenawaran = () => {
@@ -871,9 +886,10 @@ export default function QuotationEdit({
                                     <QuotationAttendInput
                                         id="attend"
                                         value={customerForm.attend}
-                                        onValueChange={(attend) =>
-                                            setCustomerForm((prev) => ({ ...prev, attend }))
-                                        }
+                                        onValueChange={(attend) => {
+                                            customerSelectionSeq.current += 1;
+                                            setCustomerForm((prev) => ({ ...prev, attend }));
+                                        }}
                                     />
                                 </div>
                                 <div className="grid gap-2">

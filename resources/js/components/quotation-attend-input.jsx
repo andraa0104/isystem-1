@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from 'react';
 export default function QuotationAttendInput({ id, value, onValueChange }) {
     const listId = useId();
     const listRef = useRef(null);
-    const tabCompletionRef = useRef(null);
+    const [scrollLeft, setScrollLeft] = useState(0);
     const [open, setOpen] = useState(false);
     const [search, setSearch] = useState('');
     const [page, setPage] = useState(1);
@@ -14,10 +14,6 @@ export default function QuotationAttendInput({ id, value, onValueChange }) {
     const [error, setError] = useState('');
     const [active, setActive] = useState(-1);
     const [retry, setRetry] = useState(0);
-
-    useEffect(() => {
-        return () => tabCompletionRef.current?.abort();
-    }, [value]);
 
     useEffect(() => {
         if (!open) return;
@@ -75,7 +71,6 @@ export default function QuotationAttendInput({ id, value, onValueChange }) {
 
     const openList = () => {
         if (open) return;
-        tabCompletionRef.current?.abort();
         setSearch(value.trim());
         setPage(1);
         setOptions([]);
@@ -85,46 +80,20 @@ export default function QuotationAttendInput({ id, value, onValueChange }) {
     };
 
     const choose = (attend) => {
-        tabCompletionRef.current?.abort();
         onValueChange(attend);
         setOpen(false);
         setActive(-1);
     };
 
-    const completeOnTab = async () => {
-        if (options.length > 0) {
-            choose(options[active >= 0 ? active : 0]);
-            return;
-        }
-
-        // Tab may be pressed before the debounced suggestions have loaded.
-        // Keep normal focus navigation while finishing this lookup.
-        tabCompletionRef.current?.abort();
-        const controller = new AbortController();
-        tabCompletionRef.current = controller;
-        setOpen(false);
-        try {
-            const params = new URLSearchParams({
-                search: value.trim(),
-                page: '1',
-            });
-            const response = await fetch(
-                `/marketing/quotation/attends?${params}`,
-                {
-                    headers: { Accept: 'application/json' },
-                    signal: controller.signal,
-                },
-            );
-            if (!response.ok) return;
-            const data = await response.json();
-            const attend = data.attends?.[0];
-            if (!controller.signal.aborted && typeof attend === 'string') {
-                choose(attend);
-            }
-        } catch {
-            // Keep the typed name if the lookup fails or is cancelled.
-        }
-    };
+    const suggestedAttend =
+        open && value.trim() !== ''
+            ? options[active >= 0 ? active : 0]
+            : undefined;
+    const completion =
+        suggestedAttend &&
+        suggestedAttend.toLowerCase().startsWith(value.toLowerCase())
+            ? suggestedAttend.slice(value.length)
+            : '';
 
     return (
         <div
@@ -134,64 +103,112 @@ export default function QuotationAttendInput({ id, value, onValueChange }) {
                     setOpen(false);
             }}
         >
-            <Input
-                id={id}
-                value={value}
-                role="combobox"
-                autoComplete="off"
-                aria-autocomplete="list"
-                aria-expanded={open}
-                aria-controls={listId}
-                aria-activedescendant={
-                    open && active >= 0 ? `${listId}-${active}` : undefined
-                }
-                onFocus={openList}
-                onClick={openList}
-                onChange={(event) => {
-                    tabCompletionRef.current?.abort();
-                    onValueChange(event.target.value);
-                    setSearch(event.target.value);
-                    setPage(1);
-                    setOptions([]);
-                    setHasMore(false);
-                    setActive(-1);
-                    setOpen(true);
-                }}
-                onKeyDown={(event) => {
-                    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
-                        event.preventDefault();
-                        if (!open) {
-                            openList();
-                            return;
-                        }
-                        setActive((previous) =>
-                            event.key === 'ArrowDown'
-                                ? Math.min(previous + 1, options.length - 1)
-                                : Math.max(
-                                      previous - 1,
-                                      options.length ? 0 : -1,
-                                  ),
-                        );
-                    } else if (
-                        event.key === 'Tab' &&
-                        !event.shiftKey &&
-                        !event.ctrlKey &&
-                        !event.altKey &&
-                        !event.metaKey &&
-                        !event.nativeEvent.isComposing &&
-                        open &&
-                        value.trim() !== ''
-                    ) {
-                        void completeOnTab();
-                    } else if (event.key === 'Enter' && open && active >= 0) {
-                        event.preventDefault();
-                        choose(options[active]);
-                    } else if (event.key === 'Escape' && open) {
-                        event.preventDefault();
-                        setOpen(false);
+            <div className="relative">
+                {completion && (
+                    <div
+                        aria-hidden="true"
+                        className="pointer-events-none absolute inset-0 flex items-center overflow-hidden rounded-md border border-transparent px-3 py-1 text-base whitespace-pre md:text-sm"
+                    >
+                        <span
+                            className="shrink-0"
+                            style={{
+                                transform: `translateX(-${scrollLeft}px)`,
+                            }}
+                        >
+                            <span className="invisible">{value}</span>
+                            <span className="text-muted-foreground/60">
+                                {completion}
+                            </span>
+                        </span>
+                    </div>
+                )}
+                <Input
+                    id={id}
+                    value={value}
+                    role="combobox"
+                    autoComplete="off"
+                    aria-autocomplete="both"
+                    aria-describedby={
+                        suggestedAttend ? `${listId}-hint` : undefined
                     }
-                }}
-            />
+                    onScroll={(event) =>
+                        setScrollLeft(event.currentTarget.scrollLeft)
+                    }
+                    aria-expanded={open}
+                    aria-controls={listId}
+                    aria-activedescendant={
+                        open && active >= 0 ? `${listId}-${active}` : undefined
+                    }
+                    onFocus={(event) => {
+                        event.currentTarget.select();
+                        openList();
+                    }}
+                    onClick={(event) => {
+                        event.currentTarget.select();
+                        openList();
+                    }}
+                    onChange={(event) => {
+                        onValueChange(event.target.value);
+                        setSearch(event.target.value);
+                        setPage(1);
+                        setOptions([]);
+                        setHasMore(false);
+                        setActive(-1);
+                        setOpen(true);
+                    }}
+                    onKeyDown={(event) => {
+                        if (
+                            event.key === 'ArrowDown' ||
+                            event.key === 'ArrowUp'
+                        ) {
+                            event.preventDefault();
+                            if (!open) {
+                                openList();
+                                return;
+                            }
+                            setActive((previous) =>
+                                event.key === 'ArrowDown'
+                                    ? Math.min(previous + 1, options.length - 1)
+                                    : Math.max(
+                                          previous - 1,
+                                          options.length ? 0 : -1,
+                                      ),
+                            );
+                        } else if (
+                            event.key === 'Tab' &&
+                            !event.shiftKey &&
+                            !event.ctrlKey &&
+                            !event.altKey &&
+                            !event.metaKey &&
+                            !event.nativeEvent.isComposing &&
+                            open &&
+                            value.trim() !== ''
+                        ) {
+                            if (suggestedAttend) choose(suggestedAttend);
+                        } else if (
+                            event.key === 'Enter' &&
+                            open &&
+                            active >= 0
+                        ) {
+                            event.preventDefault();
+                            choose(options[active]);
+                        } else if (event.key === 'Escape' && open) {
+                            event.preventDefault();
+                            setOpen(false);
+                        }
+                    }}
+                />
+            </div>
+            {suggestedAttend && (
+                <p
+                    id={`${listId}-hint`}
+                    role="status"
+                    className="mt-1 text-xs text-muted-foreground"
+                >
+                    Tekan Tab jika nama sudah sesuai:{' '}
+                    <span className="font-medium">{suggestedAttend}</span>.
+                </p>
+            )}
             {open && (
                 <div className="absolute top-full z-50 mt-1 w-full rounded-md border bg-popover text-popover-foreground shadow-md">
                     <ul
@@ -227,7 +244,7 @@ export default function QuotationAttendInput({ id, value, onValueChange }) {
                             : error ||
                               (options.length === 0
                                   ? 'Tidak ada Attend yang cocok. Anda tetap dapat mengetik nama baru.'
-                                  : 'Tekan Tab untuk melengkapi Attend, pilih nama, atau ketik nama baru.')}
+                                  : 'Pilih saran dengan klik atau tombol panah. Anda juga dapat mengetik nama baru.')}
                     </div>
                     {!loading && error && (
                         <button

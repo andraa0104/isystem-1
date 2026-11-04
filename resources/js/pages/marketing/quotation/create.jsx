@@ -124,6 +124,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     const hargaPenawaranRef = useRef(null);
     const namaMaterialRef = useRef(null);
     const customerRequestSeq = useRef(0);
+    const customerSelectionSeq = useRef(0);
     const materialRequestSeq = useRef(0);
 
     const [customerForm, setCustomerForm] = useState({
@@ -308,6 +309,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     ]);
 
     const handleSelectCustomer = async (item) => {
+        const selectionSeq = ++customerSelectionSeq.current;
         const customerName = renderValue(item.nm_cs);
         setCustomerForm((prev) => ({
             ...prev,
@@ -321,7 +323,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         }));
         setCustomerModalOpen(false);
 
-        // Ambil Franco dari quotation terakhir customer.
+        // Ambil Franco dan Attend dari quotation terakhir customer.
         try {
             const response = await fetch(
                 `/marketing/quotation/suggest-franco?customer=${encodeURIComponent(
@@ -330,13 +332,16 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
             );
             if (response.ok) {
                 const data = await response.json();
+                if (selectionSeq !== customerSelectionSeq.current) return;
+                setCustomerForm((prev) => ({ ...prev, attend: data.attend ?? '' }));
                 setDetailForm((prev) => ({
                     ...prev,
                     franco: data.franco,
                 }));
             }
         } catch (error) {
-            console.error('Gagal mengambil Franco quotation terakhir:', error);
+            if (selectionSeq !== customerSelectionSeq.current) return;
+            console.error('Gagal mengambil data quotation terakhir:', error);
             setDetailForm((prev) => ({
                 ...prev,
                 franco: prev.franco || 'SAMARINDA',
@@ -819,9 +824,10 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                     <QuotationAttendInput
                                         id="attend"
                                         value={customerForm.attend}
-                                        onValueChange={(attend) =>
-                                            setCustomerForm((prev) => ({ ...prev, attend }))
-                                        }
+                                        onValueChange={(attend) => {
+                                            customerSelectionSeq.current += 1;
+                                            setCustomerForm((prev) => ({ ...prev, attend }));
+                                        }}
                                     />
                                 </div>
                                 <div className="grid gap-2">
