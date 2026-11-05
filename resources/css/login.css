@@ -709,6 +709,49 @@ html.dark .fs-login-root {
     color: rgba(255, 255, 255, 0.82);
 }
 
+.fs-quote-content-wrapper {
+    position: relative;
+    min-height: 84px;
+}
+
+.fs-quote-dots {
+    display: -webkit-box;
+    display: -ms-flexbox;
+    display: flex;
+    -webkit-box-align: center;
+    -ms-flex-align: center;
+    align-items: center;
+    gap: 6px;
+    margin-left: auto;
+}
+
+.fs-quote-dot {
+    height: 6px;
+    border-radius: 9999px;
+    border: none;
+    padding: 0;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.28);
+    -webkit-transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    transition: all 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    width: 6px;
+}
+
+.fs-quote-dot.is-active {
+    width: 18px;
+    background: #34d399;
+    box-shadow: 0 0 10px rgba(52, 211, 153, 0.5);
+}
+
+.fs-quote-card-mobile .fs-quote-dot {
+    background: var(--fs-border-subtle);
+}
+
+.fs-quote-card-mobile .fs-quote-dot.is-active {
+    background: var(--fs-primary);
+    box-shadow: 0 0 8px rgba(13, 148, 136, 0.4);
+}
+
 /* --------------------------------------------------------------------------
    4. RIGHT SIDE: FULL IMMERSIVE FORM PANEL
    -------------------------------------------------------------------------- */

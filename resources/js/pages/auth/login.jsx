@@ -46,7 +46,31 @@ const databaseCompanies = {
 };
 
 /* ─── Animated Spiritual Quote Card (Gemini Loading Glow Effect) ─────────── */
+const spiritualQuotes = [
+    {
+        titlePrefix: 'Sebelum bekerja, ',
+        titleHighlight: 'ucapkan bismillah.',
+        desc: 'Niatkan bekerja sebagai ibadah, urusan rezeki akan mengikuti dan mengalir dengan sendirinya.',
+    },
+    {
+        titlePrefix: 'Bekerjalah dengan sungguh-sungguh, ',
+        titleHighlight: 'carilah yang halal,',
+        desc: 'lalu bertawakallah kepada Allah.',
+    },
+];
+
 function SpiritualQuoteCard({ mobile = false }) {
+    const [currentIdx, setCurrentIdx] = useState(0);
+
+    useEffect(() => {
+        const timer = setInterval(() => {
+            setCurrentIdx((prev) => (prev + 1) % spiritualQuotes.length);
+        }, 7500);
+        return () => clearInterval(timer);
+    }, []);
+
+    const activeQuote = spiritualQuotes[currentIdx];
+
     return (
         <div className={mobile ? 'fs-quote-mobile-wrapper' : 'fs-quote-wrapper'}>
             <motion.div
@@ -65,14 +89,37 @@ function SpiritualQuoteCard({ mobile = false }) {
                         <Sparkles size={13} className="fs-gemini-sparkle" />
                     </div>
                     <span>Niat Baik Bekerja</span>
+                    <div className="fs-quote-dots" aria-label="Navigasi Kutipan">
+                        {spiritualQuotes.map((_, i) => (
+                            <button
+                                key={i}
+                                type="button"
+                                onClick={() => setCurrentIdx(i)}
+                                className={`fs-quote-dot ${i === currentIdx ? 'is-active' : ''}`}
+                                aria-label={`Kutipan ${i + 1}`}
+                            />
+                        ))}
+                    </div>
                 </div>
-                <p className="fs-quote-title">
-                    Sebelum bekerja, <span>ucapkan bismillah.</span>
-                </p>
-                <p className="fs-quote-desc">
-                    Niatkan bekerja sebagai ibadah, urusan rezeki akan mengikuti
-                    dan mengalir dengan sendirinya.
-                </p>
+                <div className="fs-quote-content-wrapper">
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={currentIdx}
+                            initial={{ opacity: 0, y: 8 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: -8 }}
+                            transition={{ duration: 0.35, ease: 'easeOut' }}
+                        >
+                            <p className="fs-quote-title">
+                                {activeQuote.titlePrefix}
+                                <span>{activeQuote.titleHighlight}</span>
+                            </p>
+                            <p className="fs-quote-desc">
+                                {activeQuote.desc}
+                            </p>
+                        </motion.div>
+                    </AnimatePresence>
+                </div>
             </motion.div>
         </div>
     );
