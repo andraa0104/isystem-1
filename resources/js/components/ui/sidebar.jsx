@@ -99,7 +99,7 @@ function SidebarProvider({
                         ...style,
                     }}
                     className={cn(
-                        "group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar/40 flex min-h-svh w-full",
+                        "group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar/40 flex min-h-screen min-h-svh w-full",
                         className
                     )}
                     {...props}
@@ -181,7 +181,7 @@ function Sidebar({
             <div
                 style={isIconCollapsed ? { width: iconWidthGap } : undefined}
                 className={cn(
-                    "relative h-svh w-(--sidebar-width) bg-transparent transition-[width] duration-300 ease-out",
+                    "relative h-screen h-svh w-(--sidebar-width) bg-transparent transition-[width] duration-300 ease-out",
                     "group-data-[collapsible=offcanvas]:w-0",
                     "group-data-[side=right]:rotate-180",
                     variant === "floating" || variant === "inset"
@@ -193,7 +193,7 @@ function Sidebar({
             <div
                 style={isIconCollapsed ? { width: iconWidthPanel } : undefined}
                 className={cn(
-                    "fixed inset-y-0 z-20 flex h-svh w-(--sidebar-width) transition-[left,right,width] duration-300 ease-out",
+                    "fixed inset-y-0 z-20 flex h-screen h-svh w-(--sidebar-width) transition-[left,right,width] duration-300 ease-out",
                     side === "left"
                         ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
                         : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
@@ -206,7 +206,7 @@ function Sidebar({
             >
                 <div
                     data-sidebar="sidebar"
-                    className="relative bg-sidebar/95 dark:bg-sidebar/90 backdrop-blur-2xl flex h-full w-full flex-col overflow-hidden rounded-2xl border border-sidebar-border/75 shadow-xl shadow-black/[0.04] dark:shadow-black/40 ring-1 ring-white/10 dark:ring-white/5"
+                    className="relative bg-sidebar bg-sidebar/95 dark:bg-sidebar/90 backdrop-blur-2xl flex h-full w-full flex-col overflow-hidden rounded-2xl border border-sidebar-border border-sidebar-border/75 shadow-xl shadow-black/[0.04] dark:shadow-black/40 ring-1 ring-white/10 dark:ring-white/5"
                 >
                     {/* Top ambient aurora glow accent */}
                     <div

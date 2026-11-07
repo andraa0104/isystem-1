@@ -65,7 +65,7 @@
 
 @theme {
     --font-sans:
-        'Instrument Sans', ui-sans-serif, system-ui, sans-serif,
+        'Segoe UI', -apple-system, BlinkMacSystemFont, 'Instrument Sans', Roboto, sans-serif,
         'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
         'Noto Color Emoji';
 
@@ -325,5 +325,227 @@
 
     body {
         @apply bg-background text-foreground;
+    }
+}
+
+/* ==========================================================================
+   Cross-OS & Legacy Windows Compatibility Layer (Windows 7, 8, 10, 11)
+   Supports Chromium 109, Firefox 115 ESR, Edge 109, Safari 15.4
+   ========================================================================== */
+
+/* 1. Windows Typography & Subpixel Antialiasing */
+html, body, input, select, textarea, button {
+    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, 'Instrument Sans', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+}
+
+/* 2. Windows Slim & Modern Scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+::-webkit-scrollbar-thumb {
+    background: rgba(148, 163, 184, 0.4);
+    border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(100, 116, 139, 0.65);
+}
+.dark ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.22);
+}
+.dark ::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.38);
+}
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 163, 184, 0.4) transparent;
+}
+.dark * {
+    scrollbar-color: rgba(255, 255, 255, 0.22) transparent;
+}
+
+/* 3. Viewport Height Fallbacks for Browsers without SVH */
+@supports not (height: 100svh) {
+    .h-svh,
+    [class*="h-svh"] {
+        height: 100vh !important;
+    }
+    .min-h-svh,
+    [class*="min-h-svh"] {
+        min-height: 100vh !important;
+    }
+    .max-h-svh,
+    [class*="max-h-svh"] {
+        max-height: 100vh !important;
+    }
+}
+
+/* 4. Backdrop-Filter Fallback for Older Windows GPUs / Browsers */
+@supports not ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+    .backdrop-blur-xs,
+    .backdrop-blur-sm,
+    .backdrop-blur-md,
+    .backdrop-blur-lg,
+    .backdrop-blur-xl,
+    .backdrop-blur-2xl,
+    .backdrop-blur-3xl {
+        background-color: var(--card) !important;
+    }
+    .dark .backdrop-blur-xs,
+    .dark .backdrop-blur-sm,
+    .dark .backdrop-blur-md,
+    .dark .backdrop-blur-lg,
+    .dark .backdrop-blur-xl,
+    .dark .backdrop-blur-2xl,
+    .dark .backdrop-blur-3xl {
+        background-color: var(--card) !important;
+    }
+    [data-sidebar="sidebar"] {
+        background-color: var(--sidebar) !important;
+    }
+}
+
+/* 5. Fallback for Tailwind Opacity Classes when color-mix is Unsupported (Chrome <= 109 on Windows 7/8) */
+@supports not (color: color-mix(in lab, red, red)) {
+    /* Solid / RGBA Card & Container Backgrounds */
+    [class*="bg-card/"],
+    .bg-card {
+        background-color: #ffffff;
+    }
+    .dark [class*="bg-card/"],
+    .dark .bg-card {
+        background-color: #18181b;
+    }
+
+    [class*="bg-sidebar/"],
+    .bg-sidebar {
+        background-color: #fafafa;
+    }
+    .dark [class*="bg-sidebar/"],
+    .dark .bg-sidebar {
+        background-color: #1f1f23;
+    }
+
+    [class*="bg-sidebar-accent/"] {
+        background-color: #f4f4f5;
+    }
+    .dark [class*="bg-sidebar-accent/"] {
+        background-color: #27272a;
+    }
+
+    [class*="bg-background/"] {
+        background-color: #ffffff;
+    }
+    .dark [class*="bg-background/"] {
+        background-color: #121212;
+    }
+
+    [class*="bg-muted/"] {
+        background-color: #f1f5f9;
+    }
+    .dark [class*="bg-muted/"] {
+        background-color: #27272a;
+    }
+
+    [class*="bg-popover/"] {
+        background-color: #ffffff;
+    }
+    .dark [class*="bg-popover/"] {
+        background-color: #18181b;
+    }
+
+    /* Accent & Status Badges (RGBA Fallback) */
+    [class*="bg-emerald-500/"] {
+        background-color: rgba(16, 185, 129, 0.12) !important;
+    }
+    .dark [class*="bg-emerald-500/"] {
+        background-color: rgba(16, 185, 129, 0.18) !important;
+    }
+
+    [class*="bg-teal-500/"] {
+        background-color: rgba(20, 184, 166, 0.12) !important;
+    }
+    .dark [class*="bg-teal-500/"] {
+        background-color: rgba(20, 184, 166, 0.18) !important;
+    }
+
+    [class*="bg-cyan-500/"] {
+        background-color: rgba(6, 182, 212, 0.12) !important;
+    }
+    .dark [class*="bg-cyan-500/"] {
+        background-color: rgba(6, 182, 212, 0.18) !important;
+    }
+
+    [class*="bg-sky-500/"] {
+        background-color: rgba(14, 165, 233, 0.12) !important;
+    }
+    .dark [class*="bg-sky-500/"] {
+        background-color: rgba(14, 165, 233, 0.18) !important;
+    }
+
+    [class*="bg-indigo-500/"] {
+        background-color: rgba(99, 102, 241, 0.12) !important;
+    }
+    .dark [class*="bg-indigo-500/"] {
+        background-color: rgba(99, 102, 241, 0.18) !important;
+    }
+
+    [class*="bg-amber-500/"] {
+        background-color: rgba(245, 158, 11, 0.12) !important;
+    }
+    .dark [class*="bg-amber-500/"] {
+        background-color: rgba(245, 158, 11, 0.18) !important;
+    }
+
+    [class*="bg-rose-500/"] {
+        background-color: rgba(244, 63, 94, 0.12) !important;
+    }
+    .dark [class*="bg-rose-500/"] {
+        background-color: rgba(244, 63, 94, 0.18) !important;
+    }
+
+    [class*="bg-orange-500/"] {
+        background-color: rgba(249, 115, 22, 0.12) !important;
+    }
+    .dark [class*="bg-orange-500/"] {
+        background-color: rgba(249, 115, 22, 0.18) !important;
+    }
+
+    /* Border Fallbacks */
+    [class*="border-sidebar-border/"],
+    .border-sidebar-border {
+        border-color: #e2e8f0;
+    }
+    .dark [class*="border-sidebar-border/"],
+    .dark .border-sidebar-border {
+        border-color: #2e2e33;
+    }
+
+    [class*="border-emerald-500/"] {
+        border-color: rgba(16, 185, 129, 0.28) !important;
+    }
+    [class*="border-teal-500/"] {
+        border-color: rgba(20, 184, 166, 0.28) !important;
+    }
+    [class*="border-cyan-500/"] {
+        border-color: rgba(6, 182, 212, 0.28) !important;
+    }
+    [class*="border-sky-500/"] {
+        border-color: rgba(14, 165, 233, 0.28) !important;
+    }
+    [class*="border-indigo-500/"] {
+        border-color: rgba(99, 102, 241, 0.28) !important;
+    }
+    [class*="border-amber-500/"] {
+        border-color: rgba(245, 158, 11, 0.28) !important;
+    }
+    [class*="border-rose-500/"] {
+        border-color: rgba(244, 63, 94, 0.28) !important;
     }
 }

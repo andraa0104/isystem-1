@@ -458,7 +458,7 @@ export default function QuotationIndex({
         <>
             <Head title="Marketing • Quotation" />
 
-            <div className="relative flex min-h-full flex-1 flex-col gap-5 p-4 sm:p-6 w-full">
+            <div className="relative flex min-h-screen min-h-full flex-1 flex-col gap-5 p-4 sm:p-6 w-full">
                 {/* ─── Background Ambient Aura (Sesuai Gaya Login) ─────────── */}
                 <div
                     className="pointer-events-none absolute -top-16 -left-16 size-80 rounded-full bg-emerald-500/10 blur-3xl dark:bg-emerald-500/15"
@@ -474,7 +474,7 @@ export default function QuotationIndex({
                     initial={{ opacity: 0, y: -16 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                    className="relative overflow-hidden rounded-3xl border border-sidebar-border/70 bg-gradient-to-br from-sidebar-accent/50 via-background to-sidebar-accent/20 p-5 sm:p-6 shadow-xs backdrop-blur-xl"
+                    className="relative overflow-hidden rounded-3xl border border-sidebar-border border-sidebar-border/70 bg-card bg-gradient-to-br from-sidebar-accent/50 via-background to-sidebar-accent/20 p-5 sm:p-6 shadow-xs backdrop-blur-xl"
                 >
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                         <div className="flex items-start gap-3.5">
@@ -663,7 +663,7 @@ export default function QuotationIndex({
                             className="flex flex-col gap-4"
                         >
                             {/* Filter & Search Bar */}
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 sm:p-4 rounded-2xl border border-sidebar-border/70 bg-card/60 backdrop-blur-md shadow-xs">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 sm:p-4 rounded-2xl border border-sidebar-border border-sidebar-border/70 bg-card bg-card/60 backdrop-blur-md shadow-xs">
                                 <div className="flex flex-wrap items-center gap-2.5">
                                     <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-semibold">
                                         <Filter className="size-3.5 text-emerald-600" />
@@ -724,7 +724,7 @@ export default function QuotationIndex({
                             </div>
 
                             {/* Table Card */}
-                            <div className="overflow-hidden rounded-3xl border border-sidebar-border/70 bg-card/60 backdrop-blur-xl shadow-xs">
+                            <div className="overflow-hidden rounded-3xl border border-sidebar-border border-sidebar-border/70 bg-card bg-card/60 backdrop-blur-xl shadow-xs">
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left text-xs border-collapse">
                                         <thead>
@@ -898,7 +898,7 @@ export default function QuotationIndex({
                             className="flex flex-col gap-4"
                         >
                             {/* Filter & Search Bar */}
-                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 sm:p-4 rounded-2xl border border-sidebar-border/70 bg-card/60 backdrop-blur-md shadow-xs">
+                            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 sm:p-4 rounded-2xl border border-sidebar-border border-sidebar-border/70 bg-card bg-card/60 backdrop-blur-md shadow-xs">
                                 <div className="flex items-center gap-2">
                                     <span className="text-xs text-muted-foreground font-semibold">Tampilkan:</span>
                                     <select
@@ -939,7 +939,7 @@ export default function QuotationIndex({
                             </div>
 
                             {/* Table Card */}
-                            <div className="overflow-hidden rounded-3xl border border-sidebar-border/70 bg-card/60 backdrop-blur-xl shadow-xs">
+                            <div className="overflow-hidden rounded-3xl border border-sidebar-border border-sidebar-border/70 bg-card bg-card/60 backdrop-blur-xl shadow-xs">
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left text-xs border-collapse">
                                         <thead>
@@ -1065,7 +1065,7 @@ export default function QuotationIndex({
                         }
                     }}
                 >
-                    <DialogContent className="w-[96vw] max-w-[96vw] sm:max-w-[95vw] lg:max-w-[94vw] xl:max-w-[92vw] 2xl:max-w-[1560px] max-h-[92vh] overflow-y-auto overflow-x-hidden rounded-3xl border border-sidebar-border/70 bg-card/95 backdrop-blur-2xl p-6 sm:p-8 shadow-2xl space-y-6 focus:outline-none scrollbar-thin">
+                    <DialogContent className="w-[96vw] max-w-[96vw] sm:max-w-[95vw] lg:max-w-[94vw] xl:max-w-[92vw] 2xl:max-w-[1560px] max-h-[92vh] overflow-y-auto overflow-x-hidden rounded-3xl border border-sidebar-border border-sidebar-border/70 bg-card bg-card/95 backdrop-blur-2xl p-6 sm:p-8 shadow-2xl space-y-6 focus:outline-none scrollbar-thin">
                         <DialogHeader className="border-b border-sidebar-border/50 pb-4">
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                                 <div>
@@ -1107,7 +1107,7 @@ export default function QuotationIndex({
                                 {/* Segmented Cards: Customer & Syarat */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {/* Card Customer */}
-                                    <div className="rounded-2xl border border-sidebar-border/60 bg-gradient-to-br from-sidebar-accent/30 via-background to-sidebar-accent/10 p-4 space-y-3">
+                                    <div className="rounded-2xl border border-sidebar-border border-sidebar-border/60 bg-card bg-gradient-to-br from-sidebar-accent/30 via-background to-sidebar-accent/10 p-4 space-y-3">
                                         <div className="flex items-center gap-2 font-bold text-foreground text-xs border-b border-sidebar-border/40 pb-2">
                                             <Building2 className="size-4 text-emerald-600" />
                                             <span>Informasi Customer</span>
@@ -1145,7 +1145,7 @@ export default function QuotationIndex({
                                     </div>
 
                                     {/* Card Syarat & Ketentuan */}
-                                    <div className="rounded-2xl border border-sidebar-border/60 bg-gradient-to-br from-sidebar-accent/30 via-background to-sidebar-accent/10 p-4 space-y-3">
+                                    <div className="rounded-2xl border border-sidebar-border border-sidebar-border/60 bg-card bg-gradient-to-br from-sidebar-accent/30 via-background to-sidebar-accent/10 p-4 space-y-3">
                                         <div className="flex items-center gap-2 font-bold text-foreground text-xs border-b border-sidebar-border/40 pb-2">
                                             <FileText className="size-4 text-teal-600" />
                                             <span>Syarat & Catatan Penawaran</span>
@@ -1213,7 +1213,7 @@ export default function QuotationIndex({
                                     </div>
 
                                     {/* Material Sub-Table */}
-                                    <div className="overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card/40">
+                                    <div className="overflow-hidden rounded-2xl border border-sidebar-border border-sidebar-border/70 bg-card bg-card/40">
                                         <div className="overflow-x-auto">
                                             <table className="w-full text-left text-xs border-collapse">
                                                 <thead>

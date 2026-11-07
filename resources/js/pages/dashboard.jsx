@@ -868,7 +868,7 @@ export default function Dashboard({
                     initial={{ opacity: 0, y: -16 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                    className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between rounded-3xl border border-sidebar-border/70 bg-gradient-to-r from-card/95 via-card/85 to-card/70 p-5 sm:p-6 backdrop-blur-2xl shadow-xl shadow-black/[0.03] dark:shadow-black/35 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-emerald-500/35 before:to-transparent"
+                    className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between rounded-3xl border border-sidebar-border border-sidebar-border/70 bg-card bg-gradient-to-r from-card/95 via-card/85 to-card/70 p-5 sm:p-6 backdrop-blur-2xl shadow-xl shadow-black/[0.03] dark:shadow-black/35 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-emerald-500/35 before:to-transparent"
                 >
                     <div className="flex items-start sm:items-center gap-4">
                         <div className="relative flex size-13 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/20 via-cyan-500/10 to-transparent ring-1 ring-emerald-500/30 shadow-md shadow-emerald-500/10">
@@ -964,7 +964,7 @@ export default function Dashboard({
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.4, delay: 0.05 }}
                         whileHover={{ y: -4, transition: { duration: 0.2 } }}
-                        className={`group relative overflow-hidden rounded-3xl border border-sidebar-border/70 bg-gradient-to-br from-card/95 via-card/75 to-background/50 p-5 backdrop-blur-2xl shadow-lg shadow-black/[0.02] dark:shadow-black/25 transition-all before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:to-transparent ${isSalesMarginMinus
+                        className={`group relative overflow-hidden rounded-3xl border border-sidebar-border border-sidebar-border/70 bg-card bg-gradient-to-br from-card/95 via-card/75 to-background/50 p-5 backdrop-blur-2xl shadow-lg shadow-black/[0.02] dark:shadow-black/25 transition-all before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:to-transparent ${isSalesMarginMinus
                                 ? 'hover:border-rose-500/40 hover:shadow-rose-500/10 before:via-rose-500/40'
                                 : 'hover:border-emerald-500/40 hover:shadow-emerald-500/10 before:via-emerald-500/40'
                             }`}
@@ -1029,7 +1029,7 @@ export default function Dashboard({
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.4, delay: 0.1 }}
                         whileHover={{ y: -4, transition: { duration: 0.2 } }}
-                        className="group relative overflow-hidden rounded-3xl border border-sidebar-border/70 bg-gradient-to-br from-card/95 via-card/75 to-background/50 p-5 backdrop-blur-2xl shadow-lg shadow-black/[0.02] dark:shadow-black/25 hover:border-sky-500/40 hover:shadow-sky-500/10 transition-all before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-sky-500/40 before:to-transparent"
+                        className="group relative overflow-hidden rounded-3xl border border-sidebar-border border-sidebar-border/70 bg-card bg-gradient-to-br from-card/95 via-card/75 to-background/50 p-5 backdrop-blur-2xl shadow-lg shadow-black/[0.02] dark:shadow-black/25 hover:border-sky-500/40 hover:shadow-sky-500/10 transition-all before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-sky-500/40 before:to-transparent"
                     >
                         <div className="flex items-start justify-between">
                             <div>
@@ -1068,7 +1068,7 @@ export default function Dashboard({
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.4, delay: 0.15 }}
                         whileHover={{ y: -4, transition: { duration: 0.2 } }}
-                        className="group relative overflow-hidden rounded-3xl border border-sidebar-border/70 bg-gradient-to-br from-card/95 via-card/75 to-background/50 p-5 backdrop-blur-2xl shadow-lg shadow-black/[0.02] dark:shadow-black/25 hover:border-indigo-500/40 hover:shadow-indigo-500/10 transition-all before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-indigo-500/40 before:to-transparent"
+                        className="group relative overflow-hidden rounded-3xl border border-sidebar-border border-sidebar-border/70 bg-card bg-gradient-to-br from-card/95 via-card/75 to-background/50 p-5 backdrop-blur-2xl shadow-lg shadow-black/[0.02] dark:shadow-black/25 hover:border-indigo-500/40 hover:shadow-indigo-500/10 transition-all before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-indigo-500/40 before:to-transparent"
                     >
                         <div className="flex items-start justify-between">
                             <div>
@@ -1111,7 +1111,7 @@ export default function Dashboard({
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.4, delay: 0.2 }}
                         whileHover={{ y: -4, transition: { duration: 0.2 } }}
-                        className="group relative overflow-hidden rounded-3xl border border-sidebar-border/70 bg-gradient-to-br from-card/95 via-card/75 to-background/50 p-5 backdrop-blur-2xl shadow-lg shadow-black/[0.02] dark:shadow-black/25 hover:border-amber-500/40 hover:shadow-amber-500/10 transition-all before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-amber-500/40 before:to-transparent"
+                        className="group relative overflow-hidden rounded-3xl border border-sidebar-border border-sidebar-border/70 bg-card bg-gradient-to-br from-card/95 via-card/75 to-background/50 p-5 backdrop-blur-2xl shadow-lg shadow-black/[0.02] dark:shadow-black/25 hover:border-amber-500/40 hover:shadow-amber-500/10 transition-all before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-amber-500/40 before:to-transparent"
                     >
                         <div className="flex items-start justify-between">
                             <div>
@@ -1156,7 +1156,7 @@ export default function Dashboard({
                         initial={{ opacity: 0, y: 18 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.45, delay: 0.25 }}
-                        className="rounded-3xl border border-sidebar-border/70 bg-gradient-to-b from-card/90 via-card/80 to-card/60 p-5 sm:p-7 backdrop-blur-2xl shadow-2xl shadow-black/[0.03] dark:shadow-black/35 relative overflow-hidden before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-emerald-500/40 before:to-transparent"
+                        className="rounded-3xl border border-sidebar-border border-sidebar-border/70 bg-card bg-gradient-to-b from-card/90 via-card/80 to-card/60 p-5 sm:p-7 backdrop-blur-2xl shadow-2xl shadow-black/[0.03] dark:shadow-black/35 relative overflow-hidden before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-emerald-500/40 before:to-transparent"
                     >
                         {/* Top Controls Ribbon */}
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between border-b border-sidebar-border/40 pb-5">
@@ -1808,7 +1808,7 @@ export default function Dashboard({
                                 initial={{ opacity: 0, y: 16 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.4 }}
-                                className="flex h-full flex-col rounded-3xl border border-sidebar-border/70 bg-card/85 dark:bg-card/45 p-5 sm:p-6 backdrop-blur-2xl shadow-xl shadow-black/[0.03] dark:shadow-black/30 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-emerald-500/30 before:to-transparent relative overflow-hidden"
+                                className="flex h-full flex-col rounded-3xl border border-sidebar-border border-sidebar-border/70 bg-card bg-card/85 dark:bg-card/45 p-5 sm:p-6 backdrop-blur-2xl shadow-xl shadow-black/[0.03] dark:shadow-black/30 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-emerald-500/30 before:to-transparent relative overflow-hidden"
                             >
                                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-sidebar-border/40 pb-4">
                                     <div className="space-y-1">
@@ -1926,7 +1926,7 @@ export default function Dashboard({
                                 initial={{ opacity: 0, y: 16 }}
                                 animate={{ opacity: 1, y: 0 }}
                                 transition={{ duration: 0.4, delay: 0.05 }}
-                                className="flex h-full flex-col rounded-3xl border border-sidebar-border/70 bg-card/85 dark:bg-card/45 p-5 sm:p-6 backdrop-blur-2xl shadow-xl shadow-black/[0.03] dark:shadow-black/30 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-sky-500/30 before:to-transparent relative overflow-hidden"
+                                className="flex h-full flex-col rounded-3xl border border-sidebar-border border-sidebar-border/70 bg-card bg-card/85 dark:bg-card/45 p-5 sm:p-6 backdrop-blur-2xl shadow-xl shadow-black/[0.03] dark:shadow-black/30 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-sky-500/30 before:to-transparent relative overflow-hidden"
                             >
                                 <div className="flex items-center justify-between border-b border-sidebar-border/40 pb-4">
                                     <div className="space-y-1">
