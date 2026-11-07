@@ -5,6 +5,7 @@ export const menuByPathPrefix = [
     ['/laporan/buku-besar', 'Laporan:Buku Besar'],
     ['/laporan/buku-kas', 'Laporan:Buku Kas'],
     ['/laporan/saldo-akun', 'Laporan:Saldo Akun (NABB)'],
+    ['/laporan/nabb-rekap', 'Laporan:NABB Rekap'],
     ['/laporan/neraca-saldo', 'Laporan:Neraca Saldo'],
     ['/laporan/neraca-lajur', 'Laporan:Neraca Lajur'],
     ['/laporan/neraca-akhir', 'Laporan:Neraca Akhir'],

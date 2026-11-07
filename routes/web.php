@@ -42,6 +42,7 @@ use App\Http\Controllers\Laporan\JurnalPenyesuaianController;
 use App\Http\Controllers\Laporan\BukuKasController;
 use App\Http\Controllers\Laporan\PerubahanModalController;
 use App\Http\Controllers\Laporan\SaldoAkunController;
+use App\Http\Controllers\Laporan\NabbRekapController;
 use App\Http\Controllers\Laporan\AuditRekonsiliasiController;
 use App\Http\Controllers\Keuangan\InputPembelianController;
 use App\Http\Controllers\Keuangan\InputPenjualanController;
@@ -132,6 +133,13 @@ Route::get('laporan/saldo-akun/rows', [SaldoAkunController::class, 'rows'])
     ->name('laporan.saldo-akun.rows');
 Route::get('laporan/saldo-akun/print', [SaldoAkunController::class, 'print'])
     ->name('laporan.saldo-akun.print');
+
+Route::get('laporan/nabb-rekap', [NabbRekapController::class, 'index'])
+    ->name('laporan.nabb-rekap.index');
+Route::get('laporan/nabb-rekap/rows', [NabbRekapController::class, 'rows'])
+    ->name('laporan.nabb-rekap.rows');
+Route::get('laporan/nabb-rekap/print', [NabbRekapController::class, 'print'])
+    ->name('laporan.nabb-rekap.print');
 
 Route::get('laporan/neraca-lajur', [NeracaLajurController::class, 'index'])
     ->name('laporan.neraca-lajur.index');

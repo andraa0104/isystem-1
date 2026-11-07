@@ -126,6 +126,7 @@ export const menuSections = [
             { title: 'Buku Besar', href: '/laporan/buku-besar' },
             { title: 'Buku Kas', href: '/laporan/buku-kas' },
             { title: 'Saldo Akun (NABB)', href: '/laporan/saldo-akun' },
+            { title: 'NABB Rekap', href: '/laporan/nabb-rekap' },
             { title: 'Neraca Saldo', href: '/laporan/neraca-saldo' },
             { title: 'Neraca Lajur', href: '/laporan/neraca-lajur' },
             { title: 'Neraca Akhir', href: '/laporan/neraca-akhir' },

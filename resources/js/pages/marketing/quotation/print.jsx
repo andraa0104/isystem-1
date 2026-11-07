@@ -140,23 +140,50 @@ export default function QuotationPrint({
     company = {},
 }) {
     // Print margin settings (top, right, bottom, left)
+    // topFirst: margin atas halaman pertama (Kop Surat) - diturunkan dari batas atas kertas
+    // top: margin atas halaman kedua dan seterusnya (agar lebih turun)
+    // bottom: batas footer bawah dinaikkan agar memiliki jarak aman yang cukup lapang
     const pageMargins = {
-        top: '6mm',
-        right: '3mm',
-        bottom: '3mm',
+        top: '20mm',
+        topFirst: '12mm',
+        right: '4mm',
+        bottom: '18mm',
         left: '6mm',
     };
 
-    // Force margins in print (align with PR print)
+    // Force margins in print
     const pageStyle = `@media print {
         @page {
             size: auto;
             margin: ${pageMargins.top} ${pageMargins.right} ${pageMargins.bottom} ${pageMargins.left} !important;
         }
+        @page :first {
+            margin-top: ${pageMargins.topFirst} !important;
+        }
+        * {
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
         html, body {
             margin: 0 !important;
             padding: 0 !important;
             width: 100% !important;
+        }
+        .quotation-print-container {
+            padding-top: 0 !important;
+            padding-bottom: 0 !important;
+            max-width: 100% !important;
+        }
+        thead {
+            display: table-header-group;
+        }
+        tr {
+            page-break-inside: avoid;
+            page-break-after: auto;
+        }
+        .quotation-notes-section,
+        .quotation-signature-section {
+            page-break-inside: avoid;
         }
     }`;
 
@@ -186,7 +213,7 @@ export default function QuotationPrint({
         <div className="min-h-screen bg-white text-black">
             <Head title={`Print Quotation ${quotation?.No_penawaran ?? ''}`} />
             <style>{pageStyle}</style>
-            <div className="mx-auto w-full max-w-[820px] px-8 py-6 font-['Times_New_Roman'] text-[11px] leading-[1.25]">
+            <div className="quotation-print-container mx-auto w-full max-w-[820px] px-8 py-6 font-['Times_New_Roman'] text-[11px] leading-[1.25]">
                 <div className="space-y-0.5">
                     <div className="text-[20px] font-semibold uppercase">
                         {company.name || '-'}
@@ -270,7 +297,7 @@ export default function QuotationPrint({
                         </thead>
                         <tbody>
                             {quotationDetails.length === 0 && (
-                                <tr className="border-t border-black">
+                                <tr className="border-b border-black">
                                     <td
                                         className="px-2 py-2 text-center"
                                         colSpan={6}
@@ -282,7 +309,7 @@ export default function QuotationPrint({
                             {quotationDetails.map((detail, index) => (
                                 <tr
                                     key={`${detail.No_penawaran}-${detail.ID ?? index}`}
-                                    className="border-t border-black"
+                                    className="border-b border-black"
                                 >
                                     <td className="border-r border-black px-1 py-1 text-center align-top">
                                         {index + 1}
@@ -311,7 +338,7 @@ export default function QuotationPrint({
                     </table>
                 </div>
 
-                <div className="mt-2 text-[12px]">
+                <div className="quotation-notes-section mt-2 text-[12px]">
                     <div className="text-[14px] font-semibold italic underline">
                         Note &gt;&gt;&gt;&gt;&gt;
                     </div>
@@ -374,7 +401,7 @@ export default function QuotationPrint({
                     </p>
                 </div>
 
-                <table className="mt-6 w-full text-[12px]">
+                <table className="quotation-signature-section mt-6 w-full text-[12px]">
                     <tbody>
                         <tr>
                             <td className="w-1/2 align-top">Best Regards,</td>

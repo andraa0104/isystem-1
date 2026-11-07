@@ -445,6 +445,7 @@ class DashboardController
 
         $saldoByCode = collect();
         $lastVoucherByCode = collect();
+        $historySeries = [];
 
         if ($this->hasTable('tb_kas')
             && $this->hasColumn('tb_kas', 'Saldo')
@@ -472,6 +473,30 @@ class DashboardController
                 $saldoByCode[$code] = (float) ($lastRow?->Saldo ?? 0);
                 $lastVoucherByCode[$code] = $lastRow?->Tgl_Voucher ?? null;
             }
+
+            // Ambil riwayat total saldo kas harian dari transaksi terakhir untuk sparkline riil
+            try {
+                $historyRows = $this->getDbConnection()->table('tb_kas')
+                    ->whereIn('Kode_Akun', $codes)
+                    ->whereNotNull('Tgl_Voucher')
+                    ->select('Tgl_Voucher')
+                    ->selectRaw('SUM(Saldo) as total_saldo')
+                    ->groupBy('Tgl_Voucher')
+                    ->orderByDesc('Tgl_Voucher')
+                    ->limit(7)
+                    ->get()
+                    ->reverse()
+                    ->values();
+
+                foreach ($historyRows as $h) {
+                    $historySeries[] = [
+                        'date' => $h->Tgl_Voucher,
+                        'value' => (float) ($h->total_saldo ?? 0),
+                    ];
+                }
+            } catch (\Throwable) {
+                $historySeries = [];
+            }
         } else {
             foreach (array_keys($accountMap) as $code) {
                 $saldoByCode[$code] = 0;
@@ -489,14 +514,17 @@ class DashboardController
             ];
         }
 
-        return $saldoStats;
+        return [
+            'accounts' => $saldoStats,
+            'history' => $historySeries,
+        ];
     }
 
     private function buildReceivablePayableStats(): array
     {
         $result = [
-            'piutang' => ['total' => 0.0, 'last_update' => null],
-            'hutang' => ['total' => 0.0, 'last_update' => null],
+            'piutang' => ['total' => 0.0, 'last_update' => null, 'history' => []],
+            'hutang' => ['total' => 0.0, 'last_update' => null, 'history' => []],
             'meta' => ['source' => 'tb_nabbrekap.latest_saldo'],
         ];
 
@@ -544,11 +572,33 @@ class DashboardController
                 foreach ($accountCodes as $key => $code) {
                     $row = $rows->get($key);
                     if ($row) {
-                        $result[$key] = [
-                            'total' => (float) ($row->Saldo ?? 0),
-                            'last_update' => $row->Posting_Date ?? $row->End_Date ?? null,
-                        ];
+                        $result[$key]['total'] = (float) ($row->Saldo ?? 0);
+                        $result[$key]['last_update'] = $row->Posting_Date ?? $row->End_Date ?? null;
                     }
+                }
+
+                // Ambil riwayat historis saldo piutang & hutang per snapshot dari tb_nabbrekap
+                try {
+                    foreach ($accountCodes as $key => $code) {
+                        $history = $this->getDbConnection()->table('tb_nabbrekap')
+                            ->whereRaw('LOWER(TRIM(Kode_Akun)) = ?', [strtolower($code)])
+                            ->select('Saldo')
+                            ->when(in_array('End_Date', $rekapCols, true), fn ($query) => $query->addSelect('End_Date'))
+                            ->when(in_array('Posting_Date', $rekapCols, true), fn ($query) => $query->addSelect('Posting_Date'))
+                            ->orderByRaw("{$orderDateSql} desc")
+                            ->when(in_array('Kode_NaBB', $rekapCols, true), fn ($query) => $query->orderByDesc('Kode_NaBB'))
+                            ->limit(7)
+                            ->get()
+                            ->reverse()
+                            ->values();
+
+                        $result[$key]['history'] = $history->map(fn ($r) => [
+                            'date' => $r->Posting_Date ?? $r->End_Date ?? null,
+                            'value' => (float) ($r->Saldo ?? 0),
+                        ])->all();
+                    }
+                } catch (\Throwable) {
+                    // ignore history failure
                 }
 
                 if (($result['piutang']['total'] ?? 0) !== 0.0 || ($result['hutang']['total'] ?? 0) !== 0.0) {
@@ -612,11 +662,13 @@ class DashboardController
             $result['piutang'] = [
                 'total' => $piutangTotal,
                 'last_update' => $lastUpdates?->piutang_last_update ?: null,
+                'history' => $result['piutang']['history'] ?? [],
             ];
 
             $result['hutang'] = [
                 'total' => $hutangTotal,
                 'last_update' => $lastUpdates?->hutang_last_update ?: null,
+                'history' => $result['hutang']['history'] ?? [],
             ];
 
             return $result;
@@ -763,6 +815,55 @@ class DashboardController
         }
         $dates = array_filter($latest);
         $result['summary']['last_update'] = $dates === [] ? null : max($dates);
+
+        // Data Penjualan Bulan Berjalan (Current Month & Year)
+        $currentMonthStart = $now->copy()->startOfMonth()->toDateString();
+        $currentMonthEnd = $now->copy()->endOfMonth()->toDateString();
+        $currentMonthSales = 0.0;
+        $currentMonthHpp = 0.0;
+        $currentMonthBiaya = 0.0;
+
+        if ($this->hasTable('tb_kdfakturpenjualan')) {
+            $currentMonthSales = (float) $this->getDbConnection()->table('tb_kdfakturpenjualan')
+                ->whereRaw("tgl_doc >= ? AND tgl_doc <= ?", [$currentMonthStart, $currentMonthEnd])
+                ->sum('harga');
+        }
+
+        if ($hpp = $this->tbDoHppQuery()) {
+            $date = $this->sqlStd('d.pos_tgl', '%d.%m.%Y');
+            $currentMonthHpp = (float) $hpp
+                ->whereRaw("{$date} >= ? AND {$date} <= ?", [$currentMonthStart, $currentMonthEnd])
+                ->sum(DB::raw('COALESCE(d.total, 0)'));
+        }
+
+        if ($biaya = $this->tbKasBiayaQuery()) {
+            $currentMonthBiaya = (float) $biaya
+                ->whereRaw("k.Tgl_Voucher >= ? AND k.Tgl_Voucher <= ?", [$currentMonthStart, $currentMonthEnd])
+                ->sum(DB::raw('COALESCE(k.Nominal1, 0)'));
+        }
+
+        // Margin dihitung dari Total Penjualan - HPP - Biaya Operasional (Laba Bersih)
+        $currentNetProfit = $currentMonthSales - $currentMonthHpp - $currentMonthBiaya;
+        if ($currentMonthSales > 0) {
+            $currentNetMarginPct = ($currentNetProfit / $currentMonthSales) * 100;
+        } elseif ($currentNetProfit < 0) {
+            $currentNetMarginPct = -100.0;
+        } else {
+            $currentNetMarginPct = 0.0;
+        }
+
+        $result['current_month'] = [
+            'month' => $now->copy()->locale('id')->translatedFormat('F'),
+            'year' => (int) $now->year,
+            'label' => $now->copy()->locale('id')->translatedFormat('F Y'),
+            'sales' => $currentMonthSales,
+            'hpp' => $currentMonthHpp,
+            'biaya' => $currentMonthBiaya,
+            'net_profit' => $currentNetProfit,
+            'gross_profit' => $currentMonthSales - $currentMonthHpp,
+            'net_margin_pct' => $currentNetMarginPct,
+            'gross_margin_pct' => $currentNetMarginPct,
+        ];
 
         return $result;
     }

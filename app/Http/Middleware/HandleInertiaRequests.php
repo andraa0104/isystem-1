@@ -161,6 +161,7 @@ class HandleInertiaRequests extends Middleware
             'tenant' => [
                 'database' => $database,
                 'label' => $databaseLabel,
+                'company' => $database ? (config("tenants.companies.$database.name") ?? config("tenants.labels.$database", $database)) : null,
             ],
             'flash' => [
                 'success' => $request->session()->get('success'),

@@ -29,12 +29,21 @@ return [
             'phone' => '0541-771571',
             'email' => 'cs_sja@yahoo.com',
         ],
+        'dbbbbs' => [
+            'name' => 'CV. BANGUN BANUA BERSAMA SEJAHTERA',
+        ],
         'dbstg' => [
             'name' => 'CV. SURYA TEKNIK GEMILANG',
             'address' => 'Jl. Harmoni II (Lingkar Dalam Selatan) RT. 026/002, Pekapuran Raya, Banjarmasin Timur',
             'kota' => 'Kota Banjarmasin Provinsi Kalimantan Selatan',
             'phone' => '0511 - 6783217',
             'email' => '',
+        ],
+        'dbati' => [
+            'name' => 'PT. ALLSTAR TEKSTIL INDONESIA',
+        ],
+        'dbarm' => [
+            'name' => 'AR-MART',
         ],
         'dbjms' => [
             'name' => 'CV. JLX MAKMUR SENTOSA',
