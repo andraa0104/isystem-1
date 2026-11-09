@@ -41,7 +41,7 @@ import {
     Zap,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 
 const breadcrumbs = [
@@ -735,15 +735,18 @@ export default function Dashboard({
         ],
     );
 
+    const refreshRef = useRef(handleGlobalRefresh);
+    refreshRef.current = handleGlobalRefresh;
+
     // Auto-refresh interval effect
     useEffect(() => {
         if (!autoRefreshInterval || autoRefreshInterval <= 0) return;
         const intervalId = setInterval(() => {
             if (typeof document !== 'undefined' && document.hidden) return;
-            handleGlobalRefresh(true);
+            refreshRef.current?.(true);
         }, autoRefreshInterval * 1000);
         return () => clearInterval(intervalId);
-    }, [autoRefreshInterval, handleGlobalRefresh]);
+    }, [autoRefreshInterval]);
 
     // Sales HPP derived calculations
     const salesHppDerived = useMemo(() => {
@@ -895,8 +898,7 @@ export default function Dashboard({
                                         hour: '2-digit',
                                         minute: '2-digit',
                                         second: '2-digit',
-                                    })}{' '}
-                                    WIB
+                                    })}
                                 </span>
                             </div>
 
