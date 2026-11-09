@@ -53,7 +53,6 @@ import {
     User,
     X,
 } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 
@@ -830,12 +829,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
             {/* FULL WIDTH CONTAINER (Menggunakan seluruh lebar monitor) */}
             <div className="w-full flex-1 flex flex-col gap-6 p-4 sm:p-6 lg:p-8">
                 {/* ── TOP HERO HEADER ──────────────────────────────────────────────── */}
-                <motion.div
-                    initial={{ opacity: 0, y: -12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
-                    className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between rounded-3xl border border-sidebar-border/70 bg-gradient-to-r from-card via-card/90 to-card/60 p-6 shadow-sm backdrop-blur-xl"
-                >
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between rounded-2xl border border-sidebar-border/70 bg-card p-6 shadow-xs">
                     <div>
                         <div className="flex items-center gap-2">
                             <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 shadow-xs">
@@ -872,32 +866,27 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                             </Link>
                         </Button>
                         {materialItems.length > 0 && (
-                            <motion.div
-                                whileHover={{ scale: 1.02 }}
-                                whileTap={{ scale: 0.98 }}
+                            <Button
+                                onClick={handleSubmit}
+                                disabled={isSubmitting}
+                                size="default"
+                                className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs font-bold"
                             >
-                                <Button
-                                    onClick={handleSubmit}
-                                    disabled={isSubmitting}
-                                    size="default"
-                                    className="rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white shadow-md shadow-emerald-600/20 font-bold"
-                                >
-                                    {isSubmitting ? (
-                                        <Spinner className="mr-2 size-4" />
-                                    ) : (
-                                        <Save className="mr-2 size-4" />
-                                    )}
-                                    {isSubmitting
-                                        ? 'Menyimpan...'
-                                        : 'Simpan Quotation'}
-                                </Button>
-                            </motion.div>
+                                {isSubmitting ? (
+                                    <Spinner className="mr-2 size-4" />
+                                ) : (
+                                    <Save className="mr-2 size-4" />
+                                )}
+                                {isSubmitting
+                                    ? 'Menyimpan...'
+                                    : 'Simpan Quotation'}
+                            </Button>
                         )}
                     </div>
-                </motion.div>
+                </div>
 
-                {/* ── INTERACTIVE STEPPER PROGRESS BAR (MOTION) ────────────────────── */}
-                <div className="rounded-3xl border border-sidebar-border/70 bg-card/60 backdrop-blur-xl p-3 sm:p-4 shadow-sm">
+                {/* ── STEPPER PROGRESS BAR (RINGAN & CEPAT) ────────────────────────── */}
+                <div className="rounded-2xl border border-sidebar-border/70 bg-card p-3 sm:p-4 shadow-xs">
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                         {steps.map((step, index) => {
                             const IconComponent = step.icon;
@@ -908,31 +897,29 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                 (index === 2 && isStep3Complete);
 
                             return (
-                                <motion.button
+                                <button
                                     key={step.id}
                                     type="button"
                                     onClick={() => setActiveStep(index)}
-                                    whileHover={{ scale: 1.008 }}
-                                    whileTap={{ scale: 0.992 }}
-                                    className={`relative flex items-center gap-4 rounded-2xl p-4 text-left transition-all duration-300 ${
+                                    className={`relative flex items-center gap-4 rounded-xl p-3.5 text-left transition-colors cursor-pointer ${
                                         isActive
-                                            ? 'bg-primary/10 border-2 border-primary/50 shadow-md shadow-primary/10'
+                                            ? 'bg-primary/10 border-2 border-primary/50 shadow-xs'
                                             : 'hover:bg-muted/40 border border-transparent'
                                     }`}
                                 >
                                     <div
-                                        className={`flex size-12 shrink-0 items-center justify-center rounded-2xl text-base font-bold transition-all duration-300 ${
+                                        className={`flex size-11 shrink-0 items-center justify-center rounded-xl text-base font-bold transition-colors ${
                                             isActive
-                                                ? 'bg-primary text-primary-foreground shadow-lg shadow-primary/30 ring-4 ring-primary/20'
+                                                ? 'bg-primary text-primary-foreground shadow-xs'
                                                 : isCompleted
                                                   ? 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30'
                                                   : 'bg-muted text-muted-foreground'
                                         }`}
                                     >
                                         {isCompleted && !isActive ? (
-                                            <Check className="size-6 stroke-[3]" />
+                                            <Check className="size-5 stroke-[3]" />
                                         ) : (
-                                            <IconComponent className="size-6" />
+                                            <IconComponent className="size-5" />
                                         )}
                                     </div>
                                     <div className="min-w-0 flex-1">
@@ -945,7 +932,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                             )}
                                         </div>
                                         <div
-                                            className={`text-base font-extrabold truncate ${
+                                            className={`text-sm sm:text-base font-extrabold truncate ${
                                                 isActive
                                                     ? 'text-primary'
                                                     : 'text-foreground'
@@ -957,30 +944,22 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                             {step.desc}
                                         </p>
                                     </div>
-                                </motion.button>
+                                </button>
                             );
                         })}
                     </div>
                 </div>
 
-                {/* ── FORM CONTAINER DENGAN ANIMATE PRESENCE ────────────────────────── */}
+                {/* ── FORM CONTAINER (CONDITIONAL RENDERING CEPAT) ────────────────── */}
                 <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-                    <AnimatePresence mode="wait">
-                        {/* ══ STEP 1: DATA CUSTOMER ════════════════════════════════════ */}
-                        {activeStep === 0 && (
-                            <motion.div
-                                key="step-1"
-                                initial={{ opacity: 0, y: 16 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -16 }}
-                                transition={{
-                                    duration: 0.35,
-                                    ease: [0.16, 1, 0.3, 1],
-                                }}
-                                className="grid grid-cols-1 gap-6 lg:grid-cols-12"
-                            >
-                                {/* Card A: Identitas Pelanggan */}
-                                <Card className="rounded-3xl border-sidebar-border/70 shadow-sm bg-card/80 backdrop-blur-xl lg:col-span-7 xl:col-span-7">
+                    {/* ══ STEP 1: DATA CUSTOMER ════════════════════════════════════ */}
+                    {activeStep === 0 && (
+                        <div
+                            key="step-1"
+                            className="grid grid-cols-1 gap-6 lg:grid-cols-12"
+                        >
+                            {/* Card A: Identitas Pelanggan */}
+                            <Card className="rounded-2xl border-sidebar-border/70 shadow-xs bg-card lg:col-span-7 xl:col-span-7">
                                     <CardHeader className="border-b border-sidebar-border/50 pb-5">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-3">
@@ -1151,7 +1130,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                 </Card>
 
                                 {/* Card B: Kontak & Komunikasi */}
-                                <Card className="rounded-3xl border-sidebar-border/70 shadow-sm bg-card/80 backdrop-blur-xl lg:col-span-5 xl:col-span-5">
+                                <Card className="rounded-2xl border-sidebar-border/70 shadow-xs bg-card lg:col-span-5 xl:col-span-5">
                                     <CardHeader className="border-b border-sidebar-border/50 pb-5">
                                         <div className="flex items-center gap-3">
                                             <div className="flex size-10 items-center justify-center rounded-2xl bg-blue-500/10 text-blue-600 dark:text-blue-400">
@@ -1267,24 +1246,17 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                         </div>
                                     </CardContent>
                                 </Card>
-                            </motion.div>
+                            </div>
                         )}
 
                         {/* ══ STEP 2: DETAIL KETENTUAN ══════════════════════════════════ */}
                         {activeStep === 1 && (
-                            <motion.div
+                            <div
                                 key="step-2"
-                                initial={{ opacity: 0, y: 16 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -16 }}
-                                transition={{
-                                    duration: 0.35,
-                                    ease: [0.16, 1, 0.3, 1],
-                                }}
                                 className="grid grid-cols-1 gap-6 lg:grid-cols-12"
                             >
                                 {/* Card A: Syarat Komersial */}
-                                <Card className="rounded-3xl border-sidebar-border/70 shadow-sm bg-card/80 backdrop-blur-xl lg:col-span-6">
+                                <Card className="rounded-2xl border-sidebar-border/70 shadow-xs bg-card lg:col-span-6">
                                     <CardHeader className="border-b border-sidebar-border/50 pb-5">
                                         <div className="flex items-center gap-3">
                                             <div className="flex size-10 items-center justify-center rounded-2xl bg-teal-500/10 text-teal-600 dark:text-teal-400">
@@ -1444,7 +1416,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                 </Card>
 
                                 {/* Card B: Catatan Tambahan (Notes) */}
-                                <Card className="rounded-3xl border-sidebar-border/70 shadow-sm bg-card/80 backdrop-blur-xl lg:col-span-6">
+                                <Card className="rounded-2xl border-sidebar-border/70 shadow-xs bg-card lg:col-span-6">
                                     <CardHeader className="border-b border-sidebar-border/50 pb-5">
                                         <div className="flex items-center gap-3">
                                             <div className="flex size-10 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
@@ -1527,27 +1499,19 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                         </div>
                                     </CardContent>
                                 </Card>
-                            </motion.div>
+                            </div>
                         )}
 
                         {/* ══ STEP 3: DATA MATERIAL & REKAPITULASI ══════════════════════ */}
                         {activeStep === 2 && (
-                            <motion.div
+                            <div
                                 key="step-3"
-                                initial={{ opacity: 0, y: 16 }}
-                                animate={{ opacity: 1, y: 0 }}
-                                exit={{ opacity: 0, y: -16 }}
-                                transition={{
-                                    duration: 0.35,
-                                    ease: [0.16, 1, 0.3, 1],
-                                }}
                                 className="flex flex-col gap-6"
                             >
                                 {/* Summary Metrics Bar Full Width */}
                                 <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-                                    <motion.div
-                                        whileHover={{ y: -2 }}
-                                        className="rounded-3xl border border-sidebar-border/70 bg-card/80 p-5 shadow-sm backdrop-blur-xl flex flex-col justify-between"
+                                    <div
+                                        className="rounded-xl border border-sidebar-border/70 bg-card p-4 sm:p-5 shadow-xs flex flex-col justify-between"
                                     >
                                         <span className="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">
                                             Total Item Material
@@ -1560,11 +1524,10 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                                 Barang
                                             </span>
                                         </div>
-                                    </motion.div>
+                                    </div>
 
-                                    <motion.div
-                                        whileHover={{ y: -2 }}
-                                        className="rounded-3xl border border-sidebar-border/70 bg-card/80 p-5 shadow-sm backdrop-blur-xl flex flex-col justify-between"
+                                    <div
+                                        className="rounded-xl border border-sidebar-border/70 bg-card p-4 sm:p-5 shadow-xs flex flex-col justify-between"
                                     >
                                         <span className="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">
                                             Total Quantity Fisik
@@ -1579,11 +1542,10 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                                 Unit / Pcs
                                             </span>
                                         </div>
-                                    </motion.div>
+                                    </div>
 
-                                    <motion.div
-                                        whileHover={{ y: -2 }}
-                                        className="rounded-3xl border border-sidebar-border/70 bg-card/80 p-5 shadow-sm backdrop-blur-xl flex flex-col justify-between"
+                                    <div
+                                        className="rounded-xl border border-sidebar-border/70 bg-card p-4 sm:p-5 shadow-xs flex flex-col justify-between"
                                     >
                                         <span className="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">
                                             Total Nilai Penawaran
@@ -1596,11 +1558,10 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                                 )}
                                             </span>
                                         </div>
-                                    </motion.div>
+                                    </div>
 
-                                    <motion.div
-                                        whileHover={{ y: -2 }}
-                                        className="rounded-3xl border border-sidebar-border/70 bg-card/80 p-5 shadow-sm backdrop-blur-xl flex flex-col justify-between"
+                                    <div
+                                        className="rounded-xl border border-sidebar-border/70 bg-card p-4 sm:p-5 shadow-xs flex flex-col justify-between"
                                     >
                                         <span className="text-[11px] font-extrabold uppercase tracking-wider text-muted-foreground">
                                             Rata-rata Margin
@@ -1626,12 +1587,12 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                                 %
                                             </span>
                                         </div>
-                                    </motion.div>
+                                    </div>
                                 </div>
 
                                 {/* Form Input / Edit Material Card */}
                                 <Card
-                                    className={`rounded-3xl border-sidebar-border/70 shadow-sm bg-card/80 backdrop-blur-xl transition-all duration-300 ${
+                                    className={`rounded-2xl border-sidebar-border/70 shadow-xs bg-card transition-colors duration-200 ${
                                         editingMaterialId
                                             ? 'border-blue-500/50 ring-2 ring-blue-500/20 bg-blue-50/15 dark:bg-blue-950/20'
                                             : ''
@@ -2091,7 +2052,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                 </Card>
 
                                 {/* Modern Table List Material (Full Width) */}
-                                <Card className="rounded-3xl border-sidebar-border/70 shadow-sm bg-card/80 backdrop-blur-xl overflow-hidden">
+                                <Card className="rounded-2xl border-sidebar-border/70 shadow-xs bg-card overflow-hidden">
                                     <CardHeader className="border-b border-sidebar-border/50 bg-muted/20 py-4 px-6">
                                         <div className="flex items-center justify-between">
                                             <div className="flex items-center gap-3">
@@ -2330,12 +2291,11 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                         </table>
                                     </div>
                                 </Card>
-                            </motion.div>
+                            </div>
                         )}
-                    </AnimatePresence>
 
                     {/* ── BOTTOM STICKY NAVIGATION FOOTER (FULL WIDTH) ────────────────── */}
-                    <div className="sticky bottom-4 z-20 flex flex-wrap items-center justify-between gap-3 rounded-3xl border border-sidebar-border/70 bg-card/95 p-4 shadow-xl backdrop-blur-2xl">
+                    <div className="sticky bottom-4 z-20 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sidebar-border/70 bg-card p-4 shadow-md">
                         <div className="flex items-center gap-2.5">
                             <Button
                                 type="button"
@@ -2383,28 +2343,23 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                             </Button>
 
                             {activeStep === steps.length - 1 && (
-                                <motion.div
-                                    whileHover={{ scale: 1.02 }}
-                                    whileTap={{ scale: 0.98 }}
+                                <Button
+                                    type="submit"
+                                    disabled={
+                                        isSubmitting ||
+                                        materialItems.length === 0
+                                    }
+                                    className="h-10 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs"
                                 >
-                                    <Button
-                                        type="submit"
-                                        disabled={
-                                            isSubmitting ||
-                                            materialItems.length === 0
-                                        }
-                                        className="h-10 px-6 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-lg shadow-emerald-600/25"
-                                    >
-                                        {isSubmitting ? (
-                                            <Spinner className="mr-2 size-4" />
-                                        ) : (
-                                            <Save className="mr-2 size-4" />
-                                        )}
-                                        {isSubmitting
-                                            ? 'Menyimpan Quotation...'
-                                            : 'Simpan Quotation'}
-                                    </Button>
-                                </motion.div>
+                                    {isSubmitting ? (
+                                        <Spinner className="mr-2 size-4" />
+                                    ) : (
+                                        <Save className="mr-2 size-4" />
+                                    )}
+                                    {isSubmitting
+                                        ? 'Menyimpan Quotation...'
+                                        : 'Simpan Quotation'}
+                                </Button>
                             )}
                         </div>
                     </div>
@@ -2424,7 +2379,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                     }
                 }}
             >
-                <DialogContent className="w-[96vw] max-w-[96vw] sm:max-w-[95vw] lg:max-w-[94vw] xl:max-w-[92vw] 2xl:max-w-[1560px] max-h-[92vh] overflow-y-auto overflow-x-hidden rounded-3xl border border-sidebar-border/70 bg-card/95 backdrop-blur-2xl p-6 sm:p-8 shadow-2xl space-y-6 focus:outline-none scrollbar-thin">
+                <DialogContent className="w-[96vw] max-w-[96vw] sm:max-w-[95vw] lg:max-w-[94vw] xl:max-w-[92vw] 2xl:max-w-[1560px] max-h-[92vh] overflow-y-auto overflow-x-hidden rounded-2xl border border-sidebar-border/70 bg-card p-6 sm:p-8 shadow-lg space-y-6 focus:outline-none scrollbar-thin">
                     <DialogHeader className="border-b border-sidebar-border/50 pb-5">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                             <div className="flex items-center gap-3">
@@ -2636,7 +2591,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                     }
                 }}
             >
-                <DialogContent className="w-[96vw] max-w-[96vw] sm:max-w-[95vw] lg:max-w-[94vw] xl:max-w-[92vw] 2xl:max-w-[1560px] max-h-[92vh] overflow-y-auto overflow-x-hidden rounded-3xl border border-sidebar-border/70 bg-card/95 backdrop-blur-2xl p-6 sm:p-8 shadow-2xl space-y-6 focus:outline-none scrollbar-thin">
+                <DialogContent className="w-[96vw] max-w-[96vw] sm:max-w-[95vw] lg:max-w-[94vw] xl:max-w-[92vw] 2xl:max-w-[1560px] max-h-[92vh] overflow-y-auto overflow-x-hidden rounded-2xl border border-sidebar-border/70 bg-card p-6 sm:p-8 shadow-lg space-y-6 focus:outline-none scrollbar-thin">
                     <DialogHeader className="border-b border-sidebar-border/50 pb-5">
                         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
                             <div className="flex items-center gap-3">
