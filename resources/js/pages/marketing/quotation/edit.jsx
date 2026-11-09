@@ -239,11 +239,11 @@ export default function QuotationEdit({
     const [editingMaterialId, setEditingMaterialId] = useState(null);
 
     const [customerSearch, setCustomerSearch] = useState('');
-    const [customerPageSize, setCustomerPageSize] = useState(10);
+    const [customerPageSize, setCustomerPageSize] = useState(5);
     const [customerPage, setCustomerPage] = useState(1);
 
     const [materialSearch, setMaterialSearch] = useState('');
-    const [materialPageSize, setMaterialPageSize] = useState(10);
+    const [materialPageSize, setMaterialPageSize] = useState(5);
     const [materialPage, setMaterialPage] = useState(1);
 
     const breadcrumbs = useMemo(
@@ -2512,7 +2512,7 @@ export default function QuotationEdit({
                     if (open) {
                         loadCustomers();
                         setCustomerSearch('');
-                        setCustomerPageSize(10);
+                        setCustomerPageSize(5);
                         setCustomerPage(1);
                     }
                 }}
@@ -2566,6 +2566,7 @@ export default function QuotationEdit({
                                             );
                                         }}
                                     >
+                                        <option value={5}>5 Baris</option>
                                         <option value={10}>10 Baris</option>
                                         <option value={25}>25 Baris</option>
                                         <option value={50}>50 Baris</option>
@@ -2723,7 +2724,7 @@ export default function QuotationEdit({
                     if (open) {
                         loadMaterials();
                         setMaterialSearch('');
-                        setMaterialPageSize(10);
+                        setMaterialPageSize(5);
                         setMaterialPage(1);
                     }
                 }}
@@ -2778,6 +2779,7 @@ export default function QuotationEdit({
                                             );
                                         }}
                                     >
+                                        <option value={5}>5 Baris</option>
                                         <option value={10}>10 Baris</option>
                                         <option value={25}>25 Baris</option>
                                         <option value={50}>50 Baris</option>

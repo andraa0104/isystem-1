@@ -217,12 +217,12 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
 
     const [customerSearch, setCustomerSearch] = useState('');
     const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState('');
-    const [customerPageSize, setCustomerPageSize] = useState(10);
+    const [customerPageSize, setCustomerPageSize] = useState(5);
     const [customerPage, setCustomerPage] = useState(1);
 
     const [materialSearch, setMaterialSearch] = useState('');
     const [debouncedMaterialSearch, setDebouncedMaterialSearch] = useState('');
-    const [materialPageSize, setMaterialPageSize] = useState(10);
+    const [materialPageSize, setMaterialPageSize] = useState(5);
     const [materialPage, setMaterialPage] = useState(1);
 
     const filteredCustomers = useMemo(() => {
@@ -493,7 +493,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     const loadCustomers = async ({
         search = '',
         page = 1,
-        pageSize = 10,
+        pageSize = 5,
     } = {}) => {
         const requestSeq = customerRequestSeq.current + 1;
         customerRequestSeq.current = requestSeq;
@@ -535,7 +535,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     const loadMaterials = async ({
         search = '',
         page = 1,
-        pageSize = 10,
+        pageSize = 5,
     } = {}) => {
         const requestSeq = materialRequestSeq.current + 1;
         materialRequestSeq.current = requestSeq;
@@ -2419,7 +2419,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                     if (open) {
                         setCustomerSearch('');
                         setDebouncedCustomerSearch('');
-                        setCustomerPageSize(10);
+                        setCustomerPageSize(5);
                         setCustomerPage(1);
                     }
                 }}
@@ -2473,6 +2473,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                             );
                                         }}
                                     >
+                                        <option value={5}>5 Baris</option>
                                         <option value={10}>10 Baris</option>
                                         <option value={25}>25 Baris</option>
                                         <option value={50}>50 Baris</option>
@@ -2630,7 +2631,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                     if (open) {
                         setMaterialSearch('');
                         setDebouncedMaterialSearch('');
-                        setMaterialPageSize(10);
+                        setMaterialPageSize(5);
                         setMaterialPage(1);
                     }
                 }}
@@ -2685,6 +2686,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                             );
                                         }}
                                     >
+                                        <option value={5}>5 Baris</option>
                                         <option value={10}>10 Baris</option>
                                         <option value={25}>25 Baris</option>
                                         <option value={50}>50 Baris</option>
