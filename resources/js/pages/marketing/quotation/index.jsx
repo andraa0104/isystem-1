@@ -40,9 +40,7 @@ import {
     Printer,
     RefreshCw,
     Search,
-    Sparkles,
     Trash2,
-    TrendingUp,
     UserCheck,
     Users,
     X,
@@ -81,6 +79,12 @@ const formatPercent = (value) => {
     }
     const normalized = String(value).replace(/%/g, '').trim();
     return normalized === '' || normalized === '-' ? '-' : `${normalized}%`;
+};
+
+const isValidNote = (value) => {
+    if (value === null || value === undefined) return false;
+    const text = String(value).trim();
+    return text !== '' && text !== '-' && text !== '--' && text !== '—';
 };
 
 export default function QuotationIndex({
@@ -466,15 +470,9 @@ export default function QuotationIndex({
                                 <FileSpreadsheet className="size-6" />
                             </div>
                             <div>
-                                <div className="flex items-center gap-2">
-                                    <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
-                                        Marketing Quotation
-                                    </h1>
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2.5 py-0.5 text-[11px] font-bold text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-                                        <Sparkles className="size-3" />
-                                        <span>Penawaran</span>
-                                    </span>
-                                </div>
+                                <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
+                                    Marketing Quotation
+                                </h1>
                                 <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
                                     Kelola daftar penawaran harga kepada customer secara terintegrasi dan realtime.
                                 </p>
@@ -483,23 +481,6 @@ export default function QuotationIndex({
 
                         {/* Top Action & Create Button */}
                         <div className="flex items-center gap-2.5 shrink-0">
-                            <button
-                                type="button"
-                                onClick={() => {
-                                    if (activeTab === 'customer') {
-                                        fetchQuotationData(statusFilter, debouncedSearchTerm, currentPage, pageSize);
-                                    } else {
-                                        fetchMaterialData(materialCurrentPage, materialPageSize, debouncedMaterialSearch);
-                                    }
-                                }}
-                                disabled={loading || materialLoading}
-                                className="flex items-center gap-1.5 rounded-xl border border-sidebar-border/80 bg-background hover:bg-muted px-3 py-2 text-xs font-semibold text-foreground transition-colors cursor-pointer shadow-xs disabled:opacity-50"
-                                title="Segarkan Data"
-                            >
-                                <RefreshCw className={`size-3.5 ${loading || materialLoading ? 'animate-spin text-emerald-600' : ''}`} />
-                                <span className="hidden sm:inline">Segarkan</span>
-                            </button>
-
                             <MenuAction
                                 action="create"
                                 type="button"
@@ -510,58 +491,6 @@ export default function QuotationIndex({
                                 <Plus className="size-4" />
                                 <span>Tambah Quotation</span>
                             </MenuAction>
-                        </div>
-                    </div>
-
-                    {/* Stat Badges Ribbon */}
-                    <div className="mt-4 pt-4 border-t border-sidebar-border/40 grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
-                        <div className="flex items-center gap-2 rounded-xl bg-muted/40 p-2.5 border border-sidebar-border/40">
-                            <div className="flex size-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
-                                <TrendingUp className="size-4" />
-                            </div>
-                            <div className="min-w-0">
-                                <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Total Dokumen</div>
-                                <div className="font-mono font-bold text-foreground text-sm truncate">
-                                    {formatNumber(totalItems)} Data
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 rounded-xl bg-muted/40 p-2.5 border border-sidebar-border/40">
-                            <div className="flex size-7 items-center justify-center rounded-lg bg-teal-500/10 text-teal-600 dark:text-teal-400">
-                                <Package className="size-4" />
-                            </div>
-                            <div className="min-w-0">
-                                <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Total Item Material</div>
-                                <div className="font-mono font-bold text-foreground text-sm truncate">
-                                    {formatNumber(materialTotal || 0)} Item
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 rounded-xl bg-muted/40 p-2.5 border border-sidebar-border/40">
-                            <div className="flex size-7 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
-                                <Calendar className="size-4" />
-                            </div>
-                            <div className="min-w-0">
-                                <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Periode Aktif</div>
-                                <div className="font-bold text-foreground text-xs truncate">
-                                    {periodLabels[statusFilter] || statusFilter}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-2 rounded-xl bg-muted/40 p-2.5 border border-sidebar-border/40">
-                            <div className="relative flex size-7 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600">
-                                <span className="absolute size-2 rounded-full bg-emerald-500 animate-ping" />
-                                <span className="relative size-2 rounded-full bg-emerald-500" />
-                            </div>
-                            <div className="min-w-0">
-                                <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">Koneksi Realtime</div>
-                                <div className="font-bold text-emerald-600 dark:text-emerald-400 text-xs truncate">
-                                    Terhubung
-                                </div>
-                            </div>
                         </div>
                     </div>
                 </div>
@@ -581,7 +510,7 @@ export default function QuotationIndex({
                             <Building2 className="size-3.5" />
                             <span>Data Quotation Customer</span>
                             <span
-                                className={`rounded-full px-1.5 py-0.2 text-[10px] font-mono ${
+                                className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums tracking-wide ${
                                     activeTab === 'customer'
                                         ? 'bg-white/20 text-white'
                                         : 'bg-background/80 text-muted-foreground'
@@ -603,7 +532,7 @@ export default function QuotationIndex({
                             <Boxes className="size-3.5" />
                             <span>Data Quotation Material</span>
                             <span
-                                className={`rounded-full px-1.5 py-0.2 text-[10px] font-mono ${
+                                className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums tracking-wide ${
                                     activeTab === 'material'
                                         ? 'bg-white/20 text-white'
                                         : 'bg-background/80 text-muted-foreground'
@@ -621,17 +550,17 @@ export default function QuotationIndex({
                         {/* Filter & Search Bar */}
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 sm:p-4 rounded-xl border border-sidebar-border/70 bg-card shadow-xs">
                             <div className="flex flex-wrap items-center gap-2.5">
-                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-semibold">
-                                    <Filter className="size-3.5 text-emerald-600" />
+                                <div className="flex items-center gap-1.5 text-sm text-muted-foreground font-semibold">
+                                    <Filter className="size-4 text-emerald-600" />
                                     <span>Filter:</span>
                                 </div>
 
                                 {/* Period Dropdown */}
                                 <Select value={statusFilter} onValueChange={handlePeriodChange}>
-                                    <SelectTrigger className="w-[155px] h-9 rounded-xl border-sidebar-border/80 bg-background text-xs font-semibold focus:ring-emerald-500/20">
+                                    <SelectTrigger className="w-[160px] h-9 rounded-xl border-sidebar-border/80 bg-background text-sm font-semibold focus:ring-emerald-500/20">
                                         <SelectValue placeholder="Pilih Periode" />
                                     </SelectTrigger>
-                                    <SelectContent className="rounded-xl border-sidebar-border/70 bg-card shadow-md">
+                                    <SelectContent className="rounded-xl border-sidebar-border/70 bg-card shadow-md text-sm font-semibold">
                                         <SelectItem value="today">Hari Ini</SelectItem>
                                         <SelectItem value="week">Minggu Ini</SelectItem>
                                         <SelectItem value="month">Bulan Ini</SelectItem>
@@ -641,10 +570,10 @@ export default function QuotationIndex({
                                 </Select>
 
                                 {/* Page size dropdown */}
-                                <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                <div className="flex items-center gap-1.5 text-sm text-muted-foreground font-semibold">
                                     <span className="hidden sm:inline">Baris:</span>
                                     <select
-                                        className="h-9 rounded-xl border border-sidebar-border/80 bg-background px-2.5 text-xs font-semibold text-foreground focus:outline-hidden cursor-pointer"
+                                        className="h-9 rounded-xl border border-sidebar-border/80 bg-background px-2.5 text-sm font-semibold text-foreground focus:outline-hidden cursor-pointer"
                                         value={pageSize === Infinity ? 'all' : pageSize}
                                         onChange={handlePageSizeChange}
                                     >
@@ -662,8 +591,8 @@ export default function QuotationIndex({
                                 <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground/60" />
                                 <input
                                     type="search"
-                                    className="h-9 w-full rounded-xl border border-sidebar-border/80 bg-background pl-9 pr-8 text-xs font-medium placeholder:text-muted-foreground/60 focus:border-emerald-500 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 transition-colors"
-                                    placeholder="Cari No Penawaran, Customer, Alamat..."
+                                    className="h-9 w-full rounded-xl border border-sidebar-border/80 bg-background pl-9 pr-8 text-sm font-medium placeholder:text-muted-foreground/60 focus:border-emerald-500 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 transition-colors"
+                                    placeholder="Cari No Penawaran, Customer..."
                                     value={searchTerm}
                                     onChange={(event) => setSearchTerm(event.target.value)}
                                 />
@@ -682,14 +611,14 @@ export default function QuotationIndex({
                         {/* Table Card */}
                         <div className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card shadow-xs">
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left text-xs border-collapse">
+                                <table className="w-full text-left text-sm border-collapse">
                                     <thead>
-                                        <tr className="border-b border-sidebar-border/60 bg-muted/40 text-[11px] font-black uppercase tracking-wider text-muted-foreground">
-                                            <th className="py-3 px-3.5 w-36 whitespace-nowrap">No Doc</th>
-                                            <th className="py-3 px-3 w-28 whitespace-nowrap">Tanggal</th>
-                                            <th className="py-3 px-3 min-w-[220px]">Customer</th>
-                                            <th className="py-3 px-3 w-36 whitespace-nowrap">Attend</th>
-                                            <th className="py-3 px-3 w-28 text-center whitespace-nowrap">Aksi</th>
+                                        <tr className="border-b border-sidebar-border/60 bg-muted/40 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                                            <th className="py-3.5 px-4 w-44 whitespace-nowrap">No Doc</th>
+                                            <th className="py-3.5 px-4 w-36 whitespace-nowrap">Tanggal</th>
+                                            <th className="py-3.5 px-4 min-w-[220px]">Customer</th>
+                                            <th className="py-3.5 px-4 w-44 whitespace-nowrap">Attend</th>
+                                            <th className="py-3.5 px-4 w-28 text-center whitespace-nowrap">Aksi</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-sidebar-border/40">
@@ -706,138 +635,133 @@ export default function QuotationIndex({
                                                     key={item.No_penawaran || idx}
                                                     className="hover:bg-muted/40 transition-colors group"
                                                 >
-                                                        <td className="py-3 px-3.5 font-mono font-bold whitespace-nowrap">
-                                                            <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2.5 py-1 text-xs text-emerald-700 dark:text-emerald-400 border border-emerald-500/25">
-                                                                <FileText className="size-3" />
-                                                                <span>{item.No_penawaran}</span>
-                                                            </span>
-                                                        </td>
-                                                        <td className="py-3 px-3 font-mono text-[11px] text-muted-foreground whitespace-nowrap">
-                                                            <span className="inline-flex items-center gap-1">
-                                                                <Calendar className="size-3 text-muted-foreground/60" />
-                                                                <span>{item.Tgl_Posting || '-'}</span>
-                                                            </span>
-                                                        </td>
-                                                        <td className="py-3 px-3 min-w-[220px]">
-                                                            <div className="flex items-center gap-2">
-                                                                <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground group-hover:text-emerald-600 transition-colors">
-                                                                    <Building2 className="size-3.5" />
-                                                                </div>
-                                                                <div className="min-w-0">
-                                                                    <div
-                                                                        className="font-bold text-foreground truncate text-xs"
-                                                                        title={item.Customer}
-                                                                    >
-                                                                        {item.Customer || '-'}
-                                                                    </div>
-                                                                    {item.Alamat && (
-                                                                        <div className="text-[10px] text-muted-foreground truncate max-w-sm">
-                                                                            {item.Alamat}
-                                                                        </div>
-                                                                    )}
+                                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2.5 py-1 text-sm font-semibold text-emerald-700 dark:text-emerald-400 border border-emerald-500/25 tracking-wide tabular-nums">
+                                                            <FileText className="size-3.5" />
+                                                            <span>{item.No_penawaran}</span>
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3.5 px-4 text-sm font-semibold text-muted-foreground whitespace-nowrap tracking-wide tabular-nums">
+                                                        <span className="inline-flex items-center gap-1.5">
+                                                            <Calendar className="size-3.5 text-muted-foreground/60" />
+                                                            <span>{item.Tgl_Posting || '-'}</span>
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3.5 px-4 min-w-[220px]">
+                                                        <div className="flex items-center gap-2.5">
+                                                            <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground group-hover:text-emerald-600 transition-colors">
+                                                                <Building2 className="size-3.5" />
+                                                            </div>
+                                                            <div className="min-w-0">
+                                                                <div
+                                                                    className="font-semibold text-foreground truncate text-sm"
+                                                                    title={item.Customer}
+                                                                >
+                                                                    {item.Customer || '-'}
                                                                 </div>
                                                             </div>
-                                                        </td>
-                                                        <td className="py-3 px-3 whitespace-nowrap">
-                                                            <span className="inline-flex items-center gap-1.5 text-xs text-foreground/80 font-medium">
-                                                                <UserCheck className="size-3.5 text-muted-foreground/60" />
-                                                                <span>{item.Attend || '-'}</span>
-                                                            </span>
-                                                        </td>
-                                                        <td className="py-3 px-3 whitespace-nowrap">
-                                                            <div className="flex items-center justify-center gap-1">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={() => handleOpenModal(item)}
-                                                                    className="flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/15 transition-all cursor-pointer"
-                                                                    title="Lihat Detail Penawaran"
-                                                                >
-                                                                    <Eye className="size-3.5" />
-                                                                </button>
+                                                        </div>
+                                                    </td>
+                                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                                        <span className="inline-flex items-center gap-1.5 text-sm text-foreground/80 font-semibold">
+                                                            <UserCheck className="size-3.5 text-muted-foreground/60" />
+                                                            <span>{item.Attend || '-'}</span>
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                                        <div className="flex items-center justify-center gap-1">
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => handleOpenModal(item)}
+                                                                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/15 transition-all cursor-pointer"
+                                                                title="Lihat Detail Penawaran"
+                                                            >
+                                                                <Eye className="size-4" />
+                                                            </button>
 
+                                                            <MenuAction
+                                                                action="update"
+                                                                as={Link}
+                                                                href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/edit`}
+                                                                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:text-indigo-600 hover:bg-indigo-500/15 transition-all cursor-pointer"
+                                                                title="Edit Quotation"
+                                                            >
+                                                                <Pencil className="size-4" />
+                                                            </MenuAction>
+
+                                                            <a
+                                                                href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/print`}
+                                                                className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:text-teal-600 hover:bg-teal-500/15 transition-all cursor-pointer"
+                                                                title="Cetak Surat Penawaran"
+                                                                target="_blank"
+                                                                rel="noreferrer"
+                                                            >
+                                                                <Printer className="size-4" />
+                                                            </a>
+
+                                                            {Number(item.can_delete ?? 0) === 1 && (
                                                                 <MenuAction
-                                                                    action="update"
-                                                                    as={Link}
-                                                                    href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/edit`}
-                                                                    className="flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:text-indigo-600 hover:bg-indigo-500/15 transition-all cursor-pointer"
-                                                                    title="Edit Quotation"
+                                                                    action="delete"
+                                                                    as="button"
+                                                                    type="button"
+                                                                    className="flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:text-rose-600 hover:bg-rose-500/15 transition-all cursor-pointer"
+                                                                    title="Hapus Quotation"
+                                                                    disabled={isDeleting}
+                                                                    onClick={() => handleDelete(item.No_penawaran)}
                                                                 >
-                                                                    <Pencil className="size-3.5" />
+                                                                    <Trash2 className="size-4" />
                                                                 </MenuAction>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                    </tbody>
+                                </table>
+                            </div>
 
-                                                                <a
-                                                                    href={`/marketing/quotation/${encodeURIComponent(item.No_penawaran)}/print`}
-                                                                    className="flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:text-teal-600 hover:bg-teal-500/15 transition-all cursor-pointer"
-                                                                    title="Cetak Surat Penawaran"
-                                                                    target="_blank"
-                                                                    rel="noreferrer"
-                                                                >
-                                                                    <Printer className="size-3.5" />
-                                                                </a>
-
-                                                                {Number(item.can_delete ?? 0) === 1 && (
-                                                                    <MenuAction
-                                                                        action="delete"
-                                                                        as="button"
-                                                                        type="button"
-                                                                        className="flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:text-rose-600 hover:bg-rose-500/15 transition-all cursor-pointer"
-                                                                        title="Hapus Quotation"
-                                                                        disabled={isDeleting}
-                                                                        onClick={() => handleDelete(item.No_penawaran)}
-                                                                    >
-                                                                        <Trash2 className="size-3.5" />
-                                                                    </MenuAction>
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-
-                                {/* Pagination Footer */}
-                                {pageSize !== Infinity && totalItems > 0 && (
-                                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-sidebar-border/60 text-xs text-muted-foreground bg-muted/20">
-                                        <div className="flex items-center gap-1.5 font-medium">
-                                            <span>Menampilkan</span>
-                                            <span className="font-bold text-foreground">
-                                                {Math.min((currentPage - 1) * pageSize + 1, totalItems)} - {Math.min(currentPage * pageSize, totalItems)}
-                                            </span>
-                                            <span>dari</span>
-                                            <span className="font-bold text-foreground font-mono">{formatNumber(totalItems)}</span>
-                                            <span>data</span>
-                                        </div>
-
-                                        <div className="flex items-center gap-1.5">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-8 rounded-xl border-sidebar-border/80 text-xs gap-1"
-                                                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
-                                                disabled={currentPage === 1}
-                                            >
-                                                <ChevronLeft className="size-3.5" />
-                                                <span>Sebelumnya</span>
-                                            </Button>
-
-                                            <div className="px-2.5 py-1 rounded-lg bg-background border border-sidebar-border/70 text-xs font-bold text-foreground">
-                                                {currentPage} / {totalPages}
-                                            </div>
-
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-8 rounded-xl border-sidebar-border/80 text-xs gap-1"
-                                                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
-                                                disabled={currentPage === totalPages}
-                                            >
-                                                <span>Berikutnya</span>
-                                                <ChevronRight className="size-3.5" />
-                                            </Button>
-                                        </div>
+                            {/* Pagination Footer */}
+                            {pageSize !== Infinity && totalItems > 0 && (
+                                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-sidebar-border/60 text-sm text-muted-foreground bg-muted/20">
+                                    <div className="flex items-center gap-1.5 font-medium">
+                                        <span>Menampilkan</span>
+                                        <span className="font-semibold text-foreground tracking-wide tabular-nums">
+                                            {Math.min((currentPage - 1) * pageSize + 1, totalItems)} - {Math.min(currentPage * pageSize, totalItems)}
+                                        </span>
+                                        <span>dari</span>
+                                        <span className="font-semibold text-foreground tracking-wide tabular-nums">{formatNumber(totalItems)}</span>
+                                        <span>data</span>
                                     </div>
-                                )}
+
+                                    <div className="flex items-center gap-1.5">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8 rounded-xl border-sidebar-border/80 text-sm font-semibold gap-1"
+                                            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                                            disabled={currentPage === 1}
+                                        >
+                                            <ChevronLeft className="size-4" />
+                                            <span>Sebelumnya</span>
+                                        </Button>
+
+                                        <div className="px-3 py-1 rounded-lg bg-background border border-sidebar-border/70 text-sm font-semibold text-foreground tracking-wide tabular-nums">
+                                            {currentPage} / {totalPages}
+                                        </div>
+
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8 rounded-xl border-sidebar-border/80 text-sm font-semibold gap-1"
+                                            onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                                            disabled={currentPage === totalPages}
+                                        >
+                                            <span>Berikutnya</span>
+                                            <ChevronRight className="size-4" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
                             </div>
                         </div>
                     ) : (
@@ -846,9 +770,9 @@ export default function QuotationIndex({
                         {/* Filter & Search Bar */}
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 sm:p-4 rounded-xl border border-sidebar-border/70 bg-card shadow-xs">
                             <div className="flex items-center gap-2">
-                                <span className="text-xs text-muted-foreground font-semibold">Tampilkan:</span>
+                                <span className="text-sm text-muted-foreground font-semibold">Tampilkan:</span>
                                 <select
-                                    className="h-9 rounded-xl border border-sidebar-border/80 bg-background px-2.5 text-xs font-semibold text-foreground focus:outline-hidden cursor-pointer"
+                                    className="h-9 rounded-xl border border-sidebar-border/80 bg-background px-2.5 text-sm font-semibold text-foreground focus:outline-hidden cursor-pointer"
                                     value={materialPageSize === Infinity ? 'all' : materialPageSize}
                                     onChange={handleMaterialPageSizeChange}
                                 >
@@ -864,7 +788,7 @@ export default function QuotationIndex({
                                 <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground/60" />
                                 <input
                                     type="search"
-                                    className="h-9 w-full rounded-xl border border-sidebar-border/80 bg-background pl-9 pr-8 text-xs font-medium placeholder:text-muted-foreground/60 focus:border-teal-500 focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 transition-colors"
+                                    className="h-9 w-full rounded-xl border border-sidebar-border/80 bg-background pl-9 pr-8 text-sm font-medium placeholder:text-muted-foreground/60 focus:border-teal-500 focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 transition-colors"
                                     placeholder="Cari No Penawaran atau Nama Material..."
                                     value={materialSearch}
                                     onChange={(e) => {
@@ -887,15 +811,15 @@ export default function QuotationIndex({
                         {/* Table Card */}
                         <div className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card shadow-xs">
                             <div className="overflow-x-auto">
-                                <table className="w-full text-left text-xs border-collapse">
+                                <table className="w-full text-left text-sm border-collapse">
                                     <thead>
-                                        <tr className="border-b border-sidebar-border/60 bg-muted/40 text-[11px] font-black uppercase tracking-wider text-muted-foreground">
-                                            <th className="py-3 px-3.5 w-36 whitespace-nowrap">No Penawaran</th>
-                                            <th className="py-3 px-3 min-w-[200px]">Nama Material</th>
-                                            <th className="py-3 px-3 w-28 whitespace-nowrap">Qty / Satuan</th>
-                                            <th className="py-3 px-3 w-32 text-right whitespace-nowrap">Harga Jual</th>
-                                            <th className="py-3 px-3 w-32 text-right whitespace-nowrap">Harga Modal</th>
-                                            <th className="py-3 px-3 w-20 text-center whitespace-nowrap">Aksi</th>
+                                        <tr className="border-b border-sidebar-border/60 bg-muted/40 text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+                                            <th className="py-3.5 px-4 w-44 whitespace-nowrap">No Penawaran</th>
+                                            <th className="py-3.5 px-4 min-w-[200px]">Nama Material</th>
+                                            <th className="py-3.5 px-4 w-32 whitespace-nowrap">Qty / Satuan</th>
+                                            <th className="py-3.5 px-4 w-36 text-right whitespace-nowrap">Harga Jual</th>
+                                            <th className="py-3.5 px-4 w-36 text-right whitespace-nowrap">Harga Modal</th>
+                                            <th className="py-3.5 px-4 w-20 text-center whitespace-nowrap">Aksi</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-sidebar-border/40">
@@ -912,12 +836,12 @@ export default function QuotationIndex({
                                                     key={item.id_detail || idx}
                                                     className="hover:bg-muted/40 transition-colors group"
                                                 >
-                                                    <td className="py-3 px-3.5 font-mono font-bold whitespace-nowrap">
-                                                        <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-xs text-foreground/90 border border-sidebar-border/60">
+                                                    <td className="py-3.5 px-4 whitespace-nowrap">
+                                                        <span className="inline-flex items-center gap-1 rounded-md bg-muted px-2.5 py-0.5 text-sm font-semibold text-foreground/90 border border-sidebar-border/60 tracking-wide tabular-nums">
                                                             {renderValue(item.No_Penawaran)}
                                                         </span>
                                                     </td>
-                                                    <td className="py-3 px-3 min-w-[200px] font-semibold text-foreground">
+                                                    <td className="py-3.5 px-4 min-w-[200px] text-sm font-semibold text-foreground">
                                                         <div className="flex items-center gap-2">
                                                             <Package className="size-3.5 text-muted-foreground/60 shrink-0" />
                                                             <span className="truncate uppercase" title={item.Material}>
@@ -925,24 +849,24 @@ export default function QuotationIndex({
                                                             </span>
                                                         </div>
                                                     </td>
-                                                    <td className="py-3 px-3 whitespace-nowrap font-mono text-[11px]">
-                                                        <span className="font-bold text-foreground">{item.Qty}</span>{' '}
+                                                    <td className="py-3.5 px-4 whitespace-nowrap text-sm font-semibold tracking-wide tabular-nums">
+                                                        <span className="text-foreground">{formatNumber(item.Qty)}</span>{' '}
                                                         <span className="text-muted-foreground">{item.Satuan ? renderValue(item.Satuan) : ''}</span>
                                                     </td>
-                                                    <td className="py-3 px-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap text-xs">
+                                                    <td className="py-3.5 px-4 text-right text-sm font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap tracking-wide tabular-nums">
                                                         Rp {formatNumber(item.Harga)}
                                                     </td>
-                                                    <td className="py-3 px-3 text-right font-mono text-muted-foreground whitespace-nowrap text-xs">
+                                                    <td className="py-3.5 px-4 text-right text-sm font-semibold text-muted-foreground whitespace-nowrap tracking-wide tabular-nums">
                                                         Rp {formatNumber(item.Harga_modal)}
                                                     </td>
-                                                    <td className="py-3 px-3 text-center whitespace-nowrap">
+                                                    <td className="py-3.5 px-4 text-center whitespace-nowrap">
                                                         <button
                                                             type="button"
                                                             onClick={() => handleOpenModal(item)}
-                                                            className="inline-flex size-7 items-center justify-center rounded-lg text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/15 transition-colors cursor-pointer"
+                                                            className="inline-flex size-8 items-center justify-center rounded-lg text-muted-foreground hover:text-emerald-600 hover:bg-emerald-500/15 transition-colors cursor-pointer"
                                                             title="Lihat Detail Penawaran"
                                                         >
-                                                            <Eye className="size-3.5" />
+                                                            <Eye className="size-4" />
                                                         </button>
                                                     </td>
                                                 </tr>
@@ -953,14 +877,14 @@ export default function QuotationIndex({
 
                             {/* Pagination Footer Tab 2 */}
                             {materialPageSize !== Infinity && materialTotal > 0 && (
-                                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-sidebar-border/60 text-xs text-muted-foreground bg-muted/20">
+                                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-sidebar-border/60 text-sm text-muted-foreground bg-muted/20">
                                     <div className="flex items-center gap-1.5 font-medium">
                                         <span>Menampilkan</span>
-                                        <span className="font-bold text-foreground">
+                                        <span className="font-semibold text-foreground tracking-wide tabular-nums">
                                             {Math.min((materialCurrentPage - 1) * materialPageSize + 1, materialTotal)} - {Math.min(materialCurrentPage * materialPageSize, materialTotal)}
                                         </span>
                                         <span>dari</span>
-                                        <span className="font-bold text-foreground font-mono">{formatNumber(materialTotal)}</span>
+                                        <span className="font-semibold text-foreground tracking-wide tabular-nums">{formatNumber(materialTotal)}</span>
                                         <span>material</span>
                                     </div>
 
@@ -968,27 +892,27 @@ export default function QuotationIndex({
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            className="h-8 rounded-xl border-sidebar-border/80 text-xs gap-1"
+                                            className="h-8 rounded-xl border-sidebar-border/80 text-sm font-semibold gap-1"
                                             disabled={materialCurrentPage === 1}
                                             onClick={() => setMaterialCurrentPage((page) => Math.max(1, page - 1))}
                                         >
-                                            <ChevronLeft className="size-3.5" />
+                                            <ChevronLeft className="size-4" />
                                             <span>Sebelumnya</span>
                                         </Button>
 
-                                        <div className="px-2.5 py-1 rounded-lg bg-background border border-sidebar-border/70 text-xs font-bold text-foreground">
+                                        <div className="px-3 py-1 rounded-lg bg-background border border-sidebar-border/70 text-sm font-semibold text-foreground tracking-wide tabular-nums">
                                             {materialCurrentPage} / {tab2TotalPages}
                                         </div>
 
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            className="h-8 rounded-xl border-sidebar-border/80 text-xs gap-1"
+                                            className="h-8 rounded-xl border-sidebar-border/80 text-sm font-semibold gap-1"
                                             disabled={materialCurrentPage === tab2TotalPages}
                                             onClick={() => setMaterialCurrentPage((page) => Math.min(tab2TotalPages, page + 1))}
                                         >
                                             <span>Berikutnya</span>
-                                            <ChevronRight className="size-3.5" />
+                                            <ChevronRight className="size-4" />
                                         </Button>
                                     </div>
                                 </div>
@@ -1012,16 +936,16 @@ export default function QuotationIndex({
                             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
                                 <div>
                                     <div className="flex items-center gap-2">
-                                        <DialogTitle className="text-lg font-black tracking-tight text-foreground">
+                                        <DialogTitle className="text-xl font-bold tracking-tight text-foreground">
                                             Detail Quotation
                                         </DialogTitle>
                                         {selectedPenawaran?.No_penawaran && (
-                                            <span className="rounded-lg bg-emerald-500/15 px-2.5 py-0.5 font-mono text-xs font-bold text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
+                                            <span className="rounded-lg bg-emerald-500/15 px-2.5 py-0.5 text-sm font-semibold text-emerald-700 dark:text-emerald-400 border border-emerald-500/30 tracking-wide tabular-nums">
                                                 {selectedPenawaran.No_penawaran}
                                             </span>
                                         )}
                                     </div>
-                                    <p className="text-xs text-muted-foreground mt-0.5">
+                                    <p className="text-sm text-muted-foreground mt-0.5">
                                         Informasi lengkap penawaran harga & rincian daftar material.
                                     </p>
                                 </div>
@@ -1031,9 +955,9 @@ export default function QuotationIndex({
                                         href={`/marketing/quotation/${encodeURIComponent(selectedPenawaran.No_penawaran)}/print`}
                                         target="_blank"
                                         rel="noreferrer"
-                                        className="inline-flex items-center gap-1.5 rounded-xl border border-sidebar-border/80 bg-background hover:bg-sidebar-accent px-3 py-1.5 text-xs font-bold text-foreground transition-all cursor-pointer shadow-xs"
+                                        className="inline-flex items-center gap-1.5 rounded-xl border border-sidebar-border/80 bg-background hover:bg-sidebar-accent px-3 py-1.5 text-sm font-semibold text-foreground transition-all cursor-pointer shadow-xs"
                                     >
-                                        <Printer className="size-3.5 text-emerald-600" />
+                                        <Printer className="size-4 text-emerald-600" />
                                         <span>Cetak Surat</span>
                                     </a>
                                 )}
@@ -1041,79 +965,99 @@ export default function QuotationIndex({
                         </DialogHeader>
 
                         {!selectedPenawaran ? (
-                            <div className="py-8 text-center text-xs text-muted-foreground">
+                            <div className="py-8 text-center text-sm font-medium text-muted-foreground">
                                 Memuat data penawaran...
                             </div>
                         ) : (
-                            <div className="space-y-5 text-xs">
+                            <div className="space-y-5 text-sm">
                                 {/* Segmented Cards: Customer & Syarat */}
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     {/* Card Customer */}
                                     <div className="rounded-xl border border-sidebar-border/60 bg-muted/30 p-4 space-y-3">
-                                        <div className="flex items-center gap-2 font-bold text-foreground text-xs border-b border-sidebar-border/40 pb-2">
+                                        <div className="flex items-center gap-2 font-bold text-foreground text-sm border-b border-sidebar-border/40 pb-2">
                                             <Building2 className="size-4 text-emerald-600" />
                                             <span>Informasi Customer</span>
                                         </div>
 
-                                        <div className="space-y-2 text-[11px]">
+                                        <div className="space-y-2.5 text-sm">
                                             <div className="flex justify-between items-baseline gap-2">
-                                                <span className="text-muted-foreground shrink-0">Customer:</span>
-                                                <span className="font-bold text-foreground text-right break-words">{renderValue(selectedPenawaran.Customer)}</span>
+                                                <span className="text-muted-foreground font-medium shrink-0">Customer:</span>
+                                                <span className="font-semibold text-foreground text-right break-words">{renderValue(selectedPenawaran.Customer)}</span>
                                             </div>
                                             <div className="flex justify-between items-baseline gap-2">
-                                                <span className="text-muted-foreground shrink-0">Alamat:</span>
-                                                <span className="font-medium text-foreground/80 text-right break-words">{renderValue(selectedPenawaran.Alamat)}</span>
+                                                <span className="text-muted-foreground font-medium shrink-0">Alamat:</span>
+                                                <span className="font-semibold text-foreground/80 text-right break-words">{renderValue(selectedPenawaran.Alamat)}</span>
                                             </div>
                                             <div className="flex justify-between items-baseline gap-2">
-                                                <span className="text-muted-foreground shrink-0">Telepon / Fax:</span>
-                                                <span className="font-mono text-foreground text-right break-words">
+                                                <span className="text-muted-foreground font-medium shrink-0">Telepon / Fax:</span>
+                                                <span className="font-semibold text-foreground text-right break-words tracking-wide tabular-nums">
                                                     {renderValue(selectedPenawaran.Telp)}
                                                     {selectedPenawaran.Fax ? ` / ${selectedPenawaran.Fax}` : ''}
                                                 </span>
                                             </div>
                                             <div className="flex justify-between items-baseline gap-2">
-                                                <span className="text-muted-foreground shrink-0">Email:</span>
-                                                <span className="font-medium text-foreground text-right break-words">{renderValue(selectedPenawaran.Email)}</span>
+                                                <span className="text-muted-foreground font-medium shrink-0">Email:</span>
+                                                <span className="font-semibold text-foreground text-right break-words">{renderValue(selectedPenawaran.Email)}</span>
                                             </div>
                                             <div className="flex justify-between items-baseline gap-2">
-                                                <span className="text-muted-foreground shrink-0">Attend:</span>
-                                                <span className="font-bold text-indigo-600 dark:text-indigo-400 text-right break-words">{renderValue(selectedPenawaran.Attend)}</span>
+                                                <span className="text-muted-foreground font-medium shrink-0">Attend:</span>
+                                                <span className="font-semibold text-indigo-600 dark:text-indigo-400 text-right break-words">{renderValue(selectedPenawaran.Attend)}</span>
                                             </div>
                                             <div className="flex justify-between items-baseline gap-2 pt-1 border-t border-sidebar-border/30">
-                                                <span className="text-muted-foreground shrink-0">Tgl Penawaran:</span>
-                                                <span className="font-mono text-foreground">{renderValue(selectedPenawaran.Tgl_Penawaran)}</span>
+                                                <span className="text-muted-foreground font-medium shrink-0">Tgl Penawaran:</span>
+                                                <span className="font-semibold text-foreground tracking-wide tabular-nums">{renderValue(selectedPenawaran.Tgl_Penawaran)}</span>
                                             </div>
                                         </div>
                                     </div>
 
                                     {/* Card Syarat & Ketentuan */}
                                     <div className="rounded-xl border border-sidebar-border/60 bg-muted/30 p-4 space-y-3">
-                                        <div className="flex items-center gap-2 font-bold text-foreground text-xs border-b border-sidebar-border/40 pb-2">
+                                        <div className="flex items-center gap-2 font-bold text-foreground text-sm border-b border-sidebar-border/40 pb-2">
                                             <FileText className="size-4 text-teal-600" />
                                             <span>Syarat & Catatan Penawaran</span>
                                         </div>
 
-                                        <div className="space-y-2 text-[11px]">
+                                        <div className="space-y-2.5 text-sm">
                                             <div className="flex justify-between items-baseline gap-2">
-                                                <span className="text-muted-foreground shrink-0">Validity:</span>
+                                                <span className="text-muted-foreground font-medium shrink-0">Payment Terms:</span>
+                                                <span className="font-semibold text-foreground text-right break-words">
+                                                    {renderValue(selectedPenawaran.Payment ?? selectedPenawaran.payment)}
+                                                </span>
+                                            </div>
+                                            <div className="flex justify-between items-baseline gap-2">
+                                                <span className="text-muted-foreground font-medium shrink-0">Validity:</span>
                                                 <span className="font-semibold text-foreground text-right break-words">{renderValue(selectedPenawaran.Validity)}</span>
                                             </div>
                                             <div className="flex justify-between items-baseline gap-2">
-                                                <span className="text-muted-foreground shrink-0">Delivery:</span>
+                                                <span className="text-muted-foreground font-medium shrink-0">Delivery:</span>
                                                 <span className="font-semibold text-foreground text-right break-words">{renderValue(selectedPenawaran.Delivery)}</span>
                                             </div>
                                             <div className="flex justify-between items-baseline gap-2">
-                                                <span className="text-muted-foreground shrink-0">Franco:</span>
+                                                <span className="text-muted-foreground font-medium shrink-0">Franco:</span>
                                                 <span className="font-semibold text-foreground text-right break-words">{renderValue(selectedPenawaran.Franco)}</span>
                                             </div>
-                                            <div className="pt-1 border-t border-sidebar-border/30 space-y-1">
-                                                <span className="text-muted-foreground block text-[10.5px]">Notes:</span>
-                                                <div className="rounded-lg bg-background/80 p-2 border border-sidebar-border/40 text-[10.5px] space-y-0.5 text-foreground/80 font-mono break-words">
-                                                    <div>1. {renderValue(selectedPenawaran.Note1)}</div>
-                                                    <div>2. {renderValue(selectedPenawaran.Note2)}</div>
-                                                    <div>3. {renderValue(selectedPenawaran.Note3)}</div>
-                                                </div>
-                                            </div>
+                                            {(() => {
+                                                const activeNotes = [
+                                                    selectedPenawaran.Note1,
+                                                    selectedPenawaran.Note2,
+                                                    selectedPenawaran.Note3,
+                                                ].filter(isValidNote);
+
+                                                if (activeNotes.length === 0) return null;
+
+                                                return (
+                                                    <div className="pt-1 border-t border-sidebar-border/30 space-y-1.5">
+                                                        <span className="text-muted-foreground font-medium block">Notes:</span>
+                                                        <div className="rounded-lg bg-background/80 p-2.5 border border-sidebar-border/40 text-sm space-y-1 text-foreground/90 font-medium break-words">
+                                                            {activeNotes.map((noteText, idx) => (
+                                                                <div key={idx}>
+                                                                    {activeNotes.length > 1 ? `${idx + 1}. ` : ''}{String(noteText).trim()}
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })()}
                                         </div>
                                     </div>
                                 </div>
@@ -1121,7 +1065,7 @@ export default function QuotationIndex({
                                 {/* Material Details Section */}
                                 <div className="space-y-3 pt-2">
                                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
-                                        <div className="flex items-center gap-2 font-bold text-foreground text-xs">
+                                        <div className="flex items-center gap-2 font-bold text-foreground text-sm">
                                             <Boxes className="size-4 text-emerald-600" />
                                             <span>Rincian Material ({materialModalTotalItems} Item)</span>
                                         </div>
@@ -1129,7 +1073,7 @@ export default function QuotationIndex({
                                         <div className="flex items-center gap-2">
                                             <input
                                                 type="search"
-                                                className="h-8 rounded-xl border border-sidebar-border/80 bg-background px-2.5 text-xs placeholder:text-muted-foreground/60 focus:border-emerald-500 focus:outline-hidden"
+                                                className="h-9 rounded-xl border border-sidebar-border/80 bg-background px-3 text-sm placeholder:text-muted-foreground/60 focus:border-emerald-500 focus:outline-hidden"
                                                 placeholder="Cari dalam detail..."
                                                 value={materialSearchTerm}
                                                 onChange={(event) => {
@@ -1138,7 +1082,7 @@ export default function QuotationIndex({
                                                 }}
                                             />
                                             <select
-                                                className="h-8 rounded-xl border border-sidebar-border/80 bg-background px-2 text-xs font-semibold cursor-pointer"
+                                                className="h-9 rounded-xl border border-sidebar-border/80 bg-background px-2.5 text-sm font-semibold cursor-pointer"
                                                 value={modalMaterialPageSize === Infinity ? 'all' : modalMaterialPageSize}
                                                 onChange={(event) => {
                                                     const value = event.target.value;
@@ -1157,22 +1101,22 @@ export default function QuotationIndex({
                                     {/* Material Sub-Table */}
                                     <div className="overflow-hidden rounded-xl border border-sidebar-border/70 bg-card">
                                         <div className="overflow-x-auto">
-                                            <table className="w-full text-left text-xs border-collapse">
+                                            <table className="w-full text-left text-sm border-collapse">
                                                 <thead>
-                                                    <tr className="border-b border-sidebar-border/60 bg-muted/40 text-[10px] font-black uppercase text-muted-foreground tracking-wider">
-                                                        <th className="py-2.5 px-3 w-10 text-center whitespace-nowrap">No</th>
-                                                        <th className="py-2.5 px-3 w-1/3 min-w-[140px]">Material</th>
-                                                        <th className="py-2.5 px-3 w-20 whitespace-nowrap">Qty</th>
-                                                        <th className="py-2.5 px-3 w-28 text-right whitespace-nowrap">Harga</th>
-                                                        <th className="py-2.5 px-3 w-28 text-right whitespace-nowrap">Modal</th>
-                                                        <th className="py-2.5 px-3 w-20 text-center whitespace-nowrap">Margin</th>
-                                                        <th className="py-2.5 px-3 w-1/3 min-w-[140px]">Remark</th>
+                                                    <tr className="border-b border-sidebar-border/60 bg-muted/40 text-sm font-semibold uppercase text-muted-foreground tracking-wider">
+                                                        <th className="py-3 px-3.5 w-14 text-center whitespace-nowrap">No</th>
+                                                        <th className="py-3 px-3.5 min-w-[180px]">Material</th>
+                                                        <th className="py-3 px-3.5 w-28 whitespace-nowrap">Qty</th>
+                                                        <th className="py-3 px-3.5 w-36 text-right whitespace-nowrap">Harga</th>
+                                                        <th className="py-3 px-3.5 w-36 text-right whitespace-nowrap">Modal</th>
+                                                        <th className="py-3 px-3.5 w-24 text-center whitespace-nowrap">Margin</th>
+                                                        <th className="py-3 px-3.5 min-w-[160px]">Remark</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody className="divide-y divide-sidebar-border/40">
                                                     {detailLoading ? (
                                                         <tr>
-                                                            <td colSpan={7} className="py-6 text-center text-muted-foreground">
+                                                            <td colSpan={7} className="py-8 text-center text-sm font-medium text-muted-foreground">
                                                                 <div className="flex items-center justify-center gap-2">
                                                                     <RefreshCw className="size-4 animate-spin text-emerald-500" />
                                                                     <span>Memuat detail material...</span>
@@ -1181,36 +1125,36 @@ export default function QuotationIndex({
                                                         </tr>
                                                     ) : filteredMaterialDetails.length === 0 ? (
                                                         <tr>
-                                                            <td colSpan={7} className="py-6 text-center text-muted-foreground">
+                                                            <td colSpan={7} className="py-8 text-center text-sm font-medium text-muted-foreground">
                                                                 Tidak ada rincian material ditemukan.
                                                             </td>
                                                         </tr>
                                                     ) : (
                                                         displayedMaterialDetails.map((detail, index) => (
                                                             <tr key={index} className="hover:bg-muted/30 transition-colors">
-                                                                <td className="py-2.5 px-3 text-center font-mono text-[11px] text-muted-foreground whitespace-nowrap">
+                                                                <td className="py-3 px-3.5 text-center text-sm font-semibold text-muted-foreground whitespace-nowrap tracking-wide tabular-nums">
                                                                     {modalMaterialPageSize === Infinity
                                                                         ? index + 1
                                                                         : (modalMaterialCurrentPage - 1) * modalMaterialPageSize + index + 1}
                                                                 </td>
-                                                                <td className="py-2.5 px-3 font-semibold text-foreground uppercase break-words">
+                                                                <td className="py-3 px-3.5 text-sm font-semibold text-foreground uppercase break-words">
                                                                     {renderValue(detail.Material)}
                                                                 </td>
-                                                                <td className="py-2.5 px-3 font-mono font-medium whitespace-nowrap">
-                                                                    {detail.Qty} {detail.Satuan || ''}
+                                                                <td className="py-3 px-3.5 text-sm font-semibold text-foreground whitespace-nowrap tracking-wide tabular-nums">
+                                                                    {formatNumber(detail.Qty)} {detail.Satuan || ''}
                                                                 </td>
-                                                                <td className="py-2.5 px-3 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                                                                <td className="py-3 px-3.5 text-right text-sm font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap tracking-wide tabular-nums">
                                                                     Rp {formatNumber(detail.Harga)}
                                                                 </td>
-                                                                <td className="py-2.5 px-3 text-right font-mono text-muted-foreground whitespace-nowrap">
+                                                                <td className="py-3 px-3.5 text-right text-sm font-semibold text-muted-foreground whitespace-nowrap tracking-wide tabular-nums">
                                                                     Rp {formatNumber(detail.Harga_Modal || detail.Harga_modal)}
                                                                 </td>
-                                                                <td className="py-2.5 px-3 text-center whitespace-nowrap">
-                                                                    <span className="rounded-md bg-muted px-1.5 py-0.5 font-mono text-[10px] font-bold">
+                                                                <td className="py-3 px-3.5 text-center whitespace-nowrap">
+                                                                    <span className="rounded-md bg-muted px-2 py-0.5 text-sm font-semibold tracking-wide tabular-nums">
                                                                         {formatPercent(detail.Margin)}
                                                                     </span>
                                                                 </td>
-                                                                <td className="py-2.5 px-3 align-top text-[11px] text-muted-foreground break-words">
+                                                                <td className="py-3 px-3.5 align-top text-sm font-medium text-muted-foreground break-words">
                                                                     <FormattedRemark value={detail.Remark} />
                                                                 </td>
                                                             </tr>
@@ -1222,15 +1166,15 @@ export default function QuotationIndex({
 
                                         {/* Modal Material Pagination */}
                                         {modalMaterialPageSize !== Infinity && materialModalTotalItems > 0 && (
-                                            <div className="flex items-center justify-between p-3 border-t border-sidebar-border/40 text-[11px] text-muted-foreground bg-muted/20">
-                                                <span>
+                                            <div className="flex items-center justify-between p-3.5 border-t border-sidebar-border/40 text-sm text-muted-foreground bg-muted/20 font-medium">
+                                                <span className="tracking-wide tabular-nums">
                                                     Halaman {modalMaterialCurrentPage} dari {materialModalTotalPages}
                                                 </span>
-                                                <div className="flex items-center gap-1">
+                                                <div className="flex items-center gap-1.5">
                                                     <Button
                                                         variant="outline"
                                                         size="sm"
-                                                        className="h-7 text-xs px-2.5 rounded-lg"
+                                                        className="h-8 text-sm font-semibold px-3 rounded-lg"
                                                         onClick={() => setModalMaterialCurrentPage((page) => Math.max(1, page - 1))}
                                                         disabled={modalMaterialCurrentPage === 1}
                                                     >
@@ -1239,7 +1183,7 @@ export default function QuotationIndex({
                                                     <Button
                                                         variant="outline"
                                                         size="sm"
-                                                        className="h-7 text-xs px-2.5 rounded-lg"
+                                                        className="h-8 text-sm font-semibold px-3 rounded-lg"
                                                         onClick={() => setModalMaterialCurrentPage((page) => Math.min(materialModalTotalPages, page + 1))}
                                                         disabled={modalMaterialCurrentPage === materialModalTotalPages}
                                                     >

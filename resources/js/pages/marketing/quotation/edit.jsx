@@ -2692,13 +2692,12 @@ export default function QuotationEdit({
                                     <Boxes className="size-6" />
                                 </div>
                                 <div>
-                                    <DialogTitle className="text-xl font-black tracking-tight text-foreground">
+                                    <DialogTitle className="text-xl font-bold tracking-tight text-foreground">
                                         Pilih Material dari Database Gudang
                                     </DialogTitle>
-                                    <DialogDescription className="text-xs text-muted-foreground mt-0.5">
-                                        Cek ketersediaan stok fisik riil
-                                        gudang (G1-G4) dan referensi harga modal
-                                        terakhir.
+                                    <DialogDescription className="text-sm text-muted-foreground mt-0.5">
+                                        Cek ketersediaan total stok fisik
+                                        gudang dan referensi spesifikasi barang.
                                     </DialogDescription>
                                 </div>
                             </div>
@@ -2716,10 +2715,10 @@ export default function QuotationEdit({
                                         }
                                     />
                                 </div>
-                                <div className="flex items-center gap-2 text-xs font-semibold text-muted-foreground">
+                                <div className="flex items-center gap-2 text-sm font-semibold text-muted-foreground">
                                     <span>Tampilkan:</span>
                                     <select
-                                        className="h-10 rounded-xl border border-input bg-background px-3 py-1 text-xs font-bold"
+                                        className="h-10 rounded-xl border border-input bg-background px-3 py-1 text-sm font-semibold"
                                         value={
                                             materialPageSize === Infinity
                                                 ? 'all'
@@ -2746,44 +2745,23 @@ export default function QuotationEdit({
                     </DialogHeader>
 
                     <div className="overflow-x-auto rounded-2xl border border-sidebar-border/70">
-                        <table className="w-full text-sm text-left border-collapse">
-                            <thead className="bg-muted/50 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                        <table className="w-full text-left border-collapse">
+                            <thead className="bg-muted/50 border-b border-sidebar-border/70 text-sm font-semibold text-muted-foreground">
                                 <tr>
-                                    <th
-                                        className="px-4 py-3.5 w-32"
-                                        rowSpan={2}
-                                    >
+                                    <th className="px-4 py-3.5 w-44 text-left">
                                         Kode Material
                                     </th>
-                                    <th className="px-4 py-3.5" rowSpan={2}>
+                                    <th className="px-4 py-3.5 text-left">
                                         Nama Material
                                     </th>
-                                    <th
-                                        className="px-3 py-2 text-center border-b border-sidebar-border/60 bg-muted/60"
-                                        colSpan={5}
-                                    >
-                                        Ketersediaan Stok Gudang
+                                    <th className="px-4 py-3.5 w-36 text-right">
+                                        Total Stok
                                     </th>
-                                    <th
-                                        className="px-4 py-3.5 w-24 text-center"
-                                        rowSpan={2}
-                                    >
+                                    <th className="px-4 py-3.5 w-28 text-center">
                                         Satuan
                                     </th>
-                                    <th
-                                        className="px-4 py-3.5 w-24 text-center"
-                                        rowSpan={2}
-                                    >
+                                    <th className="px-4 py-3.5 w-28 text-center">
                                         Aksi
-                                    </th>
-                                </tr>
-                                <tr className="bg-muted/30 text-[11px] text-muted-foreground">
-                                    <th className="px-3 py-2 text-right">G1</th>
-                                    <th className="px-3 py-2 text-right">G2</th>
-                                    <th className="px-3 py-2 text-right">G3</th>
-                                    <th className="px-3 py-2 text-right">G4</th>
-                                    <th className="px-3 py-2 text-right font-black text-foreground">
-                                        Total
                                     </th>
                                 </tr>
                             </thead>
@@ -2791,8 +2769,8 @@ export default function QuotationEdit({
                                 {displayedMaterials.length === 0 ? (
                                     <tr>
                                         <td
-                                            colSpan={9}
-                                            className="py-12 text-center text-xs text-muted-foreground"
+                                            colSpan={5}
+                                            className="py-12 text-center text-sm font-medium text-muted-foreground"
                                         >
                                             {materialLoading
                                                 ? 'Memuat data material...'
@@ -2812,41 +2790,29 @@ export default function QuotationEdit({
                                                 handleSelectMaterial(item)
                                             }
                                         >
-                                            <td className="px-4 py-3 font-mono text-xs font-bold text-primary whitespace-nowrap">
+                                            <td className="px-4 py-3.5 text-sm font-semibold text-primary whitespace-nowrap tracking-wide">
                                                 {item.kd_material ?? '-'}
                                             </td>
-                                            <td className="px-4 py-3 font-bold text-foreground">
+                                            <td className="px-4 py-3.5 text-sm font-semibold text-foreground">
                                                 {item.material ?? '-'}
                                             </td>
-                                            <td className="px-3 py-3 text-right font-mono text-xs text-muted-foreground whitespace-nowrap">
-                                                {formatInteger(item.stok_g1)}
-                                            </td>
-                                            <td className="px-3 py-3 text-right font-mono text-xs text-muted-foreground whitespace-nowrap">
-                                                {formatInteger(item.stok_g2)}
-                                            </td>
-                                            <td className="px-3 py-3 text-right font-mono text-xs text-muted-foreground whitespace-nowrap">
-                                                {formatInteger(item.stok_g3)}
-                                            </td>
-                                            <td className="px-3 py-3 text-right font-mono text-xs text-muted-foreground whitespace-nowrap">
-                                                {formatInteger(item.stok_g4)}
-                                            </td>
-                                            <td className="px-3 py-3 text-right font-mono text-xs font-black text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
+                                            <td className="px-4 py-3.5 text-right text-sm font-semibold text-emerald-600 dark:text-emerald-400 whitespace-nowrap tabular-nums tracking-wide">
                                                 {formatInteger(item.stok)}
                                             </td>
-                                            <td className="px-4 py-3 text-center text-xs">
+                                            <td className="px-4 py-3.5 text-center text-sm font-semibold">
                                                 <Badge
                                                     variant="outline"
-                                                    className="font-medium"
+                                                    className="text-sm font-semibold px-2.5 py-0.5"
                                                 >
                                                     {item.unit ?? '-'}
                                                 </Badge>
                                             </td>
-                                            <td className="px-4 py-3 text-center">
+                                            <td className="px-4 py-3.5 text-center">
                                                 <Button
                                                     type="button"
                                                     size="sm"
                                                     variant="secondary"
-                                                    className="h-8 rounded-xl text-xs font-bold border hover:bg-muted"
+                                                    className="h-8 px-3 rounded-xl text-sm font-semibold border hover:bg-muted"
                                                     onClick={() =>
                                                         handleSelectMaterial(
                                                             item,
@@ -2865,7 +2831,7 @@ export default function QuotationEdit({
 
                     {materialPageSize !== Infinity &&
                         materialTotalItems > 0 && (
-                            <div className="flex flex-wrap items-center justify-between gap-4 border-t border-sidebar-border/60 pt-4 text-xs text-muted-foreground">
+                            <div className="flex flex-wrap items-center justify-between gap-4 border-t border-sidebar-border/60 pt-4 text-sm text-muted-foreground">
                                 <span className="font-medium">
                                     Menampilkan{' '}
                                     <strong className="text-foreground">
@@ -2889,7 +2855,7 @@ export default function QuotationEdit({
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        className="h-8 rounded-xl text-xs font-bold"
+                                        className="h-8 rounded-xl text-sm font-semibold"
                                         onClick={() =>
                                             setMaterialPage((page) =>
                                                 Math.max(1, page - 1),
@@ -2899,14 +2865,14 @@ export default function QuotationEdit({
                                     >
                                         Sebelumnya
                                     </Button>
-                                    <span className="font-bold text-foreground px-2">
+                                    <span className="font-semibold text-foreground px-2">
                                         Halaman {materialPage} dari{' '}
                                         {materialTotalPages}
                                     </span>
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        className="h-8 rounded-xl text-xs font-bold"
+                                        className="h-8 rounded-xl text-sm font-semibold"
                                         onClick={() =>
                                             setMaterialPage((page) =>
                                                 Math.min(

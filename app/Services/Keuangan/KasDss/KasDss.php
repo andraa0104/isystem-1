@@ -7,7 +7,6 @@ use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
-use Symfony\Component\Process\Process;
 
 class KasDss
 {
@@ -418,60 +417,6 @@ class KasDss
         return rtrim((string) env('KAS_DSS_PYTHON_URL', 'http://127.0.0.1:8000'), '/') . '/predict';
     }
 
-    private function startPythonServiceIfNeeded(string $url): void
-    {
-        try {
-            Http::timeout(1)->acceptJson()->post($url, [
-                'mode' => 'out',
-                'keterangan' => '__healthcheck__',
-                'nominal' => 0,
-                'hasPpn' => false,
-                'ppnNominal' => 0,
-                'seedAkun' => '',
-            ]);
-            return;
-        } catch (\Throwable) {
-            // Try to start the optional Python service below.
-        }
-
-        $dir = base_path('app/Services/Keuangan/KasDss/python_ml');
-        $python = $dir . '/venv/bin/python';
-        $main = $dir . '/main.py';
-        if (!is_file($python) || !is_file($main)) return;
-
-        try {
-            $log = storage_path('logs/kas-dss-python.log');
-            $sitePackages = glob($dir . '/venv/lib/python*/site-packages');
-            $pythonPath = is_array($sitePackages) && isset($sitePackages[0]) ? (string) $sitePackages[0] : '';
-            $cmd = sprintf(
-                'cd %s && PYTHONPATH=%s nohup %s -m uvicorn main:app --host 127.0.0.1 --port 8000 >> %s 2>&1 &',
-                escapeshellarg($dir),
-                escapeshellarg($pythonPath),
-                escapeshellarg($python),
-                escapeshellarg($log)
-            );
-            Process::fromShellCommandline($cmd)->setTimeout(3)->run();
-            for ($i = 0; $i < 10; $i++) {
-                usleep(500000);
-                try {
-                    Http::timeout(1)->acceptJson()->post($url, [
-                        'mode' => 'out',
-                        'keterangan' => '__healthcheck__',
-                        'nominal' => 0,
-                        'hasPpn' => false,
-                        'ppnNominal' => 0,
-                        'seedAkun' => '',
-                    ]);
-                    return;
-                } catch (\Throwable) {
-                    // Keep waiting until the startup window expires.
-                }
-            }
-        } catch (\Throwable) {
-            // The caller will fall back to the PHP recommender.
-        }
-    }
-
     /**
      * Fallback in-process recommender. Keeps AI suggestions working when the
      * optional Python prediction service is not running.
@@ -617,7 +562,6 @@ class KasDss
 
         try {
             $url = $this->pythonPredictUrl();
-            $this->startPythonServiceIfNeeded($url);
             $payload = [
                 'mode' => $mode,
                 'keterangan' => $keterangan,

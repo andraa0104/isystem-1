@@ -811,6 +811,14 @@ def startup_event():
     except Exception as e:
         print("Initial training failed:", e)
 
+@app.get("/health")
+def health_check():
+    return {"status": "ok", "service": "isystem-ml"}
+
+@app.get("/")
+def root_check():
+    return {"status": "ok", "service": "isystem-ml"}
+
 @app.post("/predict")
 def predict(req: SuggestRequest):
     req_nominal = safe_float(req.nominal, 0.0)
