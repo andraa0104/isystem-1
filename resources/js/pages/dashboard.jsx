@@ -9,7 +9,6 @@ import { dashboard } from '@/routes/index';
 import { Head, usePage } from '@inertiajs/react';
 import axios from 'axios';
 import {
-    Activity,
     AlertCircle,
     ArrowDownRight,
     ArrowUpRight,
@@ -19,8 +18,6 @@ import {
     CheckCircle2,
     ChevronDown,
     Clock,
-    CreditCard,
-    DollarSign,
     Eye,
     Layers,
     LineChart,
@@ -32,13 +29,12 @@ import {
     SlidersHorizontal,
     Sparkles,
     Sun,
-    SunMedium,
+    Sunrise,
     Sunset,
     TrendingDown,
     TrendingUp,
     Truck,
     Wallet,
-    Zap,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -116,18 +112,24 @@ function getGreetingInfo(date) {
         return {
             greeting: 'Selamat Pagi',
             sub: 'Awali aktivitas dengan bismillah & fokus produktif',
-            icon: Sun,
-            iconClass: 'text-amber-500 dark:text-amber-400',
-            badgeBg: 'bg-amber-500/10 border-amber-500/25 text-amber-600 dark:text-amber-400',
+            icon: Sunrise,
+            iconColor: 'text-amber-500 dark:text-amber-400',
+            containerClass:
+                'bg-gradient-to-br from-amber-500/20 via-orange-500/10 to-transparent ring-1 ring-amber-500/30 shadow-md shadow-amber-500/10',
+            pingClass: 'bg-amber-400',
+            dotClass: 'bg-amber-500',
         };
     }
     if (hour >= 11 && hour < 15) {
         return {
             greeting: 'Selamat Siang',
             sub: 'Pantau operasional dan pergerakan arus kas bisnis',
-            icon: SunMedium,
-            iconClass: 'text-amber-500 dark:text-amber-300',
-            badgeBg: 'bg-amber-500/10 border-amber-500/25 text-amber-600 dark:text-amber-300',
+            icon: Sun,
+            iconColor: 'text-amber-500 dark:text-yellow-400',
+            containerClass:
+                'bg-gradient-to-br from-yellow-500/20 via-amber-500/10 to-transparent ring-1 ring-amber-500/30 shadow-md shadow-amber-500/10',
+            pingClass: 'bg-yellow-400',
+            dotClass: 'bg-amber-500',
         };
     }
     if (hour >= 15 && hour < 18) {
@@ -135,16 +137,22 @@ function getGreetingInfo(date) {
             greeting: 'Selamat Sore',
             sub: 'Evaluasi pencapaian target dan transaksi hari ini',
             icon: Sunset,
-            iconClass: 'text-orange-500 dark:text-orange-400',
-            badgeBg: 'bg-orange-500/10 border-orange-500/25 text-orange-600 dark:text-orange-400',
+            iconColor: 'text-orange-500 dark:text-orange-400',
+            containerClass:
+                'bg-gradient-to-br from-orange-500/20 via-rose-500/10 to-transparent ring-1 ring-orange-500/30 shadow-md shadow-orange-500/10',
+            pingClass: 'bg-orange-400',
+            dotClass: 'bg-orange-500',
         };
     }
     return {
         greeting: 'Selamat Malam',
         sub: 'Laporan terintegrasi waktu-nyata & sinkronisasi otomatis',
         icon: Moon,
-        iconClass: 'text-indigo-400 dark:text-indigo-300',
-        badgeBg: 'bg-indigo-500/10 border-indigo-500/25 text-indigo-400 dark:text-indigo-300',
+        iconColor: 'text-indigo-400 dark:text-indigo-300',
+        containerClass:
+            'bg-gradient-to-br from-indigo-500/20 via-purple-500/10 to-transparent ring-1 ring-indigo-500/30 shadow-md shadow-indigo-500/10',
+        pingClass: 'bg-indigo-400',
+        dotClass: 'bg-indigo-500',
     };
 }
 
@@ -874,11 +882,11 @@ export default function Dashboard({
                     className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between rounded-3xl border border-sidebar-border border-sidebar-border/70 bg-card bg-gradient-to-r from-card/95 via-card/85 to-card/70 p-5 sm:p-6 backdrop-blur-2xl shadow-xl shadow-black/[0.03] dark:shadow-black/35 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-emerald-500/35 before:to-transparent"
                 >
                     <div className="flex items-start sm:items-center gap-4">
-                        <div className="relative flex size-13 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/20 via-cyan-500/10 to-transparent ring-1 ring-emerald-500/30 shadow-md shadow-emerald-500/10">
-                            <Zap className="size-6 text-emerald-500" />
+                        <div className={`relative flex size-13 shrink-0 items-center justify-center rounded-2xl ${greetingInfo.containerClass}`}>
+                            <GreetingIcon className={`size-6 ${greetingInfo.iconColor}`} />
                             <span className="absolute -top-1 -right-1 flex size-3">
-                                <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                                <span className="relative inline-flex size-3 rounded-full bg-emerald-500 ring-2 ring-background" />
+                                <span className={`absolute inline-flex size-full animate-ping rounded-full opacity-75 ${greetingInfo.pingClass}`} />
+                                <span className={`relative inline-flex size-3 rounded-full ring-2 ring-background ${greetingInfo.dotClass}`} />
                             </span>
                         </div>
 
@@ -887,10 +895,6 @@ export default function Dashboard({
                                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
                                     <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
                                     {companyName}
-                                </span>
-                                <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold border ${greetingInfo.badgeBg}`}>
-                                    <GreetingIcon className="size-3" />
-                                    <span>{greetingInfo.greeting}</span>
                                 </span>
                                 <span className="text-muted-foreground/40">•</span>
                                 <span className="text-xs text-muted-foreground font-mono tabular-nums">
@@ -971,34 +975,24 @@ export default function Dashboard({
                                 : 'hover:border-emerald-500/40 hover:shadow-emerald-500/10 before:via-emerald-500/40'
                             }`}
                     >
-                        <div className="flex items-start justify-between">
-                            <div>
-                                <div className="flex items-center gap-1.5 flex-wrap">
-                                    <span className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground">
-                                        Total Penjualan
-                                    </span>
-                                    <span className="inline-flex items-center rounded-full bg-muted/60 px-2 py-0.5 text-[10px] font-bold text-foreground/80 border border-sidebar-border/60">
-                                        {currentMonthInfo.label}
-                                    </span>
-                                </div>
-                                <div
-                                    className="mt-1 text-xl sm:text-2xl font-black tracking-tight text-foreground tabular-nums truncate"
-                                    title={`Rp ${formatNumber(currentMonthInfo.sales)}`}
-                                >
-                                    {salesHppRequest.status === 'pending' && !salesHppRequest.data ? (
-                                        <span className="inline-block h-8 w-28 animate-pulse rounded-lg bg-muted/60" />
-                                    ) : (
-                                        `Rp ${formatNumber(currentMonthInfo.sales)}`
-                                    )}
-                                </div>
+                        <div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground">
+                                    Total Penjualan
+                                </span>
+                                <span className="inline-flex items-center rounded-full bg-muted/60 px-2 py-0.5 text-[10px] font-bold text-foreground/80 border border-sidebar-border/60">
+                                    {currentMonthInfo.label}
+                                </span>
                             </div>
                             <div
-                                className={`flex size-10 items-center justify-center rounded-2xl border group-hover:scale-110 transition-transform shadow-xs ${isSalesMarginMinus
-                                        ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/25'
-                                        : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25'
-                                    }`}
+                                className="mt-1 text-xl sm:text-2xl font-black tracking-tight text-foreground tabular-nums truncate"
+                                title={`Rp ${formatNumber(currentMonthInfo.sales)}`}
                             >
-                                <DollarSign className="size-5" />
+                                {salesHppRequest.status === 'pending' && !salesHppRequest.data ? (
+                                    <span className="inline-block h-8 w-28 animate-pulse rounded-lg bg-muted/60" />
+                                ) : (
+                                    `Rp ${formatNumber(currentMonthInfo.sales)}`
+                                )}
                             </div>
                         </div>
 
@@ -1033,21 +1027,16 @@ export default function Dashboard({
                         whileHover={{ y: -4, transition: { duration: 0.2 } }}
                         className="group relative overflow-hidden rounded-3xl border border-sidebar-border border-sidebar-border/70 bg-card bg-gradient-to-br from-card/95 via-card/75 to-background/50 p-5 backdrop-blur-2xl shadow-lg shadow-black/[0.02] dark:shadow-black/25 hover:border-sky-500/40 hover:shadow-sky-500/10 transition-all before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-sky-500/40 before:to-transparent"
                     >
-                        <div className="flex items-start justify-between">
-                            <div>
-                                <span className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground">
-                                    Kas & Bank Liquid
-                                </span>
-                                <div className="mt-1 text-xl sm:text-2xl font-black tracking-tight text-foreground tabular-nums truncate" title={`Rp ${formatNumber(totalSaldoKas)}`}>
-                                    {saldoRequest.status === 'pending' && totalSaldoKas === 0 ? (
-                                        <span className="inline-block h-8 w-28 animate-pulse rounded-lg bg-muted/60" />
-                                    ) : (
-                                        `Rp ${formatNumber(totalSaldoKas)}`
-                                    )}
-                                </div>
-                            </div>
-                            <div className="flex size-10 items-center justify-center rounded-2xl bg-sky-500/10 text-sky-600 dark:text-sky-400 border border-sky-500/25 group-hover:scale-110 transition-transform shadow-xs">
-                                <Wallet className="size-5" />
+                        <div>
+                            <span className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground">
+                                Kas & Bank Liquid
+                            </span>
+                            <div className="mt-1 text-xl sm:text-2xl font-black tracking-tight text-foreground tabular-nums truncate" title={`Rp ${formatNumber(totalSaldoKas)}`}>
+                                {saldoRequest.status === 'pending' && totalSaldoKas === 0 ? (
+                                    <span className="inline-block h-8 w-28 animate-pulse rounded-lg bg-muted/60" />
+                                ) : (
+                                    `Rp ${formatNumber(totalSaldoKas)}`
+                                )}
                             </div>
                         </div>
 
@@ -1072,21 +1061,16 @@ export default function Dashboard({
                         whileHover={{ y: -4, transition: { duration: 0.2 } }}
                         className="group relative overflow-hidden rounded-3xl border border-sidebar-border border-sidebar-border/70 bg-card bg-gradient-to-br from-card/95 via-card/75 to-background/50 p-5 backdrop-blur-2xl shadow-lg shadow-black/[0.02] dark:shadow-black/25 hover:border-indigo-500/40 hover:shadow-indigo-500/10 transition-all before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-indigo-500/40 before:to-transparent"
                     >
-                        <div className="flex items-start justify-between">
-                            <div>
-                                <span className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground">
-                                    Piutang Pelanggan
-                                </span>
-                                <div className="mt-1 text-xl sm:text-2xl font-black tracking-tight text-foreground tabular-nums truncate" title={`Rp ${formatNumber(piutangData?.total ?? 0)}`}>
-                                    {receivablePayableRequest.status === 'pending' && !receivablePayableRequest.data ? (
-                                        <span className="inline-block h-8 w-28 animate-pulse rounded-lg bg-muted/60" />
-                                    ) : (
-                                        `Rp ${formatNumber(piutangData?.total ?? 0)}`
-                                    )}
-                                </div>
-                            </div>
-                            <div className="flex size-10 items-center justify-center rounded-2xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/25 group-hover:scale-110 transition-transform shadow-xs">
-                                <CreditCard className="size-5" />
+                        <div>
+                            <span className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground">
+                                Piutang Pelanggan
+                            </span>
+                            <div className="mt-1 text-xl sm:text-2xl font-black tracking-tight text-foreground tabular-nums truncate" title={`Rp ${formatNumber(piutangData?.total ?? 0)}`}>
+                                {receivablePayableRequest.status === 'pending' && !receivablePayableRequest.data ? (
+                                    <span className="inline-block h-8 w-28 animate-pulse rounded-lg bg-muted/60" />
+                                ) : (
+                                    `Rp ${formatNumber(piutangData?.total ?? 0)}`
+                                )}
                             </div>
                         </div>
 
@@ -1115,21 +1099,16 @@ export default function Dashboard({
                         whileHover={{ y: -4, transition: { duration: 0.2 } }}
                         className="group relative overflow-hidden rounded-3xl border border-sidebar-border border-sidebar-border/70 bg-card bg-gradient-to-br from-card/95 via-card/75 to-background/50 p-5 backdrop-blur-2xl shadow-lg shadow-black/[0.02] dark:shadow-black/25 hover:border-amber-500/40 hover:shadow-amber-500/10 transition-all before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-amber-500/40 before:to-transparent"
                     >
-                        <div className="flex items-start justify-between">
-                            <div>
-                                <span className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground">
-                                    Hutang Supplier
-                                </span>
-                                <div className="mt-1 text-xl sm:text-2xl font-black tracking-tight text-foreground tabular-nums truncate" title={`Rp ${formatNumber(hutangData?.total ?? 0)}`}>
-                                    {receivablePayableRequest.status === 'pending' && !receivablePayableRequest.data ? (
-                                        <span className="inline-block h-8 w-28 animate-pulse rounded-lg bg-muted/60" />
-                                    ) : (
-                                        `Rp ${formatNumber(hutangData?.total ?? 0)}`
-                                    )}
-                                </div>
-                            </div>
-                            <div className="flex size-10 items-center justify-center rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/25 group-hover:scale-110 transition-transform shadow-xs">
-                                <Activity className="size-5" />
+                        <div>
+                            <span className="text-[11px] font-bold tracking-wider uppercase text-muted-foreground">
+                                Hutang Supplier
+                            </span>
+                            <div className="mt-1 text-xl sm:text-2xl font-black tracking-tight text-foreground tabular-nums truncate" title={`Rp ${formatNumber(hutangData?.total ?? 0)}`}>
+                                {receivablePayableRequest.status === 'pending' && !receivablePayableRequest.data ? (
+                                    <span className="inline-block h-8 w-28 animate-pulse rounded-lg bg-muted/60" />
+                                ) : (
+                                    `Rp ${formatNumber(hutangData?.total ?? 0)}`
+                                )}
                             </div>
                         </div>
 
@@ -1168,15 +1147,10 @@ export default function Dashboard({
                                         <TrendingUp className="size-5" />
                                     </div>
                                     <div>
-                                        <div className="flex items-center gap-2">
-                                            <h2 className="text-lg font-bold tracking-tight text-foreground">
-                                                Kinerja Finansial: Penjualan, HPP & Profitabilitas
-                                            </h2>
-                                            <span className="rounded-full bg-emerald-500/10 px-2 py-0.5 text-[10px] font-bold text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
-                                                Intelijen Waktu-Nyata
-                                            </span>
-                                        </div>
-                                        <p className="text-xs text-muted-foreground">
+                                        <h2 className="text-lg font-bold tracking-tight text-foreground">
+                                            Kinerja Finansial: Penjualan, HPP & Profitabilitas
+                                        </h2>
+                                        <p className="text-xs text-muted-foreground mt-0.5">
                                             Komparasi analitis pendapatan penjualan, beban pokok, biaya operasional, dan margin laba
                                         </p>
                                     </div>
@@ -2230,7 +2204,7 @@ export default function Dashboard({
                         initial={{ opacity: 0, y: 16 }}
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ duration: 0.4 }}
-                        className="rounded-3xl border border-sidebar-border/70 bg-card/85 dark:bg-card/45 p-5 sm:p-7 backdrop-blur-2xl shadow-xl shadow-black/[0.03] dark:shadow-black/30 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-emerald-500/30 before:to-transparent relative overflow-hidden"
+                        className="rounded-3xl border border-sidebar-border/70 bg-card/85 dark:bg-card/45 backdrop-blur-2xl shadow-xl shadow-black/[0.03] dark:shadow-black/30 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-emerald-500/30 before:to-transparent relative overflow-hidden"
                     >
                         <UserNote />
                     </motion.div>

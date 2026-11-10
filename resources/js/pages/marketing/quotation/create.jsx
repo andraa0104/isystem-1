@@ -267,6 +267,24 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         return Number.isFinite(margin) ? margin.toFixed(2) : '';
     }, [materialForm.hargaModal, materialForm.hargaPenawaran]);
 
+    const totalModalValue = useMemo(() => {
+        const qty = parseNumber(materialForm.quantity);
+        const modal = parseNumber(materialForm.hargaModal);
+        if (!qty || !modal) {
+            return 0;
+        }
+        return qty * modal;
+    }, [materialForm.quantity, materialForm.hargaModal]);
+
+    const totalHargaPenawaranValue = useMemo(() => {
+        const qty = parseNumber(materialForm.quantity);
+        const penawaran = parseNumber(materialForm.hargaPenawaran);
+        if (!qty || !penawaran) {
+            return 0;
+        }
+        return qty * penawaran;
+    }, [materialForm.quantity, materialForm.hargaPenawaran]);
+
     const isMaterialFormValid = useMemo(() => {
         const nama = String(materialForm.nama ?? '').trim();
         const satuan = String(materialForm.satuan ?? '').trim();
@@ -1722,8 +1740,8 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                             />
                                         </div>
 
-                                        {/* Row 2: Satuan, Quantity, Modal, Penawaran, Margin */}
-                                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+                                        {/* Row 2: Satuan, Quantity, Modal, Total Modal, Penawaran, Total Penawaran, Margin */}
+                                        <div className="grid grid-cols-2 gap-4 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-7">
                                             <div className="space-y-2 col-span-1">
                                                 <Label
                                                     htmlFor="satuan"
@@ -1834,7 +1852,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                                 />
                                             </div>
 
-                                            <div className="space-y-2 col-span-2 sm:col-span-1">
+                                            <div className="space-y-2 col-span-1">
                                                 <Label
                                                     htmlFor="harga_modal"
                                                     className="text-xs font-bold text-muted-foreground uppercase tracking-wider"
@@ -1887,7 +1905,31 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                                 />
                                             </div>
 
-                                            <div className="space-y-2 col-span-2 sm:col-span-1">
+                                            <div className="space-y-2 col-span-1">
+                                                <Label
+                                                    htmlFor="total_modal"
+                                                    className="text-xs font-bold text-muted-foreground uppercase tracking-wider"
+                                                >
+                                                    Total Modal
+                                                </Label>
+                                                <Input
+                                                    id="total_modal"
+                                                    type="text"
+                                                    disabled
+                                                    readOnly
+                                                    placeholder="Rp 0"
+                                                    className="h-10 rounded-xl font-mono text-sm font-semibold bg-muted/50 text-foreground cursor-not-allowed disabled:opacity-80"
+                                                    value={
+                                                        totalModalValue > 0
+                                                            ? formatRupiahInput(
+                                                                  totalModalValue,
+                                                              )
+                                                            : ''
+                                                    }
+                                                />
+                                            </div>
+
+                                            <div className="space-y-2 col-span-1">
                                                 <Label
                                                     htmlFor="harga_penawaran"
                                                     className="text-xs font-bold text-muted-foreground uppercase tracking-wider"
@@ -1941,7 +1983,31 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                                 />
                                             </div>
 
-                                            <div className="space-y-2 col-span-2 sm:col-span-1">
+                                            <div className="space-y-2 col-span-1">
+                                                <Label
+                                                    htmlFor="total_harga_penawaran"
+                                                    className="text-xs font-bold text-muted-foreground uppercase tracking-wider"
+                                                >
+                                                    Total Harga Penawaran
+                                                </Label>
+                                                <Input
+                                                    id="total_harga_penawaran"
+                                                    type="text"
+                                                    disabled
+                                                    readOnly
+                                                    placeholder="Rp 0"
+                                                    className="h-10 rounded-xl font-mono text-sm font-bold bg-muted/50 text-emerald-600 dark:text-emerald-400 cursor-not-allowed disabled:opacity-80"
+                                                    value={
+                                                        totalHargaPenawaranValue > 0
+                                                            ? formatRupiahInput(
+                                                                  totalHargaPenawaranValue,
+                                                              )
+                                                            : ''
+                                                    }
+                                                />
+                                            </div>
+
+                                            <div className="space-y-2 col-span-2 md:col-span-2 xl:col-span-1">
                                                 <Label
                                                     htmlFor="margin"
                                                     className="text-xs font-bold text-muted-foreground uppercase tracking-wider"
