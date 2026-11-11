@@ -201,12 +201,12 @@ export default function QuotationEdit({
     // Modal Search States
     const [customerSearch, setCustomerSearch] = useState('');
     const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState('');
-    const [customerPageSize, setCustomerPageSize] = useState(10);
+    const [customerPageSize, setCustomerPageSize] = useState(5);
     const [customerPage, setCustomerPage] = useState(1);
 
     const [materialSearch, setMaterialSearch] = useState('');
     const [debouncedMaterialSearch, setDebouncedMaterialSearch] = useState('');
-    const [materialPageSize, setMaterialPageSize] = useState(10);
+    const [materialPageSize, setMaterialPageSize] = useState(5);
     const [materialPage, setMaterialPage] = useState(1);
 
     useEffect(() => {
@@ -253,7 +253,7 @@ export default function QuotationEdit({
             const params = new URLSearchParams({
                 search: (search ?? '').trim(),
                 page: String(page),
-                pageSize: String(pageSize || 10),
+                pageSize: String(pageSize || 5),
             });
             const response = await fetch(`/marketing/quotation/customers?${params.toString()}`, {
                 headers: { Accept: 'application/json' },
@@ -314,7 +314,7 @@ export default function QuotationEdit({
             const params = new URLSearchParams({
                 search: (search ?? '').trim(),
                 page: String(page),
-                pageSize: String(pageSize || 10),
+                pageSize: String(pageSize || 5),
             });
             const response = await fetch(`/marketing/quotation/materials?${params.toString()}`, {
                 headers: { Accept: 'application/json' },
@@ -394,13 +394,13 @@ export default function QuotationEdit({
     }, [materialModalOpen, debouncedMaterialSearch]);
 
     const customerTotalPages = useMemo(() => {
-        return Math.max(1, Math.ceil((customerTotalItems || 0) / (customerPageSize || 10)));
+        return Math.max(1, Math.ceil((customerTotalItems || 0) / (customerPageSize || 5)));
     }, [customerTotalItems, customerPageSize]);
 
     const displayedCustomers = customerList;
 
     const materialTotalPages = useMemo(() => {
-        return Math.max(1, Math.ceil((materialTotalItems || 0) / (materialPageSize || 10)));
+        return Math.max(1, Math.ceil((materialTotalItems || 0) / (materialPageSize || 5)));
     }, [materialTotalItems, materialPageSize]);
 
     const displayedMaterials = materialList;
@@ -952,7 +952,10 @@ export default function QuotationEdit({
                             <button
                                 key={step.id}
                                 type="button"
-                                onClick={() => setActiveStep(index)}
+                                onClick={(e) => {
+                                    e.preventDefault();
+                                    setActiveStep(index);
+                                }}
                                 className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-xs font-semibold transition-colors border ${
                                     isActive
                                         ? 'bg-primary text-primary-foreground border-primary shadow-xs'
@@ -973,7 +976,17 @@ export default function QuotationEdit({
                 </div>
 
                 {/* ── FORM CONTAINER ─────────────────────────────────── */}
-                <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+                <form
+                    onSubmit={(e) => {
+                        e.preventDefault();
+                    }}
+                    onKeyDown={(e) => {
+                        if (e.key === 'Enter' && e.target.tagName === 'INPUT') {
+                            e.preventDefault();
+                        }
+                    }}
+                    className="flex flex-col gap-5"
+                >
                     {/* ══ STEP 1: DATA CUSTOMER ════════════════════════ */}
                     {activeStep === 0 && (
                         <div className="rounded-xl border border-border bg-card p-5 space-y-5">
@@ -1745,7 +1758,10 @@ export default function QuotationEdit({
                                     variant="outline"
                                     size="sm"
                                     className="h-9 px-3 text-xs font-semibold"
-                                    onClick={() => setActiveStep((prev) => Math.max(0, prev - 1))}
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        setActiveStep((prev) => Math.max(0, prev - 1));
+                                    }}
                                 >
                                     <ArrowLeft className="mr-1.5 size-3.5" />
                                     Sebelumnya
@@ -1756,20 +1772,27 @@ export default function QuotationEdit({
                         <div className="flex items-center gap-2">
                             {activeStep < steps.length - 1 ? (
                                 <Button
+                                    key="btn-next-step"
                                     type="button"
                                     size="sm"
                                     className="h-9 px-4 text-xs font-semibold"
-                                    onClick={() =>
-                                        setActiveStep((prev) => Math.min(steps.length - 1, prev + 1))
-                                    }
+                                    onClick={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        setActiveStep((prev) =>
+                                            Math.min(steps.length - 1, prev + 1),
+                                        );
+                                    }}
                                 >
                                     Lanjut ke Step {activeStep + 2}
                                     <ArrowRight className="ml-1.5 size-3.5" />
                                 </Button>
                             ) : (
                                 <Button
-                                    type="submit"
+                                    key="btn-save-quotation"
+                                    type="button"
                                     size="sm"
+                                    onClick={handleSubmit}
                                     disabled={isSubmitting || materialItems.length === 0}
                                     className="h-9 px-5 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
                                 >

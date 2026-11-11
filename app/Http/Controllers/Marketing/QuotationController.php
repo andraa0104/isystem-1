@@ -316,7 +316,7 @@ class QuotationController
         }
 
         $page = max(1, (int) request()->query('page', 1));
-        $pageSizeRaw = request()->query('pageSize', 10);
+        $pageSizeRaw = request()->query('pageSize', 5);
         $pageSize = $pageSizeRaw === 'all' ? 'all' : max(1, (int) $pageSizeRaw);
 
         $query->select(
@@ -361,7 +361,7 @@ class QuotationController
         }
 
         $page = max(1, (int) request()->query('page', 1));
-        $pageSizeRaw = request()->query('pageSize', 10);
+        $pageSizeRaw = request()->query('pageSize', 5);
         $pageSize = $pageSizeRaw === 'all' ? 'all' : max(1, (int) $pageSizeRaw);
 
         $query->select('kd_material', 'material', 'unit')
