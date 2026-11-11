@@ -47,7 +47,6 @@ import {
     X,
 } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import Swal from 'sweetalert2';
 
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
@@ -162,6 +161,15 @@ export default function QuotationIndex({
     const [modalMaterialPageSize, setModalMaterialPageSize] = useState(5);
     const [modalMaterialCurrentPage, setModalMaterialCurrentPage] = useState(1);
     const [isDeleting, setIsDeleting] = useState(false);
+    const [confirmModal, setConfirmModal] = useState({
+        isOpen: false,
+        title: '',
+        message: '',
+        confirmText: 'Ya, Lanjut',
+        cancelText: 'Batal',
+        variant: 'warning',
+        onConfirm: null,
+    });
 
     // ─── State Navigasi Tab Utama ────────────────────────────────────────
     const [activeTab, setActiveTab] = useState('customer');
@@ -447,61 +455,52 @@ export default function QuotationIndex({
     const handleDelete = (noPenawaran) => {
         if (!noPenawaran || isDeleting) return;
 
-        Swal.fire({
-            title: 'Hapus data penawaran?',
-            html: `<div class="text-sm text-muted-foreground mt-1">Dokumen: <strong class="text-foreground">${noPenawaran}</strong><br/>Tindakan ini tidak dapat dibatalkan.</div>`,
-            icon: 'warning',
-            showCancelButton: true,
-            confirmButtonText: 'Ya, hapus',
-            cancelButtonText: 'Batal',
-            reverseButtons: true,
-            customClass: {
-                popup: 'rounded-2xl border border-sidebar-border bg-card text-foreground shadow-2xl',
-                confirmButton: 'rounded-xl px-4 py-2 font-semibold text-xs',
-                cancelButton: 'rounded-xl px-4 py-2 font-semibold text-xs',
-            },
-        }).then((result) => {
-            if (!result.isConfirmed) return;
+        setConfirmModal({
+            isOpen: true,
+            title: 'Hapus Dokumen Penawaran',
+            message: `Apakah Anda yakin ingin menghapus data penawaran "${noPenawaran}"? Tindakan ini tidak dapat dibatalkan.`,
+            confirmText: 'Ya, Hapus',
+            cancelText: 'Batal',
+            variant: 'danger',
+            onConfirm: () => {
+                setConfirmModal((prev) => ({ ...prev, isOpen: false }));
+                setIsDeleting(true);
 
-            setIsDeleting(true);
-            fetch(`/marketing/quotation/${encodeURIComponent(noPenawaran)}`, {
-                method: 'DELETE',
-                headers: {
-                    Accept: 'application/json',
-                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
-                },
-            })
-                .then(async (response) => {
-                    const data = await response.json().catch(() => ({}));
-                    if (!response.ok) {
-                        throw new Error(data?.message || 'Gagal menghapus data.');
-                    }
-                    return data;
+                fetch(`/marketing/quotation/${encodeURIComponent(noPenawaran)}`, {
+                    method: 'DELETE',
+                    headers: {
+                        Accept: 'application/json',
+                        'X-CSRF-TOKEN':
+                            document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ?? '',
+                    },
                 })
-                .then((data) => {
-                    Swal.fire({
-                        icon: 'success',
-                        title: 'Berhasil Dihapus',
-                        text: data?.message || 'Data quotation berhasil dihapus.',
-                        timer: 1600,
-                        showConfirmButton: false,
-                        customClass: {
-                            popup: 'rounded-2xl border border-sidebar-border bg-card text-foreground shadow-2xl',
-                        },
-                    });
-                    setRealtimeRevision((revision) => revision + 1);
-                })
-                .catch((error) => {
-                    Swal.fire({
-                        icon: 'error',
-                        title: 'Gagal',
-                        text: error.message,
-                        customClass: {
-                            popup: 'rounded-2xl border border-sidebar-border bg-card text-foreground shadow-2xl',
-                        },
-                    });
-                })
-                .finally(() => setIsDeleting(false));
+                    .then(async (response) => {
+                        const data = await response.json().catch(() => ({}));
+                        if (!response.ok) {
+                            throw new Error(data?.message || 'Gagal menghapus data.');
+                        }
+                        return data;
+                    })
+                    .then((data) => {
+                        setToast({
+                            type: 'success',
+                            title: 'Berhasil Dihapus',
+                            message: data?.message || `Data quotation ${noPenawaran} berhasil dihapus.`,
+                            noPenawaran,
+                            duration: 4000,
+                        });
+                        setRealtimeRevision((revision) => revision + 1);
+                    })
+                    .catch((error) => {
+                        setToast({
+                            type: 'error',
+                            title: 'Gagal Menghapus Data',
+                            message: error.message || 'Terjadi kesalahan sistem saat menghapus quotation.',
+                            duration: 6000,
+                        });
+                    })
+                    .finally(() => setIsDeleting(false));
+            },
         });
     };
 
@@ -1247,7 +1246,7 @@ export default function QuotationIndex({
                     </DialogContent>
                 </Dialog>
 
-                {/* ══ TOAST NOTIFIKASI KANAN ATAS DENGAN DURASI (TAILWIND CSS SEPERTI SWEETALERT) ════════ */}
+                {/* ══ TOAST NOTIFIKASI KANAN ATAS DENGAN DURASI (TAILWIND CSS) ════════ */}
                 {toast && (
                     <div className="fixed top-5 right-5 z-[9999] w-full max-w-sm sm:max-w-md animate-in slide-in-from-top-3 fade-in duration-300 pointer-events-auto">
                         <style>{`@keyframes toastProgress { from { width: 100%; } to { width: 0%; } }`}</style>
@@ -1311,6 +1310,66 @@ export default function QuotationIndex({
                                         animation: `toastProgress ${toast.duration || 4500}ms linear forwards`,
                                     }}
                                 />
+                            </div>
+                        </div>
+                    </div>
+                )}
+
+                {/* ══ POPUP KONFIRMASI (TAILWIND CSS BAWAAN) ═══════════════ */}
+                {confirmModal.isOpen && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+                        <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-xl space-y-3 animate-in fade-in zoom-in-95 duration-150">
+                            <div className="flex items-start gap-3">
+                                <div
+                                    className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${
+                                        confirmModal.variant === 'danger'
+                                            ? 'bg-destructive/15 text-destructive'
+                                            : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                                    }`}
+                                >
+                                    <AlertCircle className="size-5" />
+                                </div>
+                                <div className="space-y-1">
+                                    <h3 className="text-sm font-bold text-foreground">
+                                        {confirmModal.title}
+                                    </h3>
+                                    <p className="text-xs text-muted-foreground">
+                                        {confirmModal.message}
+                                    </p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-8 rounded-lg text-xs"
+                                    onClick={() =>
+                                        setConfirmModal((prev) => ({
+                                            ...prev,
+                                            isOpen: false,
+                                        }))
+                                    }
+                                >
+                                    {confirmModal.cancelText}
+                                </Button>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    className={`h-8 rounded-lg text-xs font-bold text-white px-3.5 shadow-xs ${
+                                        confirmModal.variant === 'danger'
+                                            ? 'bg-destructive hover:bg-destructive/90 text-white'
+                                            : 'bg-amber-600 hover:bg-amber-700 text-white'
+                                    }`}
+                                    onClick={() => {
+                                        if (confirmModal.onConfirm) {
+                                            confirmModal.onConfirm();
+                                        }
+                                    }}
+                                >
+                                    {confirmModal.confirmText}
+                                </Button>
                             </div>
                         </div>
                     </div>

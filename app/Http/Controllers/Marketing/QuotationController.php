@@ -707,6 +707,19 @@ class QuotationController
                 ->first(['Franco', 'Attend']);
             $franco = trim((string) ($latest->Franco ?? ''));
             $attend = trim((string) ($latest->Attend ?? ''));
+
+            if ($attend === '') {
+                $latestWithAttend = DB::table('tb_penawaran')
+                    ->where('Customer', $customerName)
+                    ->whereNotNull('Attend')
+                    ->whereRaw("TRIM(Attend) != ''")
+                    ->orderByDesc('Tgl_Posting')
+                    ->orderByDesc('No_penawaran')
+                    ->first(['Attend']);
+                if ($latestWithAttend) {
+                    $attend = trim((string) ($latestWithAttend->Attend ?? ''));
+                }
+            }
         }
 
         return response()->json([

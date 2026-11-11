@@ -378,7 +378,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
 
     // Select Customer
     const handleSelectCustomer = async (item) => {
-        const customerName = item.nm_cs ?? '';
+        const customerName = (item.nm_cs ?? '').trim();
         const selectionId = ++customerSelectionSeq.current;
 
         setCustomerForm((prev) => ({
@@ -388,7 +388,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
             telepon: item.tlp ?? item.telp_cs ?? '',
             fax: item.fax ?? item.fax_cs ?? '',
             email: item.email ?? '',
-            attend: item.attnd ?? item.attend ?? '',
+            attend: '',
             kode: item.kd_cs ?? '',
         }));
         setCustomerModalOpen(false);
@@ -407,15 +407,19 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                         franco: data.franco,
                     }));
                 }
-                if (data.attend) {
-                    setCustomerForm((prev) => ({
-                        ...prev,
-                        attend: prev.attend || data.attend,
-                    }));
-                }
+                const autofillAttend = data.attend || item.attnd || item.attend || '';
+                setCustomerForm((prev) => ({
+                    ...prev,
+                    attend: autofillAttend,
+                }));
             }
         } catch {
-            // Ignore background error
+            if (selectionId === customerSelectionSeq.current) {
+                setCustomerForm((prev) => ({
+                    ...prev,
+                    attend: item.attnd || item.attend || '',
+                }));
+            }
         }
     };
 
@@ -2088,7 +2092,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                 </div>
             )}
 
-            {/* ══ TOAST NOTIFIKASI KANAN ATAS DENGAN DURASI (TAILWIND CSS SEPERTI SWEETALERT) ════════ */}
+            {/* ══ TOAST NOTIFIKASI KANAN ATAS DENGAN DURASI (TAILWIND CSS) ════════ */}
             {toast && (
                 <div className="fixed top-5 right-5 z-[9999] w-full max-w-sm sm:max-w-md animate-in slide-in-from-top-3 fade-in duration-300 pointer-events-auto">
                     <style>{`@keyframes toastProgress { from { width: 100%; } to { width: 0%; } }`}</style>
@@ -2199,10 +2203,10 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                             <Button
                                 type="button"
                                 size="sm"
-                                className={`h-8 rounded-lg text-xs font-semibold ${
+                                className={`h-8 rounded-lg text-xs font-bold text-white px-3.5 shadow-xs ${
                                     confirmModal.variant === 'danger'
-                                        ? 'bg-destructive text-destructive-foreground hover:bg-destructive/90'
-                                        : 'bg-amber-600 text-white hover:bg-amber-700'
+                                        ? 'bg-destructive hover:bg-destructive/90 text-white'
+                                        : 'bg-amber-600 hover:bg-amber-700 text-white'
                                 }`}
                                 onClick={() => {
                                     if (confirmModal.onConfirm) {
