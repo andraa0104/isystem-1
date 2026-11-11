@@ -295,19 +295,9 @@ class QuotationController
     public function customers()
     {
         $search = trim((string) request()->query('search', ''));
-        $page = max(1, (int) request()->query('page', 1));
-        $pageSizeRaw = request()->query('pageSize', 'all');
-        $pageSize = $pageSizeRaw === 'all' ? 'all' : max(1, (int) $pageSizeRaw);
+        $countOnly = request()->boolean('count_only') || request()->query('mode') === 'count';
 
-        $query = DB::table('tb_cs')
-            ->select(
-                'kd_cs as kd_cs',
-                'nm_cs as nm_cs',
-                'Attnd as attnd',
-                'alamat_cs as alamat_cs',
-                'telp_cs as telp_cs',
-                'fax_cs as fax_cs'
-            );
+        $query = DB::table('tb_cs');
 
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
@@ -319,8 +309,24 @@ class QuotationController
             });
         }
 
-        $total = $pageSize === 'all' ? null : (clone $query)->count();
-        $query->orderBy('nm_cs');
+        if ($countOnly) {
+            return response()->json([
+                'total' => $query->count(),
+            ]);
+        }
+
+        $page = max(1, (int) request()->query('page', 1));
+        $pageSizeRaw = request()->query('pageSize', 10);
+        $pageSize = $pageSizeRaw === 'all' ? 'all' : max(1, (int) $pageSizeRaw);
+
+        $query->select(
+            'kd_cs as kd_cs',
+            'nm_cs as nm_cs',
+            'Attnd as attnd',
+            'alamat_cs as alamat_cs',
+            'telp_cs as telp_cs',
+            'fax_cs as fax_cs'
+        )->orderBy('nm_cs');
 
         if ($pageSize !== 'all') {
             $query->forPage($page, $pageSize);
@@ -330,19 +336,16 @@ class QuotationController
 
         return response()->json([
             'customers' => $customers,
-            'total' => $total ?? $customers->count(),
+            'total' => request()->boolean('with_count') ? (clone $query)->count() : null,
         ]);
     }
 
     public function materials()
     {
         $search = trim((string) request()->query('search', ''));
-        $page = max(1, (int) request()->query('page', 1));
-        $pageSizeRaw = request()->query('pageSize', 10);
-        $pageSize = $pageSizeRaw === 'all' ? 'all' : max(1, (int) $pageSizeRaw);
+        $countOnly = request()->boolean('count_only') || request()->query('mode') === 'count';
 
-        $query = DB::table('tb_barang')
-            ->select('kd_material', 'material', 'unit');
+        $query = DB::table('tb_barang');
 
         if ($search !== '') {
             $query->where(function ($q) use ($search) {
@@ -351,8 +354,18 @@ class QuotationController
             });
         }
 
-        $total = $pageSize === 'all' ? null : (clone $query)->count();
-        $query->orderBy('material');
+        if ($countOnly) {
+            return response()->json([
+                'total' => $query->count(),
+            ]);
+        }
+
+        $page = max(1, (int) request()->query('page', 1));
+        $pageSizeRaw = request()->query('pageSize', 10);
+        $pageSize = $pageSizeRaw === 'all' ? 'all' : max(1, (int) $pageSizeRaw);
+
+        $query->select('kd_material', 'material', 'unit')
+            ->orderBy('material');
 
         if ($pageSize !== 'all') {
             $query->forPage($page, $pageSize);
@@ -362,7 +375,7 @@ class QuotationController
 
         return response()->json([
             'materials' => $materials,
-            'total' => $total ?? $materials->count(),
+            'total' => request()->boolean('with_count') ? (clone $query)->count() : null,
         ]);
     }
 

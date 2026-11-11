@@ -96,7 +96,7 @@ export default function QuotationIndex({
     realtimeChannel = null,
 }) {
     const { flash = {} } = usePage().props;
-    const [successAlert, setSuccessAlert] = useState(null);
+    const [toast, setToast] = useState(null);
 
     useEffect(() => {
         try {
@@ -104,7 +104,13 @@ export default function QuotationIndex({
             if (raw) {
                 window.sessionStorage.removeItem('quotation_flash_success');
                 const parsed = JSON.parse(raw);
-                setSuccessAlert(parsed);
+                setToast({
+                    type: 'success',
+                    title: parsed.title || 'Quotation Berhasil Disimpan!',
+                    message: parsed.message || 'Data quotation berhasil disimpan.',
+                    noPenawaran: parsed.noPenawaran || '',
+                    duration: 4500,
+                });
                 return;
             }
         } catch (e) {
@@ -112,12 +118,29 @@ export default function QuotationIndex({
         }
 
         if (flash?.success) {
-            setSuccessAlert({
+            setToast({
+                type: 'success',
                 title: 'Berhasil!',
                 message: flash.success,
+                duration: 4500,
+            });
+        } else if (flash?.error) {
+            setToast({
+                type: 'error',
+                title: 'Gagal!',
+                message: flash.error,
+                duration: 6000,
             });
         }
-    }, [flash?.success]);
+    }, [flash?.success, flash?.error]);
+
+    useEffect(() => {
+        if (!toast) return;
+        const timer = setTimeout(() => {
+            setToast(null);
+        }, toast.duration || 4500);
+        return () => clearTimeout(timer);
+    }, [toast]);
 
     // ─── State Tab 1 (Customer) ──────────────────────────────────────────
     const [searchTerm, setSearchTerm] = useState('');
@@ -1224,34 +1247,70 @@ export default function QuotationIndex({
                     </DialogContent>
                 </Dialog>
 
-                {/* ══ POPUP SUKSES SETELAH REDIRECT (TAILWIND CSS SEPERTI SWEETALERT) ════════ */}
-                {successAlert && (
-                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in duration-200">
-                        <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 text-center">
-                            <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-                                <Check className="size-8 stroke-[2.5]" />
-                            </div>
-                            <div className="space-y-2">
-                                <h3 className="text-lg font-bold text-foreground">
-                                    {successAlert.title || 'Berhasil!'}
-                                </h3>
-                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                                    {successAlert.message || 'Data quotation berhasil disimpan.'}
-                                </p>
-                                {successAlert.noPenawaran && (
-                                    <div className="inline-block mt-2 font-mono text-xs font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-md">
-                                        No. Dokumen: {successAlert.noPenawaran}
-                                    </div>
-                                )}
-                            </div>
-                            <div className="pt-2">
-                                <Button
-                                    type="button"
-                                    className="w-full h-10 rounded-xl font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
-                                    onClick={() => setSuccessAlert(null)}
+                {/* ══ TOAST NOTIFIKASI KANAN ATAS DENGAN DURASI (TAILWIND CSS SEPERTI SWEETALERT) ════════ */}
+                {toast && (
+                    <div className="fixed top-5 right-5 z-[9999] w-full max-w-sm sm:max-w-md animate-in slide-in-from-top-3 fade-in duration-300 pointer-events-auto">
+                        <style>{`@keyframes toastProgress { from { width: 100%; } to { width: 0%; } }`}</style>
+                        <div
+                            className={`relative overflow-hidden rounded-2xl border bg-card/95 p-4 shadow-2xl backdrop-blur-md ${
+                                toast.type === 'error'
+                                    ? 'border-destructive/30 shadow-destructive/10'
+                                    : 'border-emerald-500/30 shadow-emerald-500/10'
+                            }`}
+                        >
+                            <div className="flex items-start gap-3.5 pr-7">
+                                <div
+                                    className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${
+                                        toast.type === 'error'
+                                            ? 'bg-destructive/15 text-destructive'
+                                            : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                    }`}
                                 >
-                                    OK
-                                </Button>
+                                    {toast.type === 'error' ? (
+                                        <AlertCircle className="size-5 stroke-[2.2]" />
+                                    ) : (
+                                        <Check className="size-5 stroke-[2.5]" />
+                                    )}
+                                </div>
+                                <div className="flex-1 min-w-0 space-y-1">
+                                    <h4
+                                        className={`text-sm font-bold leading-tight ${
+                                            toast.type === 'error'
+                                                ? 'text-destructive'
+                                                : 'text-foreground'
+                                        }`}
+                                    >
+                                        {toast.title}
+                                    </h4>
+                                    <div className="text-xs text-muted-foreground whitespace-pre-wrap max-h-40 overflow-y-auto break-words leading-relaxed">
+                                        {toast.message}
+                                    </div>
+                                    {toast.noPenawaran && (
+                                        <div className="inline-block mt-1 font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                                            No. Dokumen: {toast.noPenawaran}
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+
+                            <button
+                                type="button"
+                                onClick={() => setToast(null)}
+                                className="absolute top-3 right-3 rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                                title="Tutup"
+                            >
+                                <X className="size-4" />
+                            </button>
+
+                            <div className="absolute bottom-0 left-0 h-1 w-full bg-muted/40 overflow-hidden">
+                                <div
+                                    className={`h-full ${
+                                        toast.type === 'error' ? 'bg-destructive' : 'bg-emerald-500'
+                                    }`}
+                                    style={{
+                                        animation: `toastProgress ${toast.duration || 4500}ms linear forwards`,
+                                    }}
+                                />
                             </div>
                         </div>
                     </div>

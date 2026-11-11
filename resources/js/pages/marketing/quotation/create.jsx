@@ -92,12 +92,16 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [errorMessage, setErrorMessage] = useState('');
 
-    // Native Tailwind Notification / Confirmation Modals
-    const [errorModal, setErrorModal] = useState({
-        isOpen: false,
-        title: '',
-        message: '',
-    });
+    // Native Tailwind Toast Notification
+    const [toast, setToast] = useState(null); // { type: 'success' | 'error', title, message, duration }
+
+    useEffect(() => {
+        if (!toast) return;
+        const timer = setTimeout(() => {
+            setToast(null);
+        }, toast.duration || 5000);
+        return () => clearTimeout(timer);
+    }, [toast]);
     const [confirmModal, setConfirmModal] = useState({
         isOpen: false,
         title: '',
@@ -113,15 +117,20 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     const [customerTotalItems, setCustomerTotalItems] = useState(customers.length);
     const [materialTotalItems, setMaterialTotalItems] = useState(materials.length);
     const [customerLoading, setCustomerLoading] = useState(false);
+    const [customerCountLoading, setCustomerCountLoading] = useState(false);
     const [materialLoading, setMaterialLoading] = useState(false);
+    const [materialCountLoading, setMaterialCountLoading] = useState(false);
     const [customerError, setCustomerError] = useState('');
     const [materialError, setMaterialError] = useState('');
 
     const hargaPenawaranRef = useRef(null);
+    const hargaModalRef = useRef(null);
     const namaMaterialRef = useRef(null);
     const customerRequestSeq = useRef(0);
+    const customerCountSeq = useRef(0);
     const customerSelectionSeq = useRef(0);
     const materialRequestSeq = useRef(0);
+    const materialCountSeq = useRef(0);
 
     // Form States
     const [customerForm, setCustomerForm] = useState({
@@ -161,12 +170,12 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     // Modal Search States
     const [customerSearch, setCustomerSearch] = useState('');
     const [debouncedCustomerSearch, setDebouncedCustomerSearch] = useState('');
-    const [customerPageSize, setCustomerPageSize] = useState(5);
+    const [customerPageSize, setCustomerPageSize] = useState(10);
     const [customerPage, setCustomerPage] = useState(1);
 
     const [materialSearch, setMaterialSearch] = useState('');
     const [debouncedMaterialSearch, setDebouncedMaterialSearch] = useState('');
-    const [materialPageSize, setMaterialPageSize] = useState(5);
+    const [materialPageSize, setMaterialPageSize] = useState(10);
     const [materialPage, setMaterialPage] = useState(1);
 
     // Debounce customer search
@@ -185,48 +194,14 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         return () => clearTimeout(handler);
     }, [materialSearch]);
 
-    // Reset pagination when search changes
+    // Reset pagination when search or pageSize changes
     useEffect(() => {
         setCustomerPage(1);
-    }, [debouncedCustomerSearch]);
+    }, [debouncedCustomerSearch, customerPageSize]);
 
     useEffect(() => {
         setMaterialPage(1);
-    }, [debouncedMaterialSearch]);
-
-    // Fetch customer list for modal
-    const loadCustomers = () => {
-        const requestId = ++customerRequestSeq.current;
-        setCustomerLoading(true);
-        setCustomerError('');
-
-        fetch('/marketing/quotation/customers', {
-            headers: { Accept: 'application/json' },
-        })
-            .then(async (response) => {
-                if (requestId !== customerRequestSeq.current) return null;
-                const data = await response.json().catch(() => ({}));
-                if (!response.ok) {
-                    throw new Error(data?.message || 'Gagal memuat daftar customer.');
-                }
-                return data;
-            })
-            .then((data) => {
-                if (!data || requestId !== customerRequestSeq.current) return;
-                const list = data?.customers ?? [];
-                setCustomerList(list);
-                setCustomerTotalItems(list.length);
-            })
-            .catch((error) => {
-                if (requestId !== customerRequestSeq.current) return;
-                setCustomerError(error?.message || 'Gagal memuat customer.');
-            })
-            .finally(() => {
-                if (requestId === customerRequestSeq.current) {
-                    setCustomerLoading(false);
-                }
-            });
-    };
+    }, [debouncedMaterialSearch, materialPageSize]);
 
     // Auto resize textarea whenever materialForm.nama or step changes
     useEffect(() => {
@@ -235,8 +210,69 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         }
     }, [materialForm.nama, activeStep]);
 
-    // Fetch material list for modal (Server-Side Paginated & Indexed Search)
-    const loadMaterials = async ({
+    // Fetch customer data list (server-side paginated)
+    const loadCustomerData = async ({
+        search = debouncedCustomerSearch,
+        page = customerPage,
+        pageSize = customerPageSize,
+    } = {}) => {
+        const requestId = ++customerRequestSeq.current;
+        setCustomerLoading(true);
+        setCustomerError('');
+
+        try {
+            const params = new URLSearchParams({
+                search: (search ?? '').trim(),
+                page: String(page),
+                pageSize: String(pageSize || 10),
+            });
+            const response = await fetch(`/marketing/quotation/customers?${params.toString()}`, {
+                headers: { Accept: 'application/json' },
+            });
+            if (!response.ok) {
+                throw new Error('Gagal memuat data customer.');
+            }
+            const data = await response.json();
+            if (requestId !== customerRequestSeq.current) return;
+            setCustomerList(Array.isArray(data?.customers) ? data.customers : []);
+        } catch (error) {
+            if (requestId !== customerRequestSeq.current) return;
+            setCustomerError(error?.message || 'Gagal memuat customer.');
+        } finally {
+            if (requestId === customerRequestSeq.current) {
+                setCustomerLoading(false);
+            }
+        }
+    };
+
+    // Fetch customer total count & pagination (dipisah di background agar data instan tampil)
+    const loadCustomerCount = async (search = debouncedCustomerSearch) => {
+        const requestId = ++customerCountSeq.current;
+        setCustomerCountLoading(true);
+
+        try {
+            const params = new URLSearchParams({
+                search: (search ?? '').trim(),
+                count_only: '1',
+            });
+            const response = await fetch(`/marketing/quotation/customers?${params.toString()}`, {
+                headers: { Accept: 'application/json' },
+            });
+            if (!response.ok) return;
+            const data = await response.json();
+            if (requestId !== customerCountSeq.current) return;
+            setCustomerTotalItems(Number(data?.total ?? 0));
+        } catch {
+            // Background count error ignored
+        } finally {
+            if (requestId === customerCountSeq.current) {
+                setCustomerCountLoading(false);
+            }
+        }
+    };
+
+    // Fetch material data list (server-side paginated)
+    const loadMaterialData = async ({
         search = debouncedMaterialSearch,
         page = materialPage,
         pageSize = materialPageSize,
@@ -249,7 +285,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
             const params = new URLSearchParams({
                 search: (search ?? '').trim(),
                 page: String(page),
-                pageSize: pageSize === Infinity ? 'all' : String(pageSize),
+                pageSize: String(pageSize || 10),
             });
             const response = await fetch(`/marketing/quotation/materials?${params.toString()}`, {
                 headers: { Accept: 'application/json' },
@@ -260,7 +296,6 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
             const data = await response.json();
             if (requestId !== materialRequestSeq.current) return;
             setMaterialList(Array.isArray(data?.materials) ? data.materials : []);
-            setMaterialTotalItems(Number(data?.total ?? 0));
         } catch (error) {
             if (requestId !== materialRequestSeq.current) return;
             setMaterialError(error?.message || 'Gagal memuat material.');
@@ -271,48 +306,75 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         }
     };
 
+    // Fetch material total count & pagination (dipisah di background agar data instan tampil)
+    const loadMaterialCount = async (search = debouncedMaterialSearch) => {
+        const requestId = ++materialCountSeq.current;
+        setMaterialCountLoading(true);
+
+        try {
+            const params = new URLSearchParams({
+                search: (search ?? '').trim(),
+                count_only: '1',
+            });
+            const response = await fetch(`/marketing/quotation/materials?${params.toString()}`, {
+                headers: { Accept: 'application/json' },
+            });
+            if (!response.ok) return;
+            const data = await response.json();
+            if (requestId !== materialCountSeq.current) return;
+            setMaterialTotalItems(Number(data?.total ?? 0));
+        } catch {
+            // Background count error ignored
+        } finally {
+            if (requestId === materialCountSeq.current) {
+                setMaterialCountLoading(false);
+            }
+        }
+    };
+
+    // Customer Modal: load data when page/pageSize/search changes
+    useEffect(() => {
+        if (!customerModalOpen) return;
+        loadCustomerData({
+            search: debouncedCustomerSearch,
+            page: customerPage,
+            pageSize: customerPageSize,
+        });
+    }, [customerModalOpen, debouncedCustomerSearch, customerPage, customerPageSize]);
+
+    // Customer Modal: load count ONLY when search changes or modal opens
+    useEffect(() => {
+        if (!customerModalOpen) return;
+        loadCustomerCount(debouncedCustomerSearch);
+    }, [customerModalOpen, debouncedCustomerSearch]);
+
+    // Material Modal: load data when page/pageSize/search changes
     useEffect(() => {
         if (!materialModalOpen) return;
-        loadMaterials({
+        loadMaterialData({
             search: debouncedMaterialSearch,
             page: materialPage,
             pageSize: materialPageSize,
         });
     }, [materialModalOpen, debouncedMaterialSearch, materialPage, materialPageSize]);
 
+    // Material Modal: load count ONLY when search changes or modal opens
     useEffect(() => {
-        setMaterialPage(1);
-    }, [debouncedMaterialSearch, materialPageSize]);
-
-    // Filtered Customers
-    const filteredCustomers = useMemo(() => {
-        const query = debouncedCustomerSearch.toLowerCase();
-        if (!query) return customerList;
-        return customerList.filter((item) => {
-            const kd = renderValue(item.kd_cs).toLowerCase();
-            const nm = renderValue(item.nm_cs).toLowerCase();
-            const att = renderValue(item.attnd).toLowerCase();
-            return kd.includes(query) || nm.includes(query) || att.includes(query);
-        });
-    }, [customerList, debouncedCustomerSearch]);
+        if (!materialModalOpen) return;
+        loadMaterialCount(debouncedMaterialSearch);
+    }, [materialModalOpen, debouncedMaterialSearch]);
 
     const customerTotalPages = useMemo(() => {
-        if (customerPageSize === Infinity || !customerPageSize) return 1;
-        return Math.max(1, Math.ceil(filteredCustomers.length / customerPageSize));
-    }, [filteredCustomers.length, customerPageSize]);
+        return Math.max(1, Math.ceil((customerTotalItems || 0) / (customerPageSize || 10)));
+    }, [customerTotalItems, customerPageSize]);
 
-    const displayedCustomers = useMemo(() => {
-        if (customerPageSize === Infinity || !customerPageSize) return filteredCustomers;
-        const start = (customerPage - 1) * customerPageSize;
-        return filteredCustomers.slice(start, start + customerPageSize);
-    }, [filteredCustomers, customerPage, customerPageSize]);
+    const displayedCustomers = customerList;
 
-    // Server-side materials
-    const displayedMaterials = materialList;
     const materialTotalPages = useMemo(() => {
-        if (materialPageSize === Infinity || !materialPageSize) return 1;
-        return Math.max(1, Math.ceil(materialTotalItems / materialPageSize));
+        return Math.max(1, Math.ceil((materialTotalItems || 0) / (materialPageSize || 10)));
     }, [materialTotalItems, materialPageSize]);
+
+    const displayedMaterials = materialList;
 
     // Select Customer
     const handleSelectCustomer = async (item) => {
@@ -322,11 +384,11 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         setCustomerForm((prev) => ({
             ...prev,
             nama: customerName,
-            alamat: item.almt ?? '',
-            telepon: item.tlp ?? '',
-            fax: item.fax ?? '',
+            alamat: item.almt ?? item.alamat_cs ?? '',
+            telepon: item.tlp ?? item.telp_cs ?? '',
+            fax: item.fax ?? item.fax_cs ?? '',
             email: item.email ?? '',
-            attend: item.attnd ?? '',
+            attend: item.attnd ?? item.attend ?? '',
             kode: item.kd_cs ?? '',
         }));
         setCustomerModalOpen(false);
@@ -374,6 +436,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
             }
         });
 
+        let hasModalPrice = false;
         try {
             const response = await fetch(
                 `/marketing/quotation/get-last-price?material=${encodeURIComponent(materialName)}`,
@@ -383,18 +446,27 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
             if (response.ok && data) {
                 // Harga dari tb_invin adalah HARGA MODAL (harga beli PO terakhir)
                 const lastPrice = data.harga ?? data.harga_modal ?? 0;
-                setMaterialForm((prev) => ({
-                    ...prev,
-                    hargaModal: lastPrice > 0 ? String(lastPrice) : '',
-                }));
+                if (Number(lastPrice) > 0) {
+                    hasModalPrice = true;
+                    setMaterialForm((prev) => ({
+                        ...prev,
+                        hargaModal: String(lastPrice),
+                    }));
+                }
             }
         } catch {
             // Ignore background error
         } finally {
-            // Fokus otomatis ke harga penawaran agar user langsung mengisi harga penawaran jual
+            // Jika ada harga modal, fokuskan ke harga penawaran.
+            // Jika harga modal kosong atau tidak ada, fokuskan ke field harga modal.
             setTimeout(() => {
-                hargaPenawaranRef.current?.focus();
-                hargaPenawaranRef.current?.select();
+                if (hasModalPrice) {
+                    hargaPenawaranRef.current?.focus();
+                    hargaPenawaranRef.current?.select();
+                } else {
+                    hargaModalRef.current?.focus();
+                    hargaModalRef.current?.select();
+                }
             }, 80);
         }
     };
@@ -623,13 +695,27 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
 
         if (!customerForm.nama) {
             setActiveStep(0);
-            setErrorMessage('Nama Customer wajib diisi sebelum menyimpan.');
+            const msg = 'Nama Customer wajib diisi sebelum menyimpan.';
+            setErrorMessage(msg);
+            setToast({
+                type: 'error',
+                title: 'Validasi Form',
+                message: msg,
+                duration: 4500,
+            });
             return;
         }
 
         if (materialItems.length === 0) {
             setActiveStep(2);
-            setErrorMessage('Tambahkan minimal 1 item material sebelum menyimpan.');
+            const msg = 'Tambahkan minimal 1 item material sebelum menyimpan.';
+            setErrorMessage(msg);
+            setToast({
+                type: 'error',
+                title: 'Validasi Form',
+                message: msg,
+                duration: 4500,
+            });
             return;
         }
 
@@ -702,10 +788,11 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                     error?.message ||
                     'Terjadi kesalahan sistem yang tidak diketahui saat menyimpan quotation.';
                 setErrorMessage(fullError);
-                setErrorModal({
-                    isOpen: true,
+                setToast({
+                    type: 'error',
                     title: 'Gagal Menyimpan Quotation',
                     message: fullError,
+                    duration: 7000,
                 });
             });
     };
@@ -893,7 +980,6 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                             className="h-9 px-3 rounded-lg text-xs font-semibold shrink-0"
                                             onClick={() => {
                                                 setCustomerModalOpen(true);
-                                                loadCustomers();
                                             }}
                                         >
                                             <Search className="mr-1.5 size-3.5" />
@@ -1284,6 +1370,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                         </Label>
                                         <Input
                                             id="harga_modal"
+                                            ref={hargaModalRef}
                                             placeholder="Rp 0"
                                             className="h-9 rounded-lg font-mono text-sm"
                                             value={formatRupiahInput(materialForm.hargaModal)}
@@ -1694,17 +1781,17 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                 <span>Tampilkan:</span>
                                 <select
                                     className="h-9 rounded-lg border border-input bg-background px-3 text-xs sm:text-sm font-semibold"
-                                    value={customerPageSize === Infinity ? 'all' : customerPageSize}
-                                    onChange={(e) =>
-                                        setCustomerPageSize(
-                                            e.target.value === 'all' ? Infinity : Number(e.target.value),
-                                        )
-                                    }
+                                    value={customerPageSize}
+                                    onChange={(e) => {
+                                        setCustomerPageSize(Number(e.target.value));
+                                        setCustomerPage(1);
+                                    }}
                                 >
                                     <option value={5}>5</option>
                                     <option value={10}>10</option>
                                     <option value={25}>25</option>
-                                    <option value="all">Semua</option>
+                                    <option value={50}>50</option>
+                                    <option value={100}>100 data</option>
                                 </select>
                             </div>
                         </div>
@@ -1720,12 +1807,19 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border">
-                                    {displayedCustomers.length === 0 ? (
+                                    {customerLoading ? (
                                         <tr>
                                             <td colSpan={4} className="py-12 text-center text-sm text-muted-foreground">
-                                                {customerLoading
-                                                    ? 'Memuat data customer...'
-                                                    : customerError || 'Data customer tidak ditemukan.'}
+                                                <div className="flex items-center justify-center gap-2">
+                                                    <Spinner className="size-4 animate-spin text-primary" />
+                                                    <span>Memuat data customer...</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : displayedCustomers.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={4} className="py-12 text-center text-sm text-muted-foreground">
+                                                {customerError || 'Data customer tidak ditemukan.'}
                                             </td>
                                         </tr>
                                     ) : (
@@ -1736,10 +1830,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                                 onDoubleClick={() => handleSelectCustomer(item)}
                                             >
                                                 <td className="px-4 py-3 text-center text-sm font-medium text-muted-foreground">
-                                                    {(customerPage - 1) *
-                                                        (customerPageSize === Infinity ? 0 : customerPageSize) +
-                                                        index +
-                                                        1}
+                                                    {(customerPage - 1) * customerPageSize + index + 1}
                                                 </td>
                                                 <td className="px-4 py-3 text-sm font-semibold text-primary">
                                                     {item.kd_cs}
@@ -1765,17 +1856,27 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                             </table>
                         </div>
 
-                        {customerPageSize !== Infinity && customerTotalPages > 1 && (
+                        {(customerTotalItems !== null || customerCountLoading || displayedCustomers.length > 0) && (
                             <div className="p-3.5 border-t border-border flex items-center justify-between text-xs sm:text-sm text-muted-foreground bg-muted/20">
                                 <span>
-                                    Halaman {customerPage} dari {customerTotalPages}
+                                    Halaman {customerPage}
+                                    {customerCountLoading ? (
+                                        <span className="ml-1 text-muted-foreground/70 italic inline-flex items-center gap-1.5">
+                                            <Spinner className="size-3 animate-spin text-primary inline" />
+                                            (Menghitung total pagination...)
+                                        </span>
+                                    ) : customerTotalPages > 0 ? (
+                                        <>
+                                            {' '}dari {customerTotalPages} ({customerTotalItems} total customer)
+                                        </>
+                                    ) : null}
                                 </span>
                                 <div className="flex items-center gap-2">
                                     <Button
                                         variant="outline"
                                         size="sm"
                                         className="h-8 px-3 text-xs sm:text-sm"
-                                        disabled={customerPage === 1}
+                                        disabled={customerPage <= 1 || customerLoading}
                                         onClick={() => setCustomerPage((p) => Math.max(1, p - 1))}
                                     >
                                         Sebelumnya
@@ -1784,7 +1885,12 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                         variant="outline"
                                         size="sm"
                                         className="h-8 px-3 text-xs sm:text-sm"
-                                        disabled={customerPage === customerTotalPages}
+                                        disabled={
+                                            customerLoading ||
+                                            (customerCountLoading
+                                                ? displayedCustomers.length < customerPageSize
+                                                : customerPage >= customerTotalPages || displayedCustomers.length === 0)
+                                        }
                                         onClick={() => setCustomerPage((p) => Math.min(customerTotalPages, p + 1))}
                                     >
                                         Berikutnya
@@ -1838,17 +1944,17 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                 <span>Tampilkan:</span>
                                 <select
                                     className="h-9 rounded-lg border border-input bg-background px-3 text-xs sm:text-sm font-semibold"
-                                    value={materialPageSize === Infinity ? 'all' : materialPageSize}
-                                    onChange={(e) =>
-                                        setMaterialPageSize(
-                                            e.target.value === 'all' ? Infinity : Number(e.target.value),
-                                        )
-                                    }
+                                    value={materialPageSize}
+                                    onChange={(e) => {
+                                        setMaterialPageSize(Number(e.target.value));
+                                        setMaterialPage(1);
+                                    }}
                                 >
                                     <option value={5}>5</option>
                                     <option value={10}>10</option>
                                     <option value={25}>25</option>
-                                    <option value="all">Semua</option>
+                                    <option value={50}>50</option>
+                                    <option value={100}>100 data</option>
                                 </select>
                             </div>
                         </div>
@@ -1864,12 +1970,19 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border">
-                                    {displayedMaterials.length === 0 ? (
+                                    {materialLoading ? (
                                         <tr>
                                             <td colSpan={4} className="py-12 text-center text-sm text-muted-foreground">
-                                                {materialLoading
-                                                    ? 'Memuat data material...'
-                                                    : materialError || 'Data material tidak ditemukan.'}
+                                                <div className="flex items-center justify-center gap-2">
+                                                    <Spinner className="size-4 animate-spin text-primary" />
+                                                    <span>Memuat data material...</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : displayedMaterials.length === 0 ? (
+                                        <tr>
+                                            <td colSpan={4} className="py-12 text-center text-sm text-muted-foreground">
+                                                {materialError || 'Data material tidak ditemukan.'}
                                             </td>
                                         </tr>
                                     ) : (
@@ -1906,17 +2019,27 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                             </table>
                         </div>
 
-                        {materialPageSize !== Infinity && materialTotalPages > 1 && (
+                        {(materialTotalItems !== null || materialCountLoading || displayedMaterials.length > 0) && (
                             <div className="p-3.5 border-t border-border flex items-center justify-between text-xs sm:text-sm text-muted-foreground bg-muted/20">
                                 <span>
-                                    Halaman {materialPage} dari {materialTotalPages} ({materialTotalItems} total material)
+                                    Halaman {materialPage}
+                                    {materialCountLoading ? (
+                                        <span className="ml-1 text-muted-foreground/70 italic inline-flex items-center gap-1.5">
+                                            <Spinner className="size-3 animate-spin text-primary inline" />
+                                            (Menghitung total pagination...)
+                                        </span>
+                                    ) : materialTotalPages > 0 ? (
+                                        <>
+                                            {' '}dari {materialTotalPages} ({materialTotalItems} total material)
+                                        </>
+                                    ) : null}
                                 </span>
                                 <div className="flex items-center gap-2">
                                     <Button
                                         variant="outline"
                                         size="sm"
                                         className="h-8 px-3 text-xs sm:text-sm"
-                                        disabled={materialPage === 1 || materialLoading}
+                                        disabled={materialPage <= 1 || materialLoading}
                                         onClick={() => setMaterialPage((p) => Math.max(1, p - 1))}
                                     >
                                         Sebelumnya
@@ -1925,7 +2048,12 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                         variant="outline"
                                         size="sm"
                                         className="h-8 px-3 text-xs sm:text-sm"
-                                        disabled={materialPage === materialTotalPages || materialLoading}
+                                        disabled={
+                                            materialLoading ||
+                                            (materialCountLoading
+                                                ? displayedMaterials.length < materialPageSize
+                                                : materialPage >= materialTotalPages || displayedMaterials.length === 0)
+                                        }
                                         onClick={() => setMaterialPage((p) => Math.min(materialTotalPages, p + 1))}
                                     >
                                         Berikutnya
@@ -1937,36 +2065,70 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                 </div>
             )}
 
-            {/* ══ POPUP ERROR (TAILWIND CSS SEPERTI SWEETALERT) ════════ */}
-            {errorModal.isOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in duration-200">
-                    <div className="w-full max-w-lg rounded-2xl border border-destructive/40 bg-card p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
-                        <div className="flex items-start gap-4">
-                            <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-destructive/15 text-destructive">
-                                <AlertCircle className="size-7 stroke-[2.2]" />
-                            </div>
-                            <div className="space-y-1.5 flex-1 min-w-0">
-                                <h3 className="text-base sm:text-lg font-bold text-destructive">
-                                    {errorModal.title || 'Gagal Menyimpan Quotation'}
-                                </h3>
-                                <p className="text-xs text-muted-foreground">
-                                    Quotation gagal disimpan. Silakan periksa rincian error di bawah ini:
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="max-h-60 overflow-y-auto rounded-xl border border-destructive/20 bg-destructive/5 p-3.5 text-xs font-mono text-destructive break-words whitespace-pre-wrap select-text">
-                            {errorModal.message}
-                        </div>
-
-                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
-                            <Button
-                                type="button"
-                                className="h-9 px-5 rounded-lg text-xs font-semibold bg-destructive hover:bg-destructive/90 text-destructive-foreground shadow-xs"
-                                onClick={() => setErrorModal({ isOpen: false, title: '', message: '' })}
+            {/* ══ TOAST NOTIFIKASI KANAN ATAS DENGAN DURASI (TAILWIND CSS SEPERTI SWEETALERT) ════════ */}
+            {toast && (
+                <div className="fixed top-5 right-5 z-[9999] w-full max-w-sm sm:max-w-md animate-in slide-in-from-top-3 fade-in duration-300 pointer-events-auto">
+                    <style>{`@keyframes toastProgress { from { width: 100%; } to { width: 0%; } }`}</style>
+                    <div
+                        className={`relative overflow-hidden rounded-2xl border bg-card/95 p-4 shadow-2xl backdrop-blur-md ${
+                            toast.type === 'error'
+                                ? 'border-destructive/30 shadow-destructive/10'
+                                : 'border-emerald-500/30 shadow-emerald-500/10'
+                        }`}
+                    >
+                        <div className="flex items-start gap-3.5 pr-7">
+                            <div
+                                className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${
+                                    toast.type === 'error'
+                                        ? 'bg-destructive/15 text-destructive'
+                                        : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                }`}
                             >
-                                Tutup & Perbaiki
-                            </Button>
+                                {toast.type === 'error' ? (
+                                    <AlertCircle className="size-5 stroke-[2.2]" />
+                                ) : (
+                                    <CheckCircle2 className="size-5 stroke-[2.2]" />
+                                )}
+                            </div>
+                            <div className="flex-1 min-w-0 space-y-1">
+                                <h4
+                                    className={`text-sm font-bold leading-tight ${
+                                        toast.type === 'error'
+                                            ? 'text-destructive'
+                                            : 'text-foreground'
+                                    }`}
+                                >
+                                    {toast.title}
+                                </h4>
+                                <div className="text-xs text-muted-foreground whitespace-pre-wrap max-h-40 overflow-y-auto break-words leading-relaxed">
+                                    {toast.message}
+                                </div>
+                                {toast.noPenawaran && (
+                                    <div className="inline-block mt-1 font-mono text-[11px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md">
+                                        No. Dokumen: {toast.noPenawaran}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setToast(null)}
+                            className="absolute top-3 right-3 rounded-lg p-1 text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                            title="Tutup"
+                        >
+                            <X className="size-4" />
+                        </button>
+
+                        <div className="absolute bottom-0 left-0 h-1 w-full bg-muted/40 overflow-hidden">
+                            <div
+                                className={`h-full ${
+                                    toast.type === 'error' ? 'bg-destructive' : 'bg-emerald-500'
+                                }`}
+                                style={{
+                                    animation: `toastProgress ${toast.duration || 5000}ms linear forwards`,
+                                }}
+                            />
                         </div>
                     </div>
                 </div>
