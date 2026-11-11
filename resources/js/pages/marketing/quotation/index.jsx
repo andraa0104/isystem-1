@@ -17,13 +17,14 @@ import {
 } from '@/components/ui/select';
 import AppLayout from '@/layouts/app-layout';
 import { subscribeToPoInChanges } from '@/lib/po-in-realtime';
-import { Head, Link, router } from '@inertiajs/react';
+import { Head, Link, router, usePage } from '@inertiajs/react';
 import {
     AlertCircle,
     ArrowRight,
     Boxes,
     Building2,
     Calendar,
+    Check,
     ChevronLeft,
     ChevronRight,
     Eye,
@@ -94,6 +95,30 @@ export default function QuotationIndex({
     period = 'today',
     realtimeChannel = null,
 }) {
+    const { flash = {} } = usePage().props;
+    const [successAlert, setSuccessAlert] = useState(null);
+
+    useEffect(() => {
+        try {
+            const raw = window.sessionStorage.getItem('quotation_flash_success');
+            if (raw) {
+                window.sessionStorage.removeItem('quotation_flash_success');
+                const parsed = JSON.parse(raw);
+                setSuccessAlert(parsed);
+                return;
+            }
+        } catch (e) {
+            console.error('Error reading quotation_flash_success', e);
+        }
+
+        if (flash?.success) {
+            setSuccessAlert({
+                title: 'Berhasil!',
+                message: flash.success,
+            });
+        }
+    }, [flash?.success]);
+
     // ─── State Tab 1 (Customer) ──────────────────────────────────────────
     const [searchTerm, setSearchTerm] = useState('');
     const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('');
@@ -1198,6 +1223,39 @@ export default function QuotationIndex({
                         )}
                     </DialogContent>
                 </Dialog>
+
+                {/* ══ POPUP SUKSES SETELAH REDIRECT (TAILWIND CSS SEPERTI SWEETALERT) ════════ */}
+                {successAlert && (
+                    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in duration-200">
+                        <div className="w-full max-w-md rounded-2xl border border-border bg-card p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150 text-center">
+                            <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+                                <Check className="size-8 stroke-[2.5]" />
+                            </div>
+                            <div className="space-y-2">
+                                <h3 className="text-lg font-bold text-foreground">
+                                    {successAlert.title || 'Berhasil!'}
+                                </h3>
+                                <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                                    {successAlert.message || 'Data quotation berhasil disimpan.'}
+                                </p>
+                                {successAlert.noPenawaran && (
+                                    <div className="inline-block mt-2 font-mono text-xs font-bold text-primary bg-primary/10 px-2.5 py-1 rounded-md">
+                                        No. Dokumen: {successAlert.noPenawaran}
+                                    </div>
+                                )}
+                            </div>
+                            <div className="pt-2">
+                                <Button
+                                    type="button"
+                                    className="w-full h-10 rounded-xl font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                                    onClick={() => setSuccessAlert(null)}
+                                >
+                                    OK
+                                </Button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </>
     );

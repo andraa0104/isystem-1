@@ -73,8 +73,8 @@ const fillOrSpace = (value) => {
 
 const resizeTextareaToContent = (element) => {
     if (!element) return;
-    element.style.height = 'auto';
-    element.style.height = `${element.scrollHeight}px`;
+    element.style.height = '38px';
+    element.style.height = `${Math.max(38, element.scrollHeight)}px`;
 };
 
 const getCsrfToken = () =>
@@ -93,11 +93,10 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
     const [errorMessage, setErrorMessage] = useState('');
 
     // Native Tailwind Notification / Confirmation Modals
-    const [successModal, setSuccessModal] = useState({
+    const [errorModal, setErrorModal] = useState({
         isOpen: false,
         title: '',
         message: '',
-        noPenawaran: '',
     });
     const [confirmModal, setConfirmModal] = useState({
         isOpen: false,
@@ -229,40 +228,61 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
             });
     };
 
-    // Fetch material list for modal
-    const loadMaterials = () => {
+    // Auto resize textarea whenever materialForm.nama or step changes
+    useEffect(() => {
+        if (namaMaterialRef.current) {
+            resizeTextareaToContent(namaMaterialRef.current);
+        }
+    }, [materialForm.nama, activeStep]);
+
+    // Fetch material list for modal (Server-Side Paginated & Indexed Search)
+    const loadMaterials = async ({
+        search = debouncedMaterialSearch,
+        page = materialPage,
+        pageSize = materialPageSize,
+    } = {}) => {
         const requestId = ++materialRequestSeq.current;
         setMaterialLoading(true);
         setMaterialError('');
 
-        const params = new URLSearchParams({ pageSize: 'all' });
-        fetch(`/marketing/quotation/materials?${params.toString()}`, {
-            headers: { Accept: 'application/json' },
-        })
-            .then(async (response) => {
-                if (requestId !== materialRequestSeq.current) return null;
-                const data = await response.json().catch(() => ({}));
-                if (!response.ok) {
-                    throw new Error(data?.message || 'Gagal memuat data material.');
-                }
-                return data;
-            })
-            .then((data) => {
-                if (!data || requestId !== materialRequestSeq.current) return;
-                const list = data?.materials ?? [];
-                setMaterialList(list);
-                setMaterialTotalItems(list.length);
-            })
-            .catch((error) => {
-                if (requestId !== materialRequestSeq.current) return;
-                setMaterialError(error?.message || 'Gagal memuat material.');
-            })
-            .finally(() => {
-                if (requestId === materialRequestSeq.current) {
-                    setMaterialLoading(false);
-                }
+        try {
+            const params = new URLSearchParams({
+                search: (search ?? '').trim(),
+                page: String(page),
+                pageSize: pageSize === Infinity ? 'all' : String(pageSize),
             });
+            const response = await fetch(`/marketing/quotation/materials?${params.toString()}`, {
+                headers: { Accept: 'application/json' },
+            });
+            if (!response.ok) {
+                throw new Error('Gagal memuat data material.');
+            }
+            const data = await response.json();
+            if (requestId !== materialRequestSeq.current) return;
+            setMaterialList(Array.isArray(data?.materials) ? data.materials : []);
+            setMaterialTotalItems(Number(data?.total ?? 0));
+        } catch (error) {
+            if (requestId !== materialRequestSeq.current) return;
+            setMaterialError(error?.message || 'Gagal memuat material.');
+        } finally {
+            if (requestId === materialRequestSeq.current) {
+                setMaterialLoading(false);
+            }
+        }
     };
+
+    useEffect(() => {
+        if (!materialModalOpen) return;
+        loadMaterials({
+            search: debouncedMaterialSearch,
+            page: materialPage,
+            pageSize: materialPageSize,
+        });
+    }, [materialModalOpen, debouncedMaterialSearch, materialPage, materialPageSize]);
+
+    useEffect(() => {
+        setMaterialPage(1);
+    }, [debouncedMaterialSearch, materialPageSize]);
 
     // Filtered Customers
     const filteredCustomers = useMemo(() => {
@@ -287,27 +307,12 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         return filteredCustomers.slice(start, start + customerPageSize);
     }, [filteredCustomers, customerPage, customerPageSize]);
 
-    // Filtered Materials
-    const filteredMaterials = useMemo(() => {
-        const query = debouncedMaterialSearch.toLowerCase();
-        if (!query) return materialList;
-        return materialList.filter((item) => {
-            const kd = renderValue(item.kd_material).toLowerCase();
-            const mat = renderValue(item.material).toLowerCase();
-            return kd.includes(query) || mat.includes(query);
-        });
-    }, [materialList, debouncedMaterialSearch]);
-
+    // Server-side materials
+    const displayedMaterials = materialList;
     const materialTotalPages = useMemo(() => {
         if (materialPageSize === Infinity || !materialPageSize) return 1;
-        return Math.max(1, Math.ceil(filteredMaterials.length / materialPageSize));
-    }, [filteredMaterials.length, materialPageSize]);
-
-    const displayedMaterials = useMemo(() => {
-        if (materialPageSize === Infinity || !materialPageSize) return filteredMaterials;
-        const start = (materialPage - 1) * materialPageSize;
-        return filteredMaterials.slice(start, start + materialPageSize);
-    }, [filteredMaterials, materialPage, materialPageSize]);
+        return Math.max(1, Math.ceil(materialTotalItems / materialPageSize));
+    }, [materialTotalItems, materialPageSize]);
 
     // Select Customer
     const handleSelectCustomer = async (item) => {
@@ -354,13 +359,20 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
 
     // Select Material
     const handleSelectMaterial = async (item) => {
-        const materialName = item.material ?? '';
+        const materialName = (item.material ?? '').trim();
         setMaterialForm((prev) => ({
             ...prev,
             nama: materialName,
             satuan: item.unit ?? prev.satuan,
+            hargaModal: '',
         }));
         setMaterialModalOpen(false);
+
+        window.requestAnimationFrame(() => {
+            if (namaMaterialRef.current) {
+                resizeTextareaToContent(namaMaterialRef.current);
+            }
+        });
 
         try {
             const response = await fetch(
@@ -369,21 +381,21 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
             );
             const data = await response.json().catch(() => ({}));
             if (response.ok && data) {
-                if (data.harga_modal !== undefined && data.harga_modal !== null) {
-                    setMaterialForm((prev) => ({
-                        ...prev,
-                        hargaModal: String(data.harga_modal),
-                    }));
-                }
-                if (data.harga !== undefined && data.harga !== null) {
-                    setMaterialForm((prev) => ({
-                        ...prev,
-                        hargaPenawaran: String(data.harga),
-                    }));
-                }
+                // Harga dari tb_invin adalah HARGA MODAL (harga beli PO terakhir)
+                const lastPrice = data.harga ?? data.harga_modal ?? 0;
+                setMaterialForm((prev) => ({
+                    ...prev,
+                    hargaModal: lastPrice > 0 ? String(lastPrice) : '',
+                }));
             }
         } catch {
             // Ignore background error
+        } finally {
+            // Fokus otomatis ke harga penawaran agar user langsung mengisi harga penawaran jual
+            setTimeout(() => {
+                hargaPenawaranRef.current?.focus();
+                hargaPenawaranRef.current?.select();
+            }, 80);
         }
     };
 
@@ -662,21 +674,39 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
             .then(async (response) => {
                 const data = await response.json().catch(() => ({}));
                 if (!response.ok) {
-                    throw new Error(data?.message || 'Gagal menyimpan quotation.');
+                    let errMsg = data?.message || '';
+                    if (data?.errors) {
+                        const detailErrors = Object.entries(data.errors)
+                            .map(([field, msgs]) => `${field}: ${Array.isArray(msgs) ? msgs.join(', ') : msgs}`)
+                            .join('\n');
+                        errMsg = errMsg ? `${errMsg}\n\n${detailErrors}` : detailErrors;
+                    }
+                    throw new Error(errMsg || `Error ${response.status}: Gagal menyimpan quotation.`);
                 }
                 setIsSubmitting(false);
-                setSuccessModal({
-                    isOpen: true,
-                    title: 'Quotation Berhasil Disimpan',
-                    message:
-                        data?.message ||
-                        'Data penawaran quotation telah berhasil disimpan ke database.',
-                    noPenawaran: data?.no_penawaran || '',
-                });
+                window.sessionStorage.setItem(
+                    'quotation_flash_success',
+                    JSON.stringify({
+                        title: 'Quotation Berhasil Disimpan!',
+                        message:
+                            data?.message ||
+                            'Data penawaran quotation baru telah berhasil disimpan ke database.',
+                        noPenawaran: data?.no_penawaran || '',
+                    }),
+                );
+                window.location.assign(data?.redirect || '/marketing/quotation');
             })
             .catch((error) => {
                 setIsSubmitting(false);
-                setErrorMessage(error?.message || 'Gagal menyimpan quotation.');
+                const fullError =
+                    error?.message ||
+                    'Terjadi kesalahan sistem yang tidak diketahui saat menyimpan quotation.';
+                setErrorMessage(fullError);
+                setErrorModal({
+                    isOpen: true,
+                    title: 'Gagal Menyimpan Quotation',
+                    message: fullError,
+                });
             });
     };
 
@@ -710,7 +740,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         <>
             <Head title="Tambah Quotation Baru" />
 
-            <div className="w-full flex-1 flex flex-col gap-5 p-4 sm:p-6 max-w-7xl mx-auto">
+            <div className="w-full flex-1 flex flex-col gap-5 p-4 sm:p-6">
                 {/* ── HEADER HALAMAN ─────────────────────────────────── */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-4">
                     <div className="flex items-center gap-3">
@@ -979,8 +1009,8 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                 </p>
                             </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                <div className="space-y-1.5">
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-4">
+                                <div className="space-y-1.5 md:col-span-2">
                                     <Label htmlFor="payment" className="text-xs font-semibold">
                                         Payment Term
                                     </Label>
@@ -998,7 +1028,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                     />
                                 </div>
 
-                                <div className="space-y-1.5">
+                                <div className="space-y-1.5 md:col-span-2">
                                     <Label htmlFor="validity" className="text-xs font-semibold">
                                         Masa Berlaku (Validity)
                                     </Label>
@@ -1016,7 +1046,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                     />
                                 </div>
 
-                                <div className="space-y-1.5">
+                                <div className="space-y-1.5 md:col-span-5">
                                     <Label htmlFor="delivery" className="text-xs font-semibold">
                                         Delivery Time
                                     </Label>
@@ -1034,7 +1064,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                     />
                                 </div>
 
-                                <div className="space-y-1.5">
+                                <div className="space-y-1.5 md:col-span-3">
                                     <Label htmlFor="franco" className="text-xs font-semibold">
                                         Franco / Tempat Penyerahan
                                     </Label>
@@ -1157,7 +1187,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                             id="nama_material"
                                             ref={namaMaterialRef}
                                             rows={1}
-                                            className={`min-h-9 flex-1 rounded-lg border bg-background px-3 py-1.5 text-sm font-medium focus:outline-none focus:ring-1 focus:ring-primary ${
+                                            className={`min-h-[38px] flex-1 resize-none overflow-hidden rounded-lg border bg-background px-3 py-2 text-sm font-medium leading-normal focus:outline-none focus:ring-1 focus:ring-primary ${
                                                 materialFormErrors.nama
                                                     ? 'border-destructive'
                                                     : 'border-input'
@@ -1181,10 +1211,10 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                         <Button
                                             type="button"
                                             variant="outline"
-                                            className="h-9 px-3 rounded-lg text-xs font-semibold shrink-0"
+                                            className="h-[38px] px-3.5 rounded-lg text-xs font-semibold shrink-0"
                                             onClick={() => {
                                                 setMaterialModalOpen(true);
-                                                loadMaterials();
+                                                loadMaterials({ page: 1 });
                                             }}
                                         >
                                             <Search className="mr-1.5 size-3.5" />
@@ -1421,37 +1451,31 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                 </div>
 
                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-left text-xs border-collapse">
-                                        <thead className="bg-muted/50 border-b border-border font-semibold text-muted-foreground">
+                                    <table className="w-full text-left text-sm border-collapse">
+                                        <thead className="bg-muted/50 border-b border-border text-xs uppercase tracking-wider font-semibold text-muted-foreground">
                                             <tr>
-                                                <th className="px-3 py-2.5 w-10 text-center">No</th>
-                                                <th className="px-3 py-2.5 min-w-[200px]">Nama & Remark</th>
-                                                <th className="px-3 py-2.5 w-24 text-right">Qty</th>
-                                                <th className="px-3 py-2.5 w-28 text-right">Harga Modal</th>
-                                                <th className="px-3 py-2.5 w-28 text-right">Total Modal</th>
-                                                <th className="px-3 py-2.5 w-28 text-right">Harga Penawaran</th>
-                                                <th className="px-3 py-2.5 w-28 text-right">Total Penawaran</th>
-                                                <th className="px-3 py-2.5 w-20 text-center">Margin</th>
-                                                <th className="px-3 py-2.5 w-20 text-center">Aksi</th>
+                                                <th className="px-3.5 py-3 w-12 text-center">No</th>
+                                                <th className="px-3.5 py-3 min-w-[220px]">Nama & Spesifikasi Material</th>
+                                                <th className="px-3.5 py-3 w-28 text-center">Qty</th>
+                                                <th className="px-3.5 py-3 w-32 text-right">Harga Modal</th>
+                                                <th className="px-3.5 py-3 w-36 text-right">Harga Penawaran</th>
+                                                <th className="px-3.5 py-3 w-24 text-center">Margin</th>
+                                                <th className="px-3.5 py-3 min-w-[200px]">Remark / Catatan</th>
+                                                <th className="px-3.5 py-3 w-20 text-center">Aksi</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-border">
                                             {materialItems.length === 0 ? (
                                                 <tr>
                                                     <td
-                                                        colSpan={9}
-                                                        className="py-10 text-center text-xs text-muted-foreground"
+                                                        colSpan={8}
+                                                        className="py-10 text-center text-sm text-muted-foreground"
                                                     >
                                                         Belum ada material yang ditambahkan. Gunakan formulir di atas untuk menambahkan item.
                                                     </td>
                                                 </tr>
                                             ) : (
                                                 materialItems.map((item, index) => {
-                                                    const qty = parseNumber(item.quantity);
-                                                    const modal = parseNumber(item.hargaModal);
-                                                    const penawaran = parseNumber(item.hargaPenawaran);
-                                                    const subtotalModal = qty * modal;
-                                                    const subtotalPenawaran = qty * penawaran;
                                                     const marginNum = parseNumber(item.margin);
 
                                                     return (
@@ -1463,43 +1487,27 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                                                     : ''
                                                             }`}
                                                         >
-                                                            <td className="px-3 py-2.5 text-center font-mono text-muted-foreground">
+                                                            <td className="px-3.5 py-3 text-center text-sm font-medium text-muted-foreground">
                                                                 {index + 1}
                                                             </td>
-                                                            <td className="px-3 py-2.5">
-                                                                <div className="font-semibold text-foreground">
-                                                                    {item.nama}
-                                                                </div>
-                                                                {item.remark && (
-                                                                    <div
-                                                                        className="text-[11px] text-muted-foreground mt-0.5 line-clamp-2"
-                                                                        dangerouslySetInnerHTML={{
-                                                                            __html: item.remark,
-                                                                        }}
-                                                                    />
-                                                                )}
+                                                            <td className="px-3.5 py-3 text-sm font-semibold text-foreground">
+                                                                {item.nama}
                                                             </td>
-                                                            <td className="px-3 py-2.5 text-right font-semibold whitespace-nowrap">
+                                                            <td className="px-3.5 py-3 text-center text-sm font-semibold whitespace-nowrap">
                                                                 {formatInteger(item.quantity)}{' '}
-                                                                <span className="font-normal text-muted-foreground">
+                                                                <span className="font-normal text-muted-foreground text-xs">
                                                                     {item.satuan}
                                                                 </span>
                                                             </td>
-                                                            <td className="px-3 py-2.5 text-right font-mono text-muted-foreground">
+                                                            <td className="px-3.5 py-3 text-right text-sm font-medium text-muted-foreground whitespace-nowrap">
                                                                 {formatRupiahInput(item.hargaModal)}
                                                             </td>
-                                                            <td className="px-3 py-2.5 text-right font-mono font-medium">
-                                                                {formatRupiahInput(subtotalModal)}
-                                                            </td>
-                                                            <td className="px-3 py-2.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
+                                                            <td className="px-3.5 py-3 text-right text-sm font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                                                                 {formatRupiahInput(item.hargaPenawaran)}
                                                             </td>
-                                                            <td className="px-3 py-2.5 text-right font-mono font-bold text-emerald-600 dark:text-emerald-400">
-                                                                {formatRupiahInput(subtotalPenawaran)}
-                                                            </td>
-                                                            <td className="px-3 py-2.5 text-center font-mono font-semibold">
+                                                            <td className="px-3.5 py-3 text-center whitespace-nowrap">
                                                                 <span
-                                                                    className={`px-1.5 py-0.5 rounded text-[11px] ${
+                                                                    className={`px-2 py-0.5 rounded text-xs font-bold ${
                                                                         marginNum < 0
                                                                             ? 'bg-destructive/15 text-destructive'
                                                                             : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
@@ -1508,23 +1516,35 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                                                     {item.margin}%
                                                                 </span>
                                                             </td>
-                                                            <td className="px-3 py-2.5 text-center">
+                                                            <td className="px-3.5 py-3 text-sm text-muted-foreground">
+                                                                {item.remark ? (
+                                                                    <div
+                                                                        className="max-w-md break-words"
+                                                                        dangerouslySetInnerHTML={{
+                                                                            __html: item.remark,
+                                                                        }}
+                                                                    />
+                                                                ) : (
+                                                                    <span className="text-muted-foreground/40">-</span>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-3.5 py-3 text-center">
                                                                 <div className="flex items-center justify-center gap-1">
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => handleEditMaterial(item)}
-                                                                        className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted"
+                                                                        className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted"
                                                                         title="Edit"
                                                                     >
-                                                                        <Pencil className="size-3.5" />
+                                                                        <Pencil className="size-4" />
                                                                     </button>
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => handleRemoveMaterial(item.id)}
-                                                                        className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-muted"
+                                                                        className="p-1.5 rounded-lg text-muted-foreground hover:text-destructive hover:bg-muted"
                                                                         title="Hapus"
                                                                     >
-                                                                        <Trash2 className="size-3.5" />
+                                                                        <Trash2 className="size-4" />
                                                                     </button>
                                                                 </div>
                                                             </td>
@@ -1634,16 +1654,18 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
 
             {/* ══ MODAL CARI CUSTOMER (TAILWIND CSS SEDERHANA) ════════ */}
             {customerModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="w-full max-w-4xl max-h-[85vh] flex flex-col rounded-xl border border-border bg-card shadow-xl overflow-hidden">
-                        <div className="p-4 border-b border-border flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-2.5">
-                                <Building2 className="size-5 text-primary" />
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4">
+                    <div className="w-[96vw] max-w-[96vw] sm:max-w-[95vw] lg:max-w-[94vw] xl:max-w-[92vw] 2xl:max-w-[1560px] max-h-[92vh] flex flex-col rounded-xl border border-border bg-card shadow-2xl overflow-hidden">
+                        <div className="p-4 sm:p-5 border-b border-border flex items-center justify-between gap-3 bg-card">
+                            <div className="flex items-center gap-3">
+                                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+                                    <Building2 className="size-5" />
+                                </div>
                                 <div>
-                                    <h3 className="text-base font-bold text-foreground">
+                                    <h3 className="text-base sm:text-lg font-bold text-foreground">
                                         Pilih Customer dari Database
                                     </h3>
-                                    <p className="text-xs text-muted-foreground">
+                                    <p className="text-xs sm:text-sm text-muted-foreground">
                                         Cari berdasarkan kode atau nama customer.
                                     </p>
                                 </div>
@@ -1651,27 +1673,27 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                             <button
                                 type="button"
                                 onClick={() => setCustomerModalOpen(false)}
-                                className="p-1 rounded-lg text-muted-foreground hover:bg-muted"
+                                className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
                             >
                                 <X className="size-5" />
                             </button>
                         </div>
 
-                        <div className="p-3 border-b border-border flex flex-wrap items-center justify-between gap-2 bg-muted/20">
-                            <div className="relative flex-1 min-w-[200px]">
-                                <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
+                        <div className="p-3 sm:p-4 border-b border-border flex flex-wrap items-center justify-between gap-3 bg-muted/20">
+                            <div className="relative flex-1 min-w-[240px]">
+                                <Search className="absolute left-3.5 top-3 size-4 text-muted-foreground" />
                                 <Input
                                     type="search"
                                     placeholder="Ketik nama atau kode customer..."
-                                    className="h-9 pl-9 text-xs rounded-lg"
+                                    className="h-10 pl-10 text-sm rounded-lg"
                                     value={customerSearch}
                                     onChange={(e) => setCustomerSearch(e.target.value)}
                                 />
                             </div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+                            <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground font-medium">
                                 <span>Tampilkan:</span>
                                 <select
-                                    className="h-8 rounded-lg border border-input bg-background px-2 text-xs font-semibold"
+                                    className="h-9 rounded-lg border border-input bg-background px-3 text-xs sm:text-sm font-semibold"
                                     value={customerPageSize === Infinity ? 'all' : customerPageSize}
                                     onChange={(e) =>
                                         setCustomerPageSize(
@@ -1687,20 +1709,20 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                             </div>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-3">
-                            <table className="w-full text-left text-xs border-collapse">
-                                <thead className="bg-muted/50 border-b border-border font-semibold text-muted-foreground">
+                        <div className="flex-1 overflow-y-auto p-4">
+                            <table className="w-full text-left text-sm border-collapse">
+                                <thead className="bg-muted/50 border-b border-border text-xs uppercase tracking-wider font-semibold text-muted-foreground">
                                     <tr>
-                                        <th className="px-3 py-2 w-12 text-center">No</th>
-                                        <th className="px-3 py-2 w-28">Kode CS</th>
-                                        <th className="px-3 py-2">Nama Customer</th>
-                                        <th className="px-3 py-2 w-20 text-center">Aksi</th>
+                                        <th className="px-4 py-3 w-16 text-center">No</th>
+                                        <th className="px-4 py-3 w-36">Kode CS</th>
+                                        <th className="px-4 py-3">Nama Customer</th>
+                                        <th className="px-4 py-3 w-28 text-center">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border">
                                     {displayedCustomers.length === 0 ? (
                                         <tr>
-                                            <td colSpan={4} className="py-8 text-center text-xs text-muted-foreground">
+                                            <td colSpan={4} className="py-12 text-center text-sm text-muted-foreground">
                                                 {customerLoading
                                                     ? 'Memuat data customer...'
                                                     : customerError || 'Data customer tidak ditemukan.'}
@@ -1713,24 +1735,24 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                                 className="hover:bg-muted/40 transition-colors cursor-pointer"
                                                 onDoubleClick={() => handleSelectCustomer(item)}
                                             >
-                                                <td className="px-3 py-2 text-center text-muted-foreground font-mono">
+                                                <td className="px-4 py-3 text-center text-sm font-medium text-muted-foreground">
                                                     {(customerPage - 1) *
                                                         (customerPageSize === Infinity ? 0 : customerPageSize) +
                                                         index +
                                                         1}
                                                 </td>
-                                                <td className="px-3 py-2 font-mono font-bold text-primary">
+                                                <td className="px-4 py-3 text-sm font-semibold text-primary">
                                                     {item.kd_cs}
                                                 </td>
-                                                <td className="px-3 py-2 font-semibold text-foreground">
+                                                <td className="px-4 py-3 text-sm font-semibold text-foreground">
                                                     {item.nm_cs}
                                                 </td>
-                                                <td className="px-3 py-2 text-center">
+                                                <td className="px-4 py-3 text-center">
                                                     <Button
                                                         type="button"
                                                         size="sm"
                                                         variant="secondary"
-                                                        className="h-7 px-2.5 text-xs font-semibold rounded-lg"
+                                                        className="h-8 px-3.5 text-xs sm:text-sm font-semibold rounded-lg"
                                                         onClick={() => handleSelectCustomer(item)}
                                                     >
                                                         Pilih
@@ -1744,15 +1766,15 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                         </div>
 
                         {customerPageSize !== Infinity && customerTotalPages > 1 && (
-                            <div className="p-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground bg-muted/20">
+                            <div className="p-3.5 border-t border-border flex items-center justify-between text-xs sm:text-sm text-muted-foreground bg-muted/20">
                                 <span>
                                     Halaman {customerPage} dari {customerTotalPages}
                                 </span>
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-2">
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        className="h-7 px-2 text-xs"
+                                        className="h-8 px-3 text-xs sm:text-sm"
                                         disabled={customerPage === 1}
                                         onClick={() => setCustomerPage((p) => Math.max(1, p - 1))}
                                     >
@@ -1761,7 +1783,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        className="h-7 px-2 text-xs"
+                                        className="h-8 px-3 text-xs sm:text-sm"
                                         disabled={customerPage === customerTotalPages}
                                         onClick={() => setCustomerPage((p) => Math.min(customerTotalPages, p + 1))}
                                     >
@@ -1776,16 +1798,18 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
 
             {/* ══ MODAL CARI MATERIAL (TAILWIND CSS SEDERHANA) ════════ */}
             {materialModalOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="w-full max-w-4xl max-h-[85vh] flex flex-col rounded-xl border border-border bg-card shadow-xl overflow-hidden">
-                        <div className="p-4 border-b border-border flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-2.5">
-                                <Boxes className="size-5 text-teal-600 dark:text-teal-400" />
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4">
+                    <div className="w-[96vw] max-w-[96vw] sm:max-w-[95vw] lg:max-w-[94vw] xl:max-w-[92vw] 2xl:max-w-[1560px] max-h-[92vh] flex flex-col rounded-xl border border-border bg-card shadow-2xl overflow-hidden">
+                        <div className="p-4 sm:p-5 border-b border-border flex items-center justify-between gap-3 bg-card">
+                            <div className="flex items-center gap-3">
+                                <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400">
+                                    <Boxes className="size-5" />
+                                </div>
                                 <div>
-                                    <h3 className="text-base font-bold text-foreground">
+                                    <h3 className="text-base sm:text-lg font-bold text-foreground">
                                         Pilih Material dari Database Gudang
                                     </h3>
-                                    <p className="text-xs text-muted-foreground">
+                                    <p className="text-xs sm:text-sm text-muted-foreground">
                                         Cari kode atau spesifikasi material.
                                     </p>
                                 </div>
@@ -1793,27 +1817,27 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                             <button
                                 type="button"
                                 onClick={() => setMaterialModalOpen(false)}
-                                className="p-1 rounded-lg text-muted-foreground hover:bg-muted"
+                                className="p-1.5 rounded-lg text-muted-foreground hover:bg-muted hover:text-foreground"
                             >
                                 <X className="size-5" />
                             </button>
                         </div>
 
-                        <div className="p-3 border-b border-border flex flex-wrap items-center justify-between gap-2 bg-muted/20">
-                            <div className="relative flex-1 min-w-[200px]">
-                                <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
+                        <div className="p-3 sm:p-4 border-b border-border flex flex-wrap items-center justify-between gap-3 bg-muted/20">
+                            <div className="relative flex-1 min-w-[240px]">
+                                <Search className="absolute left-3.5 top-3 size-4 text-muted-foreground" />
                                 <Input
                                     type="search"
                                     placeholder="Cari kode atau nama material..."
-                                    className="h-9 pl-9 text-xs rounded-lg"
+                                    className="h-10 pl-10 text-sm rounded-lg"
                                     value={materialSearch}
                                     onChange={(e) => setMaterialSearch(e.target.value)}
                                 />
                             </div>
-                            <div className="flex items-center gap-2 text-xs text-muted-foreground font-medium">
+                            <div className="flex items-center gap-2 text-xs sm:text-sm text-muted-foreground font-medium">
                                 <span>Tampilkan:</span>
                                 <select
-                                    className="h-8 rounded-lg border border-input bg-background px-2 text-xs font-semibold"
+                                    className="h-9 rounded-lg border border-input bg-background px-3 text-xs sm:text-sm font-semibold"
                                     value={materialPageSize === Infinity ? 'all' : materialPageSize}
                                     onChange={(e) =>
                                         setMaterialPageSize(
@@ -1829,20 +1853,20 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                             </div>
                         </div>
 
-                        <div className="flex-1 overflow-y-auto p-3">
-                            <table className="w-full text-left text-xs border-collapse">
-                                <thead className="bg-muted/50 border-b border-border font-semibold text-muted-foreground">
+                        <div className="flex-1 overflow-y-auto p-4">
+                            <table className="w-full text-left text-sm border-collapse">
+                                <thead className="bg-muted/50 border-b border-border text-xs uppercase tracking-wider font-semibold text-muted-foreground">
                                     <tr>
-                                        <th className="px-3 py-2 w-32">Kode Material</th>
-                                        <th className="px-3 py-2">Nama Material</th>
-                                        <th className="px-3 py-2 w-20 text-center">Satuan</th>
-                                        <th className="px-3 py-2 w-20 text-center">Aksi</th>
+                                        <th className="px-4 py-3 w-40">Kode Material</th>
+                                        <th className="px-4 py-3">Nama Material</th>
+                                        <th className="px-4 py-3 w-28 text-center">Satuan</th>
+                                        <th className="px-4 py-3 w-28 text-center">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody className="divide-y divide-border">
                                     {displayedMaterials.length === 0 ? (
                                         <tr>
-                                            <td colSpan={4} className="py-8 text-center text-xs text-muted-foreground">
+                                            <td colSpan={4} className="py-12 text-center text-sm text-muted-foreground">
                                                 {materialLoading
                                                     ? 'Memuat data material...'
                                                     : materialError || 'Data material tidak ditemukan.'}
@@ -1855,21 +1879,21 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                                 className="hover:bg-muted/40 transition-colors cursor-pointer"
                                                 onDoubleClick={() => handleSelectMaterial(item)}
                                             >
-                                                <td className="px-3 py-2 font-mono font-bold text-primary">
+                                                <td className="px-4 py-3 text-sm font-semibold text-primary">
                                                     {item.kd_material ?? '-'}
                                                 </td>
-                                                <td className="px-3 py-2 font-semibold text-foreground">
+                                                <td className="px-4 py-3 text-sm font-semibold text-foreground">
                                                     {item.material ?? '-'}
                                                 </td>
-                                                <td className="px-3 py-2 text-center text-muted-foreground">
+                                                <td className="px-4 py-3 text-center text-sm font-medium text-muted-foreground">
                                                     {item.unit ?? '-'}
                                                 </td>
-                                                <td className="px-3 py-2 text-center">
+                                                <td className="px-4 py-3 text-center">
                                                     <Button
                                                         type="button"
                                                         size="sm"
                                                         variant="secondary"
-                                                        className="h-7 px-2.5 text-xs font-semibold rounded-lg"
+                                                        className="h-8 px-3.5 text-xs sm:text-sm font-semibold rounded-lg"
                                                         onClick={() => handleSelectMaterial(item)}
                                                     >
                                                         Pilih
@@ -1883,16 +1907,16 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                         </div>
 
                         {materialPageSize !== Infinity && materialTotalPages > 1 && (
-                            <div className="p-3 border-t border-border flex items-center justify-between text-xs text-muted-foreground bg-muted/20">
+                            <div className="p-3.5 border-t border-border flex items-center justify-between text-xs sm:text-sm text-muted-foreground bg-muted/20">
                                 <span>
-                                    Halaman {materialPage} dari {materialTotalPages}
+                                    Halaman {materialPage} dari {materialTotalPages} ({materialTotalItems} total material)
                                 </span>
-                                <div className="flex items-center gap-1.5">
+                                <div className="flex items-center gap-2">
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        className="h-7 px-2 text-xs"
-                                        disabled={materialPage === 1}
+                                        className="h-8 px-3 text-xs sm:text-sm"
+                                        disabled={materialPage === 1 || materialLoading}
                                         onClick={() => setMaterialPage((p) => Math.max(1, p - 1))}
                                     >
                                         Sebelumnya
@@ -1900,8 +1924,8 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                     <Button
                                         variant="outline"
                                         size="sm"
-                                        className="h-7 px-2 text-xs"
-                                        disabled={materialPage === materialTotalPages}
+                                        className="h-8 px-3 text-xs sm:text-sm"
+                                        disabled={materialPage === materialTotalPages || materialLoading}
                                         onClick={() => setMaterialPage((p) => Math.min(materialTotalPages, p + 1))}
                                     >
                                         Berikutnya
@@ -1913,46 +1937,35 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                 </div>
             )}
 
-            {/* ══ POPUP NOTIFIKASI SUKSES (TAILWIND CSS BAWAAN) ════════ */}
-            {successModal.isOpen && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
-                    <div className="w-full max-w-md rounded-xl border border-border bg-card p-6 shadow-xl space-y-4 animate-in fade-in zoom-in-95 duration-150">
-                        <div className="flex items-start gap-3.5">
-                            <div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
-                                <CheckCircle2 className="size-6" />
+            {/* ══ POPUP ERROR (TAILWIND CSS SEPERTI SWEETALERT) ════════ */}
+            {errorModal.isOpen && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 animate-in fade-in duration-200">
+                    <div className="w-full max-w-lg rounded-2xl border border-destructive/40 bg-card p-6 shadow-2xl space-y-4 animate-in zoom-in-95 duration-150">
+                        <div className="flex items-start gap-4">
+                            <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-destructive/15 text-destructive">
+                                <AlertCircle className="size-7 stroke-[2.2]" />
                             </div>
-                            <div className="space-y-1">
-                                <h3 className="text-base font-bold text-foreground">
-                                    {successModal.title}
+                            <div className="space-y-1.5 flex-1 min-w-0">
+                                <h3 className="text-base sm:text-lg font-bold text-destructive">
+                                    {errorModal.title || 'Gagal Menyimpan Quotation'}
                                 </h3>
                                 <p className="text-xs text-muted-foreground">
-                                    {successModal.message}
+                                    Quotation gagal disimpan. Silakan periksa rincian error di bawah ini:
                                 </p>
-                                {successModal.noPenawaran && (
-                                    <div className="inline-block mt-1 font-mono text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">
-                                        No. Dokumen: {successModal.noPenawaran}
-                                    </div>
-                                )}
                             </div>
                         </div>
 
-                        <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+                        <div className="max-h-60 overflow-y-auto rounded-xl border border-destructive/20 bg-destructive/5 p-3.5 text-xs font-mono text-destructive break-words whitespace-pre-wrap select-text">
+                            {errorModal.message}
+                        </div>
+
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
                             <Button
                                 type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-8 rounded-lg text-xs"
-                                onClick={handleResetForm}
+                                className="h-9 px-5 rounded-lg text-xs font-semibold bg-destructive hover:bg-destructive/90 text-destructive-foreground shadow-xs"
+                                onClick={() => setErrorModal({ isOpen: false, title: '', message: '' })}
                             >
-                                Buat Quotation Baru
-                            </Button>
-                            <Button
-                                type="button"
-                                size="sm"
-                                className="h-8 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
-                                onClick={() => router.visit('/marketing/quotation')}
-                            >
-                                Ke Daftar Quotation
+                                Tutup & Perbaiki
                             </Button>
                         </div>
                     </div>

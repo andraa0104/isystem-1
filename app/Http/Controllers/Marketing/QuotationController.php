@@ -338,39 +338,21 @@ class QuotationController
     {
         $search = trim((string) request()->query('search', ''));
         $page = max(1, (int) request()->query('page', 1));
-        $pageSizeRaw = request()->query('pageSize', 'all');
+        $pageSizeRaw = request()->query('pageSize', 10);
         $pageSize = $pageSizeRaw === 'all' ? 'all' : max(1, (int) $pageSizeRaw);
 
-        $codeColumn = $this->resolveColumn('tb_barang', ['kd_material', 'kd_barang', 'kode_barang', 'kode'], 'kd_material');
-        $nameColumn = $this->resolveColumn('tb_barang', ['material', 'nama_barang', 'nm_barang', 'barang'], 'material');
-        $unitColumn = $this->resolveColumn('tb_barang', ['unit', 'satuan'], 'unit');
-
-        $query = DB::table('tb_barang')->selectRaw("
-            {$codeColumn} as kd_material,
-            {$nameColumn} as material,
-            {$unitColumn} as unit,
-            cast(coalesce(cast(stok_g1 as decimal(65,4)), 0) as signed) as stok_g1,
-            cast(coalesce(cast(stok_g2 as decimal(65,4)), 0) as signed) as stok_g2,
-            cast(coalesce(cast(stok_g3 as decimal(65,4)), 0) as signed) as stok_g3,
-            cast(coalesce(cast(stok_g4 as decimal(65,4)), 0) as signed) as stok_g4,
-            cast((
-                coalesce(cast(stok_g1 as decimal(65,4)), 0) +
-                coalesce(cast(stok_g2 as decimal(65,4)), 0) +
-                coalesce(cast(stok_g3 as decimal(65,4)), 0) +
-                coalesce(cast(stok_g4 as decimal(65,4)), 0)
-            ) as signed) as stok
-        ");
+        $query = DB::table('tb_barang')
+            ->select('kd_material', 'material', 'unit');
 
         if ($search !== '') {
-            $query->where(function ($q) use ($search, $codeColumn, $nameColumn, $unitColumn) {
-                $q->where($codeColumn, 'like', '%' . $search . '%')
-                    ->orWhere($nameColumn, 'like', '%' . $search . '%')
-                    ->orWhere($unitColumn, 'like', '%' . $search . '%');
+            $query->where(function ($q) use ($search) {
+                $q->where('kd_material', 'like', '%' . $search . '%')
+                    ->orWhere('material', 'like', '%' . $search . '%');
             });
         }
 
         $total = $pageSize === 'all' ? null : (clone $query)->count();
-        $query->orderBy($nameColumn);
+        $query->orderBy('material');
 
         if ($pageSize !== 'all') {
             $query->forPage($page, $pageSize);
