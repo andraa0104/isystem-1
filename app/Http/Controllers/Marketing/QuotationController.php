@@ -493,6 +493,11 @@ class QuotationController
         try {
             $this->quotationService->updateQuotation($noPenawaran, $request->all());
         } catch (\Throwable $exception) {
+            if ($request->expectsJson()) {
+                return response()->json([
+                    'message' => $exception->getMessage(),
+                ], 422);
+            }
             $status = $exception->getCode();
             if ($status === 404) {
                 return redirect()
@@ -500,6 +505,13 @@ class QuotationController
                     ->with('error', $exception->getMessage());
             }
             return back()->with('error', $exception->getMessage());
+        }
+
+        if ($request->expectsJson()) {
+            return response()->json([
+                'message' => 'Data quotation berhasil diperbarui.',
+                'redirect' => route('marketing.quotation.index'),
+            ]);
         }
 
         return redirect()
