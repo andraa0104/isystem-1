@@ -726,6 +726,12 @@ export default function QuotationEdit({
                     if (editingMaterialId === id) {
                         handleCancelEditMaterial();
                     }
+                    setToast({
+                        type: 'success',
+                        title: 'Berhasil Dihapus',
+                        message: 'Item material telah dihapus dari quotation.',
+                        duration: 3000,
+                    });
                 };
 
                 if (detailId && quotation?.No_penawaran) {
@@ -739,6 +745,12 @@ export default function QuotationEdit({
                             onSuccess: finishRemove,
                             onError: () => {
                                 setErrorMessage('Gagal menghapus detail material.');
+                                setToast({
+                                    type: 'error',
+                                    title: 'Gagal Menghapus',
+                                    message: 'Item material gagal dihapus dari database. Silakan coba lagi.',
+                                    duration: 4000,
+                                });
                             },
                         },
                     );
@@ -2250,15 +2262,16 @@ export default function QuotationEdit({
                                     }))
                                 }
                             >
-                                {confirmModal.cancelText}
+                                {confirmModal.cancelText || 'Batal'}
                             </Button>
                             <Button
                                 type="button"
+                                variant={confirmModal.variant === 'danger' ? 'destructive' : 'default'}
                                 size="sm"
-                                className={`h-8 rounded-lg text-xs font-bold text-white px-3.5 shadow-xs ${
+                                className={`h-8 rounded-lg text-xs font-semibold px-3.5 gap-1.5 shadow-xs !text-white ${
                                     confirmModal.variant === 'danger'
-                                        ? 'bg-destructive hover:bg-destructive/90 text-white'
-                                        : 'bg-amber-600 hover:bg-amber-700 text-white'
+                                        ? 'bg-destructive hover:bg-destructive/90 !text-white'
+                                        : 'bg-amber-600 hover:bg-amber-700 !text-white'
                                 }`}
                                 onClick={() => {
                                     if (confirmModal.onConfirm) {
@@ -2266,7 +2279,8 @@ export default function QuotationEdit({
                                     }
                                 }}
                             >
-                                {confirmModal.confirmText}
+                                {confirmModal.variant === 'danger' && <Trash2 className="size-3.5" />}
+                                <span>{confirmModal.confirmText || 'Ya, Hapus'}</span>
                             </Button>
                         </div>
                     </div>

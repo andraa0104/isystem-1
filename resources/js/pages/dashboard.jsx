@@ -1,6 +1,7 @@
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import UserNote from '@/components/user-note';
+import RealtimeWeatherCard from '@/components/realtime-weather-card';
 import { dashboardCardKeys } from '@/data/dashboard-cards';
 import useCachedRequest from '@/hooks/use-cached-request';
 import useInView from '@/hooks/use-in-view';
@@ -879,7 +880,7 @@ export default function Dashboard({
                     initial={{ opacity: 0, y: -16 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                    className="relative z-10 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between rounded-3xl border border-sidebar-border border-sidebar-border/70 bg-card bg-gradient-to-r from-card/95 via-card/85 to-card/70 p-5 sm:p-6 backdrop-blur-2xl shadow-xl shadow-black/[0.03] dark:shadow-black/35 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-emerald-500/35 before:to-transparent"
+                    className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between rounded-3xl border border-sidebar-border border-sidebar-border/70 bg-card bg-gradient-to-r from-card/95 via-card/85 to-card/70 p-5 sm:p-6 backdrop-blur-2xl shadow-xl shadow-black/[0.03] dark:shadow-black/35 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-emerald-500/35 before:to-transparent"
                 >
                     <div className="flex items-start sm:items-center gap-4">
                         <div className={`relative flex size-13 shrink-0 items-center justify-center rounded-2xl ${greetingInfo.containerClass}`}>
@@ -927,38 +928,42 @@ export default function Dashboard({
                         </div>
                     </div>
 
-                    {/* Quick Sync & Interval HUD */}
-                    <div className="flex flex-wrap items-center gap-2.5">
-                        <div className="flex items-center gap-2 rounded-2xl bg-muted/40 border border-sidebar-border/60 px-3.5 py-2 text-xs text-muted-foreground shadow-xs">
-                            <Clock className="size-3.5 text-emerald-500" />
-                            <span className="font-medium">Otomatis:</span>
-                            <select
-                                className="bg-transparent font-bold text-foreground focus:outline-none cursor-pointer pr-1"
-                                value={autoRefreshInterval}
-                                onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
-                            >
-                                <option value={0} className="bg-popover text-popover-foreground">Manual (Off)</option>
-                                <option value={10} className="bg-popover text-popover-foreground">Tiap 10 dtk</option>
-                                <option value={30} className="bg-popover text-popover-foreground">Tiap 30 dtk</option>
-                                <option value={60} className="bg-popover text-popover-foreground">Tiap 1 mnt</option>
-                                <option value={300} className="bg-popover text-popover-foreground">Tiap 5 mnt</option>
-                            </select>
-                        </div>
+                    {/* Real-time 3D Weather Card & Quick Sync HUD */}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full xl:w-auto">
+                        <RealtimeWeatherCard className="w-full sm:w-auto" />
 
-                        <motion.button
-                            type="button"
-                            onClick={() => handleGlobalRefresh(false)}
-                            disabled={isGlobalRefreshing}
-                            whileHover={{ scale: 1.03 }}
-                            whileTap={{ scale: 0.96 }}
-                            className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-600 to-cyan-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-500/25 hover:brightness-110 active:brightness-95 disabled:opacity-50 transition-all cursor-pointer"
-                        >
-                            <RefreshCw
-                                className={`size-3.5 ${isGlobalRefreshing ? 'animate-spin' : ''
-                                    }`}
-                            />
-                            <span>{isGlobalRefreshing ? 'Menyinkronkan...' : 'Segarkan Data'}</span>
-                        </motion.button>
+                        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                            <div className="flex items-center gap-2 rounded-2xl bg-muted/40 border border-sidebar-border/60 px-3.5 py-2 text-xs text-muted-foreground shadow-xs">
+                                <Clock className="size-3.5 text-emerald-500" />
+                                <span className="font-medium">Otomatis:</span>
+                                <select
+                                    className="bg-transparent font-bold text-foreground focus:outline-none cursor-pointer pr-1"
+                                    value={autoRefreshInterval}
+                                    onChange={(e) => setAutoRefreshInterval(Number(e.target.value))}
+                                >
+                                    <option value={0} className="bg-popover text-popover-foreground">Manual (Off)</option>
+                                    <option value={10} className="bg-popover text-popover-foreground">Tiap 10 dtk</option>
+                                    <option value={30} className="bg-popover text-popover-foreground">Tiap 30 dtk</option>
+                                    <option value={60} className="bg-popover text-popover-foreground">Tiap 1 mnt</option>
+                                    <option value={300} className="bg-popover text-popover-foreground">Tiap 5 mnt</option>
+                                </select>
+                            </div>
+
+                            <motion.button
+                                type="button"
+                                onClick={() => handleGlobalRefresh(false)}
+                                disabled={isGlobalRefreshing}
+                                whileHover={{ scale: 1.03 }}
+                                whileTap={{ scale: 0.96 }}
+                                className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-600 to-cyan-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-500/25 hover:brightness-110 active:brightness-95 disabled:opacity-50 transition-all cursor-pointer"
+                            >
+                                <RefreshCw
+                                    className={`size-3.5 ${isGlobalRefreshing ? 'animate-spin' : ''
+                                        }`}
+                                />
+                                <span>{isGlobalRefreshing ? 'Menyinkronkan...' : 'Segarkan Data'}</span>
+                            </motion.button>
+                        </div>
                     </div>
                 </motion.div>
 

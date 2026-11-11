@@ -1352,15 +1352,16 @@ export default function QuotationIndex({
                                         }))
                                     }
                                 >
-                                    {confirmModal.cancelText}
+                                    {confirmModal.cancelText || 'Batal'}
                                 </Button>
                                 <Button
                                     type="button"
+                                    variant={confirmModal.variant === 'danger' ? 'destructive' : 'default'}
                                     size="sm"
-                                    className={`h-8 rounded-lg text-xs font-bold text-white px-3.5 shadow-xs ${
+                                    className={`h-8 rounded-lg text-xs font-semibold px-3.5 gap-1.5 shadow-xs !text-white ${
                                         confirmModal.variant === 'danger'
-                                            ? 'bg-destructive hover:bg-destructive/90 text-white'
-                                            : 'bg-amber-600 hover:bg-amber-700 text-white'
+                                            ? 'bg-destructive hover:bg-destructive/90 !text-white'
+                                            : 'bg-amber-600 hover:bg-amber-700 !text-white'
                                     }`}
                                     onClick={() => {
                                         if (confirmModal.onConfirm) {
@@ -1368,7 +1369,8 @@ export default function QuotationIndex({
                                         }
                                     }}
                                 >
-                                    {confirmModal.confirmText}
+                                    {confirmModal.variant === 'danger' && <Trash2 className="size-3.5" />}
+                                    <span>{confirmModal.confirmText || 'Ya, Hapus'}</span>
                                 </Button>
                             </div>
                         </div>
