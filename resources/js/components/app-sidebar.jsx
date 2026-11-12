@@ -608,14 +608,7 @@ export function AppSidebar() {
                             {/* Connection Ping Row */}
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-2 text-[11px]">
-                                    <span className="relative flex size-2">
-                                        <span
-                                            className={`absolute inline-flex size-full animate-ping rounded-full opacity-75 ${severityStyle.pulse}`}
-                                        />
-                                        <span
-                                            className={`relative inline-flex size-2 rounded-full ${severityStyle.dot}`}
-                                        />
-                                    </span>
+                                    <Activity className="size-3.5 text-muted-foreground" />
                                     <span className="font-semibold text-foreground/80">Koneksi Server</span>
                                 </div>
                                 <span
@@ -696,12 +689,7 @@ export function AppSidebar() {
                             title={`Status server: ${severityStyle.label}`}
                             className={`flex size-8 items-center justify-center rounded-xl border ${severityStyle.badge} transition-transform hover:scale-105`}
                         >
-                            <span className="relative flex size-2.5">
-                                <span
-                                    className={`absolute inline-flex size-full animate-ping rounded-full opacity-75 ${severityStyle.pulse}`}
-                                />
-                                <span className={`relative inline-flex size-2.5 rounded-full ${severityStyle.dot}`} />
-                            </span>
+                            <Activity className="size-3.5" />
                         </div>
                     </div>
                 )}

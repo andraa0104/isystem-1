@@ -117,8 +117,6 @@ function getGreetingInfo(date) {
             iconColor: 'text-amber-500 dark:text-amber-400',
             containerClass:
                 'bg-gradient-to-br from-amber-500/20 via-orange-500/10 to-transparent ring-1 ring-amber-500/30 shadow-md shadow-amber-500/10',
-            pingClass: 'bg-amber-400',
-            dotClass: 'bg-amber-500',
         };
     }
     if (hour >= 11 && hour < 15) {
@@ -129,8 +127,6 @@ function getGreetingInfo(date) {
             iconColor: 'text-amber-500 dark:text-yellow-400',
             containerClass:
                 'bg-gradient-to-br from-yellow-500/20 via-amber-500/10 to-transparent ring-1 ring-amber-500/30 shadow-md shadow-amber-500/10',
-            pingClass: 'bg-yellow-400',
-            dotClass: 'bg-amber-500',
         };
     }
     if (hour >= 15 && hour < 18) {
@@ -141,8 +137,6 @@ function getGreetingInfo(date) {
             iconColor: 'text-orange-500 dark:text-orange-400',
             containerClass:
                 'bg-gradient-to-br from-orange-500/20 via-rose-500/10 to-transparent ring-1 ring-orange-500/30 shadow-md shadow-orange-500/10',
-            pingClass: 'bg-orange-400',
-            dotClass: 'bg-orange-500',
         };
     }
     return {
@@ -152,8 +146,6 @@ function getGreetingInfo(date) {
         iconColor: 'text-indigo-400 dark:text-indigo-300',
         containerClass:
             'bg-gradient-to-br from-indigo-500/20 via-purple-500/10 to-transparent ring-1 ring-indigo-500/30 shadow-md shadow-indigo-500/10',
-        pingClass: 'bg-indigo-400',
-        dotClass: 'bg-indigo-500',
     };
 }
 
@@ -883,12 +875,8 @@ export default function Dashboard({
                     className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between rounded-3xl border border-sidebar-border border-sidebar-border/70 bg-card bg-gradient-to-r from-card/95 via-card/85 to-card/70 p-5 sm:p-6 backdrop-blur-2xl shadow-xl shadow-black/[0.03] dark:shadow-black/35 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-emerald-500/35 before:to-transparent"
                 >
                     <div className="flex items-start sm:items-center gap-4">
-                        <div className={`relative flex size-13 shrink-0 items-center justify-center rounded-2xl ${greetingInfo.containerClass}`}>
+                        <div className={`flex size-13 shrink-0 items-center justify-center rounded-2xl ${greetingInfo.containerClass}`}>
                             <GreetingIcon className={`size-6 ${greetingInfo.iconColor}`} />
-                            <span className="absolute -top-1 -right-1 flex size-3">
-                                <span className={`absolute inline-flex size-full animate-ping rounded-full opacity-75 ${greetingInfo.pingClass}`} />
-                                <span className={`relative inline-flex size-3 rounded-full ring-2 ring-background ${greetingInfo.dotClass}`} />
-                            </span>
                         </div>
 
                         <div className="space-y-1">
@@ -932,10 +920,12 @@ export default function Dashboard({
                     <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full xl:w-auto">
                         <RealtimeWeatherCard className="w-full sm:w-auto" />
 
-                        <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                            <div className="flex items-center gap-2 rounded-2xl bg-muted/40 border border-sidebar-border/60 px-3.5 py-2 text-xs text-muted-foreground shadow-xs">
-                                <Clock className="size-3.5 text-emerald-500" />
-                                <span className="font-medium">Otomatis:</span>
+                        <div className="flex flex-col items-stretch gap-2 shrink-0 w-full sm:w-auto">
+                            <div className="flex items-center justify-between sm:justify-start gap-2 rounded-2xl bg-muted/40 border border-sidebar-border/60 px-3.5 py-2 text-xs text-muted-foreground shadow-xs">
+                                <div className="flex items-center gap-2">
+                                    <Clock className="size-3.5 text-emerald-500" />
+                                    <span className="font-medium">Otomatis:</span>
+                                </div>
                                 <select
                                     className="bg-transparent font-bold text-foreground focus:outline-none cursor-pointer pr-1"
                                     value={autoRefreshInterval}
@@ -953,9 +943,9 @@ export default function Dashboard({
                                 type="button"
                                 onClick={() => handleGlobalRefresh(false)}
                                 disabled={isGlobalRefreshing}
-                                whileHover={{ scale: 1.03 }}
-                                whileTap={{ scale: 0.96 }}
-                                className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-600 to-cyan-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-500/25 hover:brightness-110 active:brightness-95 disabled:opacity-50 transition-all cursor-pointer"
+                                whileHover={{ scale: 1.02 }}
+                                whileTap={{ scale: 0.97 }}
+                                className="flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-600 to-cyan-600 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-emerald-500/25 hover:brightness-110 active:brightness-95 disabled:opacity-50 transition-all cursor-pointer"
                             >
                                 <RefreshCw
                                     className={`size-3.5 ${isGlobalRefreshing ? 'animate-spin' : ''

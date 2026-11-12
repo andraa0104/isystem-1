@@ -1,10 +1,4 @@
-import {
-    Droplets,
-    MapPin,
-    RefreshCw,
-    Thermometer,
-    Wind,
-} from 'lucide-react';
+import { MapPin, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 
 /* ─── Weather Code Mapping (WMO Standard) ────────────────────────────────── */
@@ -584,7 +578,7 @@ export default function RealtimeWeatherCard({ className = '' }) {
             }
 
             // 2. Tarik data cuaca terkini dari Open-Meteo (Realtime, Free, CORS HTTPS)
-            const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${locData.lat}&longitude=${locData.lon}&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,precipitation,weather_code,wind_speed_10m&timezone=auto`;
+            const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${locData.lat}&longitude=${locData.lon}&current=temperature_2m,is_day,weather_code&timezone=auto`;
             const weatherRes = await fetch(weatherUrl);
 
             if (!weatherRes.ok) {
@@ -596,9 +590,6 @@ export default function RealtimeWeatherCard({ className = '' }) {
 
             const weatherPayload = {
                 temperature: Math.round(Number(current.temperature_2m ?? 29)),
-                feelsLike: Math.round(Number(current.apparent_temperature ?? current.temperature_2m ?? 32)),
-                humidity: Math.round(Number(current.relative_humidity_2m ?? 75)),
-                windSpeed: (Number(current.wind_speed_10m ?? 6)).toFixed(1),
                 isDay: Number(current.is_day ?? 1),
                 weatherCode: Number(current.weather_code ?? 1),
                 updatedAt: new Date().toISOString(),
@@ -621,9 +612,6 @@ export default function RealtimeWeatherCard({ className = '' }) {
             setWeather((prev) =>
                 prev || {
                     temperature: 29,
-                    feelsLike: 33,
-                    humidity: 78,
-                    windSpeed: '7.5',
                     isDay: 1,
                     weatherCode: 1,
                     updatedAt: new Date().toISOString(),
@@ -727,45 +715,14 @@ export default function RealtimeWeatherCard({ className = '' }) {
                             </span>
                         </div>
 
-                        {/* Location Indicator with Pulse Dot */}
+                        {/* Location Indicator */}
                         <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-medium">
                             <MapPin className="size-3 text-emerald-500 shrink-0" />
-                            <span className="truncate max-w-[130px] sm:max-w-[160px]">
+                            <span className="truncate max-w-[150px] sm:max-w-[180px]">
                                 {location?.city || 'Samarinda'}
                                 {location?.country ? `, ${location.country}` : ''}
                             </span>
-                            <span className="relative flex size-2 shrink-0">
-                                <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                                <span className="relative inline-flex size-2 rounded-full bg-emerald-500" />
-                            </span>
                         </div>
-                    </div>
-                </div>
-
-                {/* Micro Metrics HUD (Feels Like, Humidity, Wind) */}
-                <div className="hidden sm:flex flex-col gap-1 border-l border-border/60 pl-3 sm:pl-3.5 text-[11px] text-muted-foreground">
-                    <div className="flex items-center gap-1.5" title="Suhu Terasa">
-                        <Thermometer className="size-3 text-amber-500 shrink-0" />
-                        <span>Terasa:</span>
-                        <span className="font-mono font-bold text-foreground">
-                            {loading ? '--' : weather?.feelsLike}°C
-                        </span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5" title="Tingkat Kelembapan">
-                        <Droplets className="size-3 text-cyan-500 shrink-0" />
-                        <span>Lembap:</span>
-                        <span className="font-mono font-bold text-foreground">
-                            {loading ? '--' : weather?.humidity}%
-                        </span>
-                    </div>
-
-                    <div className="flex items-center gap-1.5" title="Kecepatan Angin">
-                        <Wind className="size-3 text-teal-500 shrink-0" />
-                        <span>Angin:</span>
-                        <span className="font-mono font-bold text-foreground">
-                            {loading ? '--' : weather?.windSpeed} km/j
-                        </span>
                     </div>
                 </div>
 

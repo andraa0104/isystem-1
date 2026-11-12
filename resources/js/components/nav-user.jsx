@@ -31,7 +31,7 @@ export function NavUser() {
                             }`}
                             data-test="sidebar-menu-button"
                         >
-                            {/* Avatar with Online Glow Dot */}
+                            {/* Avatar */}
                             <div className="relative shrink-0">
                                 <Avatar className="size-8 rounded-lg border border-sidebar-border/60 shadow-xs">
                                     <AvatarImage src={avatar} alt={name} />
@@ -39,9 +39,6 @@ export function NavUser() {
                                         {getInitials(name)}
                                     </AvatarFallback>
                                 </Avatar>
-                                <span className="absolute -bottom-0.5 -right-0.5 flex size-2">
-                                    <span className="relative inline-flex size-2 rounded-full bg-emerald-500 ring-1 ring-background" />
-                                </span>
                             </div>
 
                             {/* User details (when expanded) */}

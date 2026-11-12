@@ -17,14 +17,6 @@ export default function AppLogo({ collapsed = false }) {
                 transition={{ type: 'spring', stiffness: 350, damping: 20 }}
             >
                 <AppLogoIcon className="size-full" />
-                <span
-                    className={`absolute flex ${
-                        collapsed ? 'top-0 right-0 size-2' : '-top-0.5 -right-0.5 size-2.5'
-                    }`}
-                >
-                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-emerald-400 opacity-75" />
-                    <span className="relative inline-flex size-full rounded-full bg-emerald-500 ring-2 ring-background" />
-                </span>
             </motion.div>
 
             {!collapsed && (
