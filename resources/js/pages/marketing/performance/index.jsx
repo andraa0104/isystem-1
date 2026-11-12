@@ -276,32 +276,32 @@ const getHealthPalette = (score) => {
     if (s >= 80) {
         return {
             stroke: '#10b981',
-            badge: 'border-emerald-400/40 bg-emerald-500/15 text-emerald-300',
-            text: 'text-emerald-400',
-            glow: 'rgba(16, 185, 129, 0.3)',
+            badge: 'border-emerald-500/35 bg-emerald-500/12 text-emerald-700 dark:border-emerald-400/40 dark:bg-emerald-500/15 dark:text-emerald-300',
+            text: 'text-emerald-600 dark:text-emerald-400',
+            glow: 'rgba(16, 185, 129, 0.28)',
         };
     }
     if (s >= 65) {
         return {
             stroke: '#06b6d4',
-            badge: 'border-cyan-400/40 bg-cyan-500/15 text-cyan-300',
-            text: 'text-cyan-400',
-            glow: 'rgba(6, 182, 212, 0.3)',
+            badge: 'border-cyan-500/35 bg-cyan-500/12 text-cyan-700 dark:border-cyan-400/40 dark:bg-cyan-500/15 dark:text-cyan-300',
+            text: 'text-cyan-600 dark:text-cyan-400',
+            glow: 'rgba(6, 182, 212, 0.28)',
         };
     }
     if (s >= 50) {
         return {
             stroke: '#f59e0b',
-            badge: 'border-amber-400/40 bg-amber-500/15 text-amber-300',
-            text: 'text-amber-400',
-            glow: 'rgba(245, 158, 11, 0.3)',
+            badge: 'border-amber-500/35 bg-amber-500/12 text-amber-800 dark:border-amber-400/40 dark:bg-amber-500/15 dark:text-amber-300',
+            text: 'text-amber-600 dark:text-amber-400',
+            glow: 'rgba(245, 158, 11, 0.28)',
         };
     }
     return {
         stroke: '#f43f5e',
-        badge: 'border-rose-400/40 bg-rose-500/15 text-rose-300',
-        text: 'text-rose-400',
-        glow: 'rgba(244, 63, 94, 0.3)',
+        badge: 'border-rose-500/35 bg-rose-500/12 text-rose-700 dark:border-rose-400/40 dark:bg-rose-500/15 dark:text-rose-300',
+        text: 'text-rose-600 dark:text-rose-400',
+        glow: 'rgba(244, 63, 94, 0.28)',
     };
 };
 
@@ -325,9 +325,17 @@ function CosmosHeroOrnaments() {
             aria-hidden="true"
             className="pointer-events-none absolute inset-0 overflow-hidden"
         >
-            {/* Subtle dot-matrix + cyber hairline grid (matching login.css fs-cyber-grid) */}
+            {/* Subtle dot-matrix + cyber hairline grid (Light & Dark adaptive, matching login.css fs-cyber-grid) */}
             <div
-                className="absolute inset-0 opacity-60"
+                className="dark:hidden absolute inset-0 opacity-70"
+                style={{
+                    backgroundImage:
+                        'radial-gradient(circle, rgba(15,23,42,0.065) 1px, transparent 1px), linear-gradient(to right, rgba(15,23,42,0.025) 1px, transparent 1px), linear-gradient(to bottom, rgba(15,23,42,0.025) 1px, transparent 1px)',
+                    backgroundSize: '32px 32px, 64px 64px, 64px 64px',
+                }}
+            />
+            <div
+                className="hidden dark:block absolute inset-0 opacity-60"
                 style={{
                     backgroundImage:
                         'radial-gradient(circle, rgba(255,255,255,0.06) 1px, transparent 1px), linear-gradient(to right, rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(to bottom, rgba(255,255,255,0.02) 1px, transparent 1px)',
@@ -337,12 +345,12 @@ function CosmosHeroOrnaments() {
 
             {/* Connecting SVG Energy Flow Lines (matching login.jsx fs-energy-lines) */}
             <motion.svg
-                className="hidden lg:block absolute inset-0 h-full w-full opacity-35"
+                className="hidden lg:block absolute inset-0 h-full w-full opacity-25 dark:opacity-35"
                 viewBox="0 0 1200 320"
                 fill="none"
                 preserveAspectRatio="none"
                 initial={{ opacity: 0 }}
-                animate={{ opacity: 0.35 }}
+                animate={{ opacity: 0.3 }}
                 transition={{ duration: 0.9, delay: 0.25 }}
             >
                 <motion.path
@@ -367,7 +375,7 @@ function CosmosHeroOrnaments() {
 
             {/* Floating Nebula Orbs */}
             <motion.div
-                className="absolute -top-24 -left-20 h-72 w-72 rounded-full"
+                className="absolute -top-24 -left-20 h-72 w-72 rounded-full opacity-55 dark:opacity-100"
                 style={{
                     background: 'radial-gradient(circle, rgba(16, 185, 129, 0.24) 0%, transparent 70%)',
                 }}
@@ -379,7 +387,7 @@ function CosmosHeroOrnaments() {
                 transition={{ duration: 18, repeat: Infinity, ease: 'easeInOut' }}
             />
             <motion.div
-                className="absolute -right-24 -bottom-28 h-80 w-80 rounded-full"
+                className="absolute -right-24 -bottom-28 h-80 w-80 rounded-full opacity-55 dark:opacity-100"
                 style={{
                     background: 'radial-gradient(circle, rgba(6, 182, 212, 0.22) 0%, transparent 70%)',
                 }}
@@ -391,7 +399,7 @@ function CosmosHeroOrnaments() {
                 transition={{ duration: 22, repeat: Infinity, ease: 'easeInOut', delay: 1.5 }}
             />
             <motion.div
-                className="hidden md:block absolute top-1/3 left-1/2 h-56 w-56 rounded-full"
+                className="hidden md:block absolute top-1/3 left-1/2 h-56 w-56 rounded-full opacity-45 dark:opacity-100"
                 style={{
                     background: 'radial-gradient(circle, rgba(99, 102, 241, 0.16) 0%, transparent 70%)',
                 }}
@@ -401,7 +409,7 @@ function CosmosHeroOrnaments() {
 
             {/* Floating 4-Point Sparkling Star (inspired by login.jsx fs-ornament-sparkle) */}
             <motion.div
-                className="hidden sm:block absolute top-6 left-[34%] opacity-75"
+                className="hidden sm:block absolute top-6 left-[34%] opacity-70 dark:opacity-75"
                 animate={
                     prefersReduced
                         ? undefined
@@ -417,7 +425,7 @@ function CosmosHeroOrnaments() {
                 <svg width="26" height="26" viewBox="0 0 34 34" fill="none">
                     <path
                         d="M17 2 L20 13 L31 17 L20 21 L17 32 L14 21 L3 17 L14 13 Z"
-                        fill="#34d399"
+                        fill="#10b981"
                         opacity="0.7"
                     />
                 </svg>
@@ -425,7 +433,7 @@ function CosmosHeroOrnaments() {
 
             {/* Floating Tech Crosshair / Plus (inspired by login.jsx fs-ornament-plus) */}
             <motion.div
-                className="hidden md:block absolute top-14 right-[30%] opacity-65"
+                className="hidden md:block absolute top-14 right-[30%] opacity-60 dark:opacity-65"
                 animate={
                     prefersReduced
                         ? undefined
@@ -447,7 +455,7 @@ function CosmosHeroOrnaments() {
 
             {/* Floating Rhombus / Diamond Cube (Indigo) */}
             <motion.div
-                className="hidden lg:block absolute top-28 right-[19%] opacity-65"
+                className="hidden lg:block absolute top-28 right-[19%] opacity-60 dark:opacity-65"
                 animate={
                     prefersReduced
                         ? undefined
@@ -468,17 +476,17 @@ function CosmosHeroOrnaments() {
                         height="24"
                         rx="5"
                         transform="rotate(45 19 19)"
-                        stroke="#818cf8"
+                        stroke="#6366f1"
                         strokeWidth="1.5"
                         opacity="0.65"
                     />
-                    <circle cx="19" cy="19" r="3.5" fill="#818cf8" opacity="0.55" />
+                    <circle cx="19" cy="19" r="3.5" fill="#6366f1" opacity="0.55" />
                 </svg>
             </motion.div>
 
             {/* Floating Live HUD Telemetry Pill (inspired by login.jsx fs-ornament-badge) */}
             <motion.div
-                className="hidden xl:inline-flex items-center gap-1.5 rounded-full border border-emerald-400/25 bg-slate-900/75 px-2.5 py-1 text-[10px] font-bold tracking-widest text-emerald-300/80 shadow-sm absolute top-5 right-[42%]"
+                className="hidden xl:inline-flex items-center gap-1.5 rounded-full border border-emerald-500/30 bg-background/90 px-2.5 py-1 text-[10px] font-bold tracking-widest text-emerald-700 shadow-sm dark:border-emerald-400/25 dark:bg-slate-900/75 dark:text-emerald-300/80 absolute top-5 right-[42%]"
                 animate={
                     prefersReduced
                         ? undefined
@@ -490,13 +498,13 @@ function CosmosHeroOrnaments() {
                 }
                 transition={{ duration: 21, repeat: Infinity, ease: 'easeInOut' }}
             >
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 dark:bg-emerald-400 animate-pulse" />
                 <span>KPI::LIVE</span>
             </motion.div>
 
             {/* Concentric Orbital Telemetry Rings on Desktop Right */}
             <motion.div
-                className="hidden lg:block absolute -top-12 right-16 h-60 w-60 rounded-full border border-dashed border-emerald-400/20"
+                className="hidden lg:block absolute -top-12 right-16 h-60 w-60 rounded-full border border-dashed border-emerald-500/25 dark:border-emerald-400/20"
                 initial={{ scale: 0.75, opacity: 0 }}
                 animate={
                     prefersReduced
@@ -510,7 +518,7 @@ function CosmosHeroOrnaments() {
                 }}
             />
             <motion.div
-                className="hidden lg:block absolute -top-2 right-26 h-40 w-40 rounded-full border border-dashed border-cyan-400/20"
+                className="hidden lg:block absolute -top-2 right-26 h-40 w-40 rounded-full border border-dashed border-cyan-500/25 dark:border-cyan-400/20"
                 initial={{ scale: 0.65, opacity: 0 }}
                 animate={
                     prefersReduced
@@ -646,13 +654,13 @@ function HealthScoreGauge({ score = 0, statusLabel = '-' }) {
                             {safeScore}
                         </motion.span>
                     </AnimatePresence>
-                    <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                    <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground dark:text-slate-400">
                         / 100
                     </span>
                 </div>
             </motion.div>
             <div className="min-w-0">
-                <div className="text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+                <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground dark:text-slate-400">
                     Health Score
                 </div>
                 <div className="mt-1 flex flex-wrap items-center gap-2">
@@ -667,7 +675,7 @@ function HealthScoreGauge({ score = 0, statusLabel = '-' }) {
                         {statusLabel || 'Terukur'}
                     </motion.span>
                 </div>
-                <p className="mt-1.5 text-[11px] leading-snug text-slate-400">
+                <p className="mt-1.5 text-[11px] leading-snug text-muted-foreground dark:text-slate-400">
                     Skor komposit dari pertumbuhan, retensi, HHI, dan frekuensi faktur.
                 </p>
             </div>
@@ -681,18 +689,18 @@ function HealthScoreGauge({ score = 0, statusLabel = '-' }) {
 function AiEngineCoreBadge({ loading }) {
     return (
         <motion.div
-            className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-400/35 bg-slate-900 shadow-inner"
+            className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-emerald-500/35 bg-emerald-500/12 shadow-inner dark:border-emerald-400/35 dark:bg-slate-900"
             animate={{
                 boxShadow: loading
                     ? [
                           '0 0 12px rgba(16, 185, 129, 0.25)',
-                          '0 0 28px rgba(6, 182, 212, 0.5)',
+                          '0 0 28px rgba(6, 182, 212, 0.45)',
                           '0 0 12px rgba(16, 185, 129, 0.25)',
                       ]
                     : [
-                          '0 0 10px rgba(16, 185, 129, 0.18)',
-                          '0 0 20px rgba(16, 185, 129, 0.35)',
-                          '0 0 10px rgba(16, 185, 129, 0.18)',
+                          '0 0 10px rgba(16, 185, 129, 0.16)',
+                          '0 0 20px rgba(16, 185, 129, 0.32)',
+                          '0 0 10px rgba(16, 185, 129, 0.16)',
                       ],
             }}
             transition={{
@@ -702,7 +710,7 @@ function AiEngineCoreBadge({ loading }) {
             }}
         >
             <motion.div
-                className="absolute -inset-1 rounded-2xl border border-dashed border-cyan-400/40"
+                className="absolute -inset-1 rounded-2xl border border-dashed border-cyan-500/40 dark:border-cyan-400/40"
                 animate={{ rotate: 360 }}
                 transition={{
                     duration: loading ? 3.5 : 16,
@@ -715,10 +723,10 @@ function AiEngineCoreBadge({ loading }) {
                     animate={{ rotate: [0, 180, 360], scale: [0.95, 1.15, 0.95] }}
                     transition={{ duration: 2, repeat: Infinity, ease: 'easeInOut' }}
                 >
-                    <Sparkles className="h-5 w-5 text-emerald-400" />
+                    <Sparkles className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                 </motion.div>
             ) : (
-                <Bot className="h-5 w-5 text-emerald-400" />
+                <Bot className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
             )}
         </motion.div>
     );
@@ -1871,7 +1879,7 @@ export default function PerformanceIndex({
                     initial={{ opacity: 0, y: 16 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
-                    className="relative overflow-hidden rounded-3xl border border-slate-800/90 bg-[#0b1220] p-4 text-white shadow-xl sm:p-6 lg:p-7"
+                    className="relative overflow-hidden rounded-3xl border border-sidebar-border/80 bg-card bg-gradient-to-br from-emerald-50/75 via-card to-cyan-50/65 p-4 text-foreground shadow-sm dark:border-slate-800/90 dark:bg-[#0b1220] dark:from-[#0b1220] dark:via-[#0b1220] dark:to-[#0f172a] dark:text-white dark:shadow-xl sm:p-6 lg:p-7"
                 >
                     <CosmosHeroOrnaments />
 
@@ -1880,16 +1888,16 @@ export default function PerformanceIndex({
                         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                             <div className="space-y-2">
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/35 bg-emerald-500/15 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-300">
+                                    <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-500/35 bg-emerald-500/12 px-3 py-1 text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:border-emerald-400/35 dark:bg-emerald-500/15 dark:text-emerald-300">
                                         <Sparkles className="h-3.5 w-3.5" />
                                         Marketing Intelligence Command
                                     </span>
                                     {periodInfo.currentLabel && (
-                                        <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-400/30 bg-cyan-500/12 px-3 py-1 text-[11px] font-semibold text-cyan-200">
+                                        <span className="inline-flex items-center gap-1.5 rounded-full border border-cyan-500/30 bg-cyan-500/12 px-3 py-1 text-[11px] font-semibold text-cyan-800 dark:border-cyan-400/30 dark:bg-cyan-500/12 dark:text-cyan-200">
                                             <Calendar className="h-3 w-3" />
                                             <span>{periodInfo.currentLabel}</span>
                                             {periodInfo.previousLabel && (
-                                                <span className="text-slate-400">
+                                                <span className="text-muted-foreground dark:text-slate-400">
                                                     vs {periodInfo.previousLabel}
                                                 </span>
                                             )}
@@ -1897,13 +1905,13 @@ export default function PerformanceIndex({
                                     )}
                                 </div>
 
-                                <h1 className="text-2xl font-extrabold tracking-tight text-white sm:text-3xl">
+                                <h1 className="text-2xl font-extrabold tracking-tight text-foreground dark:text-white sm:text-3xl">
                                     Performa Penjualan{' '}
-                                    <span className="bg-gradient-to-r from-emerald-300 via-cyan-300 to-sky-300 bg-clip-text text-transparent">
+                                    <span className="bg-gradient-to-r from-emerald-600 via-teal-600 to-cyan-600 bg-clip-text text-transparent dark:from-emerald-300 dark:via-cyan-300 dark:to-sky-300">
                                         &amp; Retensi Customer
                                     </span>
                                 </h1>
-                                <p className="max-w-2xl text-xs leading-relaxed text-slate-300 sm:text-sm">
+                                <p className="max-w-2xl text-xs leading-relaxed text-muted-foreground dark:text-slate-300 sm:text-sm">
                                     Pantau realisasi faktur penjualan, konsentrasi Pareto, proyeksi deret waktu Holt-Winters, dan peringatan dini risiko churn pelanggan dalam satu layar terpadu.
                                 </p>
                             </div>
@@ -1916,10 +1924,10 @@ export default function PerformanceIndex({
                                     whileTap={{ scale: 0.97 }}
                                     onClick={() => fetchData()}
                                     disabled={loading}
-                                    className="inline-flex items-center gap-2 rounded-xl border border-white/15 bg-white/8 px-3.5 py-2 text-xs font-semibold text-slate-100 transition-colors hover:bg-white/15 disabled:opacity-50 sm:text-sm"
+                                    className="inline-flex items-center gap-2 rounded-xl border border-sidebar-border bg-background/90 px-3.5 py-2 text-xs font-semibold text-foreground shadow-xs transition-colors hover:bg-muted disabled:opacity-50 dark:border-white/15 dark:bg-white/8 dark:text-slate-100 dark:hover:bg-white/15 sm:text-sm"
                                 >
                                     <RefreshCw
-                                        className={`h-4 w-4 text-emerald-300 ${loading ? 'animate-spin' : ''}`}
+                                        className={`h-4 w-4 text-emerald-600 dark:text-emerald-300 ${loading ? 'animate-spin' : ''}`}
                                     />
                                     <span>Segarkan Data</span>
                                 </motion.button>
@@ -1929,7 +1937,7 @@ export default function PerformanceIndex({
                                     whileHover={{ scale: 1.02 }}
                                     whileTap={{ scale: 0.97 }}
                                     onClick={handleExportPdf}
-                                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 px-4 py-2 text-xs font-bold text-slate-950 shadow-md transition-all hover:brightness-110 sm:text-sm"
+                                    className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 bg-gradient-to-r from-emerald-600 to-cyan-600 px-4 py-2 text-xs font-bold text-white shadow-md transition-all hover:brightness-110 dark:from-emerald-500 dark:to-cyan-500 dark:text-slate-950 sm:text-sm"
                                 >
                                     <Download className="h-4 w-4" />
                                     <span>Ekspor / Cetak PDF</span>
@@ -1940,26 +1948,30 @@ export default function PerformanceIndex({
                         {/* Glassmorphic Command Filter Dock */}
                         <form
                             onSubmit={handleApplyFilter}
-                            className="rounded-2xl border border-white/10 bg-slate-900/85 p-3.5 shadow-inner sm:p-4"
+                            className="rounded-2xl border border-sidebar-border/80 bg-card/90 p-3.5 shadow-sm backdrop-blur-sm dark:border-white/10 dark:bg-slate-900/85 dark:shadow-inner sm:p-4"
                         >
                             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-12 lg:items-end">
                                 {/* Tahun */}
                                 <div className="lg:col-span-2">
                                     <label
                                         htmlFor="perf-filter-year"
-                                        className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-300"
+                                        className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground dark:text-slate-300"
                                     >
-                                        <Calendar className="h-3 w-3 text-emerald-400" />
+                                        <Calendar className="h-3 w-3 text-emerald-600 dark:text-emerald-400" />
                                         Tahun
                                     </label>
                                     <select
                                         id="perf-filter-year"
                                         value={year}
                                         onChange={(e) => setYear(Number(e.target.value))}
-                                        className="h-9 w-full rounded-xl border border-white/15 bg-slate-950 px-3 text-xs font-semibold text-white outline-none focus:border-emerald-400 sm:text-sm"
+                                        className="h-9 w-full rounded-xl border border-sidebar-border bg-background px-3 text-xs font-semibold text-foreground outline-none transition-colors focus:border-emerald-500 dark:border-white/15 dark:bg-slate-950 dark:text-white dark:focus:border-emerald-400 sm:text-sm"
                                     >
                                         {yearSelectOptions.map((y) => (
-                                            <option key={y} value={y} className="bg-slate-950 text-white">
+                                            <option
+                                                key={y}
+                                                value={y}
+                                                className="bg-popover text-popover-foreground dark:bg-slate-950 dark:text-white"
+                                            >
                                                 {y}
                                             </option>
                                         ))}
@@ -1968,11 +1980,11 @@ export default function PerformanceIndex({
 
                                 {/* Mode Periode (Spring Pill Switcher) */}
                                 <div className="sm:col-span-2 lg:col-span-4">
-                                    <span className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-300">
-                                        <Layers className="h-3 w-3 text-cyan-400" />
+                                    <span className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground dark:text-slate-300">
+                                        <Layers className="h-3 w-3 text-cyan-600 dark:text-cyan-400" />
                                         Mode Periode
                                     </span>
-                                    <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/10 bg-slate-950/90 p-1 sm:grid-cols-4">
+                                    <div className="grid grid-cols-2 gap-1 rounded-xl border border-sidebar-border bg-muted/60 p-1 dark:border-white/10 dark:bg-slate-950/90 sm:grid-cols-4">
                                         {periodModeTabs.map((tab) => {
                                             const active = periodType === tab.value;
                                             return (
@@ -1982,8 +1994,8 @@ export default function PerformanceIndex({
                                                     onClick={() => setPeriodType(tab.value)}
                                                     className={`relative rounded-lg px-2 py-1.5 text-xs font-semibold transition-colors ${
                                                         active
-                                                            ? 'text-slate-950'
-                                                            : 'text-slate-300 hover:text-white'
+                                                            ? 'text-white dark:text-slate-950'
+                                                            : 'text-muted-foreground hover:text-foreground dark:text-slate-300 dark:hover:text-white'
                                                     }`}
                                                 >
                                                     {active && (
@@ -1994,7 +2006,7 @@ export default function PerformanceIndex({
                                                                 stiffness: 420,
                                                                 damping: 32,
                                                             }}
-                                                            className="absolute inset-0 rounded-lg bg-gradient-to-r from-emerald-400 to-cyan-400"
+                                                            className="absolute inset-0 rounded-lg bg-emerald-600 bg-gradient-to-r from-emerald-600 to-cyan-600 dark:from-emerald-400 dark:to-cyan-400"
                                                         />
                                                     )}
                                                     <span className="relative z-10">{tab.label}</span>
@@ -2008,9 +2020,9 @@ export default function PerformanceIndex({
                                 <div className="lg:col-span-2">
                                     <label
                                         htmlFor="perf-filter-subperiod"
-                                        className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-300"
+                                        className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground dark:text-slate-300"
                                     >
-                                        <Clock className="h-3 w-3 text-sky-400" />
+                                        <Clock className="h-3 w-3 text-sky-600 dark:text-sky-400" />
                                         {periodType === 'monthly'
                                             ? 'Bulan'
                                             : periodType === 'quarterly'
@@ -2032,13 +2044,13 @@ export default function PerformanceIndex({
                                                     id="perf-filter-subperiod"
                                                     value={month}
                                                     onChange={(e) => setMonth(Number(e.target.value))}
-                                                    className="h-9 w-full rounded-xl border border-white/15 bg-slate-950 px-3 text-xs font-semibold text-white outline-none transition-colors focus:border-emerald-400 sm:text-sm"
+                                                    className="h-9 w-full rounded-xl border border-sidebar-border bg-background px-3 text-xs font-semibold text-foreground outline-none transition-colors focus:border-emerald-500 dark:border-white/15 dark:bg-slate-950 dark:text-white dark:focus:border-emerald-400 sm:text-sm"
                                                 >
                                                     {monthOptions.map((m) => (
                                                         <option
                                                             key={m.value}
                                                             value={m.value}
-                                                            className="bg-slate-950 text-white"
+                                                            className="bg-popover text-popover-foreground dark:bg-slate-950 dark:text-white"
                                                         >
                                                             {m.label}
                                                         </option>
@@ -2050,13 +2062,13 @@ export default function PerformanceIndex({
                                                     id="perf-filter-subperiod"
                                                     value={quarter}
                                                     onChange={(e) => setQuarter(Number(e.target.value))}
-                                                    className="h-9 w-full rounded-xl border border-white/15 bg-slate-950 px-3 text-xs font-semibold text-white outline-none transition-colors focus:border-emerald-400 sm:text-sm"
+                                                    className="h-9 w-full rounded-xl border border-sidebar-border bg-background px-3 text-xs font-semibold text-foreground outline-none transition-colors focus:border-emerald-500 dark:border-white/15 dark:bg-slate-950 dark:text-white dark:focus:border-emerald-400 sm:text-sm"
                                                 >
                                                     {quarterOptions.map((q) => (
                                                         <option
                                                             key={q.value}
                                                             value={q.value}
-                                                            className="bg-slate-950 text-white"
+                                                            className="bg-popover text-popover-foreground dark:bg-slate-950 dark:text-white"
                                                         >
                                                             {q.label}
                                                         </option>
@@ -2068,13 +2080,13 @@ export default function PerformanceIndex({
                                                     id="perf-filter-subperiod"
                                                     value={semester}
                                                     onChange={(e) => setSemester(Number(e.target.value))}
-                                                    className="h-9 w-full rounded-xl border border-white/15 bg-slate-950 px-3 text-xs font-semibold text-white outline-none transition-colors focus:border-emerald-400 sm:text-sm"
+                                                    className="h-9 w-full rounded-xl border border-sidebar-border bg-background px-3 text-xs font-semibold text-foreground outline-none transition-colors focus:border-emerald-500 dark:border-white/15 dark:bg-slate-950 dark:text-white dark:focus:border-emerald-400 sm:text-sm"
                                                 >
                                                     {semesterOptions.map((s) => (
                                                         <option
                                                             key={s.value}
                                                             value={s.value}
-                                                            className="bg-slate-950 text-white"
+                                                            className="bg-popover text-popover-foreground dark:bg-slate-950 dark:text-white"
                                                         >
                                                             {s.label}
                                                         </option>
@@ -2082,7 +2094,7 @@ export default function PerformanceIndex({
                                                 </select>
                                             )}
                                             {periodType === 'yearly' && (
-                                                <div className="flex h-9 items-center rounded-xl border border-white/10 bg-slate-950/60 px-3 text-xs font-medium text-slate-400">
+                                                <div className="flex h-9 items-center rounded-xl border border-sidebar-border bg-muted/50 px-3 text-xs font-medium text-muted-foreground dark:border-white/10 dark:bg-slate-950/60 dark:text-slate-400">
                                                     Satu Tahun Penuh ({year})
                                                 </div>
                                             )}
@@ -2094,25 +2106,28 @@ export default function PerformanceIndex({
                                 <div className="lg:col-span-2">
                                     <label
                                         htmlFor="perf-filter-customer"
-                                        className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-300"
+                                        className="mb-1.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-muted-foreground dark:text-slate-300"
                                     >
-                                        <Building2 className="h-3 w-3 text-indigo-400" />
+                                        <Building2 className="h-3 w-3 text-indigo-600 dark:text-indigo-400" />
                                         Customer
                                     </label>
                                     <select
                                         id="perf-filter-customer"
                                         value={customer}
                                         onChange={(e) => setCustomer(e.target.value)}
-                                        className="h-9 w-full rounded-xl border border-white/15 bg-slate-950 px-3 text-xs font-semibold text-white outline-none transition-colors focus:border-emerald-400 sm:text-sm"
+                                        className="h-9 w-full rounded-xl border border-sidebar-border bg-background px-3 text-xs font-semibold text-foreground outline-none transition-colors focus:border-emerald-500 dark:border-white/15 dark:bg-slate-950 dark:text-white dark:focus:border-emerald-400 sm:text-sm"
                                     >
-                                        <option value="all" className="bg-slate-950 text-white">
+                                        <option
+                                            value="all"
+                                            className="bg-popover text-popover-foreground dark:bg-slate-950 dark:text-white"
+                                        >
                                             Semua Customer
                                         </option>
                                         {customersList.map((c) => (
                                             <option
                                                 key={c.kd_cs}
                                                 value={c.kd_cs}
-                                                className="bg-slate-950 text-white"
+                                                className="bg-popover text-popover-foreground dark:bg-slate-950 dark:text-white"
                                             >
                                                 {c.nm_cs}
                                             </option>
@@ -2130,7 +2145,7 @@ export default function PerformanceIndex({
                                         <Button
                                             type="submit"
                                             disabled={loading}
-                                            className="h-9 w-full rounded-xl bg-emerald-500 text-xs font-bold text-slate-950 hover:bg-emerald-400"
+                                            className="h-9 w-full rounded-xl bg-emerald-600 text-xs font-bold text-white hover:bg-emerald-500 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
                                         >
                                             <Filter className="mr-1.5 h-3.5 w-3.5" />
                                             Tampilkan
@@ -2143,7 +2158,7 @@ export default function PerformanceIndex({
                                             onClick={handleResetFilter}
                                             disabled={loading}
                                             title="Reset ke periode tutup buku terakhir"
-                                            className="h-9 shrink-0 rounded-xl border-white/15 bg-white/5 px-3 text-xs font-semibold text-slate-200 hover:bg-white/15 hover:text-white"
+                                            className="h-9 shrink-0 rounded-xl border-sidebar-border bg-background px-3 text-xs font-semibold text-foreground hover:bg-muted dark:border-white/15 dark:bg-white/5 dark:text-slate-200 dark:hover:bg-white/15 dark:hover:text-white"
                                         >
                                             <RotateCcw className="h-3.5 w-3.5" />
                                         </Button>
@@ -2282,28 +2297,28 @@ export default function PerformanceIndex({
                     initial={{ opacity: 0, y: 18 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.5, delay: 0.12, ease: [0.16, 1, 0.3, 1] }}
-                    className="overflow-hidden rounded-3xl border border-slate-800/80 bg-[#0d1526] text-slate-100 shadow-lg"
+                    className="overflow-hidden rounded-3xl border border-sidebar-border/80 bg-card text-foreground shadow-xs dark:border-slate-800/80 dark:bg-[#0d1526] dark:text-slate-100 dark:shadow-lg"
                 >
                     {/* AI Command Header Strip */}
-                    <div className="flex flex-col gap-4 border-b border-white/10 bg-gradient-to-r from-slate-900 via-[#0f1c33] to-slate-900 p-4 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
+                    <div className="flex flex-col gap-4 border-b border-sidebar-border/70 bg-muted/25 bg-gradient-to-r from-emerald-50/70 via-card to-cyan-50/70 p-4 dark:border-white/10 dark:from-slate-900 dark:via-[#0f1c33] dark:to-slate-900 sm:flex-row sm:items-center sm:justify-between sm:px-6 sm:py-5">
                         <div className="flex items-start gap-3.5">
                             <AiEngineCoreBadge loading={aiLoading} />
                             <div className="min-w-0">
                                 <div className="flex flex-wrap items-center gap-2">
-                                    <h2 className="text-base font-extrabold tracking-tight text-white sm:text-lg">
+                                    <h2 className="text-base font-extrabold tracking-tight text-foreground dark:text-white sm:text-lg">
                                         AI Strategic Insights &amp; ML Telemetry
                                     </h2>
-                                    <span className="inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/8 px-2.5 py-0.5 text-[10.5px] font-semibold text-cyan-300">
+                                    <span className="inline-flex items-center gap-1 rounded-full border border-cyan-500/30 bg-cyan-500/10 px-2.5 py-0.5 text-[10.5px] font-semibold text-cyan-700 dark:border-white/15 dark:bg-white/8 dark:text-cyan-300">
                                         <Cpu className="h-3 w-3" />
                                         {aiEngine}
                                     </span>
                                     {aiIsFallback && (
-                                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/35 bg-amber-500/15 px-2.5 py-0.5 text-[10.5px] font-semibold text-amber-300">
+                                        <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/35 bg-amber-500/12 px-2.5 py-0.5 text-[10.5px] font-semibold text-amber-800 dark:border-amber-400/35 dark:bg-amber-500/15 dark:text-amber-300">
                                             Python Fallback Mode
                                         </span>
                                     )}
                                 </div>
-                                <p className="mt-1 text-xs text-slate-300">
+                                <p className="mt-1 text-xs text-muted-foreground dark:text-slate-300">
                                     Diagnosa Pareto, Indeks HHI/Gini, Prediksi Omset Holt-Winters, Churn Early Warning &amp; Rekomendasi Taktis
                                 </p>
                             </div>
@@ -2315,16 +2330,16 @@ export default function PerformanceIndex({
                                 <button
                                     type="button"
                                     onClick={handleCopyAiAnalysis}
-                                    className="inline-flex items-center gap-1.5 rounded-xl border border-white/15 bg-white/8 px-3 py-1.5 text-xs font-semibold text-slate-100 transition-colors hover:bg-white/15"
+                                    className="inline-flex items-center gap-1.5 rounded-xl border border-sidebar-border bg-background px-3 py-1.5 text-xs font-semibold text-foreground transition-colors hover:bg-muted dark:border-white/15 dark:bg-white/8 dark:text-slate-100 dark:hover:bg-white/15"
                                 >
                                     {aiCopied ? (
                                         <>
-                                            <Check className="h-3.5 w-3.5 text-emerald-400" />
+                                            <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                                             <span>Tersalin</span>
                                         </>
                                     ) : (
                                         <>
-                                            <Copy className="h-3.5 w-3.5 text-cyan-300" />
+                                            <Copy className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-300" />
                                             <span>Salin Laporan</span>
                                         </>
                                     )}
@@ -2337,7 +2352,7 @@ export default function PerformanceIndex({
                                 whileTap={{ scale: 0.96 }}
                                 onClick={() => fetchAiAnalysis(null, true)}
                                 disabled={aiLoading}
-                                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-400/35 bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-200 transition-colors hover:bg-emerald-500/25 disabled:opacity-50"
+                                className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-500/35 bg-emerald-500/12 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition-colors hover:bg-emerald-500/20 disabled:opacity-50 dark:border-emerald-400/35 dark:bg-emerald-500/15 dark:text-emerald-200 dark:hover:bg-emerald-500/25"
                             >
                                 <RefreshCw
                                     className={`h-3.5 w-3.5 ${aiLoading ? 'animate-spin' : ''}`}
@@ -2351,7 +2366,7 @@ export default function PerformanceIndex({
                                 whileTap={{ scale: 0.96 }}
                                 onClick={() => setAiCollapsed((c) => !c)}
                                 aria-expanded={!aiCollapsed}
-                                className="inline-flex items-center gap-1 rounded-xl border border-white/15 bg-white/5 px-2.5 py-1.5 text-xs font-semibold text-slate-300 hover:bg-white/15 hover:text-white"
+                                className="inline-flex items-center gap-1 rounded-xl border border-sidebar-border bg-background px-2.5 py-1.5 text-xs font-semibold text-muted-foreground transition-colors hover:bg-muted hover:text-foreground dark:border-white/15 dark:bg-white/5 dark:text-slate-300 dark:hover:bg-white/15 dark:hover:text-white"
                             >
                                 <span>{aiCollapsed ? 'Tampilkan' : 'Ringkas'}</span>
                                 <motion.span
@@ -2378,8 +2393,8 @@ export default function PerformanceIndex({
                                 <div className="space-y-5 p-4 sm:p-6">
                                     {/* Engine Notice Banner */}
                                     {aiNotice && (
-                                        <div className="flex items-start gap-2.5 rounded-xl border border-amber-400/35 bg-amber-500/12 px-3.5 py-2.5 text-xs text-amber-200">
-                                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" />
+                                        <div className="flex items-start gap-2.5 rounded-xl border border-amber-500/35 bg-amber-500/12 px-3.5 py-2.5 text-xs text-amber-900 dark:border-amber-400/35 dark:text-amber-200">
+                                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-600 dark:text-amber-400" />
                                             <span>{aiNotice}</span>
                                         </div>
                                     )}
@@ -2387,14 +2402,14 @@ export default function PerformanceIndex({
                                     {/* Error Banner */}
                                     {aiError && !aiLoading && (
                                         <div className="flex flex-col gap-3 rounded-2xl border border-rose-500/35 bg-rose-500/12 p-4 sm:flex-row sm:items-center sm:justify-between">
-                                            <div className="flex items-start gap-2.5 text-xs text-rose-200">
-                                                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-400" />
+                                            <div className="flex items-start gap-2.5 text-xs text-rose-800 dark:text-rose-200">
+                                                <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" />
                                                 <span>{aiError}</span>
                                             </div>
                                             <button
                                                 type="button"
                                                 onClick={() => fetchAiAnalysis(null, true)}
-                                                className="shrink-0 self-start rounded-lg bg-rose-500 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-400 sm:self-auto"
+                                                className="shrink-0 self-start rounded-lg bg-rose-600 px-3 py-1.5 text-xs font-bold text-white hover:bg-rose-500 sm:self-auto"
                                             >
                                                 Coba Lagi
                                             </button>
@@ -2403,14 +2418,14 @@ export default function PerformanceIndex({
 
                                     {/* Loading Telemetry Skeleton */}
                                     {aiLoading && !aiData && (
-                                        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-white/10 bg-slate-900/70 px-6 py-10 text-center">
-                                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-400">
+                                        <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-sidebar-border/80 bg-muted/25 px-6 py-10 text-center dark:border-white/10 dark:bg-slate-900/70">
+                                            <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
                                                 <Sparkles className="h-6 w-6 animate-pulse" />
                                             </div>
-                                            <p className="text-sm font-semibold text-white">
+                                            <p className="text-sm font-semibold text-foreground dark:text-white">
                                                 Memproses Analitik Kuantitatif &amp; Machine Learning...
                                             </p>
-                                            <p className="max-w-lg text-xs text-slate-400">
+                                            <p className="max-w-lg text-xs text-muted-foreground dark:text-slate-400">
                                                 Menjalankan regresi deret waktu Holt-Winters, segmentasi pelanggan K-Means, serta skor risiko churn dan konsentrasi HHI.
                                             </p>
                                         </div>
@@ -2422,18 +2437,18 @@ export default function PerformanceIndex({
                                             {/* Row A: Health Score + Executive Summary + Quantitative Metrics + Pareto */}
                                             <div className="grid grid-cols-1 gap-4 lg:grid-cols-12">
                                                 {/* Health Score & Executive Summary (7 cols) */}
-                                                <div className="flex flex-col justify-between gap-4 rounded-2xl border border-white/10 bg-slate-900/75 p-4 lg:col-span-7 sm:p-5">
+                                                <div className="flex flex-col justify-between gap-4 rounded-2xl border border-sidebar-border/80 bg-muted/25 p-4 dark:border-white/10 dark:bg-slate-900/75 lg:col-span-7 sm:p-5">
                                                     <HealthScoreGauge
                                                         score={aiData.health_score}
                                                         statusLabel={aiData.status_label}
                                                     />
 
-                                                    <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3.5">
-                                                        <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-300">
+                                                    <div className="rounded-xl border border-sidebar-border/70 bg-background p-3.5 dark:border-white/10 dark:bg-slate-950/60">
+                                                        <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
                                                             <Sparkles className="h-3.5 w-3.5" />
                                                             Ringkasan Eksekutif AI
                                                         </div>
-                                                        <p className="text-xs leading-relaxed text-slate-200 sm:text-sm">
+                                                        <p className="text-xs leading-relaxed text-foreground/90 dark:text-slate-200 sm:text-sm">
                                                             {aiData.executive_summary || '-'}
                                                         </p>
                                                     </div>
@@ -2441,47 +2456,47 @@ export default function PerformanceIndex({
                                                     {/* Python Quantitative Metrics Micro Grid */}
                                                     {analyticsMetrics && (
                                                         <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-                                                            <div className="rounded-xl border border-white/10 bg-slate-950/50 p-2.5">
-                                                                <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                                            <div className="rounded-xl border border-sidebar-border/70 bg-background p-2.5 dark:border-white/10 dark:bg-slate-950/50">
+                                                                <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground dark:text-slate-400">
                                                                     Indeks HHI
                                                                 </span>
-                                                                <span className="mt-0.5 block text-sm font-extrabold text-white tabular-nums">
+                                                                <span className="mt-0.5 block text-sm font-extrabold text-foreground dark:text-white tabular-nums">
                                                                     {formatNumber(analyticsMetrics.hhi)}
                                                                 </span>
-                                                                <span className="text-[10px] text-cyan-300">
+                                                                <span className="text-[10px] font-medium text-cyan-700 dark:text-cyan-300">
                                                                     {analyticsMetrics.risk_level || analyticsMetrics.hhi_label}
                                                                 </span>
                                                             </div>
-                                                            <div className="rounded-xl border border-white/10 bg-slate-950/50 p-2.5">
-                                                                <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                                            <div className="rounded-xl border border-sidebar-border/70 bg-background p-2.5 dark:border-white/10 dark:bg-slate-950/50">
+                                                                <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground dark:text-slate-400">
                                                                     Koefisien Gini
                                                                 </span>
-                                                                <span className="mt-0.5 block text-sm font-extrabold text-white tabular-nums">
+                                                                <span className="mt-0.5 block text-sm font-extrabold text-foreground dark:text-white tabular-nums">
                                                                     {Number(analyticsMetrics.gini || 0).toFixed(3)}
                                                                 </span>
-                                                                <span className="text-[10px] text-slate-400">
+                                                                <span className="text-[10px] text-muted-foreground dark:text-slate-400">
                                                                     Ketimpangan
                                                                 </span>
                                                             </div>
-                                                            <div className="rounded-xl border border-white/10 bg-slate-950/50 p-2.5">
-                                                                <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                                            <div className="rounded-xl border border-sidebar-border/70 bg-background p-2.5 dark:border-white/10 dark:bg-slate-950/50">
+                                                                <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground dark:text-slate-400">
                                                                     Retention (NRR)
                                                                 </span>
-                                                                <span className="mt-0.5 block text-sm font-extrabold text-emerald-400 tabular-nums">
+                                                                <span className="mt-0.5 block text-sm font-extrabold text-emerald-600 dark:text-emerald-400 tabular-nums">
                                                                     {Number(analyticsMetrics.nrr_percent || 0).toFixed(1)}%
                                                                 </span>
-                                                                <span className="text-[10px] text-slate-400">
+                                                                <span className="text-[10px] text-muted-foreground dark:text-slate-400">
                                                                     Net Revenue
                                                                 </span>
                                                             </div>
-                                                            <div className="rounded-xl border border-white/10 bg-slate-950/50 p-2.5">
-                                                                <span className="block text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+                                                            <div className="rounded-xl border border-sidebar-border/70 bg-background p-2.5 dark:border-white/10 dark:bg-slate-950/50">
+                                                                <span className="block text-[10px] font-semibold uppercase tracking-wider text-muted-foreground dark:text-slate-400">
                                                                     Churn Rate
                                                                 </span>
-                                                                <span className="mt-0.5 block text-sm font-extrabold text-rose-400 tabular-nums">
+                                                                <span className="mt-0.5 block text-sm font-extrabold text-rose-600 dark:text-rose-400 tabular-nums">
                                                                     {Number(analyticsMetrics.churn_rate_percent || 0).toFixed(1)}%
                                                                 </span>
-                                                                <span className="text-[10px] text-slate-400">
+                                                                <span className="text-[10px] text-muted-foreground dark:text-slate-400">
                                                                     Pareto 80%: {analyticsMetrics.pareto_80_cutoff_customers ?? '-'} akun
                                                                 </span>
                                                             </div>
@@ -2490,24 +2505,24 @@ export default function PerformanceIndex({
                                                 </div>
 
                                                 {/* Pareto Concentration Radar (5 cols) */}
-                                                <div className="flex flex-col justify-between gap-4 rounded-2xl border border-white/10 bg-slate-900/75 p-4 lg:col-span-5 sm:p-5">
+                                                <div className="flex flex-col justify-between gap-4 rounded-2xl border border-sidebar-border/80 bg-muted/25 p-4 dark:border-white/10 dark:bg-slate-900/75 lg:col-span-5 sm:p-5">
                                                     <div>
                                                         <div className="flex items-center justify-between gap-2">
-                                                            <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-300">
+                                                            <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">
                                                                 <ShieldAlert className="h-4 w-4" />
                                                                 Risiko Konsentrasi Pareto
                                                             </span>
-                                                            <span className="rounded-full border border-amber-400/35 bg-amber-500/15 px-2.5 py-0.5 text-[11px] font-bold text-amber-300">
+                                                            <span className="rounded-full border border-amber-500/35 bg-amber-500/12 px-2.5 py-0.5 text-[11px] font-bold text-amber-800 dark:border-amber-400/35 dark:bg-amber-500/15 dark:text-amber-300">
                                                                 Risiko:{' '}
                                                                 {aiData.pareto_risk_analysis?.risk_level || '-'}
                                                             </span>
                                                         </div>
 
                                                         <div className="mt-4 flex items-baseline justify-between">
-                                                            <span className="text-xs text-slate-300">
+                                                            <span className="text-xs text-muted-foreground dark:text-slate-300">
                                                                 Pangsa Top 5 Customer
                                                             </span>
-                                                            <span className="text-2xl font-extrabold text-white tabular-nums">
+                                                            <span className="text-2xl font-extrabold text-foreground dark:text-white tabular-nums">
                                                                 {Number(
                                                                     aiData.pareto_risk_analysis
                                                                         ?.top5_share_percent || 0,
@@ -2517,7 +2532,7 @@ export default function PerformanceIndex({
                                                         </div>
 
                                                         {/* Animated Progress Bar */}
-                                                        <div className="mt-2 h-3 w-full overflow-hidden rounded-full bg-slate-800">
+                                                        <div className="mt-2 h-3 w-full overflow-hidden rounded-full bg-muted dark:bg-slate-800">
                                                             <motion.div
                                                                 initial={{ width: 0 }}
                                                                 animate={{
@@ -2533,12 +2548,12 @@ export default function PerformanceIndex({
                                                                     duration: 0.9,
                                                                     ease: [0.16, 1, 0.3, 1],
                                                                 }}
-                                                                className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-amber-400 to-rose-500"
+                                                                className="h-full rounded-full bg-gradient-to-r from-emerald-500 via-amber-400 to-rose-500 dark:from-emerald-400 dark:via-amber-400 dark:to-rose-500"
                                                             />
                                                         </div>
                                                     </div>
 
-                                                    <div className="rounded-xl border border-white/10 bg-slate-950/60 p-3.5 text-xs leading-relaxed text-slate-200">
+                                                    <div className="rounded-xl border border-sidebar-border/70 bg-background p-3.5 text-xs leading-relaxed text-foreground/90 dark:border-white/10 dark:bg-slate-950/60 dark:text-slate-200">
                                                         {aiData.pareto_risk_analysis?.evaluation ||
                                                             'Evaluasi distribusi Pareto omset pelanggan sedang tersedia.'}
                                                     </div>
@@ -2549,23 +2564,23 @@ export default function PerformanceIndex({
                                             {ml && (
                                                 <div className="grid grid-cols-1 gap-4 xl:grid-cols-12">
                                                     {/* Holt-Winters Forecast (7 cols) */}
-                                                    <div className="rounded-2xl border border-cyan-500/25 bg-slate-900/75 p-4 xl:col-span-7 sm:p-5">
+                                                    <div className="rounded-2xl border border-cyan-500/30 bg-muted/25 p-4 dark:border-cyan-500/25 dark:bg-slate-900/75 xl:col-span-7 sm:p-5">
                                                         <div className="flex flex-wrap items-center justify-between gap-2">
                                                             <div className="flex items-center gap-2">
-                                                                <TrendingUp className="h-4 w-4 text-cyan-400" />
-                                                                <h3 className="text-sm font-bold text-white">
+                                                                <TrendingUp className="h-4 w-4 text-cyan-600 dark:text-cyan-400" />
+                                                                <h3 className="text-sm font-bold text-foreground dark:text-white">
                                                                     Prediksi Omset (Holt-Winters Time-Series)
                                                                 </h3>
                                                             </div>
                                                             {ml.forecast?.model_metrics?.mape != null && (
-                                                                <span className="rounded-full border border-cyan-400/35 bg-cyan-500/15 px-2.5 py-0.5 text-[11px] font-bold text-cyan-300 tabular-nums">
+                                                                <span className="rounded-full border border-cyan-500/35 bg-cyan-500/12 px-2.5 py-0.5 text-[11px] font-bold text-cyan-800 dark:border-cyan-400/35 dark:bg-cyan-500/15 dark:text-cyan-300 tabular-nums">
                                                                     MAPE: {ml.forecast.model_metrics.mape}%
                                                                 </span>
                                                             )}
                                                         </div>
 
                                                         {ml.forecast?.narrative && (
-                                                            <p className="mt-2.5 text-xs leading-relaxed text-slate-300">
+                                                            <p className="mt-2.5 text-xs leading-relaxed text-muted-foreground dark:text-slate-300">
                                                                 {ml.forecast.narrative}
                                                             </p>
                                                         )}
@@ -2589,29 +2604,29 @@ export default function PerformanceIndex({
                                                                                         ease: [0.16, 1, 0.3, 1],
                                                                                     }}
                                                                                     whileHover={{ y: -2 }}
-                                                                                    className="rounded-xl border border-white/10 bg-slate-950/70 p-3 transition-colors hover:border-cyan-400/35"
+                                                                                    className="rounded-xl border border-sidebar-border/70 bg-background p-3 transition-colors hover:border-cyan-500/45 dark:border-white/10 dark:bg-slate-950/70 dark:hover:border-cyan-400/35"
                                                                                 >
-                                                                                    <div className="flex items-center justify-between gap-1 text-[11px] font-semibold text-slate-400">
+                                                                                    <div className="flex items-center justify-between gap-1 text-[11px] font-semibold text-muted-foreground dark:text-slate-400">
                                                                                         <span>
                                                                                             {fp.period_label}
                                                                                         </span>
                                                                                         <span
                                                                                             className={`font-bold tabular-nums ${
                                                                                                 fpGrowth >= 0
-                                                                                                    ? 'text-emerald-400'
-                                                                                                    : 'text-rose-400'
+                                                                                                    ? 'text-emerald-600 dark:text-emerald-400'
+                                                                                                    : 'text-rose-600 dark:text-rose-400'
                                                                                             }`}
                                                                                         >
                                                                                             {fpGrowth > 0 ? '+' : ''}
                                                                                             {fpGrowth.toFixed(1)}%
                                                                                         </span>
                                                                                     </div>
-                                                                                    <div className="mt-1 text-base font-extrabold text-white tabular-nums">
+                                                                                    <div className="mt-1 text-base font-extrabold text-foreground dark:text-white tabular-nums">
                                                                                         {formatCompactRupiah(
                                                                                             fp.predicted_sales,
                                                                                         )}
                                                                                     </div>
-                                                                                    <div className="mt-0.5 text-[10px] text-slate-400 tabular-nums">
+                                                                                    <div className="mt-0.5 text-[10px] text-muted-foreground dark:text-slate-400 tabular-nums">
                                                                                         95% CI:{' '}
                                                                                         {formatCompactRupiah(
                                                                                             fp.lower_bound_95,
@@ -2630,15 +2645,15 @@ export default function PerformanceIndex({
                                                     </div>
 
                                                     {/* Churn Early Warning (5 cols) */}
-                                                    <div className="rounded-2xl border border-rose-500/25 bg-slate-900/75 p-4 xl:col-span-5 sm:p-5">
+                                                    <div className="rounded-2xl border border-rose-500/30 bg-muted/25 p-4 dark:border-rose-500/25 dark:bg-slate-900/75 xl:col-span-5 sm:p-5">
                                                         <div className="flex flex-wrap items-center justify-between gap-2">
                                                             <div className="flex items-center gap-2">
-                                                                <ShieldAlert className="h-4 w-4 text-rose-400" />
-                                                                <h3 className="text-sm font-bold text-white">
+                                                                <ShieldAlert className="h-4 w-4 text-rose-600 dark:text-rose-400" />
+                                                                <h3 className="text-sm font-bold text-foreground dark:text-white">
                                                                     Churn Early Warning
                                                                 </h3>
                                                             </div>
-                                                            <span className="rounded-full border border-rose-400/35 bg-rose-500/15 px-2.5 py-0.5 text-[11px] font-bold text-rose-300 tabular-nums">
+                                                            <span className="rounded-full border border-rose-500/35 bg-rose-500/12 px-2.5 py-0.5 text-[11px] font-bold text-rose-700 dark:border-rose-400/35 dark:bg-rose-500/15 dark:text-rose-300 tabular-nums">
                                                                 Terancam:{' '}
                                                                 {ml.churn?.value_at_risk_high_fmt ||
                                                                     'Rp 0'}
@@ -2646,11 +2661,11 @@ export default function PerformanceIndex({
                                                         </div>
 
                                                         <div className="mt-3 flex flex-wrap gap-2 text-xs">
-                                                            <span className="rounded-lg border border-rose-500/30 bg-rose-500/12 px-2.5 py-1 font-semibold text-rose-200 tabular-nums">
+                                                            <span className="rounded-lg border border-rose-500/30 bg-rose-500/12 px-2.5 py-1 font-semibold text-rose-700 dark:text-rose-200 tabular-nums">
                                                                 Risiko Tinggi:{' '}
                                                                 {ml.churn?.high_risk_count ?? 0} Akun
                                                             </span>
-                                                            <span className="rounded-lg border border-amber-500/30 bg-amber-500/12 px-2.5 py-1 font-semibold text-amber-200 tabular-nums">
+                                                            <span className="rounded-lg border border-amber-500/30 bg-amber-500/12 px-2.5 py-1 font-semibold text-amber-800 dark:text-amber-200 tabular-nums">
                                                                 Risiko Sedang:{' '}
                                                                 {ml.churn?.medium_risk_count ?? 0} Akun
                                                             </span>
@@ -2659,7 +2674,7 @@ export default function PerformanceIndex({
                                                         <div className="mt-3 space-y-2">
                                                             {(ml.churn?.top_at_risk_accounts || [])
                                                                 .length === 0 ? (
-                                                                <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-3 text-xs text-emerald-200">
+                                                                <div className="rounded-xl border border-emerald-500/25 bg-emerald-500/10 p-3 text-xs text-emerald-800 dark:text-emerald-200">
                                                                     Tidak terdeteksi customer berisiko tinggi churn pada periode ini.
                                                                 </div>
                                                             ) : (
@@ -2681,18 +2696,18 @@ export default function PerformanceIndex({
                                                                                 href={getCustomerDetailUrl(
                                                                                     acc.kd_cs,
                                                                                 )}
-                                                                                className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-slate-950/65 px-3 py-2 transition-colors hover:border-rose-400/40"
+                                                                                className="flex items-center justify-between gap-3 rounded-xl border border-sidebar-border/70 bg-background px-3 py-2 transition-colors hover:border-rose-500/45 dark:border-white/10 dark:bg-slate-950/65 dark:hover:border-rose-400/40"
                                                                             >
                                                                                 <div className="min-w-0">
-                                                                                    <div className="truncate text-xs font-bold text-white">
+                                                                                    <div className="truncate text-xs font-bold text-foreground dark:text-white">
                                                                                         {acc.nm_cs}
                                                                                     </div>
-                                                                                    <div className="truncate text-[10.5px] text-slate-400">
+                                                                                    <div className="truncate text-[10.5px] text-muted-foreground dark:text-slate-400">
                                                                                         {acc.risk_factor}
                                                                                     </div>
                                                                                 </div>
                                                                                 <div className="shrink-0 text-right">
-                                                                                    <span className="block text-xs font-extrabold text-rose-400 tabular-nums">
+                                                                                    <span className="block text-xs font-extrabold text-rose-600 dark:text-rose-400 tabular-nums">
                                                                                         {Math.round(
                                                                                             Number(
                                                                                                 acc.churn_prob ||
@@ -2701,7 +2716,7 @@ export default function PerformanceIndex({
                                                                                         )}
                                                                                         %
                                                                                     </span>
-                                                                                    <span className="text-[10px] text-slate-400 tabular-nums">
+                                                                                    <span className="text-[10px] text-muted-foreground dark:text-slate-400 tabular-nums">
                                                                                         {acc.prev_sales_fmt}
                                                                                     </span>
                                                                                 </div>
@@ -2716,9 +2731,9 @@ export default function PerformanceIndex({
 
                                             {/* K-Means Cluster Interactive Quick Filter Strip */}
                                             {ml?.clusters && Object.keys(ml.clusters).length > 0 && (
-                                                <div className="rounded-2xl border border-white/10 bg-slate-900/75 p-4">
+                                                <div className="rounded-2xl border border-sidebar-border/80 bg-muted/25 p-4 dark:border-white/10 dark:bg-slate-900/75">
                                                     <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
-                                                        <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-indigo-300">
+                                                        <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
                                                             <Layers className="h-3.5 w-3.5" />
                                                             Segmentasi K-Means Customer (Klik untuk Filter Tabel)
                                                         </span>
@@ -2729,7 +2744,7 @@ export default function PerformanceIndex({
                                                                     setClusterFilter('all');
                                                                     setCurrentPage(1);
                                                                 }}
-                                                                className="text-[11px] font-semibold text-cyan-300 hover:underline"
+                                                                className="text-[11px] font-semibold text-cyan-700 hover:underline dark:text-cyan-300"
                                                             >
                                                                 Reset Segmen ({clusterFilter})
                                                             </button>
@@ -2756,12 +2771,12 @@ export default function PerformanceIndex({
                                                                         }}
                                                                         className={`inline-flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-colors ${
                                                                             selected
-                                                                                ? 'border-emerald-400 bg-emerald-500/20 text-emerald-200 ring-2 ring-emerald-400/25'
-                                                                                : 'border-white/15 bg-slate-950/60 text-slate-200 hover:border-cyan-400/40 hover:text-white'
+                                                                                ? 'border-emerald-500 bg-emerald-500/15 text-emerald-800 ring-2 ring-emerald-500/25 dark:border-emerald-400 dark:bg-emerald-500/20 dark:text-emerald-200 dark:ring-emerald-400/25'
+                                                                                : 'border-sidebar-border bg-background text-foreground hover:border-cyan-500/50 dark:border-white/15 dark:bg-slate-950/60 dark:text-slate-200 dark:hover:border-cyan-400/40 dark:hover:text-white'
                                                                         }`}
                                                                     >
                                                                         <span>{cName}</span>
-                                                                        <span className="rounded-md bg-white/10 px-1.5 py-0.5 text-[10px] font-bold tabular-nums">
+                                                                        <span className="rounded-md bg-muted px-1.5 py-0.5 text-[10px] font-bold text-foreground dark:bg-white/10 dark:text-slate-100 tabular-nums">
                                                                             {info.count ?? 0}
                                                                         </span>
                                                                     </motion.button>
@@ -2779,16 +2794,16 @@ export default function PerformanceIndex({
                                                     initial={{ opacity: 0, y: 14 }}
                                                     animate={{ opacity: 1, y: 0 }}
                                                     transition={{ duration: 0.4, delay: 0.05, ease: [0.16, 1, 0.3, 1] }}
-                                                    className="rounded-2xl border border-rose-500/25 bg-slate-900/75 p-4"
+                                                    className="rounded-2xl border border-rose-500/30 bg-muted/25 p-4 dark:border-rose-500/25 dark:bg-slate-900/75"
                                                 >
-                                                    <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-rose-300">
+                                                    <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-300">
                                                         <AlertTriangle className="h-4 w-4" />
                                                         Area Kritis &amp; Anomali (Z-Score)
                                                     </div>
                                                     <div className="space-y-2.5">
                                                         {(aiData.critical_areas_to_fix || []).length ===
                                                         0 ? (
-                                                            <p className="text-xs text-slate-400">
+                                                            <p className="text-xs text-muted-foreground dark:text-slate-400">
                                                                 Tidak ada anomali kritis terdeteksi pada periode ini.
                                                             </p>
                                                         ) : (
@@ -2800,21 +2815,21 @@ export default function PerformanceIndex({
                                                                         animate={{ opacity: 1, x: 0 }}
                                                                         transition={{ duration: 0.3, delay: idx * 0.06 }}
                                                                         whileHover={{ x: 2 }}
-                                                                        className="rounded-xl border border-white/10 bg-slate-950/70 p-3 text-xs transition-colors hover:border-rose-400/35"
+                                                                        className="rounded-xl border border-sidebar-border/70 bg-background p-3 text-xs transition-colors hover:border-rose-500/45 dark:border-white/10 dark:bg-slate-950/70 dark:hover:border-rose-400/35"
                                                                     >
-                                                                        <div className="flex flex-wrap items-center justify-between gap-1 font-bold text-rose-300">
+                                                                        <div className="flex flex-wrap items-center justify-between gap-1 font-bold text-rose-700 dark:text-rose-300">
                                                                             <span>{item.issue}</span>
-                                                                            <span className="tabular-nums text-[11px] text-rose-200">
+                                                                            <span className="tabular-nums text-[11px] text-rose-800 dark:text-rose-200">
                                                                                 {item.nominal_impact}
                                                                             </span>
                                                                         </div>
-                                                                        <div className="mt-1 font-semibold text-white">
+                                                                        <div className="mt-1 font-semibold text-foreground dark:text-white">
                                                                             {item.customer_affected}
                                                                         </div>
-                                                                        <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
+                                                                        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground dark:text-slate-300">
                                                                             {item.root_cause}
                                                                         </p>
-                                                                        <div className="mt-2 rounded-lg bg-rose-500/12 px-2.5 py-1.5 text-[11px] font-medium text-rose-200">
+                                                                        <div className="mt-2 rounded-lg bg-rose-500/12 px-2.5 py-1.5 text-[11px] font-medium text-rose-800 dark:text-rose-200">
                                                                             Aksi: {item.action_to_fix}
                                                                         </div>
                                                                     </motion.div>
@@ -2829,16 +2844,16 @@ export default function PerformanceIndex({
                                                     initial={{ opacity: 0, y: 14 }}
                                                     animate={{ opacity: 1, y: 0 }}
                                                     transition={{ duration: 0.4, delay: 0.12, ease: [0.16, 1, 0.3, 1] }}
-                                                    className="rounded-2xl border border-indigo-500/25 bg-slate-900/75 p-4"
+                                                    className="rounded-2xl border border-indigo-500/30 bg-muted/25 p-4 dark:border-indigo-500/25 dark:bg-slate-900/75"
                                                 >
-                                                    <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-300">
+                                                    <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
                                                         <Target className="h-4 w-4" />
                                                         Rekomendasi Taktis Divisi
                                                     </div>
                                                     <div className="space-y-2.5">
                                                         {(aiData.tactical_recommendations || [])
                                                             .length === 0 ? (
-                                                            <p className="text-xs text-slate-400">
+                                                            <p className="text-xs text-muted-foreground dark:text-slate-400">
                                                                 Menunggu data rekomendasi taktis...
                                                             </p>
                                                         ) : (
@@ -2850,15 +2865,15 @@ export default function PerformanceIndex({
                                                                         animate={{ opacity: 1, x: 0 }}
                                                                         transition={{ duration: 0.3, delay: idx * 0.06 }}
                                                                         whileHover={{ x: 2 }}
-                                                                        className="rounded-xl border border-white/10 bg-slate-950/70 p-3 text-xs transition-colors hover:border-indigo-400/35"
+                                                                        className="rounded-xl border border-sidebar-border/70 bg-background p-3 text-xs transition-colors hover:border-indigo-500/45 dark:border-white/10 dark:bg-slate-950/70 dark:hover:border-indigo-400/35"
                                                                     >
-                                                                        <span className="inline-block rounded-md bg-indigo-500/15 px-2 py-0.5 text-[10px] font-bold text-indigo-300">
+                                                                        <span className="inline-block rounded-md bg-indigo-500/12 px-2 py-0.5 text-[10px] font-bold text-indigo-700 dark:bg-indigo-500/15 dark:text-indigo-300">
                                                                             {rec.category}
                                                                         </span>
-                                                                        <div className="mt-1.5 font-bold text-white">
+                                                                        <div className="mt-1.5 font-bold text-foreground dark:text-white">
                                                                             {rec.focus}
                                                                         </div>
-                                                                        <p className="mt-1 text-[11px] leading-relaxed text-slate-300">
+                                                                        <p className="mt-1 text-[11px] leading-relaxed text-muted-foreground dark:text-slate-300">
                                                                             {rec.action}
                                                                         </p>
                                                                     </motion.div>
@@ -2873,15 +2888,15 @@ export default function PerformanceIndex({
                                                     initial={{ opacity: 0, y: 14 }}
                                                     animate={{ opacity: 1, y: 0 }}
                                                     transition={{ duration: 0.4, delay: 0.18, ease: [0.16, 1, 0.3, 1] }}
-                                                    className="rounded-2xl border border-emerald-500/25 bg-slate-900/75 p-4"
+                                                    className="rounded-2xl border border-emerald-500/30 bg-muted/25 p-4 dark:border-emerald-500/25 dark:bg-slate-900/75"
                                                 >
-                                                    <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-300">
+                                                    <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
                                                         <Zap className="h-4 w-4" />
                                                         Quick Wins 7 Hari Ke Depan
                                                     </div>
                                                     <div className="space-y-2.5">
                                                         {(aiData.quick_wins || []).length === 0 ? (
-                                                            <p className="text-xs text-slate-400">
+                                                            <p className="text-xs text-muted-foreground dark:text-slate-400">
                                                                 Belum ada daftar quick wins.
                                                             </p>
                                                         ) : (
@@ -2892,12 +2907,12 @@ export default function PerformanceIndex({
                                                                     animate={{ opacity: 1, x: 0 }}
                                                                     transition={{ duration: 0.3, delay: idx * 0.06 }}
                                                                     whileHover={{ x: 2 }}
-                                                                    className="flex items-start gap-2.5 rounded-xl border border-white/10 bg-slate-950/70 p-3 text-xs transition-colors hover:border-emerald-400/35"
+                                                                    className="flex items-start gap-2.5 rounded-xl border border-sidebar-border/70 bg-background p-3 text-xs transition-colors hover:border-emerald-500/45 dark:border-white/10 dark:bg-slate-950/70 dark:hover:border-emerald-400/35"
                                                                 >
-                                                                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/20 text-[11px] font-extrabold text-emerald-300 tabular-nums">
+                                                                    <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-[11px] font-extrabold text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-300 tabular-nums">
                                                                         {idx + 1}
                                                                     </span>
-                                                                    <span className="leading-relaxed text-slate-200">
+                                                                    <span className="leading-relaxed text-foreground/90 dark:text-slate-200">
                                                                         {qw}
                                                                     </span>
                                                                 </motion.div>
