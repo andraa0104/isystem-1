@@ -1769,7 +1769,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
             {/* ══ MODAL CARI CUSTOMER (TAILWIND CSS SEDERHANA) ════════ */}
             {customerModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4">
-                    <div className="w-full sm:w-fit min-w-[320px] sm:min-w-[480px] max-w-[95vw] lg:max-w-4xl max-h-[90vh] flex flex-col rounded-xl border border-border bg-card shadow-2xl overflow-hidden">
+                    <div className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-xl border border-border bg-card shadow-2xl overflow-hidden">
                         <div className="p-4 sm:p-5 border-b border-border flex items-center justify-between gap-3 bg-card">
                             <div className="flex items-center gap-3">
                                 <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
@@ -1827,9 +1827,9 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                             <table className="w-full text-left text-sm border-collapse">
                                 <thead className="bg-muted/50 border-b border-border text-xs uppercase tracking-wider font-semibold text-muted-foreground">
                                     <tr>
-                                        <th className="px-4 py-3 w-16 text-center whitespace-nowrap">No</th>
-                                        <th className="px-4 py-3 w-32 whitespace-nowrap">Kode CS</th>
-                                        <th className="px-4 py-3 whitespace-nowrap">Nama Customer</th>
+                                        <th className="px-4 py-3 w-14 text-center whitespace-nowrap">No</th>
+                                        <th className="px-4 py-3 w-28 sm:w-32 whitespace-nowrap">Kode CS</th>
+                                        <th className="px-4 py-3 min-w-[180px]">Nama Customer</th>
                                         <th className="px-4 py-3 w-24 text-center whitespace-nowrap">Aksi</th>
                                     </tr>
                                 </thead>
@@ -1862,7 +1862,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                                 <td className="px-4 py-3 text-sm font-semibold font-mono text-primary whitespace-nowrap">
                                                     {item.kd_cs}
                                                 </td>
-                                                <td className="px-4 py-3 text-sm font-semibold text-foreground whitespace-nowrap">
+                                                <td className="px-4 py-3 text-sm font-semibold text-foreground whitespace-normal break-words leading-snug">
                                                     {item.nm_cs}
                                                 </td>
                                                 <td className="px-4 py-3 text-center whitespace-nowrap">
@@ -1932,7 +1932,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
             {/* ══ MODAL CARI MATERIAL (TAILWIND CSS SEDERHANA) ════════ */}
             {materialModalOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-2 sm:p-4">
-                    <div className="w-full sm:w-fit min-w-[320px] sm:min-w-[540px] max-w-[95vw] lg:max-w-4xl max-h-[90vh] flex flex-col rounded-xl border border-border bg-card shadow-2xl overflow-hidden">
+                    <div className="w-full max-w-3xl max-h-[90vh] flex flex-col rounded-xl border border-border bg-card shadow-2xl overflow-hidden">
                         <div className="p-4 sm:p-5 border-b border-border flex items-center justify-between gap-3 bg-card">
                             <div className="flex items-center gap-3">
                                 <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-teal-500/10 text-teal-600 dark:text-teal-400">
@@ -1990,9 +1990,9 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                             <table className="w-full text-left text-sm border-collapse">
                                 <thead className="bg-muted/50 border-b border-border text-xs uppercase tracking-wider font-semibold text-muted-foreground">
                                     <tr>
-                                        <th className="px-4 py-3 w-36 whitespace-nowrap">Kode Material</th>
-                                        <th className="px-4 py-3 whitespace-nowrap">Nama Material</th>
-                                        <th className="px-4 py-3 w-24 text-center whitespace-nowrap">Satuan</th>
+                                        <th className="px-4 py-3 w-32 sm:w-36 whitespace-nowrap">Kode Material</th>
+                                        <th className="px-4 py-3 min-w-[200px]">Nama Material</th>
+                                        <th className="px-4 py-3 w-20 sm:w-24 text-center whitespace-nowrap">Satuan</th>
                                         <th className="px-4 py-3 w-24 text-center whitespace-nowrap">Aksi</th>
                                     </tr>
                                 </thead>
@@ -2022,7 +2022,7 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                                 <td className="px-4 py-3 text-sm font-semibold font-mono text-primary whitespace-nowrap">
                                                     {item.kd_material ?? '-'}
                                                 </td>
-                                                <td className="px-4 py-3 text-sm font-semibold text-foreground whitespace-nowrap">
+                                                <td className="px-4 py-3 text-sm font-semibold text-foreground whitespace-normal break-words leading-snug">
                                                     {item.material ?? '-'}
                                                 </td>
                                                 <td className="px-4 py-3 text-center text-sm font-medium text-muted-foreground whitespace-nowrap">
