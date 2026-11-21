@@ -1,4 +1,3 @@
-import { Spinner } from '@/components/ui/spinner';
 import { SidebarInset } from '@/components/ui/sidebar';
 import { cn } from '@/lib/utils';
 import { router } from '@inertiajs/react';
@@ -72,8 +71,7 @@ export function AppContent({
     const loadingOverlay = isLoading ? (
         <div className="absolute inset-0 z-40 bg-background/45 backdrop-blur-[1px]">
             <div className="sticky top-[50vh] flex -translate-y-1/2 justify-center">
-                <div className="flex items-center gap-2 rounded-lg border border-sidebar-border/70 bg-background px-4 py-3 text-muted-foreground shadow-sm">
-                    <Spinner className="size-6" />
+                <div className="flex items-center gap-2 rounded-lg border border-sidebar-border/70 bg-background px-4 py-2.5 text-muted-foreground shadow-sm">
                     <span className="text-sm font-medium">Memuat halaman...</span>
                 </div>
             </div>
