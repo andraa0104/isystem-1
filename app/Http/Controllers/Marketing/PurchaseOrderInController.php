@@ -2041,7 +2041,7 @@ class PurchaseOrderInController
         $search = trim((string) $request->query('search', ''));
 
         if (empty($kdCs)) {
-            return response()->json(['pics' => []]);
+            return response()->json(['pics' => [], 'latest_pic' => '']);
         }
 
         $query = DB::table('tb_cspic')
@@ -2055,7 +2055,42 @@ class PurchaseOrderInController
 
         $pics = $query->orderBy('pic_name')->pluck('pic_name');
 
-        return response()->json(['pics' => $pics]);
+        // Cari data input PIC terakhir untuk customer ini (prioritas tb_poin lalu tb_cspic)
+        $latestPic = '';
+        try {
+            $lastPoPic = DB::table('tb_poin')
+                ->where('kode_customer', $kdCs)
+                ->whereNotNull('sender_name')
+                ->where('sender_name', '!=', '')
+                ->orderByDesc('id')
+                ->value('sender_name');
+
+            if ($lastPoPic && trim((string) $lastPoPic) !== '') {
+                $latestPic = trim((string) $lastPoPic);
+            }
+        } catch (\Throwable $e) {
+            // fallback
+        }
+
+        if ($latestPic === '') {
+            try {
+                $lastCsPic = DB::table('tb_cspic')
+                    ->where('kd_cs', $kdCs)
+                    ->orderByDesc('id')
+                    ->value('pic_name');
+
+                if ($lastCsPic && trim((string) $lastCsPic) !== '') {
+                    $latestPic = trim((string) $lastCsPic);
+                }
+            } catch (\Throwable $e) {
+                // fallback
+            }
+        }
+
+        return response()->json([
+            'pics' => $pics,
+            'latest_pic' => $latestPic,
+        ]);
     }
 
     public function storeCustomer(Request $request)

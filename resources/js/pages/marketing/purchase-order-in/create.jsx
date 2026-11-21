@@ -15,10 +15,15 @@ import { Head, Link, router } from '@inertiajs/react';
 import axios from 'axios';
 import {
     CalendarDays,
+    Check,
     Landmark,
     PackageSearch,
     Pencil,
+    Plus,
     ReceiptText,
+    Save,
+    Search,
+    Sparkles,
     Trash2,
 } from 'lucide-react';
 import {
@@ -191,6 +196,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
     const deliveryDatePickerRef = useRef(null);
     const qtyRef = useRef(null);
     const predictRequestRef = useRef(null);
+    const picInputRef = useRef(null);
 
     // States for Material Modal
     const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
@@ -451,7 +457,25 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                 );
                 if (res.ok) {
                     const data = await res.json();
-                    setPicList(Array.isArray(data?.pics) ? data.pics : []);
+                    const pics = Array.isArray(data?.pics) ? data.pics : [];
+                    setPicList(pics);
+
+                    // Autofill data terakhir input bila ada, atau fallback ke data PIC pertama
+                    const candidatePic = data?.latest_pic || (pics.length > 0 ? pics[0] : '');
+                    if (candidatePic) {
+                        setForm((prev) => ({
+                            ...prev,
+                            senderName: candidatePic,
+                        }));
+                    }
+
+                    // Langsung fokus ke field PIC dan tandai/blok semua teksnya agar user bisa langsung ganti isinya
+                    setTimeout(() => {
+                        if (picInputRef.current) {
+                            picInputRef.current.focus();
+                            picInputRef.current.select();
+                        }
+                    }, 50);
                 }
             } catch (error) {
                 if (error.name !== 'AbortError') {
@@ -1108,671 +1132,561 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
     return (
         <>
             <Head title="Tambah PO In" />
-            <div className="flex h-full min-w-0 flex-1 flex-col gap-4 p-3 sm:gap-5 sm:p-4">
-                <section
-                    className="rounded-xl border border-slate-700 bg-[#0f172a] p-4 text-white shadow-lg sm:rounded-2xl sm:p-5"
-                    style={{ backgroundColor: '#0f172a' }}
-                >
-                    <h1 className="mt-1 text-xl font-bold text-white sm:text-2xl">
-                        Form Purchase Order In
-                    </h1>
-                    <div className="mt-4 mb-2 flex flex-col items-start justify-between rounded-lg border border-slate-600 bg-[#1e293b] p-4 shadow-sm sm:flex-row sm:items-center">
-                        <div className="mb-3 sm:mb-0">
-                            <h3 className="text-lg font-bold text-white">
-                                AI Auto-Fill (OCR) ✨
-                            </h3>
-                            <p className="text-sm font-medium text-slate-300">
-                                Unggah foto atau PDF Purchase Order dari
-                                Customer, sistem AI akan otomatis mengenali dan
-                                mengisi Form secara ajaib.
+            <div
+                className="flex h-full min-w-0 flex-1 flex-col gap-5 px-0 py-4"
+                style={{
+                    fontFamily:
+                        "'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif",
+                }}
+            >
+                {/* ── HEADER HALAMAN (Tanpa Tombol Atas Sesuai Request) ── */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-4">
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-xl font-bold tracking-tight text-foreground">
+                                Form Purchase Order In
+                            </h1>
+                            <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
+                                PO Masuk
+                            </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                            Input transaksi purchase order masuk dari customer • Lengkapi rincian dokumen dan item material
+                        </p>
+                    </div>
+                </div>
+
+                {/* ── BANNER AI AUTO-FILL (OCR) ───────────────────────── */}
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-xl border border-border bg-muted/30 p-3.5 sm:p-4 text-sm">
+                    <div className="flex items-start sm:items-center gap-3">
+                        <div className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
+                            <Sparkles className="size-4" />
+                        </div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <span className="font-semibold text-foreground text-xs sm:text-sm">
+                                    AI Auto-Fill (OCR)
+                                </span>
+                                <span className="text-[11px] font-medium text-muted-foreground bg-muted px-2 py-0.5 rounded-full border border-border">
+                                    Fitur Nonaktif
+                                </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground mt-0.5">
+                                Pindai foto atau PDF PO Customer untuk otomatis mengisi form transaksi.
                             </p>
                         </div>
-                        <div className="flex w-full flex-col items-center gap-3 sm:w-auto sm:flex-row">
-                            <input
-                                type="file"
-                                id="ocr-upload"
-                                accept="image/*,.pdf"
-                                className="hidden"
-                                onChange={handleOcrUpload}
-                            />
-                            <label
-                                htmlFor="ocr-upload"
-                                className={`relative flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg px-6 py-2.5 font-bold text-white shadow-md transition-all sm:w-auto ${isOcrScanning ? 'cursor-wait bg-indigo-400' : 'bg-gradient-to-r from-indigo-500 to-indigo-600 hover:scale-105 hover:from-indigo-600 hover:to-indigo-700 active:scale-95'}`}
-                            >
-                                {isOcrScanning && (
-                                    <div
-                                        className="absolute top-0 left-0 h-full bg-indigo-700 transition-all duration-300 ease-out"
-                                        style={{ width: `${ocrProgress}%` }}
-                                    ></div>
-                                )}
-                                <span className="relative z-10 flex items-center gap-2">
-                                    {isOcrScanning
-                                        ? `AI Memproses... ${ocrProgress}%`
-                                        : 'Scan PO Customer'}
-                                    {isOcrScanning ? (
-                                        <svg
-                                            className="h-5 w-5 animate-spin text-white"
-                                            xmlns="http://www.w0.org/2000/svg"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                        >
-                                            <circle
-                                                className="opacity-25"
-                                                cx="12"
-                                                cy="12"
-                                                r="10"
-                                                stroke="currentColor"
-                                                strokeWidth="4"
-                                            ></circle>
-                                            <path
-                                                className="opacity-75"
-                                                fill="currentColor"
-                                                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                                            ></path>
-                                        </svg>
-                                    ) : (
-                                        <svg
-                                            xmlns="http://www.w0.org/2000/svg"
-                                            className="h-5 w-5"
-                                            fill="none"
-                                            viewBox="0 0 24 24"
-                                            stroke="currentColor"
-                                        >
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={2}
-                                                d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"
-                                            />
-                                            <path
-                                                strokeLinecap="round"
-                                                strokeLinejoin="round"
-                                                strokeWidth={2}
-                                                d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"
-                                            />
-                                        </svg>
-                                    )}
-                                </span>
-                            </label>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                        <input
+                            type="file"
+                            id="ocr-upload"
+                            accept="image/*,.pdf"
+                            className="hidden"
+                            disabled
+                            onChange={handleOcrUpload}
+                        />
+                        <button
+                            type="button"
+                            disabled
+                            className="relative flex w-full cursor-not-allowed items-center justify-center overflow-hidden rounded-lg px-4 py-2 text-xs font-semibold text-slate-400 border border-border bg-muted/60 opacity-60 transition-all sm:w-auto"
+                            title="Fitur Scan PO Customer dinonaktifkan"
+                        >
+                            <span className="relative z-10 flex items-center gap-1.5">
+                                Scan PO Customer
+                            </span>
+                        </button>
+                    </div>
+                </div>
+
+                {/* ── SECTION 1: INFORMASI DOKUMEN & CUSTOMER ──────────── */}
+                <div className="rounded-xl border border-border bg-card p-4 sm:p-5 shadow-xs space-y-4">
+                    <div className="flex items-center gap-2.5 border-b border-border pb-3">
+                        <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                            <Landmark className="size-4" />
+                        </div>
+                        <div>
+                            <h2 className="text-sm sm:text-base font-bold text-foreground">
+                                Informasi Dokumen & Customer
+                            </h2>
+                            <p className="text-xs text-muted-foreground">
+                                Nomor referensi PO, tanggal transaksi, termin pembayaran, dan data customer.
+                            </p>
                         </div>
                     </div>
-                </section>
 
-                <div className="grid min-w-0 gap-5">
-                    <section className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,4fr)_minmax(280px,1.3fr)]">
-                        <article className="min-w-0 rounded-xl border border-sidebar-border/70 bg-background p-3 shadow-sm sm:rounded-2xl sm:p-4">
-                            <div className="mb-4 flex items-center gap-2">
-                                <Landmark className="size-4 text-muted-foreground" />
-                                <h2 className="text-base font-semibold">
-                                    Informasi Header
-                                </h2>
-                            </div>
-                            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                                <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2 lg:col-span-4 lg:grid-cols-12">
-                                    <div className="grid gap-2 sm:col-span-2 lg:col-span-5">
-                                        <Label htmlFor="no_poin">
-                                            No PO Customer/Ref PO
-                                        </Label>
-                                        <Input
-                                            id="no_poin"
-                                            className={
-                                                validationErrors.noPoin
-                                                    ? 'border-red-500 focus-visible:ring-red-500'
-                                                    : ''
-                                            }
-                                            placeholder="Nomor PO dari Customer"
-                                            autoComplete="off"
-                                            value={form.noPoin}
-                                            onChange={(event) => {
-                                                setForm((prev) => ({
-                                                    ...prev,
-                                                    noPoin: event.target.value.toUpperCase(),
-                                                }));
-                                                setValidationErrors((prev) => ({
-                                                    ...prev,
-                                                    noPoin: '',
-                                                }));
-                                            }}
-                                        />
-                                        {validationErrors.noPoin && (
-                                            <p className="text-xs text-red-500">
-                                                {validationErrors.noPoin}
-                                            </p>
-                                        )}
-                                    </div>
-                                    <div className="grid gap-2 sm:col-span-1 lg:col-span-2">
-                                        <Label htmlFor="tanggal">
-                                            Date PO In
-                                        </Label>
-                                        <div className="relative flex gap-2">
-                                            <Input
-                                                id="tanggal"
-                                                className={
-                                                    validationErrors.date
-                                                        ? 'border-red-500 focus-visible:ring-red-500'
-                                                        : ''
-                                                }
-                                                value={form.date}
-                                                placeholder="dd/mm/yyyy"
-                                                onFocus={(event) =>
-                                                    event.target.select()
-                                                }
-                                                onChange={(event) =>
-                                                    setForm((prev) => ({
-                                                        ...prev,
-                                                        date: normalizeDateInput(
-                                                            event.target.value,
-                                                        ),
-                                                    }))
-                                                }
-                                                onBlur={(event) => {
-                                                    setForm((prev) => ({
-                                                        ...prev,
-                                                        date: clampDmyValue(
-                                                            event.target.value,
-                                                        ),
-                                                    }));
-                                                    setValidationErrors(
-                                                        (prev) => ({
-                                                            ...prev,
-                                                            date: '',
-                                                        }),
-                                                    );
-                                                }}
-                                            />
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                className="shrink-0 px-3"
-                                                onClick={() => {
-                                                    if (
-                                                        datePickerRef.current
-                                                            ?.showPicker
-                                                    ) {
-                                                        datePickerRef.current.showPicker();
-                                                        return;
-                                                    }
-                                                    datePickerRef.current?.click();
-                                                }}
-                                                title="Pilih tanggal"
-                                            >
-                                                <CalendarDays className="size-4" />
-                                            </Button>
-                                            <input
-                                                ref={datePickerRef}
-                                                type="date"
-                                                className="pointer-events-none absolute h-0 w-0 opacity-0"
-                                                value={toIsoDate(form.date)}
-                                                onChange={(event) => {
-                                                    setForm((prev) => ({
-                                                        ...prev,
-                                                        date: toDisplayDate(
-                                                            event.target.value,
-                                                        ),
-                                                    }));
-                                                    setValidationErrors(
-                                                        (prev) => ({
-                                                            ...prev,
-                                                            date: '',
-                                                        }),
-                                                    );
-                                                }}
-                                            />
-                                        </div>
-                                        {validationErrors.date && (
-                                            <p className="text-xs text-red-500">
-                                                {validationErrors.date}
-                                            </p>
-                                        )}
-                                    </div>
-                                    <div className="grid gap-2 sm:col-span-1 lg:col-span-2">
-                                        <Label htmlFor="delivery_date">
-                                            Delivery Date
-                                        </Label>
-                                        <div className="relative flex gap-2">
-                                            <Input
-                                                id="delivery_date"
-                                                className={
-                                                    validationErrors.deliveryDate
-                                                        ? 'border-red-500 focus-visible:ring-red-500'
-                                                        : ''
-                                                }
-                                                value={form.deliveryDate}
-                                                placeholder="dd/mm/yyyy"
-                                                onFocus={(event) =>
-                                                    event.target.select()
-                                                }
-                                                onChange={(event) =>
-                                                    setForm((prev) => ({
-                                                        ...prev,
-                                                        deliveryDate:
-                                                            normalizeDateInput(
-                                                                event.target
-                                                                    .value,
-                                                            ),
-                                                    }))
-                                                }
-                                                onBlur={(event) => {
-                                                    setForm((prev) => ({
-                                                        ...prev,
-                                                        deliveryDate:
-                                                            clampDmyValue(
-                                                                event.target
-                                                                    .value,
-                                                            ),
-                                                    }));
-                                                    setValidationErrors(
-                                                        (prev) => ({
-                                                            ...prev,
-                                                            deliveryDate: '',
-                                                        }),
-                                                    );
-                                                }}
-                                            />
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                className="shrink-0 px-3"
-                                                onClick={() => {
-                                                    if (
-                                                        deliveryDatePickerRef
-                                                            .current?.showPicker
-                                                    ) {
-                                                        deliveryDatePickerRef.current.showPicker();
-                                                        return;
-                                                    }
-                                                    deliveryDatePickerRef.current?.click();
-                                                }}
-                                                title="Pilih tanggal"
-                                            >
-                                                <CalendarDays className="size-4" />
-                                            </Button>
-                                            <input
-                                                ref={deliveryDatePickerRef}
-                                                type="date"
-                                                className="pointer-events-none absolute h-0 w-0 opacity-0"
-                                                value={toIsoDate(
-                                                    form.deliveryDate,
-                                                )}
-                                                onChange={(event) => {
-                                                    setForm((prev) => ({
-                                                        ...prev,
-                                                        deliveryDate:
-                                                            toDisplayDate(
-                                                                event.target
-                                                                    .value,
-                                                            ),
-                                                    }));
-                                                    setValidationErrors(
-                                                        (prev) => ({
-                                                            ...prev,
-                                                            deliveryDate: '',
-                                                        }),
-                                                    );
-                                                }}
-                                            />
-                                        </div>
-                                        {validationErrors.deliveryDate && (
-                                            <p className="text-xs text-red-500">
-                                                {validationErrors.deliveryDate}
-                                            </p>
-                                        )}
-                                    </div>
-                                    <div className="grid gap-2 sm:col-span-1 lg:col-span-2">
-                                        <div className="flex items-center gap-2">
-                                            <Label htmlFor="payment_term">
-                                                Payment Term
-                                            </Label>
-                                            {isPredicting && (
-                                                <Spinner className="size-3" />
-                                            )}
-                                        </div>
-                                        <Input
-                                            id="payment_term"
-                                            value={form.paymentTerm}
-                                            onFocus={(event) =>
-                                                event.target.select()
-                                            }
-                                            onChange={(event) =>
-                                                setForm((prev) => ({
-                                                    ...prev,
-                                                    paymentTerm:
-                                                        event.target.value,
-                                                }))
-                                            }
-                                        />
-                                    </div>
-                                    <div className="grid gap-2 sm:col-span-1 lg:col-span-1">
-                                        <div className="flex items-center gap-2">
-                                            <Label htmlFor="ppn_percent">
-                                                PPN (%)
-                                            </Label>
-                                            {isPredicting && (
-                                                <Spinner className="size-3" />
-                                            )}
-                                        </div>
-                                        <Input
-                                            id="ppn_percent"
-                                            className={
-                                                validationErrors.ppnPercent
-                                                    ? 'border-red-500 focus-visible:ring-red-500'
-                                                    : ''
-                                            }
-                                            inputMode="decimal"
-                                            value={form.ppnPercent}
-                                            onChange={(event) => {
-                                                setForm((prev) => ({
-                                                    ...prev,
-                                                    ppnPercent:
-                                                        event.target.value.replace(
-                                                            /[^\d.]/g,
-                                                            '',
-                                                        ),
-                                                }));
-                                                setValidationErrors((prev) => ({
-                                                    ...prev,
-                                                    ppnPercent: '',
-                                                }));
-                                            }}
-                                        />
-                                        {validationErrors.ppnPercent && (
-                                            <p className="text-xs text-red-500">
-                                                {validationErrors.ppnPercent}
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="grid gap-4 sm:col-span-2 sm:grid-cols-2 lg:col-span-4 lg:grid-cols-4">
-                                    <div className="grid gap-2 lg:col-span-1">
-                                        <Label htmlFor="customer_code">
-                                            Kode Customer
-                                        </Label>
-                                        <Input
-                                            id="customer_code"
-                                            value={form.customerCode}
-                                            readOnly
-                                            placeholder="Kode customer"
-                                        />
-                                    </div>
-                                    <div className="grid gap-2 sm:col-span-2 lg:col-span-3">
-                                        <Label htmlFor="customer_name">
-                                            Nama Customer
-                                        </Label>
-                                        <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
-                                            <Input
-                                                id="customer_name"
-                                                className={
-                                                    validationErrors.customerName
-                                                        ? 'border-red-500 focus-visible:ring-red-500'
-                                                        : ''
-                                                }
-                                                value={form.customerName}
-                                                readOnly
-                                                placeholder="Pilih customer"
-                                            />
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                className="w-full md:w-auto"
-                                                onClick={() => {
-                                                    setCustomerSearchInput('');
-                                                    setCustomerSearchTerm('');
-                                                    setCustomerPageSize(5);
-                                                    setCustomerCurrentPage(1);
-                                                    setIsCustomerModalOpen(
-                                                        true,
-                                                    );
-                                                }}
-                                            >
-                                                <span className="whitespace-nowrap">
-                                                    Cari Customer
-                                                </span>
-                                            </Button>
-                                        </div>
-                                        {validationErrors.customerName && (
-                                            <p className="text-xs text-red-500">
-                                                {validationErrors.customerName}
-                                            </p>
-                                        )}
-                                    </div>
-                                </div>
-                                <div className="grid gap-2 sm:col-span-1 lg:col-span-2">
-                                    <div className="flex items-center gap-2">
-                                        <Label htmlFor="franco_loco">
-                                            Franco/Loco
-                                        </Label>
-                                        {isPredicting && (
-                                            <Spinner className="size-3" />
-                                        )}
-                                    </div>
-                                    <Input
-                                        id="franco_loco"
-                                        className={
-                                            validationErrors.francoLoco
-                                                ? 'border-red-500 focus-visible:ring-red-500'
-                                                : ''
-                                        }
-                                        placeholder="Isi tempat pengiriman barang"
-                                        value={form.francoLoco}
-                                        onChange={(event) => {
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                francoLoco: event.target.value,
-                                            }));
-                                            setValidationErrors((prev) => ({
-                                                ...prev,
-                                                francoLoco: '',
-                                            }));
-                                        }}
-                                    />
-                                    {validationErrors.francoLoco && (
-                                        <p className="text-xs text-red-500">
-                                            {validationErrors.francoLoco}
-                                        </p>
-                                    )}
-                                </div>
-                                <div
-                                    className="grid gap-2 sm:col-span-1 lg:col-span-2"
-                                    ref={picDropdownRef}
-                                >
-                                    <Label htmlFor="sender_name">
-                                        PIC PO Customer
-                                    </Label>
-                                    <div className="relative">
-                                        <Input
-                                            id="sender_name"
-                                            className={
-                                                validationErrors.senderName
-                                                    ? 'border-red-500 focus-visible:ring-red-500'
-                                                    : ''
-                                            }
-                                            value={form.senderName}
-                                            placeholder={
-                                                picLoading
-                                                    ? 'Memuat PIC...'
-                                                    : picList.length > 0
-                                                      ? 'Ketik atau pilih PIC...'
-                                                      : 'Ketik nama PIC'
-                                            }
-                                            autoComplete="off"
-                                            onChange={(event) => {
-                                                const val = event.target.value;
-                                                setForm((prev) => ({
-                                                    ...prev,
-                                                    senderName: val,
-                                                }));
-                                                setPicSearch(val);
-                                                setShowPicDropdown(true);
-                                                setValidationErrors((prev) => ({
-                                                    ...prev,
-                                                    senderName: '',
-                                                }));
-                                            }}
-                                            onFocus={() => {
-                                                if (picList.length > 0)
-                                                    setShowPicDropdown(true);
-                                            }}
-                                        />
-                                        {showPicDropdown &&
-                                            picList.length > 0 && (
-                                                <ul className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-md border border-sidebar-border/70 bg-background text-sm shadow-lg">
-                                                    {picLoading ? (
-                                                        <li className="px-3 py-2 text-muted-foreground">
-                                                            Memuat...
-                                                        </li>
-                                                    ) : (
-                                                        picList.map((pic) => (
-                                                            <li
-                                                                key={pic}
-                                                                className="cursor-pointer px-3 py-2 hover:bg-muted"
-                                                                onMouseDown={(
-                                                                    e,
-                                                                ) => {
-                                                                    e.preventDefault();
-                                                                    setForm(
-                                                                        (
-                                                                            prev,
-                                                                        ) => ({
-                                                                            ...prev,
-                                                                            senderName:
-                                                                                pic,
-                                                                        }),
-                                                                    );
-                                                                    setPicSearch(
-                                                                        '',
-                                                                    );
-                                                                    setShowPicDropdown(
-                                                                        false,
-                                                                    );
-                                                                    setValidationErrors(
-                                                                        (
-                                                                            prev,
-                                                                        ) => ({
-                                                                            ...prev,
-                                                                            senderName:
-                                                                                '',
-                                                                        }),
-                                                                    );
-                                                                }}
-                                                            >
-                                                                {pic}
-                                                            </li>
-                                                        ))
-                                                    )}
-                                                </ul>
-                                            )}
-                                    </div>
-                                    {validationErrors.senderName && (
-                                        <p className="text-xs text-red-500">
-                                            {validationErrors.senderName}
-                                        </p>
-                                    )}
-                                </div>
-                                <div className="grid gap-2 sm:col-span-2 lg:col-span-4">
-                                    <Label htmlFor="doc_note">
-                                        Catatan Dokumen
-                                    </Label>
-                                    <textarea
-                                        id="doc_note"
-                                        rows={3}
-                                        className="rounded-md border border-sidebar-border/70 bg-background px-3 py-2 text-sm"
-                                        value={form.note}
-                                        onChange={(event) =>
-                                            setForm((prev) => ({
-                                                ...prev,
-                                                note: event.target.value,
-                                            }))
-                                        }
-                                        placeholder="Catatan internal untuk tim marketing/purchasing"
-                                    />
-                                </div>
-                            </div>
-                        </article>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-3.5">
+                        {/* Baris 1: Dokumen */}
+                        {/* No PO Customer */}
+                        <div className="space-y-1.5 lg:col-span-4">
+                            <Label htmlFor="no_poin" className="text-xs font-semibold whitespace-nowrap">
+                                No PO Customer / Ref PO <span className="text-destructive">*</span>
+                            </Label>
+                            <Input
+                                id="no_poin"
+                                className={`h-9 rounded-lg font-medium uppercase ${
+                                    validationErrors.noPoin
+                                        ? 'border-destructive focus-visible:ring-destructive'
+                                        : ''
+                                }`}
+                                placeholder="Contoh: PO-2026-001"
+                                autoComplete="off"
+                                value={form.noPoin}
+                                onChange={(event) => {
+                                    setForm((prev) => ({
+                                        ...prev,
+                                        noPoin: event.target.value.toUpperCase(),
+                                    }));
+                                    setValidationErrors((prev) => ({
+                                        ...prev,
+                                        noPoin: '',
+                                    }));
+                                }}
+                            />
+                            {validationErrors.noPoin && (
+                                <p className="text-xs text-destructive">
+                                    {validationErrors.noPoin}
+                                </p>
+                            )}
+                        </div>
 
-                        <aside className="grid min-w-0 content-start gap-3 self-start">
-                            <article className="rounded-xl border border-sidebar-border/70 bg-background p-3 shadow-sm sm:rounded-2xl sm:p-4">
-                                <div className="mb-4 flex items-center gap-2">
-                                    <ReceiptText className="size-4 text-muted-foreground" />
-                                    <h2 className="text-base font-semibold">
-                                        Ringkasan
-                                    </h2>
-                                </div>
-                                <div className="space-y-3 text-sm">
-                                    <div className="flex items-start justify-between gap-3 border-t border-sidebar-border/70 pt-3">
-                                        <span className="text-muted-foreground">
-                                            Total Price
-                                        </span>
-                                        <span className="text-right font-semibold break-words">
-                                            {formatRupiah(totalPrice)}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-start justify-between gap-3">
-                                        <span className="text-muted-foreground">
-                                            DPP
-                                        </span>
-                                        <span className="text-right font-semibold break-words">
-                                            {formatRupiah(dpp)}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-start justify-between gap-3">
-                                        <span className="text-muted-foreground">
-                                            PPN ({form.ppnPercent || '0'}%)
-                                        </span>
-                                        <span className="text-right font-semibold break-words">
-                                            {formatRupiah(ppn)}
-                                        </span>
-                                    </div>
-                                    <div className="flex items-start justify-between gap-3 border-t border-sidebar-border/70 pt-3">
-                                        <span className="text-muted-foreground">
-                                            Grand Total
-                                        </span>
-                                        <span className="text-right text-base font-semibold break-words sm:text-lg">
-                                            {formatRupiah(grandTotal)}
-                                        </span>
-                                    </div>
-                                </div>
-                            </article>
-
-                            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-                                <MenuAction
-                                    action="create"
-                                    className="w-full"
-                                    type="button"
-                                    onClick={handleSavePoIn}
-                                    disabled={isSubmitting}
-                                >
-                                    {isSubmitting && (
-                                        <Spinner className="mr-2" />
-                                    )}
-                                    Simpan PO In
-                                </MenuAction>
+                        {/* Date PO In */}
+                        <div className="space-y-1.5 lg:col-span-2">
+                            <Label htmlFor="tanggal" className="text-xs font-semibold whitespace-nowrap">
+                                Date PO In <span className="text-destructive">*</span>
+                            </Label>
+                            <div className="relative flex gap-1.5">
+                                <Input
+                                    id="tanggal"
+                                    className={`h-9 rounded-lg text-center ${
+                                        validationErrors.date
+                                            ? 'border-destructive focus-visible:ring-destructive'
+                                            : ''
+                                    }`}
+                                    value={form.date}
+                                    placeholder="dd/mm/yyyy"
+                                    onFocus={(event) => event.target.select()}
+                                    onChange={(event) =>
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            date: normalizeDateInput(event.target.value),
+                                        }))
+                                    }
+                                    onBlur={(event) => {
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            date: clampDmyValue(event.target.value),
+                                        }));
+                                        setValidationErrors((prev) => ({
+                                            ...prev,
+                                            date: '',
+                                        }));
+                                    }}
+                                />
                                 <Button
+                                    type="button"
                                     variant="outline"
-                                    asChild
-                                    className="w-full"
+                                    className="h-9 px-2.5 rounded-lg shrink-0"
+                                    onClick={() => {
+                                        if (datePickerRef.current?.showPicker) {
+                                            datePickerRef.current.showPicker();
+                                            return;
+                                        }
+                                        datePickerRef.current?.click();
+                                    }}
+                                    title="Pilih tanggal"
                                 >
-                                    <Link href="/marketing/purchase-order-in">
-                                        Batal
-                                    </Link>
+                                    <CalendarDays className="size-4" />
+                                </Button>
+                                <input
+                                    ref={datePickerRef}
+                                    type="date"
+                                    className="pointer-events-none absolute h-0 w-0 opacity-0"
+                                    value={toIsoDate(form.date)}
+                                    onChange={(event) => {
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            date: toDisplayDate(event.target.value),
+                                        }));
+                                        setValidationErrors((prev) => ({
+                                            ...prev,
+                                            date: '',
+                                        }));
+                                    }}
+                                />
+                            </div>
+                            {validationErrors.date && (
+                                <p className="text-xs text-destructive">
+                                    {validationErrors.date}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Delivery Date */}
+                        <div className="space-y-1.5 lg:col-span-2">
+                            <Label htmlFor="delivery_date" className="text-xs font-semibold whitespace-nowrap">
+                                Delivery Date <span className="text-destructive">*</span>
+                            </Label>
+                            <div className="relative flex gap-1.5">
+                                <Input
+                                    id="delivery_date"
+                                    className={`h-9 rounded-lg text-center ${
+                                        validationErrors.deliveryDate
+                                            ? 'border-destructive focus-visible:ring-destructive'
+                                            : ''
+                                    }`}
+                                    value={form.deliveryDate}
+                                    placeholder="dd/mm/yyyy"
+                                    onFocus={(event) => event.target.select()}
+                                    onChange={(event) =>
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            deliveryDate: normalizeDateInput(event.target.value),
+                                        }))
+                                    }
+                                    onBlur={(event) => {
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            deliveryDate: clampDmyValue(event.target.value),
+                                        }));
+                                        setValidationErrors((prev) => ({
+                                            ...prev,
+                                            deliveryDate: '',
+                                        }));
+                                    }}
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-9 px-2.5 rounded-lg shrink-0"
+                                    onClick={() => {
+                                        if (deliveryDatePickerRef.current?.showPicker) {
+                                            deliveryDatePickerRef.current.showPicker();
+                                            return;
+                                        }
+                                        deliveryDatePickerRef.current?.click();
+                                    }}
+                                    title="Pilih tanggal"
+                                >
+                                    <CalendarDays className="size-4" />
+                                </Button>
+                                <input
+                                    ref={deliveryDatePickerRef}
+                                    type="date"
+                                    className="pointer-events-none absolute h-0 w-0 opacity-0"
+                                    value={toIsoDate(form.deliveryDate)}
+                                    onChange={(event) => {
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            deliveryDate: toDisplayDate(event.target.value),
+                                        }));
+                                        setValidationErrors((prev) => ({
+                                            ...prev,
+                                            deliveryDate: '',
+                                        }));
+                                    }}
+                                />
+                            </div>
+                            {validationErrors.deliveryDate && (
+                                <p className="text-xs text-destructive">
+                                    {validationErrors.deliveryDate}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Payment Term */}
+                        <div className="space-y-1.5 lg:col-span-2">
+                            <div className="flex items-center gap-1.5">
+                                <Label htmlFor="payment_term" className="text-xs font-semibold whitespace-nowrap">
+                                    Payment Term
+                                </Label>
+                                {isPredicting && <Spinner className="size-3" />}
+                            </div>
+                            <Input
+                                id="payment_term"
+                                className="h-9 rounded-lg"
+                                value={form.paymentTerm}
+                                placeholder="Contoh: 30 Hari"
+                                onFocus={(event) => event.target.select()}
+                                onChange={(event) =>
+                                    setForm((prev) => ({
+                                        ...prev,
+                                        paymentTerm: event.target.value,
+                                    }))
+                                }
+                            />
+                        </div>
+
+                        {/* PPN (%) */}
+                        <div className="space-y-1.5 lg:col-span-2">
+                            <div className="flex items-center gap-1.5">
+                                <Label htmlFor="ppn_percent" className="text-xs font-semibold whitespace-nowrap">
+                                    PPN (%) <span className="text-destructive">*</span>
+                                </Label>
+                                {isPredicting && <Spinner className="size-3" />}
+                            </div>
+                            <Input
+                                id="ppn_percent"
+                                className={`h-9 rounded-lg text-center font-medium ${
+                                    validationErrors.ppnPercent
+                                        ? 'border-destructive focus-visible:ring-destructive'
+                                        : ''
+                                }`}
+                                inputMode="decimal"
+                                value={form.ppnPercent}
+                                onChange={(event) => {
+                                    setForm((prev) => ({
+                                        ...prev,
+                                        ppnPercent: event.target.value.replace(/[^\d.]/g, ''),
+                                    }));
+                                    setValidationErrors((prev) => ({
+                                        ...prev,
+                                        ppnPercent: '',
+                                    }));
+                                }}
+                            />
+                            {validationErrors.ppnPercent && (
+                                <p className="text-xs text-destructive">
+                                    {validationErrors.ppnPercent}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Baris 2: Customer (Nama Customer Diperlebar Penuh) */}
+                        {/* Kode Customer */}
+                        <div className="space-y-1.5 lg:col-span-2">
+                            <Label htmlFor="customer_code" className="text-xs font-semibold whitespace-nowrap">
+                                Kode Customer
+                            </Label>
+                            <Input
+                                id="customer_code"
+                                value={form.customerCode}
+                                readOnly
+                                placeholder="Kode CS"
+                                className="h-9 rounded-lg font-mono text-center bg-muted/40 cursor-not-allowed"
+                            />
+                        </div>
+
+                        {/* Nama Customer (Diperlebar ke lg:col-span-10) */}
+                        <div className="space-y-1.5 md:col-span-2 lg:col-span-10">
+                            <Label htmlFor="customer_name" className="text-xs font-semibold whitespace-nowrap">
+                                Nama Customer <span className="text-destructive">*</span>
+                            </Label>
+                            <div className="flex gap-2">
+                                <Input
+                                    id="customer_name"
+                                    className={`h-9 rounded-lg font-medium ${
+                                        validationErrors.customerName
+                                            ? 'border-destructive focus-visible:ring-destructive'
+                                            : ''
+                                    }`}
+                                    value={form.customerName}
+                                    readOnly
+                                    placeholder="Pilih customer dari database..."
+                                />
+                                <Button
+                                    type="button"
+                                    variant="outline"
+                                    className="h-9 px-3.5 rounded-lg text-xs font-semibold shrink-0"
+                                    onClick={() => {
+                                        setCustomerSearchInput('');
+                                        setCustomerSearchTerm('');
+                                        setCustomerPageSize(5);
+                                        setCustomerCurrentPage(1);
+                                        setIsCustomerModalOpen(true);
+                                    }}
+                                >
+                                    <Search className="mr-1.5 size-3.5" />
+                                    Cari Customer
                                 </Button>
                             </div>
-                        </aside>
-                    </section>
-
-                    <article className="min-w-0 rounded-xl border border-sidebar-border/70 bg-background p-3 shadow-sm sm:rounded-2xl sm:p-4">
-                        <div className="mb-4 flex items-center gap-2">
-                            <PackageSearch className="size-4 text-muted-foreground" />
-                            <h2 className="text-base font-semibold">
-                                Item Material
-                            </h2>
+                            {validationErrors.customerName && (
+                                <p className="text-xs text-destructive">
+                                    {validationErrors.customerName}
+                                </p>
+                            )}
                         </div>
-                        <div className="grid min-w-0 gap-4 sm:grid-cols-2 lg:grid-cols-8">
-                            <div className="grid gap-2 lg:col-span-2 xl:col-span-1">
-                                <Label htmlFor="kode_material">
+
+                        {/* Baris 3: PIC PO Customer & Franco/Loco (Ditaruh Dibawah) */}
+                        {/* PIC PO Customer */}
+                        <div
+                            className="space-y-1.5 md:col-span-1 lg:col-span-6"
+                            ref={picDropdownRef}
+                        >
+                            <Label htmlFor="sender_name" className="text-xs font-semibold whitespace-nowrap">
+                                PIC PO Customer <span className="text-destructive">*</span>
+                            </Label>
+                            <div className="relative">
+                                <Input
+                                    ref={picInputRef}
+                                    id="sender_name"
+                                    className={`h-9 rounded-lg ${
+                                        validationErrors.senderName
+                                            ? 'border-destructive focus-visible:ring-destructive'
+                                            : ''
+                                    }`}
+                                    value={form.senderName}
+                                    placeholder={
+                                        picLoading
+                                            ? 'Memuat PIC...'
+                                            : picList.length > 0
+                                              ? 'Ketik atau pilih PIC...'
+                                              : 'Ketik nama PIC'
+                                    }
+                                    autoComplete="off"
+                                    onChange={(event) => {
+                                        const val = event.target.value;
+                                        setForm((prev) => ({
+                                            ...prev,
+                                            senderName: val,
+                                        }));
+                                        setPicSearch(val);
+                                        setShowPicDropdown(true);
+                                        setValidationErrors((prev) => ({
+                                            ...prev,
+                                            senderName: '',
+                                        }));
+                                    }}
+                                    onFocus={() => {
+                                        if (picList.length > 0)
+                                            setShowPicDropdown(true);
+                                    }}
+                                />
+                                {showPicDropdown && picList.length > 0 && (
+                                    <ul className="absolute z-50 mt-1 max-h-48 w-full overflow-y-auto rounded-lg border border-border bg-popover text-sm shadow-md">
+                                        {picLoading ? (
+                                            <li className="px-3 py-2 text-muted-foreground text-xs">
+                                                Memuat...
+                                            </li>
+                                        ) : (
+                                            picList.map((pic) => (
+                                                <li
+                                                    key={pic}
+                                                    className="cursor-pointer px-3 py-2 text-xs hover:bg-muted font-medium transition-colors"
+                                                    onMouseDown={(e) => {
+                                                        e.preventDefault();
+                                                        setForm((prev) => ({
+                                                            ...prev,
+                                                            senderName: pic,
+                                                        }));
+                                                        setPicSearch('');
+                                                        setShowPicDropdown(false);
+                                                        setValidationErrors((prev) => ({
+                                                            ...prev,
+                                                            senderName: '',
+                                                        }));
+                                                    }}
+                                                >
+                                                    {pic}
+                                                </li>
+                                            ))
+                                        )}
+                                    </ul>
+                                )}
+                            </div>
+                            {validationErrors.senderName && (
+                                <p className="text-xs text-destructive">
+                                    {validationErrors.senderName}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Franco/Loco */}
+                        <div className="space-y-1.5 md:col-span-1 lg:col-span-6">
+                            <div className="flex items-center gap-1.5">
+                                <Label htmlFor="franco_loco" className="text-xs font-semibold whitespace-nowrap">
+                                    Franco / Loco <span className="text-destructive">*</span>
+                                </Label>
+                                {isPredicting && <Spinner className="size-3" />}
+                            </div>
+                            <Input
+                                id="franco_loco"
+                                className={`h-9 rounded-lg ${
+                                    validationErrors.francoLoco
+                                        ? 'border-destructive focus-visible:ring-destructive'
+                                        : ''
+                                }`}
+                                placeholder="Tempat serah terima / pengiriman"
+                                value={form.francoLoco}
+                                onChange={(event) => {
+                                    setForm((prev) => ({
+                                        ...prev,
+                                        francoLoco: event.target.value,
+                                    }));
+                                    setValidationErrors((prev) => ({
+                                        ...prev,
+                                        francoLoco: '',
+                                    }));
+                                }}
+                            />
+                            {validationErrors.francoLoco && (
+                                <p className="text-xs text-destructive">
+                                    {validationErrors.francoLoco}
+                                </p>
+                            )}
+                        </div>
+
+                        {/* Baris 4: Catatan Dokumen */}
+                        <div className="space-y-1.5 col-span-1 md:col-span-2 lg:col-span-12">
+                            <Label htmlFor="doc_note" className="text-xs font-semibold">
+                                Catatan Dokumen
+                            </Label>
+                            <textarea
+                                id="doc_note"
+                                rows={2}
+                                className="w-full rounded-lg border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                                value={form.note}
+                                onChange={(event) =>
+                                    setForm((prev) => ({
+                                        ...prev,
+                                        note: event.target.value,
+                                    }))
+                                }
+                                placeholder="Catatan internal untuk tim marketing / operasional..."
+                            />
+                        </div>
+                    </div>
+                </div>
+
+                {/* ── SECTION 2: ITEM MATERIAL ────────────────────────── */}
+                <div className="rounded-xl border border-border bg-card p-4 sm:p-5 shadow-xs space-y-4">
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 border-b border-border pb-3">
+                        <div className="flex items-center gap-2.5">
+                            <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                                <PackageSearch className="size-4" />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h2 className="text-sm sm:text-base font-bold text-foreground">
+                                        Item Material
+                                    </h2>
+                                    <span className="inline-flex items-center rounded-full bg-muted px-2 py-0.5 text-xs font-semibold text-muted-foreground border border-border">
+                                        {items.length} Material
+                                    </span>
+                                </div>
+                                <p className="text-xs text-muted-foreground">
+                                    Rincian material yang dipesan customer pada purchase order ini.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Form Input Item Material */}
+                    <div className="rounded-xl border border-border bg-muted/20 p-3.5 sm:p-4 space-y-3">
+                        <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                            {editingItemId ? 'Edit Material Terpilih' : 'Tambah Material Baru'}
+                        </div>
+
+                        {/* Baris 1 Input Material: Kode Material + Nama Material Diperlebar */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-3">
+                            {/* Kode Material */}
+                            <div className="space-y-1 lg:col-span-2">
+                                <Label htmlFor="kode_material" className="text-xs font-semibold whitespace-nowrap">
                                     Kode Material
                                 </Label>
                                 <Input
                                     id="kode_material"
+                                    className="h-9 rounded-lg font-mono text-center text-xs"
+                                    placeholder="AUTO / KODE"
                                     value={itemForm.kodeMaterial}
                                     onChange={(event) =>
                                         setItemForm((prev) => ({
@@ -1782,11 +1696,17 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     }
                                 />
                             </div>
-                            <div className="grid gap-2 sm:col-span-2 lg:col-span-6 xl:col-span-7">
-                                <Label htmlFor="material">Material</Label>
-                                <div className="grid min-w-0 gap-2 md:grid-cols-[minmax(0,1fr)_auto]">
+
+                            {/* Nama Material (Diperlebar ke lg:col-span-10) */}
+                            <div className="space-y-1 sm:col-span-2 lg:col-span-10">
+                                <Label htmlFor="material" className="text-xs font-semibold whitespace-nowrap">
+                                    Nama Material <span className="text-destructive">*</span>
+                                </Label>
+                                <div className="flex gap-2">
                                     <Input
                                         id="material"
+                                        className="h-9 rounded-lg font-medium"
+                                        placeholder="Pilih atau ketik spesifikasi material..."
                                         value={itemForm.material}
                                         onChange={(event) =>
                                             setItemForm((prev) => ({
@@ -1798,25 +1718,47 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     <Button
                                         type="button"
                                         variant="outline"
-                                        className="w-full md:w-auto"
+                                        className="h-9 px-3.5 rounded-lg text-xs font-semibold shrink-0"
                                         onClick={() => {
                                             setMaterialSearchInput('');
                                             setMaterialSearchTerm('');
                                             setIsMaterialModalOpen(true);
                                         }}
                                     >
-                                        <span className="whitespace-nowrap">
-                                            Cari Material
-                                        </span>
+                                        <Search className="mr-1.5 size-3.5" />
+                                        Cari Material
                                     </Button>
                                 </div>
                             </div>
-                            <div className="grid gap-2 lg:col-span-1">
-                                <Label htmlFor="qty">Qty</Label>
+                        </div>
+
+                        {/* Baris 2 Input Material: Satuan & Qty (Ditaruh Dibawah & Diperkecil) + Harga Satuan + Total Price */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-[105px_85px_1fr_1fr] gap-3">
+                            {/* Satuan (Ditaruh Dibawah & Diperkecil) */}
+                            <div className="space-y-1 col-span-1">
+                                <Label htmlFor="unit" className="text-xs font-semibold whitespace-nowrap">
+                                    Satuan <span className="text-destructive">*</span>
+                                </Label>
+                                <Input
+                                    id="unit"
+                                    readOnly
+                                    className="h-9 rounded-lg text-center text-xs sm:text-sm bg-muted/40 cursor-not-allowed text-muted-foreground font-medium"
+                                    placeholder="Pcs/Btg"
+                                    value={itemForm.unit}
+                                />
+                            </div>
+
+                            {/* Qty (Ditaruh Dibawah & Diperkecil) */}
+                            <div className="space-y-1 col-span-1">
+                                <Label htmlFor="qty" className="text-xs font-semibold whitespace-nowrap">
+                                    Qty <span className="text-destructive">*</span>
+                                </Label>
                                 <Input
                                     id="qty"
                                     ref={qtyRef}
                                     type="number"
+                                    className="h-9 rounded-lg text-center font-medium text-xs sm:text-sm"
+                                    placeholder="0"
                                     value={itemForm.qty}
                                     onChange={(event) =>
                                         setItemForm((prev) => ({
@@ -1826,53 +1768,64 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     }
                                 />
                             </div>
-                            <div className="grid gap-2 lg:col-span-1">
-                                <Label htmlFor="unit">Satuan</Label>
-                                <Input
-                                    id="unit"
-                                    value={itemForm.unit}
-                                    onChange={(event) =>
-                                        setItemForm((prev) => ({
-                                            ...prev,
-                                            unit: event.target.value,
-                                        }))
-                                    }
-                                />
-                            </div>
-                            <div className="grid gap-2 sm:col-span-2 lg:col-span-3">
-                                <Label htmlFor="price">Price PO In</Label>
+
+                            {/* Price PO In */}
+                            <div className="space-y-1 col-span-2 sm:col-span-2 md:col-span-2 lg:col-span-1">
+                                <Label htmlFor="price" className="text-xs font-semibold whitespace-nowrap">
+                                    Price PO In (Harga Satuan) <span className="text-destructive">*</span>
+                                </Label>
                                 <Input
                                     id="price"
-                                    value={formatRupiahInput(
-                                        itemForm.unitPrice,
-                                    )}
+                                    className="h-9 rounded-lg tabular-nums text-sm font-medium"
+                                    placeholder="Rp 0"
+                                    value={formatRupiahInput(itemForm.unitPrice)}
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Enter') {
+                                            event.preventDefault();
+                                            handleAddItem();
+                                        }
+                                    }}
                                     onChange={(event) =>
                                         setItemForm((prev) => ({
                                             ...prev,
-                                            unitPrice:
-                                                event.target.value.replace(
-                                                    /[^\d]/g,
-                                                    '',
-                                                ),
+                                            unitPrice: event.target.value.replace(/[^\d]/g, ''),
                                         }))
                                     }
                                 />
                             </div>
-                            <div className="grid gap-2 sm:col-span-2 lg:col-span-3">
-                                <Label htmlFor="total_price_po_in">
+
+                            {/* Total Price PO In */}
+                            <div className="space-y-1 col-span-2 sm:col-span-2 md:col-span-2 lg:col-span-1">
+                                <Label htmlFor="total_price_po_in" className="text-xs font-semibold whitespace-nowrap text-muted-foreground">
                                     Total Price PO In
                                 </Label>
                                 <Input
                                     id="total_price_po_in"
+                                    className="h-9 rounded-lg tabular-nums text-sm font-semibold bg-muted/40 text-emerald-600 dark:text-emerald-400 cursor-not-allowed"
                                     value={formatRupiah(itemTotalPricePoIn)}
                                     readOnly
                                 />
                             </div>
-                            <div className="grid gap-2 sm:col-span-2 lg:col-span-8">
-                                <Label htmlFor="item_note">Remark</Label>
+                        </div>
+
+                        {/* Baris 3 Input Material: Remark (Ditaruh Dibawah) + Tombol Aksi */}
+                        <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 items-end">
+                            {/* Remark (Ditaruh Dibawah) */}
+                            <div className="space-y-1 lg:col-span-9">
+                                <Label htmlFor="item_note" className="text-xs font-semibold whitespace-nowrap">
+                                    Remark / Keterangan Material
+                                </Label>
                                 <Input
                                     id="item_note"
+                                    className="h-9 rounded-lg text-sm"
+                                    placeholder="Catatan spesifikasi/potongan (opsional)"
                                     value={itemForm.note}
+                                    onKeyDown={(event) => {
+                                        if (event.key === 'Enter') {
+                                            event.preventDefault();
+                                            handleAddItem();
+                                        }
+                                    }}
                                     onChange={(event) =>
                                         setItemForm((prev) => ({
                                             ...prev,
@@ -1881,254 +1834,292 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     }
                                 />
                             </div>
-                        </div>
-                        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
-                            <Button
-                                type="button"
-                                className="w-full sm:w-auto"
-                                onClick={handleAddItem}
-                            >
-                                {editingItemId
-                                    ? 'Simpan Perubahan'
-                                    : 'Tambah Item'}
-                            </Button>
-                            {editingItemId && (
+
+                            {/* Tombol Aksi Tambah / Batal */}
+                            <div className="flex items-center gap-2 lg:col-span-3">
                                 <Button
                                     type="button"
-                                    variant="outline"
-                                    className="w-full sm:w-auto"
-                                    onClick={handleCancelEditItem}
+                                    className="h-9 flex-1 rounded-lg font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs text-xs sm:text-sm"
+                                    onClick={handleAddItem}
                                 >
-                                    Batal Edit
+                                    {editingItemId ? (
+                                        <>
+                                            <Check className="mr-1.5 size-4" />
+                                            Simpan
+                                        </>
+                                    ) : (
+                                        <>
+                                            <Plus className="mr-1.5 size-4" />
+                                            Tambah Item
+                                        </>
+                                    )}
                                 </Button>
-                            )}
+                                {editingItemId && (
+                                    <Button
+                                        type="button"
+                                        variant="outline"
+                                        className="h-9 px-3 rounded-lg text-xs"
+                                        onClick={handleCancelEditItem}
+                                    >
+                                        Batal
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Tabel Item Material */}
+                    <Profiler
+                        id="PO IN create item list"
+                        onRender={reportRenderProfile}
+                    >
+                        {isMobileViewport && (
+                            <div className="mt-3 grid gap-3">
+                                {items.length === 0 && (
+                                    <div className="rounded-xl border border-border px-4 py-8 text-center text-sm text-muted-foreground">
+                                        Belum ada item material yang ditambahkan.
+                                    </div>
+                                )}
+                                {items.map((item, index) => (
+                                    <div
+                                        key={item.id}
+                                        className="rounded-xl border border-border bg-card p-3 text-sm shadow-xs space-y-2.5"
+                                    >
+                                        <div className="flex items-start justify-between gap-3 border-b border-border pb-2">
+                                            <div className="min-w-0">
+                                                <p className="text-xs text-muted-foreground">
+                                                    #{index + 1} • {item.kodeMaterial || 'Non-Stock'}
+                                                </p>
+                                                <p className="font-semibold text-foreground break-words">
+                                                    {item.material}
+                                                </p>
+                                            </div>
+                                            <div className="flex shrink-0 items-center gap-1.5">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="size-8 p-0 rounded-lg"
+                                                    onClick={() => handleEditItem(item)}
+                                                    title="Edit Material"
+                                                >
+                                                    <Pencil className="size-3.5" />
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="size-8 p-0 rounded-lg text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                    onClick={() => handleDeleteItem(item.id)}
+                                                    title="Hapus Material"
+                                                >
+                                                    <Trash2 className="size-3.5" />
+                                                </Button>
+                                            </div>
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2 text-xs">
+                                            <div>
+                                                <p className="text-muted-foreground">Qty & Satuan</p>
+                                                <p className="font-semibold text-foreground">
+                                                    {item.qty} {item.unit}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <p className="text-muted-foreground">Harga Satuan</p>
+                                                <p className="tabular-nums font-semibold text-foreground">
+                                                    {formatRupiah(item.unitPrice)}
+                                                </p>
+                                            </div>
+                                            <div className="col-span-2 pt-1 border-t border-border/50">
+                                                <p className="text-muted-foreground">Total Price</p>
+                                                <p className="tabular-nums font-bold text-sm text-emerald-600 dark:text-emerald-400">
+                                                    {formatRupiah(
+                                                        toNumber(item.qty) * toNumber(item.unitPrice),
+                                                    )}
+                                                </p>
+                                            </div>
+                                            {item.note && (
+                                                <div className="col-span-2">
+                                                    <p className="text-muted-foreground">Remark</p>
+                                                    <p className="break-words text-foreground">
+                                                        {item.note}
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {!isMobileViewport && (
+                            <div className="mt-3 overflow-x-auto rounded-xl border border-border">
+                                <table className="w-full min-w-[850px] text-sm">
+                                    <thead className="bg-muted/40 text-xs font-semibold uppercase text-muted-foreground">
+                                        <tr>
+                                            <th className="px-3.5 py-3 text-center w-12">No</th>
+                                            <th className="px-3.5 py-3 text-left w-28">Kode</th>
+                                            <th className="px-3.5 py-3 text-left">Nama Material</th>
+                                            <th className="px-3.5 py-3 text-center w-28">Qty</th>
+                                            <th className="px-3.5 py-3 text-right w-36">Price PO In</th>
+                                            <th className="px-3.5 py-3 text-right w-40">Total Price PO In</th>
+                                            <th className="px-3.5 py-3 text-left">Remark</th>
+                                            <th className="px-3.5 py-3 text-center w-24">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-border">
+                                        {items.length === 0 && (
+                                            <tr>
+                                                <td
+                                                    className="px-4 py-8 text-center text-muted-foreground"
+                                                    colSpan={8}
+                                                >
+                                                    Belum ada item material yang ditambahkan.
+                                                </td>
+                                            </tr>
+                                        )}
+                                        {items.map((item, index) => (
+                                            <tr
+                                                key={item.id}
+                                                className="hover:bg-muted/30 transition-colors"
+                                            >
+                                                <td className="px-3.5 py-3 text-center text-xs text-muted-foreground">
+                                                    {index + 1}
+                                                </td>
+                                                <td className="px-3.5 py-3 font-medium text-foreground">
+                                                    {item.kodeMaterial || '-'}
+                                                </td>
+                                                <td className="px-3.5 py-3 font-medium text-foreground">
+                                                    {item.material}
+                                                </td>
+                                                <td className="px-3.5 py-3 text-center font-semibold text-foreground">
+                                                    {item.qty} {item.unit}
+                                                </td>
+                                                <td className="px-3.5 py-3 text-right tabular-nums font-semibold text-foreground">
+                                                    {formatRupiah(item.unitPrice)}
+                                                </td>
+                                                <td className="px-3.5 py-3 text-right tabular-nums font-bold text-foreground">
+                                                    {formatRupiah(
+                                                        toNumber(item.qty) * toNumber(item.unitPrice),
+                                                    )}
+                                                </td>
+                                                <td className="px-3.5 py-3 text-xs text-muted-foreground">
+                                                    {item.note || '-'}
+                                                </td>
+                                                <td className="px-3.5 py-3 text-center">
+                                                    <div className="flex items-center justify-center gap-1.5">
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="size-8 p-0 rounded-lg"
+                                                            onClick={() => handleEditItem(item)}
+                                                            title="Edit Material"
+                                                        >
+                                                            <Pencil className="size-3.5" />
+                                                        </Button>
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="size-8 p-0 rounded-lg text-destructive hover:text-destructive hover:bg-destructive/10"
+                                                            onClick={() => handleDeleteItem(item.id)}
+                                                            title="Hapus Material"
+                                                        >
+                                                            <Trash2 className="size-3.5" />
+                                                        </Button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
+                        )}
+                    </Profiler>
+                    {validationErrors.materials && (
+                        <p className="mt-2 text-xs text-destructive font-medium">
+                            {validationErrors.materials}
+                        </p>
+                    )}
+                </div>
+
+                {/* ── SECTION 3: RINGKASAN NILAI TRANSAKSI & AKSI ─────── */}
+                <div className="rounded-xl border border-border bg-card p-4 sm:p-5 shadow-xs space-y-4">
+                    <div className="flex items-center gap-2.5 border-b border-border pb-3">
+                        <div className="flex size-8 items-center justify-center rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                            <ReceiptText className="size-4" />
+                        </div>
+                        <div>
+                            <h2 className="text-sm sm:text-base font-bold text-foreground">
+                                Ringkasan Nilai Transaksi
+                            </h2>
+                            <p className="text-xs text-muted-foreground">
+                                Akumulasi total nilai pesanan, DPP, PPN, dan grand total transaksi.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+                        <div className="p-3.5 rounded-xl border border-border bg-muted/20 space-y-1">
+                            <span className="text-xs font-semibold text-muted-foreground">
+                                Total Price
+                            </span>
+                            <p className="text-base sm:text-lg font-bold tabular-nums text-foreground">
+                                {formatRupiah(totalPrice)}
+                            </p>
                         </div>
 
-                        <Profiler
-                            id="PO IN create item list"
-                            onRender={reportRenderProfile}
-                        >
-                            {isMobileViewport && (
-                                <div className="mt-4 grid gap-3">
-                                    {items.length === 0 && (
-                                        <div className="rounded-xl border border-sidebar-border/70 px-4 py-8 text-center text-sm text-muted-foreground">
-                                            Belum ada item material.
-                                        </div>
-                                    )}
-                                    {items.map((item, index) => (
-                                        <div
-                                            key={item.id}
-                                            className="rounded-xl border border-sidebar-border/70 p-3 text-sm"
-                                        >
-                                            <div className="mb-3 flex items-start justify-between gap-3">
-                                                <div className="min-w-0">
-                                                    <p className="text-xs text-muted-foreground">
-                                                        #{index + 1} -{' '}
-                                                        {item.kodeMaterial ||
-                                                            '-'}
-                                                    </p>
-                                                    <p className="mt-1 font-semibold break-words">
-                                                        {item.material}
-                                                    </p>
-                                                </div>
-                                                <div className="flex shrink-0 items-center gap-2">
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            handleEditItem(item)
-                                                        }
-                                                        title="Edit"
-                                                    >
-                                                        <Pencil className="size-4" />
-                                                    </Button>
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        onClick={() =>
-                                                            handleDeleteItem(
-                                                                item.id,
-                                                            )
-                                                        }
-                                                        title="Hapus"
-                                                    >
-                                                        <Trash2 className="size-4" />
-                                                    </Button>
-                                                </div>
-                                            </div>
-                                            <div className="grid grid-cols-2 gap-3">
-                                                <div>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        Qty
-                                                    </p>
-                                                    <p className="font-medium">
-                                                        {item.qty} {item.unit}
-                                                    </p>
-                                                </div>
-                                                <div>
-                                                    <p className="text-xs text-muted-foreground">
-                                                        Price
-                                                    </p>
-                                                    <p className="font-medium">
-                                                        {formatRupiah(
-                                                            item.unitPrice,
-                                                        )}
-                                                    </p>
-                                                </div>
-                                                <div className="col-span-2">
-                                                    <p className="text-xs text-muted-foreground">
-                                                        Total
-                                                    </p>
-                                                    <p className="font-semibold">
-                                                        {formatRupiah(
-                                                            toNumber(item.qty) *
-                                                                toNumber(
-                                                                    item.unitPrice,
-                                                                ),
-                                                        )}
-                                                    </p>
-                                                </div>
-                                                <div className="col-span-2">
-                                                    <p className="text-xs text-muted-foreground">
-                                                        Remark
-                                                    </p>
-                                                    <p className="break-words">
-                                                        {item.note || '-'}
-                                                    </p>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {!isMobileViewport && (
-                                <div className="mt-4 overflow-x-auto rounded-xl border border-sidebar-border/70">
-                                    <table className="w-full min-w-[900px] text-sm">
-                                        <thead className="bg-muted/40 text-muted-foreground">
-                                            <tr>
-                                                <th className="px-4 py-3 text-left">
-                                                    No
-                                                </th>
-                                                <th className="px-4 py-3 text-left">
-                                                    Kode Material
-                                                </th>
-                                                <th className="px-4 py-3 text-left">
-                                                    Material
-                                                </th>
-                                                <th className="px-4 py-3 text-left">
-                                                    Qty
-                                                </th>
-                                                <th className="px-4 py-3 text-left">
-                                                    Satuan
-                                                </th>
-                                                <th className="px-4 py-3 text-left">
-                                                    Price PO In
-                                                </th>
-                                                <th className="px-4 py-3 text-left">
-                                                    Total Price PO In
-                                                </th>
-                                                <th className="px-4 py-3 text-left">
-                                                    Remark
-                                                </th>
-                                                <th className="px-4 py-3 text-left">
-                                                    Aksi
-                                                </th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {items.length === 0 && (
-                                                <tr>
-                                                    <td
-                                                        className="px-4 py-8 text-center text-muted-foreground"
-                                                        colSpan={9}
-                                                    >
-                                                        Belum ada item material.
-                                                    </td>
-                                                </tr>
-                                            )}
-                                            {items.map((item, index) => (
-                                                <tr
-                                                    key={item.id}
-                                                    className="border-t border-sidebar-border/70"
-                                                >
-                                                    <td className="px-4 py-3">
-                                                        {index + 1}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {item.kodeMaterial ||
-                                                            '-'}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {item.material}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {item.qty}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {item.unit}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {formatRupiah(
-                                                            item.unitPrice,
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {formatRupiah(
-                                                            toNumber(item.qty) *
-                                                                toNumber(
-                                                                    item.unitPrice,
-                                                                ),
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {item.note || '-'}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        <div className="flex items-center gap-2">
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-                                                                size="sm"
-                                                                onClick={() =>
-                                                                    handleEditItem(
-                                                                        item,
-                                                                    )
-                                                                }
-                                                                title="Edit"
-                                                            >
-                                                                <Pencil className="size-4" />
-                                                            </Button>
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-                                                                size="sm"
-                                                                onClick={() =>
-                                                                    handleDeleteItem(
-                                                                        item.id,
-                                                                    )
-                                                                }
-                                                                title="Hapus"
-                                                            >
-                                                                <Trash2 className="size-4" />
-                                                            </Button>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                            )}
-                        </Profiler>
-                        {validationErrors.materials && (
-                            <p className="mt-2 text-xs text-red-500">
-                                {validationErrors.materials}
+                        <div className="p-3.5 rounded-xl border border-border bg-muted/20 space-y-1">
+                            <span className="text-xs font-semibold text-muted-foreground">
+                                DPP
+                            </span>
+                            <p className="text-base sm:text-lg font-bold tabular-nums text-foreground">
+                                {formatRupiah(dpp)}
                             </p>
-                        )}
-                    </article>
+                        </div>
+
+                        <div className="p-3.5 rounded-xl border border-border bg-muted/20 space-y-1">
+                            <span className="text-xs font-semibold text-muted-foreground">
+                                PPN ({form.ppnPercent || '0'}%)
+                            </span>
+                            <p className="text-base sm:text-lg font-bold tabular-nums text-foreground">
+                                {formatRupiah(ppn)}
+                            </p>
+                        </div>
+
+                        <div className="p-3.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 space-y-1">
+                            <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">
+                                Grand Total
+                            </span>
+                            <p className="text-lg sm:text-xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">
+                                {formatRupiah(grandTotal)}
+                            </p>
+                        </div>
+                    </div>
+
+                    {/* Action Bar */}
+                    <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-border">
+                        <MenuAction
+                            action="create"
+                            type="button"
+                            onClick={handleSavePoIn}
+                            disabled={isSubmitting}
+                            className="h-10 px-6 rounded-lg font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm w-full sm:w-auto"
+                        >
+                            {isSubmitting ? (
+                                <>
+                                    <Spinner className="mr-2 size-4" />
+                                    Menyimpan...
+                                </>
+                            ) : (
+                                <>
+                                    <Save className="mr-2 size-4" />
+                                    Simpan PO In
+                                </>
+                            )}
+                        </MenuAction>
+                    </div>
                 </div>
             </div>
 
@@ -2148,7 +2139,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                     }
                 }}
             >
-                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none p-3 sm:p-6">
+                <DialogContent className="w-[96vw] max-w-[96vw] sm:max-w-[95vw] lg:max-w-[94vw] xl:max-w-[1280px] max-h-[92vh] overflow-y-auto rounded-2xl border border-border bg-card p-4 sm:p-6 shadow-xl space-y-4">
                     <DialogHeader>
                         <DialogTitle>Pilih Material</DialogTitle>
                         <DialogDescription className="sr-only">
@@ -2385,7 +2376,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                     }
                 }}
             >
-                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none p-3 sm:p-6">
+                <DialogContent className="w-[96vw] max-w-[96vw] sm:max-w-[95vw] lg:max-w-[94vw] xl:max-w-[1280px] max-h-[92vh] overflow-y-auto rounded-2xl border border-border bg-card p-4 sm:p-6 shadow-xl space-y-4">
                     <DialogHeader>
                         <DialogTitle>Pilih Customer</DialogTitle>
                         <DialogDescription className="sr-only">
@@ -2444,9 +2435,6 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     <th className="px-2 py-2 text-left">
                                         Customer
                                     </th>
-                                    <th className="w-40 px-2 py-2 text-left">
-                                        Kota
-                                    </th>
                                     <th className="w-20 px-2 py-2 text-left">
                                         Action
                                     </th>
@@ -2457,7 +2445,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     <tr>
                                         <td
                                             className="px-4 py-6 text-center text-muted-foreground"
-                                            colSpan={4}
+                                            colSpan={3}
                                         >
                                             {customerLoading
                                                 ? 'Memuat data customer...'
@@ -2476,9 +2464,6 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                         </td>
                                         <td className="px-2 py-2">
                                             {item.nm_cs ?? '-'}
-                                        </td>
-                                        <td className="px-2 py-2 whitespace-nowrap">
-                                            {item.kota_cs ?? '-'}
                                         </td>
                                         <td className="px-2 py-2">
                                             <Button
@@ -2583,7 +2568,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                     }
                 }}
             >
-                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none p-3 sm:p-6">
+                <DialogContent className="w-[96vw] max-w-[96vw] sm:max-w-[95vw] lg:max-w-[94vw] xl:max-w-[1280px] max-h-[92vh] overflow-y-auto rounded-2xl border border-border bg-card p-4 sm:p-6 shadow-xl space-y-4">
                     <DialogHeader>
                         <DialogTitle>Tambah Material</DialogTitle>
                         <DialogDescription className="sr-only">
@@ -2701,7 +2686,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                     }
                 }}
             >
-                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none p-3 sm:p-6">
+                <DialogContent className="w-[96vw] max-w-[96vw] sm:max-w-[95vw] lg:max-w-[94vw] xl:max-w-[1280px] max-h-[92vh] overflow-y-auto rounded-2xl border border-border bg-card p-4 sm:p-6 shadow-xl space-y-4">
                     <DialogHeader>
                         <DialogTitle>Tambah Customer</DialogTitle>
                         <DialogDescription className="sr-only">

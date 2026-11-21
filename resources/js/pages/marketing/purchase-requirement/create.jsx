@@ -32,10 +32,23 @@ import AppLayout from '@/layouts/app-layout';
 import { cn } from '@/lib/utils';
 import { Head, router, usePage } from '@inertiajs/react';
 import axios from 'axios';
-import { ArrowLeft, Check, Plus, Search, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import {
+    AlertCircle,
+    ArrowLeft,
+    Building2,
+    Calendar,
+    Check,
+    ClipboardList,
+    CreditCard,
+    FileText,
+    Layers,
+    Plus,
+    RefreshCw,
+    Search,
+    Trash2,
+} from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
-
 const breadcrumbs = [
     { title: 'Dashboard', href: '/dashboard' },
     { title: 'Marketing', href: '/marketing/purchase-requirement' },
@@ -253,6 +266,7 @@ export default function PurchaseRequirementCreate() {
     const [materialItems, setMaterialItems] = useState([]);
     const [stockFulfilledDetailIds, setStockFulfilledDetailIds] = useState([]);
     const [activeMaterialGroupIndex, setActiveMaterialGroupIndex] = useState(0);
+    const qtyPrInputRef = useRef(null);
     const [isMaterialModalOpen, setIsMaterialModalOpen] = useState(false);
     const [materialSearchTerm, setMaterialSearchTerm] = useState('');
     const [materialPageSize, setMaterialPageSize] = useState(5);
@@ -434,6 +448,42 @@ export default function PurchaseRequirementCreate() {
         customerPageSize,
         debouncedCustomerSearchTerm,
     ]);
+
+    const handleSelectJenisPr = async (jenisLabel) => {
+        const isCurrentlySelected = formData.jenisPr === jenisLabel;
+        const nextJenis = isCurrentlySelected ? '' : jenisLabel;
+
+        if (nextJenis) {
+            setSelectedPoIns([]);
+            setMaterialItems([]);
+            const fallbackRefPo = `${nextJenis} ${formatToDdmmyyyy(formData.date)}-1`;
+            setFormData((prev) => ({
+                ...prev,
+                jenisPr: nextJenis,
+                refPo: fallbackRefPo,
+                forCustomer: forValue,
+            }));
+
+            try {
+                const nextRefPo = await fetchNextRefPo(nextJenis, formData.date);
+                if (nextRefPo) {
+                    setFormData((prev) => ({
+                        ...prev,
+                        refPo: nextRefPo,
+                    }));
+                }
+            } catch {
+                // Keep fallback
+            }
+        } else {
+            setFormData((prev) => ({
+                ...prev,
+                jenisPr: '',
+                refPo: '',
+                forCustomer: '',
+            }));
+        }
+    };
 
     const loadPoInMaterials = async (kodePoin) => {
         if (!kodePoin) {
@@ -980,161 +1030,209 @@ export default function PurchaseRequirementCreate() {
         }
     };
 
-    return (
+        return (
         <>
             <Head title="Tambah PR" />
             <form
-                className="flex h-full flex-1 flex-col gap-4 p-4"
+                className="w-full min-w-0 space-y-5 px-0 py-4 text-foreground"
+                style={{ fontFamily: "'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif" }}
                 onSubmit={handleSubmit}
             >
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <h1 className="text-xl font-semibold">Tambah PR</h1>
-                        <p className="text-sm text-muted-foreground">
-                            Isi data PR dalam dua langkah
-                        </p>
+                {/* Modern Page Header */}
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-2 border-b border-border">
+                    <div className="flex items-center gap-3">
+                        <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                            <ClipboardList className="size-5" />
+                        </div>
+                        <div>
+                            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+                                Tambah Purchase Requirement
+                            </h1>
+                            <p className="text-xs sm:text-sm text-muted-foreground">
+                                Buat pengajuan kebutuhan pembelian barang (PR) baru
+                            </p>
+                        </div>
                     </div>
-                    <div className="text-sm text-muted-foreground">
-                        Step {step} dari 2
+
+                    {/* Step Navigator Pills */}
+                    <div className="flex items-center gap-2 self-start sm:self-auto p-1 rounded-xl bg-muted/50 border border-border">
+                        <button
+                            type="button"
+                            onClick={() => setStep(1)}
+                            className={cn(
+                                'flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                                step === 1
+                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                    : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+                            )}
+                        >
+                            <span className={cn(
+                                'flex size-4.5 items-center justify-center rounded-full text-[10px] font-bold',
+                                step === 1 ? 'bg-white/20 text-white' : 'bg-muted-foreground/20 text-muted-foreground'
+                            )}>
+                                1
+                            </span>
+                            Data PO Masuk
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setStep(2)}
+                            className={cn(
+                                'flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-xs font-semibold transition-all',
+                                step === 2
+                                    ? 'bg-emerald-600 text-white shadow-xs'
+                                    : 'text-muted-foreground hover:text-foreground hover:bg-muted',
+                            )}
+                        >
+                            <span className={cn(
+                                'flex size-4.5 items-center justify-center rounded-full text-[10px] font-bold',
+                                step === 2 ? 'bg-white/20 text-white' : 'bg-muted-foreground/20 text-muted-foreground'
+                            )}>
+                                2
+                            </span>
+                            Data Material
+                            {materialItems.length > 0 && (
+                                <span className={cn(
+                                    'px-1.5 py-0.2 rounded-full text-[10px] font-bold tabular-nums',
+                                    step === 2 ? 'bg-white text-emerald-700' : 'bg-muted-foreground/20 text-foreground'
+                                )}>
+                                    {materialItems.length}
+                                </span>
+                            )}
+                        </button>
                     </div>
                 </div>
 
-                <div className="flex flex-wrap gap-3 text-sm">
-                    <span
-                        className={`rounded-full px-3 py-1 ${step === 1
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted text-muted-foreground'
-                            }`}
-                    >
-                        1. Data PO Masuk
-                    </span>
-                    <span
-                        className={`rounded-full px-3 py-1 ${step === 2
-                            ? 'bg-primary text-primary-foreground'
-                            : 'bg-muted text-muted-foreground'
-                            }`}
-                    >
-                        2. Data Material
-                    </span>
-                </div>
-
+                {/* STEP 1: DATA PO MASUK */}
                 {step === 1 && (
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Data PO Masuk</CardTitle>
+                    <Card className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
+                        <CardHeader className="border-b border-border bg-muted/20 px-4 py-3.5 sm:px-6 sm:py-4">
+                            <div className="flex items-center gap-2.5">
+                                <FileText className="size-4.5 text-emerald-600 dark:text-emerald-400" />
+                                <div>
+                                    <CardTitle className="text-base sm:text-lg font-bold text-foreground">
+                                        Data PO Masuk & Pengaturan PR
+                                    </CardTitle>
+                                    <CardDescription className="text-xs">
+                                        Pilih jenis pengajuan PR atau tarik dari referensi PO Masuk Customer
+                                    </CardDescription>
+                                </div>
+                            </div>
                         </CardHeader>
-                        <CardContent className="grid gap-4 md:grid-cols-2">
+                        <CardContent className="p-4 sm:p-6 space-y-6">
+                            {/* Option Cards: Jenis PR */}
                             {(!formData.refPo ||
                                 formData.refPo === forValue ||
                                 formData.jenisPr) && (
-                                    <div className="mb-2 rounded-xl border border-primary/10 bg-primary/5 p-4 md:col-span-2">
-                                        <Label className="mb-3 block text-sm font-bold text-gray-700">
-                                            Pilih Jenis PR:
-                                        </Label>
-                                        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-                                            {[
-                                                {
-                                                    label: 'PR For Stock',
-                                                    desc: 'Permintaan pembelian barang untuk menambah stok barang yang ada di gudang.',
-                                                },
-                                                {
-                                                    label: 'PR For Capital Expenditure (CapEx)',
-                                                    desc: 'Permintaan pembelian untuk aset/inventaris yang bernilai tinggi dan umur panjang.',
-                                                },
-                                                {
-                                                    label: 'PR For Operational Expenditure (OpEx)',
-                                                    desc: 'Permintaan pembelian untuk kebutuhan operasional atau barang habis pakai.',
-                                                },
-                                            ].map((jenisObj) => (
+                                <div className="space-y-3 p-4 rounded-xl border border-border bg-muted/20">
+                                    <Label className="text-xs font-bold text-foreground uppercase tracking-wider">
+                                        Pilih Jenis PR (Internal / Non-Customer):
+                                    </Label>
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        {[
+                                            {
+                                                label: 'PR For Stock',
+                                                desc: 'Permintaan pembelian barang untuk menambah stok persediaan gudang.',
+                                            },
+                                            {
+                                                label: 'PR For Capital Expenditure (CapEx)',
+                                                desc: 'Pembelian aset/inventaris bernilai tinggi dan berumur panjang.',
+                                            },
+                                            {
+                                                label: 'PR For Operational Expenditure (OpEx)',
+                                                desc: 'Pembelian kebutuhan operasional rutin atau barang habis pakai.',
+                                            },
+                                        ].map((jenisObj) => {
+                                            const isSelected = formData.jenisPr === jenisObj.label;
+                                            return (
                                                 <div
                                                     key={jenisObj.label}
-                                                    className="flex items-start space-x-3"
-                                                >
-                                                    <Checkbox
-                                                        id={`jenis-${jenisObj.label}`}
-                                                        className="mt-0.5 h-5 w-5"
-                                                        checked={
-                                                            formData.jenisPr ===
-                                                            jenisObj.label
+                                                    role="button"
+                                                    tabIndex={0}
+                                                    onClick={() => handleSelectJenisPr(jenisObj.label)}
+                                                    onKeyDown={(e) => {
+                                                        if (e.key === 'Enter' || e.key === ' ') {
+                                                            e.preventDefault();
+                                                            handleSelectJenisPr(jenisObj.label);
                                                         }
-                                                        onCheckedChange={async (
-                                                            checked,
-                                                        ) => {
-                                                            const newJenis = checked
-                                                                ? jenisObj.label
-                                                                : '';
-                                                            if (checked) {
-                                                                setSelectedPoIns(
-                                                                    [],
-                                                                );
-                                                                setMaterialItems(
-                                                                    [],
-                                                                );
-                                                                const nextRefPo = await fetchNextRefPo(newJenis, formData.date);
-                                                                setFormData((prev) => ({
-                                                                    ...prev,
-                                                                    jenisPr: newJenis,
-                                                                    refPo: nextRefPo || `${newJenis} ${formatToDdmmyyyy(prev.date)}-1`,
-                                                                    forCustomer: forValue,
-                                                                }));
-                                                            } else {
-                                                                setFormData((prev) => ({
-                                                                    ...prev,
-                                                                    jenisPr: '',
-                                                                    refPo: '',
-                                                                    forCustomer: '',
-                                                                }));
-                                                            }
-                                                        }}
-                                                    />
-                                                    <div className="grid gap-1.5 leading-none">
-                                                        <Label
-                                                            htmlFor={`jenis-${jenisObj.label}`}
-                                                            className="cursor-pointer text-sm font-bold"
-                                                        >
+                                                    }}
+                                                    className={cn(
+                                                        'flex items-start gap-3 p-3.5 rounded-xl border cursor-pointer select-none transition-all text-left',
+                                                        isSelected
+                                                            ? 'border-emerald-500 bg-emerald-500/10 ring-2 ring-emerald-500/30 shadow-xs'
+                                                            : 'border-border bg-card hover:border-border/80 hover:bg-muted/40'
+                                                    )}
+                                                >
+                                                    <div
+                                                        className={cn(
+                                                            'flex size-5 shrink-0 items-center justify-center rounded-md border transition-all mt-0.5',
+                                                            isSelected
+                                                                ? 'bg-emerald-600 border-emerald-600 text-white shadow-xs'
+                                                                : 'border-input bg-background'
+                                                        )}
+                                                    >
+                                                        {isSelected && <Check className="size-3.5 stroke-[3]" />}
+                                                    </div>
+                                                    <div className="space-y-1">
+                                                        <span className="text-xs sm:text-sm font-bold text-foreground block">
                                                             {jenisObj.label}
-                                                        </Label>
-                                                        <p className="text-xs text-muted-foreground">
+                                                        </span>
+                                                        <p className="text-xs text-muted-foreground leading-relaxed">
                                                             {jenisObj.desc}
                                                         </p>
                                                     </div>
                                                 </div>
-                                            ))}
-                                        </div>
+                                            );
+                                        })}
                                     </div>
-                                )}
-                            <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">
-                                    Date
-                                </span>
-                                <Input
-                                    type="date"
-                                    value={formData.date}
-                                    onChange={async (event) => {
-                                        const newDate = event.target.value;
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            date: newDate,
-                                        }));
-                                        if (formData.jenisPr) {
-                                            const nextRefPo = await fetchNextRefPo(formData.jenisPr, newDate);
-                                            if (nextRefPo) {
-                                                setFormData((prev) => ({
-                                                    ...prev,
-                                                    refPo: nextRefPo,
-                                                }));
-                                            }
-                                        }
-                                    }}
-                                />
-                            </label>
-                            {formData.jenisPr && (
-                                <label className="space-y-2 text-sm">
-                                    <span className="text-muted-foreground">
-                                        Ref PO
-                                    </span>
+                                </div>
+                            )}
+
+                            {/* Form Input Fields Grid */}
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-4">
+                                {/* Tanggal PR (Diperkecil lebarnya) */}
+                                <div className="space-y-1.5 sm:col-span-1 lg:col-span-2">
+                                    <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                                        <Calendar className="size-3.5 text-muted-foreground" />
+                                        Tanggal PR
+                                    </Label>
                                     <Input
-                                        value={formData.refPo}
+                                        type="date"
+                                        className="h-10 rounded-lg text-sm font-medium"
+                                        value={formData.date}
+                                        onChange={async (event) => {
+                                            const newDate = event.target.value;
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                date: newDate,
+                                            }));
+                                            if (formData.jenisPr) {
+                                                const nextRefPo = await fetchNextRefPo(formData.jenisPr, newDate);
+                                                if (nextRefPo) {
+                                                    setFormData((prev) => ({
+                                                        ...prev,
+                                                        refPo: nextRefPo,
+                                                    }));
+                                                }
+                                            }
+                                        }}
+                                    />
+                                </div>
+
+                                {/* Ref PO Input */}
+                                <div className="space-y-1.5 sm:col-span-1 lg:col-span-4">
+                                    <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                                        <FileText className="size-3.5 text-muted-foreground" />
+                                        Nomor Ref PO
+                                    </Label>
+                                    <Input
+                                        className={cn(
+                                            'h-10 rounded-lg text-sm font-semibold',
+                                            !formData.jenisPr && 'bg-muted/40'
+                                        )}
+                                        value={formData.refPo || (selectedPoIns.length > 0 ? selectedPoIns.map((p) => p.no_poin).join(', ') : '')}
+                                        placeholder="Pilih PO In atau ketik Ref PO..."
+                                        readOnly={!formData.jenisPr}
                                         onChange={(event) => {
                                             const value = event.target.value;
                                             setFormData((prev) => ({
@@ -1143,48 +1241,78 @@ export default function PurchaseRequirementCreate() {
                                             }));
                                         }}
                                     />
-                                </label>
-                            )}
-                            <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">
-                                    {formData.jenisPr
-                                        ? 'For Customer'
-                                        : 'Pilih PO In'}
-                                </span>
-                                <div className="flex gap-2">
-                                    {formData.jenisPr && (
+                                </div>
+
+                                {/* Customer / Cari PO In */}
+                                <div className="space-y-1.5 sm:col-span-2 lg:col-span-4">
+                                    <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                                        <Building2 className="size-3.5 text-muted-foreground" />
+                                        {formData.jenisPr ? 'For Customer' : 'Customer PO In'}
+                                    </Label>
+                                    <div className="flex gap-2">
                                         <Input
-                                            value={formData.forCustomer}
+                                            className="h-10 rounded-lg text-sm font-semibold bg-muted/40"
+                                            value={formData.forCustomer || (selectedPoIns.length > 0 ? selectedPoIns.map((p) => p.customer_name).join(', ') : '')}
+                                            placeholder={formData.jenisPr ? 'FOR...' : 'Belum ada customer dipilih...'}
                                             readOnly
                                         />
-                                    )}
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        disabled={formData.jenisPr}
-                                        onClick={() => {
-                                            setIsCustomerModalOpen(true);
-                                            setCustomerCurrentPage(1);
-                                            setCustomerSearchTerm('');
-                                            setCustomerList([]);
-                                            setCustomerTotal(0);
-                                        }}
-                                    >
-                                        Cari PO In
-                                    </Button>
+                                        {!formData.jenisPr && (
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                className="h-10 px-4 rounded-lg font-semibold whitespace-nowrap shrink-0"
+                                                onClick={() => {
+                                                    setIsCustomerModalOpen(true);
+                                                    setCustomerCurrentPage(1);
+                                                    setCustomerSearchTerm('');
+                                                    setCustomerList([]);
+                                                    setCustomerTotal(0);
+                                                }}
+                                            >
+                                                <Search className="size-3.5 mr-2" />
+                                                {selectedPoIns.length > 0 ? 'Ganti' : 'Cari PO In'}
+                                            </Button>
+                                        )}
+                                    </div>
                                 </div>
-                            </label>
+
+                                {/* Payment Method (Diperkecil lebarnya) */}
+                                <div className="space-y-1.5 sm:col-span-1 lg:col-span-2">
+                                    <Label className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                                        <CreditCard className="size-3.5 text-muted-foreground" />
+                                        Metode Pembayaran
+                                    </Label>
+                                    <select
+                                        className="h-10 w-full rounded-lg border border-input bg-background px-3 text-sm font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
+                                        value={formData.payment}
+                                        onChange={(event) =>
+                                            setFormData((prev) => ({
+                                                ...prev,
+                                                payment: event.target.value,
+                                            }))
+                                        }
+                                    >
+                                        <option value="Cash Trans">Cash Trans</option>
+                                        <option value="Cash Tunai">Cash Tunai</option>
+                                        <option value="Credit">Credit</option>
+                                    </select>
+                                </div>
+                            </div>
+
+                            {/* PO In Terpilih List */}
                             {!formData.jenisPr && selectedPoIns.length > 0 && (
-                                <div className="space-y-2 md:col-span-2">
-                                    <Label>PO In Terpilih</Label>
-                                    <div className="grid gap-2 md:grid-cols-2">
+                                <div className="space-y-2.5 pt-2 border-t border-border">
+                                    <Label className="text-xs font-bold text-foreground uppercase tracking-wider">
+                                        PO In Terpilih ({selectedPoIns.length}):
+                                    </Label>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                                         {selectedPoIns.map((po) => (
                                             <div
                                                 key={po.kode_poin}
-                                                className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3"
+                                                className="flex items-center justify-between gap-3 rounded-xl border border-border bg-muted/20 p-3 hover:border-emerald-500/30 transition-colors"
                                             >
                                                 <div className="min-w-0">
-                                                    <p className="truncate text-sm font-semibold">
+                                                    <p className="truncate text-xs sm:text-sm font-bold text-foreground">
                                                         {po.no_poin}
                                                     </p>
                                                     <p className="truncate text-xs text-muted-foreground">
@@ -1195,853 +1323,495 @@ export default function PurchaseRequirementCreate() {
                                                     type="button"
                                                     variant="ghost"
                                                     size="icon"
+                                                    className="size-8 rounded-lg text-destructive hover:bg-destructive/10"
                                                     title="Hapus PO In"
-                                                    onClick={() =>
-                                                        removeSelectedPoIn(po)
-                                                    }
+                                                    onClick={() => removeSelectedPoIn(po)}
                                                 >
-                                                    <Trash2 className="h-4 w-4 text-destructive" />
+                                                    <Trash2 className="size-4" />
                                                 </Button>
                                             </div>
                                         ))}
                                     </div>
                                 </div>
                             )}
-                            <label className="space-y-2 text-sm">
-                                <span className="text-muted-foreground">
-                                    Payment
-                                </span>
-                                <select
-                                    className="h-9 w-full rounded-md border border-sidebar-border/70 bg-background px-3 text-sm"
-                                    value={formData.payment}
-                                    onChange={(event) =>
-                                        setFormData((prev) => ({
-                                            ...prev,
-                                            payment: event.target.value,
-                                        }))
-                                    }
+
+                            {/* Action Bar Bottom of Step 1 */}
+                            <div className="flex justify-end pt-4 border-t border-border">
+                                <Button
+                                    type="button"
+                                    onClick={() => setStep(2)}
+                                    className="h-10 px-6 rounded-lg font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
                                 >
-                                    <option value="Cash Trans">
-                                        Cash Trans
-                                    </option>
-                                    <option value="Cash Tunai">
-                                        Cash Tunai
-                                    </option>
-                                    <option value="Credit">Credit</option>
-                                </select>
-                            </label>
+                                    Lanjut ke Data Material
+                                    <ArrowLeft className="size-4 ml-2 rotate-180" />
+                                </Button>
+                            </div>
                         </CardContent>
-                        <div className="flex justify-end gap-2 px-6 pb-6">
-                            <Button type="button" onClick={() => setStep(2)}>
-                                Lanjut
-                            </Button>
-                        </div>
                     </Card>
                 )}
 
+                {/* STEP 2: DATA MATERIAL & SUMMARY */}
                 {step === 2 && (
-                    <div className="mx-auto w-full animate-in space-y-8 duration-500 slide-in-from-right">
-                        <div className="grid gap-8 lg:grid-cols-12">
-                            {/* Main Entry Section */}
-                            <div className="space-y-6 lg:col-span-8">
-                                <Card className="border-none shadow-xl ring-1 ring-sidebar-border/70">
-                                    <CardHeader className="border-b bg-muted/30">
-                                        <CardTitle className="flex items-center gap-2">
-                                            <Badge
-                                                variant="outline"
-                                                className="flex h-6 w-6 items-center justify-center rounded-full p-0"
-                                            >
-                                                {materialItems.length}
-                                            </Badge>
-                                            Daftar Material
-                                        </CardTitle>
-                                        <CardDescription>
-                                            Tambahkan material secara manual
-                                            atau tarik data dari PO In untuk
-                                            mengisi daftar di bawah.
-                                        </CardDescription>
-                                    </CardHeader>
-                                    <CardContent className="p-0">
+                    <div className="w-full space-y-6 animate-in fade-in-50 duration-300">
+                        {/* Daftar Material PR (Full Width) */}
+                        <Card className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
+                            <CardHeader className="border-b border-border bg-muted/20 px-4 py-3.5 sm:px-6 sm:py-4">
+                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                    <div className="flex items-center gap-2.5">
+                                        <Layers className="size-4.5 text-emerald-600 dark:text-emerald-400" />
+                                        <div>
+                                            <CardTitle className="text-base sm:text-lg font-bold text-foreground flex items-center gap-2">
+                                                Daftar Material PR
+                                                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 tabular-nums">
+                                                    {materialItems.length} Item
+                                                </span>
+                                            </CardTitle>
+                                            <CardDescription className="text-xs">
+                                                Kebutuhan barang yang akan diajukan pembelian
+                                            </CardDescription>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+                                        <span className="text-[11px] font-semibold text-emerald-700 dark:text-emerald-300">
+                                            Total Estimasi:
+                                        </span>
+                                        <span className="text-sm font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">
+                                            {formatRupiah(
+                                                materialItems.reduce(
+                                                    (acc, item) =>
+                                                        acc + parseNumber(calculateTotalPrice(item.qtyPr, item.hargaModal)),
+                                                    0,
+                                                ),
+                                            )}
+                                        </span>
+                                    </div>
+                                </div>
+                            </CardHeader>
+                                    <CardContent className="p-4 sm:p-6 space-y-6">
+                                        {/* Document Note if available */}
                                         {activeMaterialGroup &&
-                                            activeMaterialGroup.refPo !==
-                                            'Material Manual' && (
-                                                <div className="mx-6 mt-6 rounded-lg border border-primary/20 bg-primary/5 p-4 text-sm">
-                                                    <p className="font-semibold">
-                                                        Catatan Dokumen
+                                            activeMaterialGroup.refPo !== 'Material Manual' && (
+                                                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 text-xs sm:text-sm text-amber-900 dark:text-amber-200">
+                                                    <p className="font-bold flex items-center gap-1.5">
+                                                        <AlertCircle className="size-4 text-amber-600 dark:text-amber-400" />
+                                                        Catatan Dokumen PO:
                                                     </p>
-                                                    <p className="mt-1 whitespace-pre-wrap text-muted-foreground">
-                                                        {activeMaterialGroup.noteDoc ||
-                                                            '-'}
+                                                    <p className="mt-1 whitespace-pre-wrap pl-5 text-muted-foreground">
+                                                        {activeMaterialGroup.noteDoc || '-'}
                                                     </p>
                                                 </div>
                                             )}
-                                        {/* Material List (Cards) - Always Used */}
-                                        <div className="min-h-[300px] space-y-4 p-6">
-                                            {materialGroups.length > 1 && (
-                                                <div className="rounded-xl border bg-muted/20 p-4">
-                                                    <div className="flex flex-wrap items-center justify-between gap-3">
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            disabled={
-                                                                activeMaterialGroupIndex ===
-                                                                0
-                                                            }
-                                                            onClick={() =>
-                                                                setActiveMaterialGroupIndex(
-                                                                    (current) =>
-                                                                        Math.max(
-                                                                            0,
-                                                                            current -
-                                                                            1,
-                                                                        ),
-                                                                )
-                                                            }
-                                                        >
-                                                            Sebelumnya
-                                                        </Button>
-                                                        <div className="text-center">
-                                                            <p className="text-sm font-bold">
-                                                                {
-                                                                    materialGroups[
-                                                                        activeMaterialGroupIndex
-                                                                    ]?.refPo
-                                                                }
-                                                            </p>
-                                                            <p className="text-xs text-muted-foreground">
-                                                                {materialGroups[
-                                                                    activeMaterialGroupIndex
-                                                                ]?.customer ||
-                                                                    'Material tanpa PO In'}
-                                                            </p>
-                                                            <p className="mt-1 text-[10px] font-medium text-muted-foreground">
-                                                                PO In{' '}
-                                                                {activeMaterialGroupIndex +
-                                                                    1}{' '}
-                                                                dari{' '}
-                                                                {
-                                                                    materialGroups.length
-                                                                }
-                                                            </p>
-                                                        </div>
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            disabled={
-                                                                activeMaterialGroupIndex >=
-                                                                materialGroups.length -
-                                                                1
-                                                            }
-                                                            onClick={() =>
-                                                                setActiveMaterialGroupIndex(
-                                                                    (current) =>
-                                                                        Math.min(
-                                                                            materialGroups.length -
-                                                                            1,
-                                                                            current +
-                                                                            1,
-                                                                        ),
-                                                                )
-                                                            }
-                                                        >
-                                                            Berikutnya
-                                                        </Button>
+
+                                        {/* Paginator / Stepper for Multiple PO Groups */}
+                                        {materialGroups.length > 1 && (
+                                            <div className="rounded-xl border border-border bg-muted/30 p-3.5">
+                                                <div className="flex flex-wrap items-center justify-between gap-3">
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="rounded-lg text-xs"
+                                                        disabled={activeMaterialGroupIndex === 0}
+                                                        onClick={() =>
+                                                            setActiveMaterialGroupIndex((current) =>
+                                                                Math.max(0, current - 1),
+                                                            )
+                                                        }
+                                                    >
+                                                        Sebelumnya
+                                                    </Button>
+                                                    <div className="text-center">
+                                                        <p className="text-xs sm:text-sm font-bold text-foreground">
+                                                            {materialGroups[activeMaterialGroupIndex]?.refPo}
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground">
+                                                            {materialGroups[activeMaterialGroupIndex]?.customer ||
+                                                                'Material tanpa PO In'}
+                                                        </p>
+                                                        <p className="mt-0.5 text-[10px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                                            PO In {activeMaterialGroupIndex + 1} dari{' '}
+                                                            {materialGroups.length}
+                                                        </p>
                                                     </div>
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="rounded-lg text-xs"
+                                                        disabled={
+                                                            activeMaterialGroupIndex >=
+                                                            materialGroups.length - 1
+                                                        }
+                                                        onClick={() =>
+                                                            setActiveMaterialGroupIndex((current) =>
+                                                                Math.min(
+                                                                    materialGroups.length - 1,
+                                                                    current + 1,
+                                                                ),
+                                                            )
+                                                        }
+                                                    >
+                                                        Berikutnya
+                                                    </Button>
                                                 </div>
-                                            )}
-                                            {materialItems.length === 0 ? (
-                                                <div className="flex flex-col items-center justify-center py-20 opacity-40">
-                                                    <div className="relative mb-4">
-                                                        <Search className="h-16 w-16" />
-                                                        <Plus className="absolute -top-2 -right-2 h-8 w-8 text-primary" />
-                                                    </div>
-                                                    <p className="text-xl font-bold tracking-tight uppercase">
-                                                        Belum Ada Data
-                                                    </p>
-                                                    <p className="text-sm">
-                                                        Silahkan tambah secara
-                                                        manual atau pilih PO In
-                                                        di Langkah 1.
-                                                    </p>
+                                            </div>
+                                        )}
+
+                                        {/* Material Items List */}
+                                        {materialItems.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center py-12 px-4 rounded-xl border border-dashed border-border text-center">
+                                                <div className="p-3 rounded-full bg-muted/50 mb-3 text-muted-foreground">
+                                                    <Search className="size-6" />
                                                 </div>
-                                            ) : (
-                                                <div className="grid gap-4">
-                                                    {visibleMaterialItems.map(
-                                                        (item, idx) => (
-                                                            <div
-                                                                key={item.id}
-                                                                className="group relative rounded-2xl border border-sidebar-border bg-background p-5 shadow-sm transition-all duration-300 hover:border-primary/30 hover:shadow-md"
-                                                            >
-                                                                <div className="absolute top-4 -left-3 flex h-8 w-8 items-center justify-center rounded-lg border border-sidebar-border bg-muted text-[10px] font-black text-muted-foreground transition-colors group-hover:border-primary group-hover:bg-primary group-hover:text-primary-foreground">
-                                                                    {String(
-                                                                        idx + 1,
-                                                                    ).padStart(
-                                                                        2,
-                                                                        '0',
+                                                <p className="text-sm font-bold text-foreground uppercase tracking-wider">
+                                                    Belum Ada Item Material
+                                                </p>
+                                                <p className="text-xs text-muted-foreground max-w-sm mt-1">
+                                                    Silakan pilih PO In pada Langkah 1 atau input material baru secara manual di bawah.
+                                                </p>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-4">
+                                                {visibleMaterialItems.map((item, idx) => (
+                                                    <div
+                                                        key={item.id}
+                                                        className="rounded-xl border border-border bg-card p-4 sm:p-5 shadow-xs space-y-4 hover:border-emerald-500/30 transition-colors"
+                                                    >
+                                                        {/* Item Header */}
+                                                        <div className="flex items-start justify-between gap-3">
+                                                            <div className="space-y-1.5 min-w-0">
+                                                                <div className="flex flex-wrap items-center gap-2">
+                                                                    <span className="flex size-5 items-center justify-center rounded-md bg-muted text-[10px] font-bold text-muted-foreground tabular-nums">
+                                                                        #{idx + 1}
+                                                                    </span>
+                                                                    <h4 className="font-bold text-sm sm:text-base text-foreground break-words">
+                                                                        {item.namaMaterial}
+                                                                    </h4>
+                                                                </div>
+                                                                <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                                                                    <span className="px-2 py-0.5 rounded-md bg-muted text-foreground font-medium">
+                                                                        {item.kodeMaterial}
+                                                                    </span>
+                                                                    {item.refPo && (
+                                                                        <span className="px-2 py-0.5 rounded-md bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-medium">
+                                                                            PO: {item.refPo}
+                                                                        </span>
+                                                                    )}
+                                                                    {item.forCustomer && (
+                                                                        <span className="px-2 py-0.5 rounded-md bg-muted text-muted-foreground">
+                                                                            {item.forCustomer}
+                                                                        </span>
+                                                                    )}
+                                                                    {item.satuan && (
+                                                                        <span className="px-2 py-0.5 rounded-md bg-primary/10 text-primary font-medium uppercase">
+                                                                            {item.satuan}
+                                                                        </span>
                                                                     )}
                                                                 </div>
-
-                                                                <div className="flex flex-col gap-6">
-                                                                    {/* Top Section: Info & Delete */}
-                                                                    <div className="flex items-start justify-between gap-4">
-                                                                        <div className="space-y-1">
-                                                                            <h4 className="text-lg leading-tight font-black tracking-tight uppercase transition-colors group-hover:text-primary">
-                                                                                {
-                                                                                    item.namaMaterial
-                                                                                }
-                                                                            </h4>
-                                                                            <div className="flex flex-wrap gap-2">
-                                                                                <Badge
-                                                                                    variant="outline"
-                                                                                    className="h-5 border-none bg-muted/30 px-1.5 font-mono text-[10px]"
-                                                                                >
-                                                                                    {
-                                                                                        item.kodeMaterial
-                                                                                    }
-                                                                                </Badge>
-                                                                                {item.refPo && (
-                                                                                    <Badge className="h-5 px-1.5 text-[10px]">
-                                                                                        PO
-                                                                                        In:{' '}
-                                                                                        {
-                                                                                            item.refPo
-                                                                                        }
-                                                                                    </Badge>
-                                                                                )}
-                                                                                {item.forCustomer && (
-                                                                                    <Badge
-                                                                                        variant="secondary"
-                                                                                        className="h-5 px-1.5 text-[10px]"
-                                                                                    >
-                                                                                        {
-                                                                                            item.forCustomer
-                                                                                        }
-                                                                                    </Badge>
-                                                                                )}
-                                                                                {item.satuan && (
-                                                                                    <Badge
-                                                                                        variant="outline"
-                                                                                        className="h-5 border-none bg-primary/5 px-1.5 text-[10px] hover:bg-primary/10"
-                                                                                    >
-                                                                                        {
-                                                                                            item.satuan
-                                                                                        }
-                                                                                    </Badge>
-                                                                                )}
-                                                                                {[
-                                                                                    [
-                                                                                        'G1',
-                                                                                        item.stokG1,
-                                                                                    ],
-                                                                                    [
-                                                                                        'G2',
-                                                                                        item.stokG2,
-                                                                                    ],
-                                                                                    [
-                                                                                        'G3',
-                                                                                        item.stokG3,
-                                                                                    ],
-                                                                                    [
-                                                                                        'G4',
-                                                                                        item.stokG4,
-                                                                                    ],
-                                                                                    [
-                                                                                        'MIS',
-                                                                                        item.mis ??
-                                                                                        0,
-                                                                                    ],
-                                                                                    [
-                                                                                        'MIB',
-                                                                                        item.mib ??
-                                                                                        0,
-                                                                                    ],
-                                                                                    [
-                                                                                        'MIBS',
-                                                                                        item.mibs ??
-                                                                                        0,
-                                                                                    ],
-                                                                                    [
-                                                                                        'Qty PR Outstanding',
-                                                                                        item.pr_outstanding ??
-                                                                                        0,
-                                                                                    ],
-                                                                                    [
-                                                                                        'Qty PO Outstanding',
-                                                                                        item.po_outstanding ??
-                                                                                        0,
-                                                                                    ],
-                                                                                ].map(
-                                                                                    ([
-                                                                                        label,
-                                                                                        value,
-                                                                                    ]) => (
-                                                                                        <span
-                                                                                            key={
-                                                                                                label
-                                                                                            }
-                                                                                            className="rounded-full border border-blue-100 bg-blue-50 px-2 text-[10px] font-bold text-blue-600"
-                                                                                        >
-                                                                                            {label.includes(
-                                                                                                'Qty',
-                                                                                            )
-                                                                                                ? ''
-                                                                                                : 'Stok '}
-                                                                                            {
-                                                                                                label
-                                                                                            }
-
-                                                                                            :{' '}
-                                                                                            {value ??
-                                                                                                0}
-                                                                                        </span>
-                                                                                    ),
-                                                                                )}
-                                                                                <span className="flex items-center gap-1.5 rounded-full border border-orange-100 bg-orange-50 px-2 py-0.5 text-[10px] font-bold text-orange-700">
-                                                                                    DO
-                                                                                    Belum
-                                                                                    Dibuat
-                                                                                    :{' '}
-                                                                                    {item.do_outstanding ??
-                                                                                        0}
-                                                                                </span>
-                                                                                <span className="flex items-center gap-1.5 rounded-full border border-green-100 bg-green-50 px-2 text-[10px] font-bold text-green-600">
-                                                                                    <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
-                                                                                    {(item.stok ??
-                                                                                        0) <
-                                                                                        0
-                                                                                        ? 'Kredit DO:'
-                                                                                        : 'Total Stok:'}{' '}
-                                                                                    {item.stok ??
-                                                                                        0}
-                                                                                </span>
-                                                                            </div>
-                                                                        </div>
-                                                                        <MenuAction
-                                                                            action={clearsSavedPoInQuantity(item) ? 'update' : 'create'}
-                                                                            type="button"
-                                                                            variant="ghost"
-                                                                            size="icon"
-                                                                            className="group/del h-9 w-9 rounded-xl hover:bg-destructive/10 hover:text-destructive"
-                                                                            onClick={() =>
-                                                                                handleRemoveMaterial(
-                                                                                    item.id,
-                                                                                )
-                                                                            }
-                                                                        >
-                                                                            <Trash2 className="h-4 w-4 transition-transform group-hover/del:scale-110" />
-                                                                        </MenuAction>
-                                                                    </div>
-
-                                                                    {/* Middle Section: Inputs */}
-                                                                    <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-                                                                        <div className="space-y-2 rounded-xl border border-dashed border-sidebar-border/50 bg-muted/20 p-4">
-                                                                            <Label className="text-[10px] font-black tracking-widest text-muted-foreground/70 uppercase">
-                                                                                Quantity
-                                                                            </Label>
-                                                                            <div className="flex items-start justify-between gap-4">
-                                                                                <div className="flex min-w-[120px] flex-col gap-3">
-                                                                                    <div className="flex flex-col">
-                                                                                        <span className="text-[9px] font-bold text-muted-foreground uppercase opacity-50">
-                                                                                            Order
-                                                                                            In
-                                                                                        </span>
-                                                                                        <span className="font-mono text-sm font-bold">
-                                                                                            {
-                                                                                                item.qtyPoIn
-                                                                                            }
-                                                                                        </span>
-                                                                                    </div>
-                                                                                    {item.maxQtyPr !==
-                                                                                        undefined && (
-                                                                                            <>
-                                                                                                <div className="flex flex-col">
-                                                                                                    <span className="text-[9px] font-bold text-amber-600/70 uppercase">
-                                                                                                        Last
-                                                                                                        Rem.
-                                                                                                        Order
-                                                                                                        In
-                                                                                                    </span>
-                                                                                                    <span className="font-mono text-sm font-bold text-amber-600">
-                                                                                                        {
-                                                                                                            item.maxQtyPr
-                                                                                                        }
-                                                                                                    </span>
-                                                                                                </div>
-                                                                                                <div className="flex flex-col">
-                                                                                                    <span className="text-[9px] font-bold text-blue-600/70 uppercase">
-                                                                                                        Current
-                                                                                                        Rem.
-                                                                                                        Order
-                                                                                                        In
-                                                                                                    </span>
-                                                                                                    <span className="font-mono text-sm font-bold text-blue-600">
-                                                                                                        {Math.max(
-                                                                                                            0,
-                                                                                                            (calculateTotalStock(
-                                                                                                                item,
-                                                                                                            ) <
-                                                                                                                0
-                                                                                                                ? Math.min(
-                                                                                                                    parseNumber(
-                                                                                                                        item.maxQtyPr,
-                                                                                                                    ),
-                                                                                                                    Math.abs(
-                                                                                                                        calculateTotalStock(
-                                                                                                                            item,
-                                                                                                                        ),
-                                                                                                                    ),
-                                                                                                                )
-                                                                                                                : 0) -
-                                                                                                            parseNumber(
-                                                                                                                item.qtyPr,
-                                                                                                            ),
-                                                                                                        )}
-                                                                                                    </span>
-                                                                                                </div>
-                                                                                            </>
-                                                                                        )}
-                                                                                </div>
-                                                                                <div className="h-10 w-[1px] bg-sidebar-border opacity-50" />
-                                                                                <div className="flex flex-1 flex-col items-end">
-                                                                                    <span className="mb-1 text-[9px] font-bold text-primary uppercase">
-                                                                                        PR
-                                                                                        Input
-                                                                                    </span>
-                                                                                    <div className="relative w-full">
-                                                                                        <Input
-                                                                                            type="number"
-                                                                                            min="0"
-                                                                                            max={
-                                                                                                formData.jenisPr
-                                                                                                    ? undefined
-                                                                                                    : calculateTotalStock(
-                                                                                                        item,
-                                                                                                    ) <
-                                                                                                        0
-                                                                                                        ? Math.min(
-                                                                                                            parseNumber(
-                                                                                                                item.maxQtyPr,
-                                                                                                            ),
-                                                                                                            Math.abs(
-                                                                                                                calculateTotalStock(
-                                                                                                                    item,
-                                                                                                                ),
-                                                                                                            ),
-                                                                                                        )
-                                                                                                        : 0
-                                                                                            }
-                                                                                            className={cn(
-                                                                                                'h-10 w-full bg-background text-right text-lg font-black shadow-xs ring-offset-0 focus-visible:ring-2',
-                                                                                                !formData.jenisPr &&
-                                                                                                item.maxQtyPr !==
-                                                                                                undefined &&
-                                                                                                (parseNumber(
-                                                                                                    item.qtyPr,
-                                                                                                ) >
-                                                                                                    (calculateTotalStock(
-                                                                                                        item,
-                                                                                                    ) <
-                                                                                                        0
-                                                                                                        ? Math.min(
-                                                                                                            parseNumber(
-                                                                                                                item.maxQtyPr,
-                                                                                                            ),
-                                                                                                            Math.abs(
-                                                                                                                calculateTotalStock(
-                                                                                                                    item,
-                                                                                                                ),
-                                                                                                            ),
-                                                                                                        )
-                                                                                                        : 0)
-                                                                                                    ? 'border-destructive focus-visible:ring-destructive'
-                                                                                                    : 'border-primary/20 focus-visible:ring-primary'),
-                                                                                                formData.jenisPr &&
-                                                                                                    parseNumber(
-                                                                                                        item.qtyPr,
-                                                                                                    ) <=
-                                                                                                    0
-                                                                                                    ? 'border-destructive focus-visible:ring-destructive'
-                                                                                                    : 'border-primary/20 focus-visible:ring-primary',
-                                                                                            )}
-                                                                                            value={
-                                                                                                item.qtyPr
-                                                                                            }
-                                                                                            onChange={(
-                                                                                                e,
-                                                                                            ) =>
-                                                                                                handleQtyPrChange(
-                                                                                                    item.id,
-                                                                                                    e
-                                                                                                        .target
-                                                                                                        .value,
-                                                                                                )
-                                                                                            }
-                                                                                        />
-                                                                                    </div>
-                                                                                    {!formData.jenisPr &&
-                                                                                        item.maxQtyPr !==
-                                                                                        undefined &&
-                                                                                        parseNumber(
-                                                                                            item.qtyPr,
-                                                                                        ) >
-                                                                                        (calculateTotalStock(
-                                                                                            item,
-                                                                                        ) <
-                                                                                            0
-                                                                                            ? Math.min(
-                                                                                                parseNumber(
-                                                                                                    item.maxQtyPr,
-                                                                                                ),
-                                                                                                Math.abs(
-                                                                                                    calculateTotalStock(
-                                                                                                        item,
-                                                                                                    ),
-                                                                                                ),
-                                                                                            )
-                                                                                            : 0) && (
-                                                                                            <p className="mt-1 text-right text-xs font-medium text-destructive">
-                                                                                                Qty
-                                                                                                PR
-                                                                                                tidak
-                                                                                                boleh
-                                                                                                melebihi
-                                                                                                Qty
-                                                                                                Sisa
-                                                                                                PR
-                                                                                                (
-                                                                                                {renderValue(
-                                                                                                    calculateTotalStock(
-                                                                                                        item,
-                                                                                                    ) <
-                                                                                                        0
-                                                                                                        ? Math.min(
-                                                                                                            parseNumber(
-                                                                                                                item.maxQtyPr,
-                                                                                                            ),
-                                                                                                            Math.abs(
-                                                                                                                calculateTotalStock(
-                                                                                                                    item,
-                                                                                                                ),
-                                                                                                            ),
-                                                                                                        )
-                                                                                                        : 0,
-                                                                                                )}
-                                                                                                ).
-                                                                                            </p>
-                                                                                        )}
-                                                                                    {parseNumber(
-                                                                                        item.qtyPr,
-                                                                                    ) ===
-                                                                                        0 && (
-                                                                                            <p className="mt-1 text-right text-[10px] leading-tight font-medium text-amber-600">
-                                                                                                PR
-                                                                                                input
-                                                                                                tidak
-                                                                                                boleh
-                                                                                                0.
-                                                                                                {!formData.jenisPr &&
-                                                                                                    !String(
-                                                                                                        item.id,
-                                                                                                    ).startsWith(
-                                                                                                        'manual-',
-                                                                                                    ) &&
-                                                                                                    ' Jika stock memenuhi maka Langsung realisasikan dengan cara klik icon trash di material.'}
-                                                                                            </p>
-                                                                                        )}
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-
-                                                                        <div className="space-y-2 rounded-xl border border-dashed border-sidebar-border/50 bg-muted/20 p-4">
-                                                                            <Label className="text-[10px] font-black tracking-widest text-muted-foreground/70 uppercase">
-                                                                                Harga
-                                                                                (IDR)
-                                                                            </Label>
-                                                                            <div className="flex items-start justify-between gap-4">
-                                                                                <div className="flex flex-col">
-                                                                                    <span className="text-[9px] font-bold tracking-tighter text-muted-foreground uppercase opacity-50">
-                                                                                        PO
-                                                                                        IN
-                                                                                    </span>
-                                                                                    <span className="font-mono text-xs font-bold">
-                                                                                        {formatRupiah(
-                                                                                            item.hargaPoIn,
-                                                                                        )}
-                                                                                    </span>
-                                                                                </div>
-                                                                                <div className="h-10 w-[1px] bg-sidebar-border opacity-50" />
-                                                                                <div className="flex flex-1 flex-col items-end">
-                                                                                    <span className="mb-1 text-[9px] font-bold tracking-tighter text-primary uppercase italic">
-                                                                                        Modal
-                                                                                        Est.
-                                                                                    </span>
-                                                                                    <div className="relative w-full">
-                                                                                        <Input
-                                                                                            type="text"
-                                                                                            className="h-10 w-full border-primary/20 bg-background pl-8 text-right text-lg font-black shadow-xs ring-offset-0 focus-visible:ring-2 focus-visible:ring-primary"
-                                                                                            value={formatRupiah(
-                                                                                                item.hargaModal,
-                                                                                            )}
-                                                                                            onChange={(
-                                                                                                e,
-                                                                                            ) =>
-                                                                                                handleHargaModalChange(
-                                                                                                    item.id,
-                                                                                                    parseRupiahInput(
-                                                                                                        e
-                                                                                                            .target
-                                                                                                            .value,
-                                                                                                    ),
-                                                                                                )
-                                                                                            }
-                                                                                        />
-                                                                                        <span className="absolute top-3 left-2.5 text-[10px] font-black opacity-30">
-                                                                                            RP
-                                                                                        </span>
-                                                                                    </div>
-                                                                                </div>
-                                                                            </div>
-                                                                        </div>
-                                                                    </div>
-
-                                                                    {/* Bottom Section: Total & Margin */}
-                                                                    <div className="group/total flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-primary/10 bg-primary/5 p-6">
-                                                                        <div className="flex flex-col">
-                                                                            <div className="mb-1 text-[10px] font-black tracking-widest text-primary/60 uppercase">
-                                                                                Estimated
-                                                                                Total
-                                                                                Sum
-                                                                            </div>
-                                                                            <div className="text-3xl font-black tracking-tighter text-primary transition-transform group-active:scale-95">
-                                                                                {formatRupiah(
-                                                                                    calculateTotalPrice(
-                                                                                        item.qtyPr,
-                                                                                        item.hargaModal,
-                                                                                    ),
-                                                                                )}
-                                                                            </div>
-                                                                        </div>
-                                                                        {item.margin !==
-                                                                            '' && (
-                                                                                <div className="flex flex-col items-end gap-2">
-                                                                                    <span className="text-[10px] font-bold text-muted-foreground uppercase opacity-60">
-                                                                                        Profit
-                                                                                        Margin
-                                                                                    </span>
-                                                                                    <Badge
-                                                                                        variant={
-                                                                                            parseNumber(
-                                                                                                item.margin,
-                                                                                            ) <
-                                                                                                0
-                                                                                                ? 'destructive'
-                                                                                                : 'outline'
-                                                                                        }
-                                                                                        className={cn(
-                                                                                            'h-8 border-none px-3 font-mono text-sm shadow-sm',
-                                                                                            parseNumber(
-                                                                                                item.margin,
-                                                                                            ) >=
-                                                                                                0
-                                                                                                ? 'bg-green-500 text-white'
-                                                                                                : 'bg-destructive text-white',
-                                                                                        )}
-                                                                                    >
-                                                                                        {formatMargin(
-                                                                                            item.margin,
-                                                                                        )}
-
-                                                                                        %
-                                                                                    </Badge>
-                                                                                </div>
-                                                                            )}
-                                                                    </div>
-                                                                </div>
-
-                                                                {/* Remark: Full Width Bottom */}
-                                                                <div className="mt-4 border-t border-dashed border-sidebar-border/50 pt-4">
-                                                                    <div className="flex items-center gap-3">
-                                                                        <div className="rounded-full bg-muted p-1.5">
-                                                                            <Plus className="h-3 w-3 rotate-45 text-muted-foreground" />
-                                                                        </div>
-                                                                        <Input
-                                                                            type="text"
-                                                                            placeholder="Tulis catatan atau instruksi khusus untuk barang ini..."
-                                                                            className="h-8 border-none bg-transparent px-0 text-xs italic shadow-none hover:bg-muted/30 focus:bg-background"
-                                                                            value={
-                                                                                item.remark
-                                                                            }
-                                                                            onChange={(
-                                                                                e,
-                                                                            ) =>
-                                                                                handleRemarkChange(
-                                                                                    item.id,
-                                                                                    e
-                                                                                        .target
-                                                                                        .value,
-                                                                                )
-                                                                            }
-                                                                        />
-                                                                    </div>
-                                                                </div>
                                                             </div>
-                                                        ),
-                                                    )}
-                                                </div>
-                                            )}
-                                        </div>
+                                                            <MenuAction
+                                                                action={clearsSavedPoInQuantity(item) ? 'update' : 'create'}
+                                                                type="button"
+                                                                variant="ghost"
+                                                                size="icon"
+                                                                className="size-8 rounded-lg text-destructive hover:bg-destructive/10 shrink-0"
+                                                                onClick={() => handleRemoveMaterial(item.id)}
+                                                                title="Hapus Material"
+                                                            >
+                                                                <Trash2 className="size-4" />
+                                                            </MenuAction>
+                                                        </div>
 
-                                        {formData.jenisPr && (
-                                            <div className="border-t bg-primary/5 p-6 dark:bg-primary/10">
-                                                <h3 className="mb-4 text-sm font-bold tracking-widest text-primary uppercase">
-                                                    Input Material Baru
-                                                </h3>
-                                                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-                                                    <div className="space-y-2 md:col-span-2 xl:col-span-5">
-                                                        <Label className="text-xs">
-                                                            Material
-                                                        </Label>
-                                                        <div className="flex gap-2">
-                                                            <div className="relative flex-1">
-                                                                <Input
-                                                                    placeholder="Pilih Material..."
-                                                                    className="h-10 border-primary/20 bg-background pr-10"
-                                                                    value={
-                                                                        materialForm.namaMaterial
-                                                                    }
-                                                                    readOnly
-                                                                />
-                                                                {materialForm.kodeMaterial && (
-                                                                    <div className="absolute top-2.5 right-3">
-                                                                        <Check className="h-5 w-5 text-green-500" />
+                                                        {/* Stock Breakdown Chips Container */}
+                                                        <div className="flex flex-wrap items-center gap-2 pt-1.5">
+                                                            {[
+                                                                ['G1', item.stokG1],
+                                                                ['G2', item.stokG2],
+                                                                ['G3', item.stokG3],
+                                                                ['G4', item.stokG4],
+                                                                ['MIS', item.mis ?? 0],
+                                                                ['MIB', item.mib ?? 0],
+                                                                ['MIBS', item.mibs ?? 0],
+                                                                ['QTY PR OUT', item.pr_outstanding ?? 0],
+                                                                ['QTY PO OUT', item.po_outstanding ?? 0],
+                                                            ].map(([label, value]) => (
+                                                                <span
+                                                                    key={label}
+                                                                    className="inline-flex items-center rounded-lg border border-border bg-muted/60 px-2.5 py-1 text-xs font-semibold text-muted-foreground shadow-2xs"
+                                                                >
+                                                                    {label}:{' '}
+                                                                    <strong className="ml-1 text-foreground tabular-nums text-xs sm:text-sm font-bold">
+                                                                        {value ?? 0}
+                                                                    </strong>
+                                                                </span>
+                                                            ))}
+                                                            <span className="inline-flex items-center rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs font-bold text-amber-700 dark:text-amber-300 shadow-2xs">
+                                                                DO BELUM DIBUAT:{' '}
+                                                                <strong className="ml-1 tabular-nums text-xs sm:text-sm font-extrabold">
+                                                                    {item.do_outstanding ?? 0}
+                                                                </strong>
+                                                            </span>
+                                                            <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/30 bg-emerald-500/15 px-3 py-1 text-xs sm:text-sm font-bold text-emerald-700 dark:text-emerald-300 shadow-2xs">
+                                                                <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
+                                                                {(item.stok ?? 0) < 0 ? 'KREDIT DO:' : 'TOTAL / SELISIH:'}{' '}
+                                                                <strong className="tabular-nums text-sm sm:text-base font-extrabold text-emerald-800 dark:text-emerald-200">
+                                                                    {item.stok ?? 0}
+                                                                </strong>
+                                                            </span>
+                                                        </div>
+
+                                                        {/* Input Controls Grid: Quantity & Pricing (Safe for 720px) */}
+                                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
+                                                            {/* Quantity Block */}
+                                                            <div className="p-4 rounded-xl border border-border bg-muted/20 space-y-3">
+                                                                <div className="flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm">
+                                                                    <span className="font-extrabold text-foreground uppercase tracking-wider">
+                                                                        Quantity
+                                                                    </span>
+                                                                    <div className="flex flex-wrap items-center gap-3 text-xs sm:text-sm text-muted-foreground">
+                                                                        <span>ORDER IN: <strong className="text-foreground tabular-nums text-sm sm:text-base font-extrabold">{item.qtyPoIn ?? 0}</strong></span>
+                                                                        {item.maxQtyPr !== undefined && (
+                                                                            <>
+                                                                                <span>SISA LAST: <strong className="text-foreground tabular-nums text-sm sm:text-base font-extrabold">{item.maxQtyPr}</strong></span>
+                                                                                <span>SISA NOW: <strong className={cn('tabular-nums text-sm sm:text-base font-extrabold', (parseNumber(item.maxQtyPr) - parseNumber(item.qtyPr)) < 0 ? 'text-destructive' : 'text-emerald-600 dark:text-emerald-400')}>{parseNumber(item.maxQtyPr) - parseNumber(item.qtyPr)}</strong></span>
+                                                                            </>
+                                                                        )}
                                                                     </div>
+                                                                </div>
+                                                                <div className="space-y-1.5">
+                                                                    <Label className="text-xs sm:text-sm font-bold text-foreground">
+                                                                        INPUT QTY PR <span className="text-destructive">*</span>
+                                                                    </Label>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min="0"
+                                                                        max={
+                                                                            formData.jenisPr
+                                                                                ? undefined
+                                                                                : calculateTotalStock(item) < 0
+                                                                                ? Math.min(parseNumber(item.maxQtyPr), Math.abs(calculateTotalStock(item)))
+                                                                                : 0
+                                                                        }
+                                                                        className={cn(
+                                                                            'h-11 text-right text-base sm:text-lg font-bold tabular-nums',
+                                                                            !formData.jenisPr &&
+                                                                                item.maxQtyPr !== undefined &&
+                                                                                parseNumber(item.qtyPr) > (calculateTotalStock(item) < 0 ? Math.min(parseNumber(item.maxQtyPr), Math.abs(calculateTotalStock(item))) : 0)
+                                                                                ? 'border-destructive focus-visible:ring-destructive'
+                                                                                : 'border-input'
+                                                                        )}
+                                                                        value={item.qtyPr}
+                                                                        onChange={(e) => handleQtyPrChange(item.id, e.target.value)}
+                                                                        onKeyDown={(e) => {
+                                                                            if (e.key === 'Enter') {
+                                                                                e.preventDefault();
+                                                                            }
+                                                                        }}
+                                                                    />
+                                                                </div>
+                                                                {/* Quantity Validation hints */}
+                                                                {!formData.jenisPr &&
+                                                                    item.maxQtyPr !== undefined &&
+                                                                    parseNumber(item.qtyPr) > (calculateTotalStock(item) < 0 ? Math.min(parseNumber(item.maxQtyPr), Math.abs(calculateTotalStock(item))) : 0) && (
+                                                                        <p className="text-right text-xs font-semibold text-destructive leading-tight">
+                                                                            Qty PR tidak boleh melebihi Qty Sisa PR ({renderValue(calculateTotalStock(item) < 0 ? Math.min(parseNumber(item.maxQtyPr), Math.abs(calculateTotalStock(item))) : 0)}).
+                                                                        </p>
+                                                                    )}
+                                                                {parseNumber(item.qtyPr) === 0 && (
+                                                                    <p className="text-right text-xs font-semibold text-amber-600 dark:text-amber-400 leading-tight">
+                                                                        PR input tidak boleh 0.
+                                                                    </p>
                                                                 )}
                                                             </div>
+
+                                                            {/* Price Block */}
+                                                            <div className="p-4 rounded-xl border border-border bg-muted/20 space-y-3">
+                                                                <div className="flex flex-wrap items-center justify-between gap-2 text-xs sm:text-sm">
+                                                                    <span className="font-extrabold text-foreground uppercase tracking-wider">
+                                                                        Harga & Modal (IDR)
+                                                                    </span>
+                                                                    <span className="text-xs sm:text-sm text-muted-foreground">
+                                                                        PO IN: <strong className="text-foreground tabular-nums text-sm sm:text-base font-bold">{formatRupiah(item.hargaPoIn)}</strong>
+                                                                    </span>
+                                                                </div>
+                                                                <div className="space-y-1.5">
+                                                                    <Label className="text-xs sm:text-sm font-bold text-foreground">
+                                                                        HARGA MODAL EST.
+                                                                    </Label>
+                                                                    <Input
+                                                                        type="text"
+                                                                        className="h-11 text-right text-base sm:text-lg font-bold tabular-nums"
+                                                                        value={formatRupiah(item.hargaModal)}
+                                                                        onChange={(e) => handleHargaModalChange(item.id, parseRupiahInput(e.target.value))}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Total & Profit Margin Bar */}
+                                                        <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl border border-emerald-500/20 bg-emerald-500/5">
+                                                            <div>
+                                                                <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                                                                    Estimasi Total Nilai
+                                                                </span>
+                                                                <p className="text-lg sm:text-xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">
+                                                                    {formatRupiah(calculateTotalPrice(item.qtyPr, item.hargaModal))}
+                                                                </p>
+                                                            </div>
+                                                            {item.margin !== '' && (
+                                                                <div className="text-right">
+                                                                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                                                                        Margin
+                                                                    </span>
+                                                                    <Badge
+                                                                        variant={parseNumber(item.margin) < 0 ? 'destructive' : 'outline'}
+                                                                        className={cn(
+                                                                            'font-semibold tabular-nums text-xs sm:text-sm px-2.5 py-0.5',
+                                                                            parseNumber(item.margin) >= 0
+                                                                                ? 'bg-emerald-600 text-white border-transparent'
+                                                                                : 'bg-destructive text-white border-transparent'
+                                                                        )}
+                                                                    >
+                                                                        {formatMargin(item.margin)} %
+                                                                    </Badge>
+                                                                </div>
+                                                            )}
+                                                        </div>
+
+                                                        {/* Remark Field */}
+                                                        <div className="space-y-1 pt-1">
+                                                            <Input
+                                                                type="text"
+                                                                placeholder="Tulis catatan atau instruksi khusus untuk barang ini (opsional)..."
+                                                                className="h-9 text-xs"
+                                                                value={item.remark}
+                                                                onChange={(e) => handleRemarkChange(item.id, e.target.value)}
+                                                                onKeyDown={(e) => {
+                                                                    if (e.key === 'Enter') {
+                                                                        e.preventDefault();
+                                                                    }
+                                                                }}
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+
+                                        {/* Input Material Baru (When Jenis PR is Active) */}
+                                        {formData.jenisPr && (
+                                            <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4 sm:p-5 space-y-4">
+                                                <div className="flex items-center gap-2">
+                                                    <Plus className="size-4 text-emerald-600 dark:text-emerald-400" />
+                                                    <h3 className="text-xs sm:text-sm font-bold tracking-wider text-emerald-700 dark:text-emerald-300 uppercase">
+                                                        Input Material Baru Manual
+                                                    </h3>
+                                                </div>
+                                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                                    <div className="space-y-1.5 sm:col-span-2">
+                                                        <Label className="text-xs sm:text-sm font-bold text-foreground">Pilih Material</Label>
+                                                        <div className="flex gap-2">
+                                                            <Input
+                                                                placeholder="Klik tombol cari material..."
+                                                                className="h-11 text-sm sm:text-base font-semibold bg-background"
+                                                                value={materialForm.namaMaterial}
+                                                                readOnly
+                                                            />
                                                             <Button
                                                                 type="button"
-                                                                className="h-10"
-                                                                onClick={() =>
-                                                                    setIsMaterialModalOpen(
-                                                                        true,
-                                                                    )
-                                                                }
+                                                                variant="outline"
+                                                                className="h-11 px-4 rounded-lg shrink-0 font-semibold"
+                                                                onClick={() => setIsMaterialModalOpen(true)}
                                                             >
-                                                                <Search className="h-4 w-4" />
+                                                                <Search className="size-4" />
                                                             </Button>
                                                         </div>
                                                         {materialForm.kodeMaterial && (
-                                                            <p className="font-mono text-[14px] text-muted-foreground">
-                                                                KODE MATERIAL:{' '}
-                                                                {
-                                                                    materialForm.kodeMaterial
-                                                                }
+                                                            <p className="text-xs font-semibold text-muted-foreground">
+                                                                Kode: {materialForm.kodeMaterial}
                                                             </p>
                                                         )}
                                                     </div>
-                                                    <div className="space-y-2 xl:col-span-1">
-                                                        <Label className="text-xs">
-                                                            {parseFloat(
-                                                                materialForm.lastStock,
-                                                            ) < 0
-                                                                ? 'Kredit DO'
-                                                                : 'Total Stok'}
+
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-xs sm:text-sm font-bold text-foreground">
+                                                            {parseFloat(materialForm.lastStock) < 0 ? 'Kredit DO:' : 'Total / Selisih:'}
                                                         </Label>
                                                         <Input
                                                             type="text"
-                                                            className="h-10 bg-muted/50 font-bold"
-                                                            value={
-                                                                materialForm.lastStock
-                                                            }
+                                                            className="h-11 text-sm sm:text-base font-bold bg-muted/40 tabular-nums"
+                                                            value={materialForm.lastStock}
                                                             readOnly
                                                         />
                                                     </div>
-                                                    <div className="space-y-2 xl:col-span-2">
-                                                        <Label className="text-xs">
-                                                            Quantity
-                                                        </Label>
+
+                                                    <div className="space-y-1.5">
+                                                        <Label className="text-xs sm:text-sm font-bold text-foreground">Input Qty PR</Label>
                                                         <Input
+                                                            ref={qtyPrInputRef}
                                                             type="number"
-                                                            className="h-10 border-primary/20"
+                                                            className="h-11 text-sm sm:text-base font-bold tabular-nums"
                                                             placeholder="0"
-                                                            value={
-                                                                materialForm.quantity
-                                                            }
-                                                            onChange={(e) =>
-                                                                updateMaterialForm(
-                                                                    'quantity',
-                                                                    e.target
-                                                                        .value,
-                                                                )
-                                                            }
+                                                            value={materialForm.quantity}
+                                                            onChange={(e) => updateMaterialForm('quantity', e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') {
+                                                                    e.preventDefault();
+                                                                    handleAddManualMaterial();
+                                                                }
+                                                            }}
                                                         />
                                                     </div>
-                                                    <div className="space-y-2 xl:col-span-2">
-                                                        <Label className="text-xs">
-                                                            Harga Est.
-                                                        </Label>
+
+                                                    <div className="space-y-1.5 sm:col-span-2">
+                                                        <Label className="text-xs sm:text-sm font-bold text-foreground">Harga Modal Est. (IDR)</Label>
                                                         <Input
                                                             type="text"
-                                                            className="h-10 border-primary/20"
+                                                            className="h-11 text-sm sm:text-base font-bold tabular-nums"
                                                             placeholder="Rp 0"
-                                                            value={formatRupiah(
-                                                                materialForm.priceEstimate,
-                                                            )}
-                                                            onChange={(e) =>
-                                                                updateMaterialForm(
-                                                                    'priceEstimate',
-                                                                    parseRupiahInput(
-                                                                        e.target
-                                                                            .value,
-                                                                    ),
-                                                                )
-                                                            }
+                                                            value={formatRupiah(materialForm.priceEstimate)}
+                                                            onChange={(e) => updateMaterialForm('priceEstimate', parseRupiahInput(e.target.value))}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') {
+                                                                    e.preventDefault();
+                                                                    handleAddManualMaterial();
+                                                                }
+                                                            }}
                                                         />
                                                     </div>
-                                                    <div className="space-y-2 md:col-span-2 xl:col-span-5">
-                                                        <Label className="text-xs">
-                                                            Remark / Catatan
-                                                        </Label>
+
+                                                    <div className="space-y-1.5 sm:col-span-2">
+                                                        <Label className="text-xs font-semibold">Remark / Catatan</Label>
                                                         <Input
                                                             type="text"
-                                                            className="h-10 border-primary/20"
-                                                            placeholder="Tambahkan catatan untuk material ini..."
-                                                            value={
-                                                                materialForm.remark
-                                                            }
-                                                            onChange={(e) =>
-                                                                updateMaterialForm(
-                                                                    'remark',
-                                                                    e.target
-                                                                        .value,
-                                                                )
-                                                            }
+                                                            className="h-10 text-sm"
+                                                            placeholder="Catatan untuk material ini..."
+                                                            value={materialForm.remark}
+                                                            onChange={(e) => updateMaterialForm('remark', e.target.value)}
+                                                            onKeyDown={(e) => {
+                                                                if (e.key === 'Enter') {
+                                                                    e.preventDefault();
+                                                                    handleAddManualMaterial();
+                                                                }
+                                                            }}
                                                         />
                                                     </div>
                                                 </div>
-                                                <div className="mt-4 flex items-center justify-between border-t border-primary/10 pt-4">
-                                                    <div className="text-xl">
-                                                        <span className="text-muted-foreground italic">
-                                                            Total Item:{' '}
-                                                        </span>
-                                                        <span className="font-bold text-primary">
-                                                            {formatRupiah(
-                                                                materialForm.totalPrice,
-                                                            )}
+
+                                                <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-emerald-500/10">
+                                                    <div>
+                                                        <span className="text-xs text-muted-foreground">Total Item: </span>
+                                                        <span className="text-base sm:text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400">
+                                                            {formatRupiah(materialForm.totalPrice)}
                                                         </span>
                                                     </div>
                                                     <Button
                                                         type="button"
-                                                        onClick={
-                                                            handleAddManualMaterial
-                                                        }
-                                                        disabled={
-                                                            !materialForm.kodeMaterial
-                                                        }
-                                                        className="h-10 px-6 shadow-lg shadow-primary/20"
+                                                        onClick={handleAddManualMaterial}
+                                                        disabled={!materialForm.kodeMaterial}
+                                                        className="h-10 px-5 rounded-lg font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
                                                     >
-                                                        <Plus className="mr-2 h-4 w-4" />{' '}
+                                                        <Plus className="mr-2 size-4" />
                                                         Tambah Ke Daftar
                                                     </Button>
                                                 </div>
@@ -2049,138 +1819,74 @@ export default function PurchaseRequirementCreate() {
                                         )}
                                     </CardContent>
                                 </Card>
-                            </div>
 
-                            {/* Summary Section */}
-                            <div className="space-y-6 lg:col-span-4">
-                                <Card className="sticky top-24 overflow-hidden border-none shadow-2xl ring-2 ring-primary/5">
-                                    <div className="h-2 bg-primary" />
-                                    <CardHeader className="bg-muted/10 pb-4">
-                                        <CardTitle className="text-base tracking-wider text-muted-foreground uppercase">
-                                            Summary PR
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="space-y-6 p-6">
-                                        <div className="space-y-3 border-b pb-6 text-sm">
-                                            <div className="flex justify-between">
-                                                <span className="text-muted-foreground">
-                                                    Ref No:
-                                                </span>
-                                                <Badge
-                                                    variant="secondary"
-                                                    className="font-mono"
+                                {/* Redesigned Ringkasan Dokumen PR & Action Bar (Full Width, Tanpa Ref PO, Customer, Metode Bayar, Total Item) */}
+                                <Card className="rounded-2xl border border-border bg-card shadow-xs overflow-hidden">
+                                    <div className="h-1.5 bg-emerald-600" />
+                                    <CardContent className="p-4 sm:p-6">
+                                        <div className="flex flex-col md:flex-row md:items-center justify-between gap-5">
+                                            <div className="flex items-center gap-3.5">
+                                                <div className="flex size-12 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                                    <CreditCard className="size-6" />
+                                                </div>
+                                                <div>
+                                                    <p className="text-[11px] font-bold tracking-wider text-muted-foreground uppercase">
+                                                        Total Estimasi Kebutuhan PR
+                                                    </p>
+                                                    <h3 className="text-2xl sm:text-3xl font-extrabold tabular-nums text-emerald-600 dark:text-emerald-400">
+                                                        {formatRupiah(
+                                                            materialItems.reduce(
+                                                                (acc, item) =>
+                                                                    acc + parseNumber(calculateTotalPrice(item.qtyPr, item.hargaModal)),
+                                                                0,
+                                                            ),
+                                                        )}
+                                                    </h3>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex flex-wrap items-center gap-3">
+                                                <Button
+                                                    variant="outline"
+                                                    type="button"
+                                                    className="h-11 px-5 rounded-xl font-semibold text-xs sm:text-sm"
+                                                    onClick={() => setStep(1)}
                                                 >
-                                                    {formData.refPo || '-'}
-                                                </Badge>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-muted-foreground">
-                                                    Customer:
-                                                </span>
-                                                <span
-                                                    className="max-w-[150px] truncate text-right font-bold"
-                                                    title={formData.forCustomer}
+                                                    <ArrowLeft className="mr-2 size-4" />
+                                                    Kembali ke Langkah 1
+                                                </Button>
+                                                <MenuAction
+                                                    action="create"
+                                                    type="submit"
+                                                    className="h-11 px-6 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm text-xs sm:text-sm"
+                                                    disabled={isSubmitting || materialItems.length === 0}
                                                 >
-                                                    {formData.forCustomer ||
-                                                        '-'}
-                                                </span>
-                                            </div>
-                                            <div className="flex justify-between">
-                                                <span className="text-muted-foreground">
-                                                    Metode:
-                                                </span>
-                                                <Badge variant="outline">
-                                                    {formData.payment}
-                                                </Badge>
+                                                    {isSubmitting ? (
+                                                        <>
+                                                            <Spinner className="mr-2 size-4" />
+                                                            Menyimpan...
+                                                        </>
+                                                    ) : (
+                                                        <>
+                                                            <Check className="mr-2 size-4" />
+                                                            Simpan PR
+                                                        </>
+                                                    )}
+                                                </MenuAction>
                                             </div>
                                         </div>
 
-                                        <div className="space-y-4">
-                                            <div className="flex items-center justify-between">
-                                                <span className="text-sm text-muted-foreground">
-                                                    Subtotal (
-                                                    {materialItems.length}{' '}
-                                                    items)
-                                                </span>
-                                                <span className="text-lg font-bold">
-                                                    {formatRupiah(
-                                                        materialItems.reduce(
-                                                            (acc, item) =>
-                                                                acc +
-                                                                parseNumber(
-                                                                    calculateTotalPrice(
-                                                                        item.qtyPr,
-                                                                        item.hargaModal,
-                                                                    ),
-                                                                ),
-                                                            0,
-                                                        ),
-                                                    )}
-                                                </span>
-                                            </div>
-                                            <div className="rounded-xl bg-primary/5 p-4 text-center">
-                                                <p className="mb-1 text-[10px] font-bold tracking-widest text-primary uppercase">
-                                                    Total Estimasi
-                                                </p>
-                                                <h4 className="text-2xl font-black text-primary">
-                                                    {formatRupiah(
-                                                        materialItems.reduce(
-                                                            (acc, item) =>
-                                                                acc +
-                                                                parseNumber(
-                                                                    calculateTotalPrice(
-                                                                        item.qtyPr,
-                                                                        item.hargaModal,
-                                                                    ),
-                                                                ),
-                                                            0,
-                                                        ),
-                                                    )}
-                                                </h4>
-                                            </div>
-                                        </div>
-
-                                        <div className="grid grid-cols-2 gap-4 pt-4">
-                                            <Button
-                                                variant="outline"
-                                                type="button"
-                                                className="h-12 w-full"
-                                                onClick={() => setStep(1)}
-                                            >
-                                                <ArrowLeft className="mr-2 h-4 w-4" />{' '}
-                                                Kembali
-                                            </Button>
-                                            <MenuAction
-                                                action="create"
-                                                type="submit"
-                                                className="h-12 w-full shadow-xl shadow-primary/20"
-                                                disabled={
-                                                    isSubmitting ||
-                                                    materialItems.length === 0
-                                                }
-                                            >
-                                                {isSubmitting ? (
-                                                    <Spinner />
-                                                ) : (
-                                                    <>
-                                                        <Check className="mr-2 h-5 w-5" />{' '}
-                                                        Simpan
-                                                    </>
-                                                )}
-                                            </MenuAction>
-                                        </div>
                                         {submitError && (
-                                            <div className="mt-4 animate-bounce rounded-lg bg-destructive/10 p-3 text-center text-xs font-medium text-destructive">
+                                            <div className="mt-4 p-3 rounded-xl bg-destructive/10 text-center text-xs font-semibold text-destructive">
                                                 {submitError}
                                             </div>
                                         )}
                                     </CardContent>
                                 </Card>
                             </div>
-                        </div>
-                    </div>
                 )}
 
+                {/* MODAL PILIH PO IN */}
                 <Dialog
                     open={isCustomerModalOpen}
                     onOpenChange={(open) => {
@@ -2194,357 +1900,257 @@ export default function PurchaseRequirementCreate() {
                         }
                     }}
                 >
-                    <DialogContent
-                        className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none"
-                    >
-                        <DialogHeader>
-                            <DialogTitle>Pilih PO In</DialogTitle>
-                            <DialogDescription className="sr-only">
-                                Pilih PO In untuk mengisi Ref PO, customer, dan
-                                detail material.
+                    <DialogContent className="w-[96vw] max-w-[96vw] sm:max-w-[95vw] lg:max-w-[94vw] xl:max-w-[1400px] max-h-[92vh] overflow-y-auto rounded-2xl p-4 sm:p-6 shadow-2xl">
+                        <DialogHeader className="border-b border-border pb-3">
+                            <DialogTitle className="text-lg font-bold text-foreground">
+                                Pilih PO In Customer
+                            </DialogTitle>
+                            <DialogDescription className="text-xs text-muted-foreground">
+                                Pilih PO In untuk mengisi Ref PO, customer, dan detail material
                             </DialogDescription>
                         </DialogHeader>
 
-                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                            <label>
-                                Tampilkan
-                                <select
-                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                    value={
-                                        customerPageSize === Infinity
-                                            ? 'all'
-                                            : customerPageSize
-                                    }
-                                    onChange={(event) => {
-                                        const value = event.target.value;
-                                        setCustomerPageSize(
-                                            value === 'all'
-                                                ? Infinity
-                                                : Number(value),
-                                        );
-                                        setCustomerCurrentPage(1);
-                                    }}
-                                >
-                                    <option value={5}>5</option>
-                                    <option value={10}>10</option>
-                                    <option value={25}>25</option>
-                                    <option value={50}>50</option>
-                                    <option value="all">Semua</option>
-                                </select>
-                            </label>
-                            <label>
-                                Cari
-                                <input
-                                    type="search"
-                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
-                                    placeholder="Cari kode PO In, no PO In, customer..."
-                                    value={customerSearchTerm}
-                                    onChange={(event) => {
-                                        setCustomerSearchTerm(
-                                            event.target.value,
-                                        );
-                                        setCustomerCurrentPage(1);
-                                    }}
-                                />
-                            </label>
-                            <Button
-                                type="button"
-                                variant="outline"
-                                onClick={loadCustomers}
-                            >
-                                Refresh
-                            </Button>
-                        </div>
-
-                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                            <table className="w-full text-sm">
-                                <thead className="bg-muted/50 text-muted-foreground">
-                                    <tr>
-                                        <th className="px-4 py-3 text-left">
-                                            Kode PO In
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            No PO In
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Date
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Customer
-                                        </th>
-                                        <th className="px-4 py-3 text-left">
-                                            Action
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {customerList.length === 0 && (
-                                        <tr>
-                                            <td
-                                                className="px-4 py-6 text-center text-muted-foreground"
-                                                colSpan={5}
-                                            >
-                                                {customerLoading
-                                                    ? 'Memuat data PO In...'
-                                                    : customerError ||
-                                                    'Tidak ada data PO In.'}
-                                            </td>
-                                        </tr>
-                                    )}
-                                    {customerList.map((item) => {
-                                        const urgency = getRowUrgency(item);
-                                        return (
-                                            <tr
-                                                key={`${item.kode_poin}-${item.no_poin}`}
-                                                className={cn(
-                                                    'border-t',
-                                                    urgency === 'overdue'
-                                                        ? 'border-red-500/40 bg-red-500/10'
-                                                        : urgency === 'soon'
-                                                            ? 'border-yellow-500/40 bg-yellow-500/10'
-                                                            : 'border-sidebar-border/70',
-                                                )}
-                                            >
-                                                <td className="px-4 py-3">
-                                                    {renderValue(item.kode_poin)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(item.no_poin)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(item.date_poin)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <div className="flex flex-wrap items-center gap-2">
-                                                        <span>{renderValue(item.customer_name)}</span>
-                                                        {urgency !== 'normal' && (
-                                                            <div
-                                                                className={cn(
-                                                                    'flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[10px] font-bold tracking-wider',
-                                                                    urgency === 'overdue'
-                                                                        ? 'bg-red-500/20 text-red-700'
-                                                                        : 'bg-yellow-500/20 text-yellow-700',
-                                                                )}
-                                                            >
-                                                                <span
-                                                                    className={cn(
-                                                                        'size-1.5 animate-pulse rounded-full',
-                                                                        urgency === 'overdue'
-                                                                            ? 'bg-red-600'
-                                                                            : 'bg-yellow-600',
-                                                                    )}
-                                                                />
-                                                                SEGERA DIKIRIM
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="outline"
-                                                        onClick={() => {
-                                                            setHasConfirmedOverdue(
-                                                                false,
-                                                            );
-                                                            setOverdueWarningData(
-                                                                null,
-                                                            );
-                                                            setFormData((prev) => ({
-                                                                ...prev,
-                                                                refPo: prev.jenisPr
-                                                                    ? forValue
-                                                                    : (item.no_poin ??
-                                                                        ''),
-                                                                forCustomer:
-                                                                    prev.jenisPr
-                                                                        ? forValue
-                                                                        : (item.customer_name ??
-                                                                            ''),
-                                                            }));
-                                                            setSelectedPoIns([
-                                                                {
-                                                                    kode_poin:
-                                                                        item.kode_poin,
-                                                                    no_poin:
-                                                                        item.no_poin,
-                                                                    customer_name:
-                                                                        item.customer_name,
-                                                                    note_doc:
-                                                                        item.note_doc,
-                                                                },
-                                                            ]);
-                                                            setIsCustomerModalOpen(
-                                                                false,
-                                                            );
-                                                            loadPoInMaterials(
-                                                                item.kode_poin ??
-                                                                '',
-                                                            );
-                                                        }}
-                                                    >
-                                                        Pilih
-                                                    </Button>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {customerPageSize !== Infinity && customerTotal > 0 && (
-                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                <span>
-                                    Menampilkan{' '}
-                                    {Math.min(
-                                        (customerCurrentPage - 1) *
-                                        customerPageSize +
-                                        1,
-                                        customerTotal,
-                                    )}
-                                    -
-                                    {Math.min(
-                                        customerCurrentPage * customerPageSize,
-                                        customerTotal,
-                                    )}{' '}
-                                    dari {customerTotal} data
-                                </span>
-                                <div className="flex items-center gap-2">
+                        <div className="space-y-4 pt-2">
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+                                <label className="flex items-center gap-2">
+                                    <span>Tampilkan:</span>
+                                    <select
+                                        className="rounded-lg border border-input bg-background px-2.5 py-1 text-xs font-medium text-foreground"
+                                        value={customerPageSize === Infinity ? 'all' : customerPageSize}
+                                        onChange={(event) => {
+                                            const value = event.target.value;
+                                            setCustomerPageSize(value === 'all' ? Infinity : Number(value));
+                                            setCustomerCurrentPage(1);
+                                        }}
+                                    >
+                                        <option value={5}>5</option>
+                                        <option value={10}>10</option>
+                                        <option value={25}>25</option>
+                                        <option value={50}>50</option>
+                                        <option value="all">Semua</option>
+                                    </select>
+                                </label>
+                                <div className="flex items-center gap-2 flex-1 max-w-sm">
+                                    <Input
+                                        type="search"
+                                        className="h-9 rounded-lg text-xs"
+                                        placeholder="Cari kode PO In, no PO In, customer..."
+                                        value={customerSearchTerm}
+                                        onChange={(event) => {
+                                            setCustomerSearchTerm(event.target.value);
+                                            setCustomerCurrentPage(1);
+                                        }}
+                                    />
                                     <Button
+                                        type="button"
                                         variant="outline"
                                         size="sm"
-                                        onClick={() =>
-                                            setCustomerCurrentPage((p) =>
-                                                Math.max(1, p - 1),
-                                            )
-                                        }
-                                        disabled={customerCurrentPage === 1}
+                                        className="h-9 rounded-lg text-xs shrink-0"
+                                        onClick={loadCustomers}
                                     >
-                                        Sebelumnya
-                                    </Button>
-                                    <span className="text-sm text-muted-foreground">
-                                        Halaman {customerCurrentPage} dari{' '}
-                                        {customerTotalPages}
-                                    </span>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setCustomerCurrentPage((p) =>
-                                                Math.min(
-                                                    customerTotalPages || p,
-                                                    p + 1,
-                                                ),
-                                            )
-                                        }
-                                        disabled={
-                                            customerCurrentPage >=
-                                            customerTotalPages
-                                        }
-                                    >
-                                        Berikutnya
+                                        <RefreshCw className="size-3.5 mr-1" />
+                                        Refresh
                                     </Button>
                                 </div>
                             </div>
-                        )}
+
+                            <div className="overflow-x-auto rounded-xl border border-border">
+                                <table className="w-full text-xs">
+                                    <thead className="bg-muted/40 font-semibold uppercase text-muted-foreground">
+                                        <tr>
+                                            <th className="px-3.5 py-2.5 text-left">Kode PO In</th>
+                                            <th className="px-3.5 py-2.5 text-left">No PO In</th>
+                                            <th className="px-3.5 py-2.5 text-left">Tanggal</th>
+                                            <th className="px-3.5 py-2.5 text-left">Customer</th>
+                                            <th className="px-3.5 py-2.5 text-center w-20">Aksi</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-border">
+                                        {customerList.length === 0 && (
+                                            <tr>
+                                                <td className="px-4 py-8 text-center text-muted-foreground" colSpan={5}>
+                                                    {customerLoading ? 'Memuat data PO In...' : customerError || 'Tidak ada data PO In.'}
+                                                </td>
+                                            </tr>
+                                        )}
+                                        {customerList.map((item) => {
+                                            const urgency = getRowUrgency(item);
+                                            return (
+                                                <tr
+                                                    key={`${item.kode_poin}-${item.no_poin}`}
+                                                    className={cn(
+                                                        'hover:bg-muted/30 transition-colors',
+                                                        urgency === 'overdue'
+                                                            ? 'bg-red-500/5'
+                                                            : urgency === 'soon'
+                                                            ? 'bg-yellow-500/5'
+                                                            : ''
+                                                    )}
+                                                >
+                                                    <td className="px-3.5 py-2.5 font-medium text-foreground">
+                                                        {renderValue(item.kode_poin)}
+                                                    </td>
+                                                    <td className="px-3.5 py-2.5 font-semibold text-foreground">
+                                                        {renderValue(item.no_poin)}
+                                                    </td>
+                                                    <td className="px-3.5 py-2.5 text-muted-foreground">
+                                                        {renderValue(item.date_poin)}
+                                                    </td>
+                                                    <td className="px-3.5 py-2.5 font-medium text-foreground">
+                                                        <div className="flex flex-wrap items-center gap-1.5">
+                                                            <span>{renderValue(item.customer_name)}</span>
+                                                            {urgency !== 'normal' && (
+                                                                <span
+                                                                    className={cn(
+                                                                        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold',
+                                                                        urgency === 'overdue'
+                                                                            ? 'bg-red-500/15 text-red-700 dark:text-red-300'
+                                                                            : 'bg-yellow-500/15 text-yellow-700 dark:text-yellow-300'
+                                                                    )}
+                                                                >
+                                                                    <span className={cn('size-1.5 rounded-full', urgency === 'overdue' ? 'bg-red-500 animate-pulse' : 'bg-yellow-500')} />
+                                                                    SEGERA DIKIRIM
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-3.5 py-2.5 text-center">
+                                                        <Button
+                                                            size="sm"
+                                                            className="h-8 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                                                            onClick={() => {
+                                                                setHasConfirmedOverdue(false);
+                                                                setOverdueWarningData(null);
+                                                                setFormData((prev) => ({
+                                                                    ...prev,
+                                                                    refPo: prev.jenisPr ? forValue : (item.no_poin ?? ''),
+                                                                    forCustomer: prev.jenisPr ? forValue : (item.customer_name ?? ''),
+                                                                }));
+                                                                setSelectedPoIns([
+                                                                    {
+                                                                        kode_poin: item.kode_poin,
+                                                                        no_poin: item.no_poin,
+                                                                        customer_name: item.customer_name,
+                                                                        note_doc: item.note_doc,
+                                                                    },
+                                                                ]);
+                                                                setIsCustomerModalOpen(false);
+                                                                loadPoInMaterials(item.kode_poin ?? '');
+                                                            }}
+                                                        >
+                                                            Pilih
+                                                        </Button>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Pagination */}
+                            {customerPageSize !== Infinity && customerTotal > 0 && (
+                                <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground pt-1">
+                                    <span>
+                                        Menampilkan {Math.min((customerCurrentPage - 1) * customerPageSize + 1, customerTotal)} -{' '}
+                                        {Math.min(customerCurrentPage * customerPageSize, customerTotal)} dari {customerTotal} data
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8 rounded-lg text-xs"
+                                            disabled={customerCurrentPage === 1}
+                                            onClick={() => setCustomerCurrentPage((p) => Math.max(1, p - 1))}
+                                        >
+                                            Sebelumnya
+                                        </Button>
+                                        <span className="font-medium text-foreground">
+                                            {customerCurrentPage} / {customerTotalPages}
+                                        </span>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8 rounded-lg text-xs"
+                                            disabled={customerCurrentPage >= customerTotalPages}
+                                            onClick={() => setCustomerCurrentPage((p) => Math.min(customerTotalPages, p + 1))}
+                                        >
+                                            Berikutnya
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </DialogContent>
                 </Dialog>
-                <Dialog
-                    open={isMatchingPoModalOpen}
-                    onOpenChange={setIsMatchingPoModalOpen}
-                >
-                    <DialogContent className="max-h-[85vh] max-w-3xl overflow-y-auto">
-                        <DialogHeader>
-                            <DialogTitle>
+
+                {/* MODAL MATCHING PO IN */}
+                <Dialog open={isMatchingPoModalOpen} onOpenChange={setIsMatchingPoModalOpen}>
+                    <DialogContent className="w-[95vw] max-w-[95vw] sm:max-w-[92vw] lg:max-w-[1200px] max-h-[90vh] overflow-y-auto rounded-2xl p-4 sm:p-6 shadow-2xl">
+                        <DialogHeader className="border-b border-border pb-3">
+                            <DialogTitle className="text-lg font-bold text-foreground">
                                 PO In dengan material yang sama
                             </DialogTitle>
-                            <DialogDescription>
-                                Pilih PO In tambahan. Quantity setiap PO In akan
-                                disimpan pada baris terpisah.
+                            <DialogDescription className="text-xs text-muted-foreground">
+                                Pilih PO In tambahan. Quantity setiap PO In akan disimpan pada baris terpisah.
                             </DialogDescription>
                         </DialogHeader>
-                        <div className="space-y-3">
+                        <div className="space-y-3 pt-2">
                             {matchingPoIns.map((po) => (
                                 <label
                                     key={po.kode_poin}
-                                    className="block cursor-pointer rounded-lg border p-4"
+                                    className="block cursor-pointer rounded-xl border border-border p-3.5 hover:bg-muted/30 transition-colors"
                                 >
-                                    <div className="mb-3 flex items-center gap-3">
+                                    <div className="mb-2.5 flex items-center gap-3">
                                         <Checkbox
-                                            checked={selectedMatchingPoIns.includes(
-                                                po.kode_poin,
-                                            )}
+                                            checked={selectedMatchingPoIns.includes(po.kode_poin)}
                                             onCheckedChange={(checked) =>
-                                                setSelectedMatchingPoIns(
-                                                    (current) =>
-                                                        checked
-                                                            ? [
-                                                                ...new Set([
-                                                                    ...current,
-                                                                    po.kode_poin,
-                                                                ]),
-                                                            ]
-                                                            : current.filter(
-                                                                (value) =>
-                                                                    value !==
-                                                                    po.kode_poin,
-                                                            ),
+                                                setSelectedMatchingPoIns((current) =>
+                                                    checked
+                                                        ? [...new Set([...current, po.kode_poin])]
+                                                        : current.filter((value) => value !== po.kode_poin),
                                                 )
                                             }
                                         />
-                                        <span className="font-semibold">
-                                            {renderValue(po.no_poin)} —{' '}
-                                            {renderValue(po.customer_name)}
+                                        <span className="text-xs sm:text-sm font-bold text-foreground">
+                                            {renderValue(po.no_poin)} — {renderValue(po.customer_name)}
                                         </span>
                                     </div>
-                                    <Table>
-                                        <TableHeader>
-                                            <TableRow>
-                                                <TableHead>Material</TableHead>
-                                                <TableHead>Qty</TableHead>
-                                                <TableHead>
-                                                    Sisa Qty PR
-                                                </TableHead>
-                                            </TableRow>
-                                        </TableHeader>
-                                        <TableBody>
-                                            {(po.materials ?? []).map(
-                                                (material) => (
+                                    <div className="overflow-x-auto rounded-lg border border-border">
+                                        <Table className="text-xs">
+                                            <TableHeader className="bg-muted/30">
+                                                <TableRow>
+                                                    <TableHead className="py-2">Material</TableHead>
+                                                    <TableHead className="py-2 text-right">Qty</TableHead>
+                                                    <TableHead className="py-2 text-right">Sisa Qty PR</TableHead>
+                                                </TableRow>
+                                            </TableHeader>
+                                            <TableBody>
+                                                {(po.materials ?? []).map((material) => (
                                                     <TableRow key={material.id}>
-                                                        <TableCell>
-                                                            {renderValue(
-                                                                material.material,
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {renderValue(
-                                                                material.qty,
-                                                            )}
-                                                        </TableCell>
-                                                        <TableCell>
-                                                            {renderValue(
-                                                                material.sisa_qtypr,
-                                                            )}
-                                                        </TableCell>
+                                                        <TableCell className="py-2 font-medium">{renderValue(material.material)}</TableCell>
+                                                        <TableCell className="py-2 text-right tabular-nums">{renderValue(material.qty)}</TableCell>
+                                                        <TableCell className="py-2 text-right tabular-nums font-semibold">{renderValue(material.sisa_qtypr)}</TableCell>
                                                     </TableRow>
-                                                ),
-                                            )}
-                                        </TableBody>
-                                    </Table>
+                                                ))}
+                                            </TableBody>
+                                        </Table>
+                                    </div>
                                 </label>
                             ))}
                         </div>
-                        <div className="flex justify-end gap-2">
+                        <div className="flex justify-end gap-2 pt-3 border-t border-border">
                             <Button
                                 type="button"
                                 variant="outline"
+                                className="h-9 rounded-lg text-xs"
                                 onClick={() => setIsMatchingPoModalOpen(false)}
                             >
                                 Lewati
                             </Button>
                             <Button
                                 type="button"
+                                className="h-9 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
                                 disabled={selectedMatchingPoIns.length === 0}
                                 onClick={addSelectedMatchingPoIns}
                             >
@@ -2553,42 +2159,36 @@ export default function PurchaseRequirementCreate() {
                         </div>
                     </DialogContent>
                 </Dialog>
-                <Dialog
-                    open={isMaterialModalOpen}
-                    onOpenChange={setIsMaterialModalOpen}
-                >
+
+                {/* MODAL PILIH MATERIAL INVENTORY */}
+                <Dialog open={isMaterialModalOpen} onOpenChange={setIsMaterialModalOpen}>
                     <DialogContent
-                        className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col overflow-y-auto !rounded-none border-none p-0 shadow-2xl"
+                        onCloseAutoFocus={(e) => {
+                            e.preventDefault();
+                            qtyPrInputRef.current?.focus();
+                            qtyPrInputRef.current?.select?.();
+                        }}
+                        className="w-[96vw] max-w-[96vw] sm:max-w-[95vw] lg:max-w-[94vw] xl:max-w-[1400px] max-h-[92vh] overflow-y-auto rounded-2xl p-4 sm:p-6 shadow-2xl"
                     >
-                        <DialogHeader className="border-b bg-muted/30 p-6">
-                            <DialogTitle className="text-xl">
-                                Pilih Material
+                        <DialogHeader className="border-b border-border pb-3">
+                            <DialogTitle className="text-lg font-bold text-foreground">
+                                Pilih Material Inventory
                             </DialogTitle>
-                            <DialogDescription className="sr-only">
-                                Pilih material dari database inventory untuk PR ini.
+                            <DialogDescription className="text-xs text-muted-foreground">
+                                Pilih material dari master data inventori untuk item PR ini
                             </DialogDescription>
                         </DialogHeader>
 
-                        <div className="flex-1 space-y-6 overflow-auto p-6">
-                            <div className="flex flex-wrap items-center justify-between gap-4">
-                                <div className="flex items-center gap-2">
-                                    <Label className="text-xs font-bold tracking-tighter text-muted-foreground uppercase">
-                                        Per Page
-                                    </Label>
+                        <div className="space-y-4 pt-2">
+                            <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
+                                <label className="flex items-center gap-2">
+                                    <span>Per Page:</span>
                                     <select
-                                        className="rounded-md border border-sidebar-border bg-background px-3 py-1.5 text-sm"
-                                        value={
-                                            materialPageSize === Infinity
-                                                ? 'all'
-                                                : materialPageSize
-                                        }
+                                        className="rounded-lg border border-input bg-background px-2.5 py-1 text-xs font-medium text-foreground"
+                                        value={materialPageSize === Infinity ? 'all' : materialPageSize}
                                         onChange={(event) => {
                                             const value = event.target.value;
-                                            setMaterialPageSize(
-                                                value === 'all'
-                                                    ? Infinity
-                                                    : Number(value),
-                                            );
+                                            setMaterialPageSize(value === 'all' ? Infinity : Number(value));
                                             setMaterialCurrentPage(1);
                                         }}
                                     >
@@ -2598,173 +2198,108 @@ export default function PurchaseRequirementCreate() {
                                         <option value={50}>50</option>
                                         <option value="all">Semua</option>
                                     </select>
-                                </div>
-                                <div className="relative max-w-md flex-1">
-                                    <Search className="absolute top-2.5 left-3 h-4 w-4 text-muted-foreground" />
+                                </label>
+                                <div className="relative max-w-sm flex-1">
+                                    <Search className="absolute top-2.5 left-3 size-3.5 text-muted-foreground" />
                                     <Input
-                                        className="h-10 border-sidebar-border pl-9"
+                                        className="h-9 pl-9 rounded-lg text-xs"
                                         placeholder="Cari kode atau nama material..."
                                         value={materialSearchTerm}
                                         onChange={(event) => {
-                                            setMaterialSearchTerm(
-                                                event.target.value,
-                                            );
+                                            setMaterialSearchTerm(event.target.value);
                                             setMaterialCurrentPage(1);
                                         }}
                                     />
                                 </div>
                             </div>
 
-                            <div className="overflow-hidden rounded-xl border border-sidebar-border bg-card">
-                                <Table>
-                                    <TableHeader className="bg-muted/30">
+                            <div className="overflow-x-auto rounded-xl border border-border">
+                                <Table className="text-xs">
+                                    <TableHeader className="bg-muted/40 font-semibold uppercase text-muted-foreground">
                                         <TableRow>
-                                            <TableHead>Kode Material</TableHead>
-                                            <TableHead>Nama Material</TableHead>
-                                            <TableHead>Unit</TableHead>
-                                            <TableHead className="text-right">
-                                                Stok
-                                            </TableHead>
-                                            <TableHead className="w-[80px]"></TableHead>
+                                            <TableHead className="py-2.5">Kode Material</TableHead>
+                                            <TableHead className="py-2.5">Nama Material</TableHead>
+                                            <TableHead className="py-2.5 text-center">Unit</TableHead>
+                                            <TableHead className="py-2.5 text-right">Stok</TableHead>
+                                            <TableHead className="py-2.5 text-center w-20">Aksi</TableHead>
                                         </TableRow>
                                     </TableHeader>
-                                    <TableBody>
+                                    <TableBody className="divide-y divide-border">
                                         {materialList.length === 0 ? (
                                             <TableRow>
-                                                <TableCell
-                                                    colSpan={6}
-                                                    className="h-32 text-center text-muted-foreground"
-                                                >
+                                                <TableCell colSpan={5} className="h-28 text-center text-muted-foreground">
                                                     {materialLoading ? (
                                                         <div className="flex items-center justify-center gap-2">
-                                                            <Spinner /> Memuat
-                                                            data...
+                                                            <Spinner className="size-4" /> Memuat data material...
                                                         </div>
                                                     ) : (
-                                                        materialError ||
-                                                        'Tidak ada data material.'
+                                                        materialError || 'Tidak ada data material.'
                                                     )}
                                                 </TableCell>
                                             </TableRow>
                                         ) : (
                                             materialList.map((m) => (
-                                                <TableRow key={m.kd_material}>
-                                                    <TableCell className="font-mono text-xs">
+                                                <TableRow key={m.kd_material} className="hover:bg-muted/30 transition-colors">
+                                                    <TableCell className="py-2.5 font-medium text-foreground">
                                                         {m.kd_material}
                                                     </TableCell>
-                                                    <TableCell className="font-medium">
+                                                    <TableCell className="py-2.5 font-semibold text-foreground">
                                                         {m.material}
                                                     </TableCell>
-                                                    <TableCell className="text-xs text-muted-foreground uppercase">
+                                                    <TableCell className="py-2.5 text-center uppercase font-medium text-muted-foreground">
                                                         {m.unit}
                                                     </TableCell>
-                                                    <TableCell className="text-right">
+                                                    <TableCell className="py-2.5 text-right font-bold tabular-nums">
                                                         {m.stok}
                                                     </TableCell>
-                                                    <TableCell>
+                                                    <TableCell className="py-2.5 text-center">
                                                         <Button
                                                             size="sm"
-                                                            variant="default"
-                                                            className="h-8"
+                                                            className="h-8 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white"
                                                             onClick={async () => {
-                                                                let priceEstimate =
-                                                                    m.harga ||
-                                                                    0;
-
+                                                                let priceEstimate = m.harga || 0;
                                                                 try {
-                                                                    const priceRes =
-                                                                        await axios.get(
-                                                                            '/marketing/purchase-requirement/get-last-price',
-                                                                            {
-                                                                                params: {
-                                                                                    kd_mat: m.kd_material,
-                                                                                },
-                                                                            },
-                                                                        );
-                                                                    const latestPrice =
-                                                                        parseNumber(
-                                                                            priceRes
-                                                                                .data
-                                                                                ?.harga,
-                                                                        );
-                                                                    if (
-                                                                        priceRes
-                                                                            .data
-                                                                            ?.success &&
-                                                                        latestPrice >
-                                                                        0
-                                                                    ) {
-                                                                        priceEstimate =
-                                                                            latestPrice;
+                                                                    const priceRes = await axios.get(
+                                                                        '/marketing/purchase-requirement/get-last-price',
+                                                                        { params: { kd_mat: m.kd_material } },
+                                                                    );
+                                                                    const latestPrice = parseNumber(priceRes.data?.harga);
+                                                                    if (priceRes.data?.success && latestPrice > 0) {
+                                                                        priceEstimate = latestPrice;
                                                                     }
                                                                 } catch {
-                                                                    priceEstimate =
-                                                                        m.harga ||
-                                                                        0;
+                                                                    priceEstimate = m.harga || 0;
                                                                 }
 
-                                                                setMaterialForm(
-                                                                    (prev) => {
-                                                                        const stockBreakdown =
-                                                                        {
-                                                                            stokG1:
-                                                                                m.stok_g1 ??
-                                                                                0,
-                                                                            stokG2:
-                                                                                m.stok_g2 ??
-                                                                                0,
-                                                                            stokG3:
-                                                                                m.stok_g3 ??
-                                                                                0,
-                                                                            stokG4:
-                                                                                m.stok_g4 ??
-                                                                                0,
-                                                                            mis:
-                                                                                m.mis ??
-                                                                                0,
-                                                                            mib:
-                                                                                m.mib ??
-                                                                                0,
-                                                                            mibs:
-                                                                                m.mibs ??
-                                                                                0,
-                                                                            pr_outstanding:
-                                                                                m.pr_outstanding ??
-                                                                                0,
-                                                                            po_outstanding:
-                                                                                m.po_outstanding ??
-                                                                                0,
-                                                                            do_outstanding:
-                                                                                m.do_outstanding ??
-                                                                                0,
-                                                                        };
-
-                                                                        return {
-                                                                            ...prev,
-                                                                            kodeMaterial:
-                                                                                m.kd_material,
-                                                                            namaMaterial:
-                                                                                m.material,
-                                                                            satuan: m.unit,
-                                                                            ...stockBreakdown,
-                                                                            lastStock:
-                                                                                calculateTotalStock(
-                                                                                    stockBreakdown,
-                                                                                ),
-                                                                            priceEstimate,
-                                                                            totalPrice:
-                                                                                parseNumber(
-                                                                                    prev.quantity,
-                                                                                ) *
-                                                                                parseNumber(
-                                                                                    priceEstimate,
-                                                                                ),
-                                                                        };
-                                                                    },
-                                                                );
-                                                                setIsMaterialModalOpen(
-                                                                    false,
-                                                                );
+                                                                setMaterialForm((prev) => {
+                                                                    const stockBreakdown = {
+                                                                        stokG1: m.stok_g1 ?? 0,
+                                                                        stokG2: m.stok_g2 ?? 0,
+                                                                        stokG3: m.stok_g3 ?? 0,
+                                                                        stokG4: m.stok_g4 ?? 0,
+                                                                        mis: m.mis ?? 0,
+                                                                        mib: m.mib ?? 0,
+                                                                        mibs: m.mibs ?? 0,
+                                                                        pr_outstanding: m.pr_outstanding ?? 0,
+                                                                        po_outstanding: m.po_outstanding ?? 0,
+                                                                        do_outstanding: m.do_outstanding ?? 0,
+                                                                    };
+                                                                    return {
+                                                                        ...prev,
+                                                                        kodeMaterial: m.kd_material,
+                                                                        namaMaterial: m.material,
+                                                                        satuan: m.unit,
+                                                                        ...stockBreakdown,
+                                                                        lastStock: calculateTotalStock(stockBreakdown),
+                                                                        priceEstimate,
+                                                                        totalPrice: parseNumber(prev.quantity) * parseNumber(priceEstimate),
+                                                                    };
+                                                                });
+                                                                setIsMaterialModalOpen(false);
+                                                                setTimeout(() => {
+                                                                    qtyPrInputRef.current?.focus();
+                                                                    qtyPrInputRef.current?.select?.();
+                                                                }, 120);
                                                             }}
                                                         >
                                                             Pilih
@@ -2777,90 +2312,59 @@ export default function PurchaseRequirementCreate() {
                                 </Table>
                             </div>
 
-                            {materialPageSize !== Infinity &&
-                                materialTotal > 0 && (
-                                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2 text-sm text-muted-foreground">
-                                        <span>
-                                            Menampilkan{' '}
-                                            {Math.min(
-                                                (materialCurrentPage - 1) *
-                                                materialPageSize +
-                                                1,
-                                                materialTotal,
-                                            )}
-                                            -
-                                            {Math.min(
-                                                materialCurrentPage *
-                                                materialPageSize,
-                                                materialTotal,
-                                            )}{' '}
-                                            dari {materialTotal} data
+                            {/* Pagination */}
+                            {materialPageSize !== Infinity && materialTotal > 0 && (
+                                <div className="flex flex-wrap items-center justify-between gap-3 pt-2 text-xs text-muted-foreground">
+                                    <span>
+                                        Menampilkan {Math.min((materialCurrentPage - 1) * materialPageSize + 1, materialTotal)} -{' '}
+                                        {Math.min(materialCurrentPage * materialPageSize, materialTotal)} dari {materialTotal} data
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8 rounded-lg text-xs"
+                                            onClick={() => setMaterialCurrentPage((p) => Math.max(1, p - 1))}
+                                            disabled={materialCurrentPage === 1}
+                                        >
+                                            Sebelumnya
+                                        </Button>
+                                        <span className="font-medium text-foreground">
+                                            {materialCurrentPage} / {materialTotalPages}
                                         </span>
-                                        <div className="flex items-center gap-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() =>
-                                                    setMaterialCurrentPage(
-                                                        (p) =>
-                                                            Math.max(1, p - 1),
-                                                    )
-                                                }
-                                                disabled={
-                                                    materialCurrentPage === 1
-                                                }
-                                            >
-                                                Sebelumnya
-                                            </Button>
-                                            <span className="text-sm font-medium text-foreground">
-                                                {materialCurrentPage} /{' '}
-                                                {materialTotalPages}
-                                            </span>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                onClick={() =>
-                                                    setMaterialCurrentPage(
-                                                        (p) =>
-                                                            Math.min(
-                                                                materialTotalPages ||
-                                                                p,
-                                                                p + 1,
-                                                            ),
-                                                    )
-                                                }
-                                                disabled={
-                                                    materialCurrentPage >=
-                                                    materialTotalPages
-                                                }
-                                            >
-                                                Berikutnya
-                                            </Button>
-                                        </div>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8 rounded-lg text-xs"
+                                            onClick={() => setMaterialCurrentPage((p) => Math.min(materialTotalPages, p + 1))}
+                                            disabled={materialCurrentPage >= materialTotalPages}
+                                        >
+                                            Berikutnya
+                                        </Button>
                                     </div>
-                                )}
+                                </div>
+                            )}
                         </div>
                     </DialogContent>
                 </Dialog>
             </form>
 
-            <Dialog
-                open={isDeleteConfirmOpen}
-                onOpenChange={setIsDeleteConfirmOpen}
-            >
-                <DialogContent>
+            {/* DIALOG KONFIRMASI PENGHAPUSAN MATERIAL */}
+            <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+                <DialogContent className="rounded-2xl p-6">
                     <DialogHeader>
-                        <DialogTitle>Konfirmasi Penghapusan</DialogTitle>
-                        <DialogDescription>
-                            Stok sudah memenuhi kebutuhan material ini. Apakah
-                            Anda yakin ingin menghapus material? Sisa Qty PO
-                            Masuk akan diubah menjadi 0 saat PR disimpan.
+                        <DialogTitle className="text-lg font-bold text-foreground">
+                            Konfirmasi Penghapusan
+                        </DialogTitle>
+                        <DialogDescription className="text-xs text-muted-foreground pt-1.5 leading-relaxed">
+                            Stok sudah memenuhi kebutuhan material ini. Apakah Anda yakin ingin menghapus material? Sisa Qty PO Masuk akan diubah menjadi 0 saat PR disimpan.
                         </DialogDescription>
                     </DialogHeader>
                     <div className="flex justify-end gap-2 pt-4">
                         <Button
                             type="button"
                             variant="outline"
+                            className="h-9 rounded-lg text-xs"
                             onClick={() => setIsDeleteConfirmOpen(false)}
                             disabled={isDeletingMaterial}
                         >
@@ -2870,6 +2374,7 @@ export default function PurchaseRequirementCreate() {
                             action="update"
                             type="button"
                             variant="destructive"
+                            className="h-9 rounded-lg text-xs font-bold"
                             onClick={confirmDeleteMaterial}
                             disabled={isDeletingMaterial}
                         >
@@ -2879,6 +2384,7 @@ export default function PurchaseRequirementCreate() {
                 </DialogContent>
             </Dialog>
 
+            {/* OVERDUE INVOICE WARNING DIALOG */}
             <OverdueInvoiceWarningDialog
                 open={overdueWarningOpen}
                 onOpenChange={setOverdueWarningOpen}

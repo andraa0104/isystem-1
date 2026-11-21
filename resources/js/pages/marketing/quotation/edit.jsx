@@ -334,6 +334,7 @@ export default function QuotationEdit({
             }
         }
     };
+    const loadMaterials = loadMaterialData;
 
     // Fetch material total count & pagination (dipisah di background agar data instan tampil)
     const loadMaterialCount = async (search = debouncedMaterialSearch) => {
@@ -509,20 +510,6 @@ export default function QuotationEdit({
         const margin = ((penawaran - modal) / modal) * 100;
         return Number.isFinite(margin) ? margin.toFixed(2) : '';
     }, [materialForm.hargaModal, materialForm.hargaPenawaran]);
-
-    const totalModalValue = useMemo(() => {
-        const qty = parseNumber(materialForm.quantity);
-        const modal = parseNumber(materialForm.hargaModal);
-        if (!qty || !modal) return 0;
-        return qty * modal;
-    }, [materialForm.quantity, materialForm.hargaModal]);
-
-    const totalHargaPenawaranValue = useMemo(() => {
-        const qty = parseNumber(materialForm.quantity);
-        const penawaran = parseNumber(materialForm.hargaPenawaran);
-        if (!qty || !penawaran) return 0;
-        return qty * penawaran;
-    }, [materialForm.quantity, materialForm.hargaPenawaran]);
 
     const isMaterialFormValid = useMemo(() => {
         const nama = String(materialForm.nama ?? '').trim();
@@ -880,27 +867,18 @@ export default function QuotationEdit({
             <div className="w-full flex-1 flex flex-col gap-5 p-4 sm:p-6">
                 {/* ── HEADER HALAMAN ─────────────────────────────────── */}
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-4">
-                    <div className="flex items-center gap-3">
-                        <Link
-                            href="/marketing/quotation"
-                            className="inline-flex size-9 items-center justify-center rounded-lg border border-border bg-background text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
-                            title="Kembali ke Daftar Quotation"
-                        >
-                            <ArrowLeft className="size-4" />
-                        </Link>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <h1 className="text-xl font-bold tracking-tight text-foreground">
-                                    Edit Quotation
-                                </h1>
-                                <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">
-                                    {quotation?.No_penawaran}
-                                </span>
-                            </div>
-                            <p className="text-xs text-muted-foreground">
-                                Perbarui data penawaran harga customer
-                            </p>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <h1 className="text-xl font-bold tracking-tight text-foreground">
+                                Edit Quotation
+                            </h1>
+                            <span className="font-mono text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">
+                                {quotation?.No_penawaran}
+                            </span>
                         </div>
+                        <p className="text-xs text-muted-foreground">
+                            Perbarui data penawaran harga customer
+                        </p>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -1015,9 +993,9 @@ export default function QuotationEdit({
                                 </p>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                                <div className="space-y-1.5 lg:col-span-1">
-                                    <Label htmlFor="tgl_penawaran" className="text-xs font-semibold">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-4">
+                                <div className="space-y-1.5 lg:col-span-2">
+                                    <Label htmlFor="tgl_penawaran" className="text-xs font-semibold whitespace-nowrap">
                                         Tanggal Penawaran <span className="text-destructive">*</span>
                                     </Label>
                                     <Input
@@ -1034,7 +1012,7 @@ export default function QuotationEdit({
                                     />
                                 </div>
 
-                                <div className="space-y-1.5 md:col-span-2 lg:col-span-3">
+                                <div className="space-y-1.5 md:col-span-2 lg:col-span-10">
                                     <Label htmlFor="nama_customer" className="text-xs font-semibold">
                                         Nama Perusahaan / Customer{' '}
                                         <span className="text-destructive">*</span>
@@ -1066,7 +1044,7 @@ export default function QuotationEdit({
                                     </div>
                                 </div>
 
-                                <div className="space-y-1.5 md:col-span-2">
+                                <div className="space-y-1.5 md:col-span-2 lg:col-span-4">
                                     <Label htmlFor="attend" className="text-xs font-semibold">
                                         Ditujukan Kepada (Attend / UP)
                                     </Label>
@@ -1084,43 +1062,45 @@ export default function QuotationEdit({
                                     />
                                 </div>
 
-                                <div className="space-y-1.5 lg:col-span-1">
-                                    <Label htmlFor="telepon" className="text-xs font-semibold">
+                                <div className="space-y-1.5 lg:col-span-2">
+                                    <Label htmlFor="telepon" className="text-xs font-semibold whitespace-nowrap">
                                         No. Telepon
                                     </Label>
                                     <Input
                                         id="telepon"
+                                        maxLength={14}
                                         placeholder="08123456789"
                                         className="h-9 rounded-lg"
                                         value={customerForm.telepon}
                                         onChange={(e) =>
                                             setCustomerForm((prev) => ({
                                                 ...prev,
-                                                telepon: e.target.value,
+                                                telepon: e.target.value.slice(0, 14),
                                             }))
                                         }
                                     />
                                 </div>
 
-                                <div className="space-y-1.5 lg:col-span-1">
-                                    <Label htmlFor="fax" className="text-xs font-semibold">
+                                <div className="space-y-1.5 lg:col-span-2">
+                                    <Label htmlFor="fax" className="text-xs font-semibold whitespace-nowrap">
                                         Fax
                                     </Label>
                                     <Input
                                         id="fax"
+                                        maxLength={14}
                                         placeholder="-"
                                         className="h-9 rounded-lg"
                                         value={customerForm.fax}
                                         onChange={(e) =>
                                             setCustomerForm((prev) => ({
                                                 ...prev,
-                                                fax: e.target.value,
+                                                fax: e.target.value.slice(0, 14),
                                             }))
                                         }
                                     />
                                 </div>
 
-                                <div className="space-y-1.5 md:col-span-2">
+                                <div className="space-y-1.5 md:col-span-2 lg:col-span-4">
                                     <Label htmlFor="email" className="text-xs font-semibold">
                                         Email Customer
                                     </Label>
@@ -1139,7 +1119,7 @@ export default function QuotationEdit({
                                     />
                                 </div>
 
-                                <div className="space-y-1.5 md:col-span-2 lg:col-span-4">
+                                <div className="space-y-1.5 md:col-span-2 lg:col-span-12">
                                     <Label htmlFor="alamat" className="text-xs font-semibold">
                                         Alamat Lengkap Perusahaan
                                     </Label>
@@ -1378,7 +1358,7 @@ export default function QuotationEdit({
                                             className="h-[38px] px-3.5 rounded-lg text-xs font-semibold shrink-0"
                                             onClick={() => {
                                                 setMaterialModalOpen(true);
-                                                loadMaterials({ page: 1 });
+                                                loadMaterialData({ page: 1 });
                                             }}
                                         >
                                             <Search className="mr-1.5 size-3.5" />
@@ -1388,16 +1368,16 @@ export default function QuotationEdit({
                                     <InputError message={materialFormErrors.nama} />
                                 </div>
 
-                                {/* Row 2: 7 Kolom Spesifikasi & Harga */}
-                                <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-3">
-                                    <div className="space-y-1 col-span-1">
-                                        <Label htmlFor="satuan" className="text-xs font-semibold">
+                                {/* Row 2: 5 Kolom Spesifikasi & Harga */}
+                                <div className="grid grid-cols-2 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-[105px_85px_1fr_1fr_85px] gap-3">
+                                    <div className="space-y-1 col-span-1 sm:col-span-1 lg:col-span-1">
+                                        <Label htmlFor="satuan" className="text-xs font-semibold whitespace-nowrap">
                                             Satuan <span className="text-destructive">*</span>
                                         </Label>
                                         <Input
                                             id="satuan"
                                             placeholder="Pcs/Kg/Btg"
-                                            className="h-9 rounded-lg"
+                                            className="h-9 rounded-lg text-center"
                                             value={materialForm.satuan}
                                             onChange={(e) => {
                                                 setMaterialForm((prev) => ({
@@ -1415,15 +1395,15 @@ export default function QuotationEdit({
                                         <InputError message={materialFormErrors.satuan} />
                                     </div>
 
-                                    <div className="space-y-1 col-span-1">
-                                        <Label htmlFor="quantity" className="text-xs font-semibold">
-                                            Quantity <span className="text-destructive">*</span>
+                                    <div className="space-y-1 col-span-1 sm:col-span-1 lg:col-span-1">
+                                        <Label htmlFor="quantity" className="text-xs font-semibold whitespace-nowrap">
+                                            Qty <span className="text-destructive">*</span>
                                         </Label>
                                         <Input
                                             id="quantity"
                                             type="number"
                                             min="1"
-                                            className="h-9 rounded-lg font-semibold"
+                                            className="h-9 rounded-lg font-semibold text-center"
                                             value={materialForm.quantity}
                                             onChange={(e) => {
                                                 const val = e.target.value;
@@ -1442,8 +1422,8 @@ export default function QuotationEdit({
                                         <InputError message={materialFormErrors.quantity} />
                                     </div>
 
-                                    <div className="space-y-1 col-span-1">
-                                        <Label htmlFor="harga_modal" className="text-xs font-semibold">
+                                    <div className="space-y-1 col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-1">
+                                        <Label htmlFor="harga_modal" className="text-xs font-semibold whitespace-nowrap">
                                             Harga Modal <span className="text-destructive">*</span>
                                         </Label>
                                         <Input
@@ -1469,22 +1449,8 @@ export default function QuotationEdit({
                                         <InputError message={materialFormErrors.hargaModal} />
                                     </div>
 
-                                    <div className="space-y-1 col-span-1">
-                                        <Label htmlFor="total_modal" className="text-xs font-semibold text-muted-foreground">
-                                            Total Modal
-                                        </Label>
-                                        <Input
-                                            id="total_modal"
-                                            disabled
-                                            readOnly
-                                            placeholder="Rp 0"
-                                            className="h-9 rounded-lg font-mono text-sm bg-muted/40 cursor-not-allowed"
-                                            value={totalModalValue > 0 ? formatRupiahInput(totalModalValue) : ''}
-                                        />
-                                    </div>
-
-                                    <div className="space-y-1 col-span-1">
-                                        <Label htmlFor="harga_penawaran" className="text-xs font-semibold">
+                                    <div className="space-y-1 col-span-1 sm:col-span-2 md:col-span-2 lg:col-span-1">
+                                        <Label htmlFor="harga_penawaran" className="text-xs font-semibold whitespace-nowrap">
                                             Harga Penawaran <span className="text-destructive">*</span>
                                         </Label>
                                         <Input
@@ -1510,33 +1476,15 @@ export default function QuotationEdit({
                                         <InputError message={materialFormErrors.hargaPenawaran} />
                                     </div>
 
-                                    <div className="space-y-1 col-span-1">
-                                        <Label htmlFor="total_harga_penawaran" className="text-xs font-semibold text-muted-foreground">
-                                            Total Penawaran
-                                        </Label>
-                                        <Input
-                                            id="total_harga_penawaran"
-                                            disabled
-                                            readOnly
-                                            placeholder="Rp 0"
-                                            className="h-9 rounded-lg font-mono text-sm font-semibold bg-muted/40 text-emerald-600 dark:text-emerald-400 cursor-not-allowed"
-                                            value={
-                                                totalHargaPenawaranValue > 0
-                                                    ? formatRupiahInput(totalHargaPenawaranValue)
-                                                    : ''
-                                            }
-                                        />
-                                    </div>
-
-                                    <div className="space-y-1 col-span-2 md:col-span-2 xl:col-span-1">
-                                        <Label htmlFor="margin" className="text-xs font-semibold text-muted-foreground">
-                                            Margin Estimasi
+                                    <div className="space-y-1 col-span-2 sm:col-span-4 md:col-span-2 lg:col-span-1">
+                                        <Label htmlFor="margin" className="text-xs font-semibold text-muted-foreground whitespace-nowrap">
+                                            Margin (%)
                                         </Label>
                                         <Input
                                             id="margin"
                                             disabled
                                             readOnly
-                                            className={`h-9 rounded-lg font-mono text-sm font-bold bg-muted/40 ${
+                                            className={`h-9 rounded-lg font-mono text-xs sm:text-sm font-bold bg-muted/40 text-center ${
                                                 Number(marginValue) < 0
                                                     ? 'text-destructive'
                                                     : 'text-foreground'

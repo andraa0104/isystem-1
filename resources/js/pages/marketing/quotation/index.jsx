@@ -683,37 +683,23 @@ export default function QuotationIndex({
                                                     className="hover:bg-muted/40 transition-colors group"
                                                 >
                                                     <td className="py-3.5 px-4 whitespace-nowrap">
-                                                        <span className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 px-2.5 py-1 text-sm font-semibold text-emerald-700 dark:text-emerald-400 border border-emerald-500/25 tracking-wide tabular-nums">
-                                                            <FileText className="size-3.5" />
-                                                            <span>{item.No_penawaran}</span>
+                                                        <span className="inline-flex items-center rounded-lg bg-emerald-500/10 px-2.5 py-1 text-sm font-semibold text-emerald-700 dark:text-emerald-400 border border-emerald-500/25 tracking-wide tabular-nums">
+                                                            {item.No_penawaran}
                                                         </span>
                                                     </td>
                                                     <td className="py-3.5 px-4 text-sm font-semibold text-muted-foreground whitespace-nowrap tracking-wide tabular-nums">
-                                                        <span className="inline-flex items-center gap-1.5">
-                                                            <Calendar className="size-3.5 text-muted-foreground/60" />
-                                                            <span>{item.Tgl_Posting || '-'}</span>
-                                                        </span>
+                                                        {item.Tgl_Posting || '-'}
                                                     </td>
                                                     <td className="py-3.5 px-4 min-w-[220px]">
-                                                        <div className="flex items-center gap-2.5">
-                                                            <div className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground group-hover:text-emerald-600 transition-colors">
-                                                                <Building2 className="size-3.5" />
-                                                            </div>
-                                                            <div className="min-w-0">
-                                                                <div
-                                                                    className="font-semibold text-foreground truncate text-sm"
-                                                                    title={item.Customer}
-                                                                >
-                                                                    {item.Customer || '-'}
-                                                                </div>
-                                                            </div>
+                                                        <div
+                                                            className="font-semibold text-foreground truncate text-sm"
+                                                            title={item.Customer}
+                                                        >
+                                                            {item.Customer || '-'}
                                                         </div>
                                                     </td>
-                                                    <td className="py-3.5 px-4 whitespace-nowrap">
-                                                        <span className="inline-flex items-center gap-1.5 text-sm text-foreground/80 font-semibold">
-                                                            <UserCheck className="size-3.5 text-muted-foreground/60" />
-                                                            <span>{item.Attend || '-'}</span>
-                                                        </span>
+                                                    <td className="py-3.5 px-4 whitespace-nowrap text-sm text-foreground/80 font-semibold">
+                                                        {item.Attend || '-'}
                                                     </td>
                                                     <td className="py-3.5 px-4 whitespace-nowrap">
                                                         <div className="flex items-center justify-center gap-1">
