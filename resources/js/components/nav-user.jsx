@@ -15,7 +15,7 @@ export function NavUser() {
     const isCollapsed = state === 'collapsed';
 
     const user = auth?.user;
-    const name = user?.name ?? 'Pengguna';
+    const username = user?.username ?? user?.name ?? 'Pengguna';
     const avatar = user?.avatar ?? '';
     const level = user?.level ?? 'User';
 
@@ -34,9 +34,9 @@ export function NavUser() {
                             {/* Avatar */}
                             <div className="relative shrink-0">
                                 <Avatar className="size-8 rounded-lg border border-sidebar-border/60 shadow-xs">
-                                    <AvatarImage src={avatar} alt={name} />
+                                    <AvatarImage src={avatar} alt={username} />
                                     <AvatarFallback className="rounded-lg bg-gradient-to-br from-indigo-500 to-teal-500 text-white font-bold text-xs">
-                                        {getInitials(name)}
+                                        {getInitials(username)}
                                     </AvatarFallback>
                                 </Avatar>
                             </div>
@@ -46,15 +46,11 @@ export function NavUser() {
                                 <>
                                     <div className="grid flex-1 text-left leading-tight ml-1.5 min-w-0">
                                         <span className="truncate font-bold text-xs text-foreground group-hover:text-primary transition-colors">
-                                            {name}
+                                            {username}
                                         </span>
                                         <span className="truncate text-[10.5px] text-muted-foreground flex items-center gap-1 font-medium">
                                             <span className="uppercase text-[9px] font-bold text-indigo-600 dark:text-indigo-400">
                                                 {level}
-                                            </span>
-                                            <span>•</span>
-                                            <span className="truncate">
-                                                {user?.username || tenant?.label || 'Online'}
                                             </span>
                                         </span>
                                     </div>
