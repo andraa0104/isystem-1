@@ -18,10 +18,12 @@ class SetTenantDatabase
         $database = $request->input('database');
 
         if ($database && in_array($database, $allowed, true)) {
-            $request->session()->put('tenant.database', $database);
+            if ($request->hasSession()) {
+                $request->session()->put('tenant.database', $database);
+            }
             Cookie::queue('tenant_database', $database);
         } else {
-            $database = $request->session()->get('tenant.database')
+            $database = ($request->hasSession() ? $request->session()->get('tenant.database') : null)
                 ?? $request->cookie('tenant_database');
         }
 
@@ -32,20 +34,23 @@ class SetTenantDatabase
 
         if ($database && in_array($database, $allowed, true)) {
             $connection = config('tenants.connection', config('database.default'));
-            $currentDatabase = config("database.connections.$connection.database");
-
             config(['database.default' => $connection]);
-            DB::setDefaultConnection($connection);
+            config(["database.connections.$connection.database" => $database]);
 
-            if ($currentDatabase !== $database) {
-                config(["database.connections.$connection.database" => $database]);
-                DB::purge($connection);
+            $activeConn = DB::connection($connection);
+            if ($activeConn->getDatabaseName() !== $database) {
+                $activeConn->setDatabaseName($database);
                 try {
-                    DB::reconnect($connection);
-                } catch (\Exception $e) {
-                    // Ignore reconnection errors
+                    $activeConn->statement("USE `{$database}`");
+                } catch (\Throwable) {
+                    // Jika koneksi PDO belum terbuka atau reconnect dibutuhkan
+                    DB::purge($connection);
+                    try {
+                        DB::reconnect($connection);
+                    } catch (\Throwable) {}
                 }
             }
+            DB::setDefaultConnection($connection);
         }
 
         return $next($request);

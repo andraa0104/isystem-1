@@ -73,11 +73,18 @@ class AuthenticateFromCookie
         };
 
         // Jika session Laravel masih aktif tapi heartbeat sudah mati (tab/browser ditutup),
-        // paksa logout supaya tidak "terlogin" saat browser dibuka lagi.
+        // atau jika user di session tidak cocok dengan cookie login_user (misal ganti akun / multi-tenant di Octane),
+        // paksa logout supaya tidak "terlogin" akun sebelumnya.
         if (Auth::check()) {
             $currentUsername = $request->user()?->pengguna
                 ?? $request->user()?->getAuthIdentifier();
-            if ($isStale($currentUsername, false)) {
+            $cookieUsername = $request->cookie('login_user');
+
+            // Di Octane worker: jika user yang sedang nempel di Auth berbeda dengan cookie request ini,
+            // atau cookie login_user kosong, forget guard Auth agar tidak bocor dari request sebelumnya
+            if (!$cookieUsername || ($currentUsername && strtolower(trim((string)$currentUsername)) !== strtolower(trim((string)$cookieUsername)))) {
+                Auth::forgetGuards();
+            } elseif ($isStale($currentUsername, false)) {
                 $activityKey = 'browser_active:' . ($database ?: 'default') . ':' . $currentUsername;
                 $lastSeen = Cache::store('file')->get($activityKey);
                 $this->updateSessionStatus($database, $currentUsername, 'T', $lastSeen);
@@ -96,13 +103,14 @@ class AuthenticateFromCookie
                 return $request->is('login')
                     ? $next($request)
                     : $guestResponse($request);
+            } else {
+                // Sentuh aktivitas supaya navigasi normal tidak memicu logout.
+                if ($currentUsername) {
+                    $key = 'browser_active:' . ($database ?: 'default') . ':' . $currentUsername;
+                    Cache::store('file')->put($key, time(), now()->addMinutes(10));
+                }
+                return $next($request);
             }
-            // Sentuh aktivitas supaya navigasi normal tidak memicu logout.
-            if ($currentUsername) {
-                $key = 'browser_active:' . ($database ?: 'default') . ':' . $currentUsername;
-                Cache::store('file')->put($key, time(), now()->addMinutes(10));
-            }
-            return $next($request);
         }
 
         $username = $request->cookie('login_user');

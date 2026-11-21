@@ -30,8 +30,11 @@ class Pengguna extends Authenticatable
         $connection = config('tenants.connection', $this->connection);
         $allowed = config('tenants.databases', []);
         $request = request();
-        $database = $request?->session()->get('tenant.database')
-            ?? $request?->cookie('tenant_database');
+        $database = null;
+        if ($request && $request->hasSession()) {
+            $database = $request->session()->get('tenant.database');
+        }
+        $database = $database ?? $request?->cookie('tenant_database');
 
         if ($database && in_array($database, $allowed, true)) {
             config(["database.connections.$connection.database" => $database]);
