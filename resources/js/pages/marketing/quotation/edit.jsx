@@ -1459,6 +1459,22 @@ export default function QuotationEdit({
                                             placeholder="Rp 0"
                                             className="h-9 rounded-lg font-mono text-sm font-semibold text-emerald-600 dark:text-emerald-400"
                                             value={formatRupiahInput(materialForm.hargaPenawaran)}
+                                            onKeyDown={(e) => {
+                                                if (e.key === 'Enter') {
+                                                    e.preventDefault();
+                                                    if (editingMaterialId) {
+                                                        handleSaveMaterial();
+                                                    } else {
+                                                        handleAddMaterial();
+                                                    }
+                                                } else if (e.key === 'Tab' && !e.shiftKey) {
+                                                    e.preventDefault();
+                                                    const remarkEditor = document.getElementById('remark');
+                                                    if (remarkEditor) {
+                                                        remarkEditor.focus();
+                                                    }
+                                                }
+                                            }}
                                             onChange={(e) => {
                                                 const val = e.target.value.replace(/\D/g, '');
                                                 setMaterialForm((prev) => ({
