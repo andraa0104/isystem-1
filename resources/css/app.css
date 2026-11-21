@@ -548,4 +548,26 @@ html, body, input, select, textarea, button {
     [class*="border-rose-500/"] {
         border-color: rgba(244, 63, 94, 0.28) !important;
     }
+
+    /* Solid Color Fallbacks for Older Browsers without OKLCH support (Chrome <= 110, Windows 7) */
+    .bg-emerald-600,
+    [class~="bg-emerald-600"] {
+        background-color: #059669 !important;
+    }
+    .hover\:bg-emerald-700:hover,
+    [class*="hover:bg-emerald-700"]:hover {
+        background-color: #047857 !important;
+    }
+    .bg-emerald-700,
+    [class~="bg-emerald-700"] {
+        background-color: #047857 !important;
+    }
+    .text-emerald-600,
+    [class~="text-emerald-600"] {
+        color: #059669 !important;
+    }
+    .text-emerald-700,
+    [class~="text-emerald-700"] {
+        color: #047857 !important;
+    }
 }

@@ -1809,7 +1809,8 @@ export default function PurchaseRequirementCreate() {
                                                         type="button"
                                                         onClick={handleAddManualMaterial}
                                                         disabled={!materialForm.kodeMaterial}
-                                                        className="h-10 px-5 rounded-lg font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                                                        className="h-10 px-5 rounded-lg font-bold bg-[#059669] hover:bg-[#047857] text-[#ffffff] text-white shadow-sm"
+                                                        style={{ backgroundColor: '#059669', color: '#ffffff' }}
                                                     >
                                                         <Plus className="mr-2 size-4" />
                                                         Tambah Ke Daftar
@@ -1858,7 +1859,8 @@ export default function PurchaseRequirementCreate() {
                                                 <MenuAction
                                                     action="create"
                                                     type="submit"
-                                                    className="h-11 px-6 rounded-xl font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm text-xs sm:text-sm"
+                                                    className="h-11 px-6 rounded-xl font-bold bg-[#059669] hover:bg-[#047857] text-[#ffffff] text-white shadow-sm text-xs sm:text-sm"
+                                                    style={{ backgroundColor: '#059669', color: '#ffffff' }}
                                                     disabled={isSubmitting || materialItems.length === 0}
                                                 >
                                                     {isSubmitting ? (

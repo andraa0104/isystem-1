@@ -1485,7 +1485,8 @@ export default function PurchaseRequirementEdit({
                                         action="update"
                                         type="button"
                                         size="sm"
-                                        className="h-9 rounded-lg text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                                        className="h-9 rounded-lg text-xs font-bold bg-[#059669] hover:bg-[#047857] text-[#ffffff] text-white shadow-sm"
+                                        style={{ backgroundColor: '#059669', color: '#ffffff' }}
                                         onClick={() => setIsMaterialModalOpen(true)}
                                     >
                                         <Plus className="mr-1.5 size-3.5" /> Tambah Material
@@ -1961,7 +1962,8 @@ export default function PurchaseRequirementEdit({
                                 <MenuAction
                                     action="update"
                                     type="submit"
-                                    className="h-10 px-6 rounded-lg font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm"
+                                    className="h-10 px-6 rounded-lg font-bold bg-[#059669] hover:bg-[#047857] text-[#ffffff] text-white shadow-sm"
+                                    style={{ backgroundColor: '#059669', color: '#ffffff' }}
                                     disabled={isSubmitting}
                                 >
                                     {isSubmitting ? (

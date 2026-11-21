@@ -1839,7 +1839,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                             <div className="flex items-center gap-2 lg:col-span-3">
                                 <Button
                                     type="button"
-                                    className="h-9 flex-1 rounded-lg font-semibold bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs text-xs sm:text-sm"
+                                    className="h-9 flex-1 rounded-lg font-semibold bg-[#059669] hover:bg-[#047857] text-[#ffffff] text-white shadow-xs text-xs sm:text-sm"
+                                    style={{ backgroundColor: '#059669', color: '#ffffff' }}
                                     onClick={handleAddItem}
                                 >
                                     {editingItemId ? (
@@ -2105,7 +2106,8 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                             type="button"
                             onClick={handleSavePoIn}
                             disabled={isSubmitting}
-                            className="h-10 px-6 rounded-lg font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm w-full sm:w-auto"
+                            className="h-10 px-6 rounded-lg font-bold bg-[#059669] hover:bg-[#047857] text-[#ffffff] text-white shadow-sm w-full sm:w-auto"
+                            style={{ backgroundColor: '#059669', color: '#ffffff' }}
                         >
                             {isSubmitting ? (
                                 <>

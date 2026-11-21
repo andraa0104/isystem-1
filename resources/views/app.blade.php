@@ -31,6 +31,32 @@
                 background-color: #121212;
                 background-color: oklch(0.145 0 0);
             }
+
+            /* Cross-OS & Legacy Browser (Windows 7/8, Chrome <= 109) Compatibility Fallbacks */
+            .bg-emerald-600,
+            [class~="bg-emerald-600"] {
+                background-color: #059669 !important;
+            }
+            .hover\:bg-emerald-700:hover,
+            [class*="hover:bg-emerald-700"]:hover {
+                background-color: #047857 !important;
+            }
+            .bg-emerald-700,
+            [class~="bg-emerald-700"] {
+                background-color: #047857 !important;
+            }
+            .text-emerald-600,
+            [class~="text-emerald-600"] {
+                color: #059669 !important;
+            }
+            .text-emerald-700,
+            [class~="text-emerald-700"] {
+                color: #047857 !important;
+            }
+            .border-emerald-600,
+            [class~="border-emerald-600"] {
+                border-color: #059669 !important;
+            }
         </style>
 
         <title inertia>{{ config('app.name', 'Laravel') }}</title>
