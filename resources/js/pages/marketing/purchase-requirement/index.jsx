@@ -31,17 +31,23 @@ import {
     AlertCircle,
     AlertTriangle,
     BrainCircuit,
+    ChevronLeft,
+    ChevronRight,
     ClipboardCheck,
     Eye,
+    Filter,
     LayoutGrid,
     LayoutList,
     Pencil,
+    Plus,
     Printer,
+    RotateCcw,
     Search,
     ShieldCheck,
     Trash2,
     X,
 } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Swal from 'sweetalert2';
 
@@ -1742,146 +1748,166 @@ export default function PurchaseRequirementIndex({
         });
     };
 
+    const isCustomerOrMaterialFiltered = Boolean(
+        searchTerm ||
+        statusFilter !== 'outstanding' ||
+        tableDateFilter !== 'today' ||
+        tableStartDate ||
+        tableEndDate ||
+        (pageSize !== 5 && pageSize !== Infinity)
+    );
+
+    const handleResetMainFilter = () => {
+        setSearchTerm('');
+        setStatusFilter('all');
+        setTableDateFilter('all');
+        setTableStartDate('');
+        setTableEndDate('');
+        setPageSize(5);
+        setCurrentPage(1);
+    };
+
     return (
         <>
             <Head title="Purchase Requirement" />
-            {summaryError && <div role="alert" className="m-4 rounded-lg border border-destructive/40 p-3 text-sm"><p>{summaryError}</p><Button variant="outline" size="sm" onClick={() => fetchSummaryData(periodFilter)}>Coba lagi ringkasan</Button></div>}
-            <div className="flex h-full flex-1 flex-col gap-4 p-4">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                        <h1 className="text-xl font-semibold">
-                            Purchase Requirement
-                        </h1>
-                        <p className="text-sm text-muted-foreground">
-                            Ringkasan dan daftar PR
-                        </p>
+            {summaryError && (
+                <div role="alert" className="m-3 sm:m-4 rounded-xl border border-destructive/40 bg-destructive/10 p-3.5 text-xs sm:text-sm text-destructive flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                        <AlertCircle className="size-4 shrink-0" />
+                        <span>{summaryError}</span>
                     </div>
-                    <MenuAction
-                        action="create"
-                        type="button"
-                        onClick={() =>
-                            router.visit(
-                                '/marketing/purchase-requirement/create',
-                            )
-                        }
-                    >
-                        Tambah PR
-                    </MenuAction>
+                    <Button variant="outline" size="sm" className="h-7 text-xs border-destructive/40" onClick={() => fetchSummaryData(periodFilter)}>
+                        Coba lagi
+                    </Button>
                 </div>
+            )}
 
-                <div className="grid gap-4 md:grid-cols-3">
+            <div className="flex h-full min-w-0 flex-1 flex-col gap-3.5 p-3 sm:gap-4 sm:p-4">
+                {/* ─── 1. Header Banner & Action Bar ────────────────────────────── */}
+                <section className="rounded-xl border border-sidebar-border/70 bg-card p-4 sm:p-5 shadow-xs">
+                    <div className="flex flex-col gap-3.5 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-start gap-3">
+                            <div className="hidden sm:flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                <ClipboardCheck className="size-5" />
+                            </div>
+                            <div className="min-w-0">
+                                <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-foreground">
+                                    Purchase Requirement (PR)
+                                </h1>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    Kelola permintaan pembelian material, kontrol sisa alokasi PO, dan pantau realisasi barang.
+                                </p>
+                            </div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-2">
+                            <MenuAction
+                                action="create"
+                                type="button"
+                                className="h-9 px-3.5 gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-xs cursor-pointer"
+                                style={{ backgroundColor: '#059669', color: '#ffffff' }}
+                                onClick={() => router.visit('/marketing/purchase-requirement/create')}
+                            >
+                                <Plus className="size-4" />
+                                <span>Tambah PR</span>
+                            </MenuAction>
+                        </div>
+                    </div>
+                </section>
+
+                {/* ─── 2. Metric / Summary Cards ───────────────────────────────── */}
+                <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                    {/* Card 1: PR Outstanding */}
                     <button
                         type="button"
-                        onClick={() => {
-                            setIsOutstandingModalOpen(true);
-                        }}
-                        className="text-left"
+                        onClick={() => setIsOutstandingModalOpen(true)}
+                        className="group text-left focus:outline-none"
                     >
-                        <Card className="transition hover:border-amber-500/60 hover:shadow-md">
-                            <CardHeader className="pb-2">
-                                <div className="mb-3 inline-flex rounded-lg bg-muted p-2">
-                                    <ClipboardCheck className="size-4 text-amber-600" />
+                        <div className="h-full rounded-xl border border-sidebar-border/70 bg-card p-4 sm:p-5 shadow-xs transition-all duration-200 hover:border-amber-500/60 hover:shadow-md">
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="flex size-9 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20 group-hover:scale-105 transition-transform">
+                                    <ClipboardCheck className="size-4" />
                                 </div>
-                                <CardDescription className="text-xs tracking-wide uppercase">
+                                <span className="inline-flex items-center rounded-md border border-amber-500/25 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400 uppercase tracking-wide">
+                                    Outstanding
+                                </span>
+                            </div>
+
+                            <div className="mt-3.5">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                                     PR Outstanding
-                                </CardDescription>
-                                <CardTitle className="text-2xl font-semibold">
-                                    {summaryError ? '-' : summaryLoading ? (
-                                        <Skeleton className="h-8 w-16" />
-                                    ) : (
-                                        outstandingCountState
-                                    )}
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-xs text-muted-foreground">
-                                    Belum ada material dibuat PO
-                                </p>
-                                <div className="mt-1 text-sm font-semibold">
-                                    {summaryError ? '-' : summaryLoading ? (
-                                        <Skeleton className="h-5 w-24" />
-                                    ) : (
-                                        formatRupiah(outstandingTotalState || 0)
-                                    )}
+                                </span>
+                                <div className="mt-1 flex items-baseline gap-1.5">
+                                    <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground tabular-nums">
+                                        {summaryError ? '-' : summaryLoading ? <Skeleton className="h-8 w-16" /> : formatNumber(outstandingCountState)}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">Dokumen</span>
                                 </div>
-                            </CardContent>
-                        </Card>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Belum ada material yang dibuatkan PO
+                                </p>
+                                <div className="mt-2.5 pt-2 border-t border-sidebar-border/60 flex items-center justify-between text-xs">
+                                    <span className="text-muted-foreground">Total Nilai:</span>
+                                    <span className="font-bold text-foreground tabular-nums">
+                                        {summaryError ? '-' : summaryLoading ? <Skeleton className="h-4 w-20" /> : formatRupiah(outstandingTotalState || 0)}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
                     </button>
 
+                    {/* Card 2: PR Sisa PO */}
                     <button
                         type="button"
-                        onClick={() => {
-                            setIsSisaPoModalOpen(true);
-                        }}
-                        className="text-left"
+                        onClick={() => setIsSisaPoModalOpen(true)}
+                        className="group text-left focus:outline-none"
                     >
-                        <Card className="transition hover:border-rose-500/60 hover:shadow-md">
-                            <CardHeader className="pb-2">
-                                <div className="mb-3 inline-flex rounded-lg bg-muted p-2">
-                                    <AlertCircle className="size-4 text-rose-600" />
+                        <div className="h-full rounded-xl border border-sidebar-border/70 bg-card p-4 sm:p-5 shadow-xs transition-all duration-200 hover:border-rose-500/60 hover:shadow-md">
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="flex size-9 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20 group-hover:scale-105 transition-transform">
+                                    <AlertCircle className="size-4" />
                                 </div>
-                                <CardDescription className="text-xs tracking-wide uppercase">
+                                <span className="inline-flex items-center rounded-md border border-rose-500/25 bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold text-rose-700 dark:text-rose-400 uppercase tracking-wide">
+                                    Sisa Parsial
+                                </span>
+                            </div>
+
+                            <div className="mt-3.5">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                                     PR Sisa PO
-                                </CardDescription>
-                                <CardTitle className="text-2xl font-semibold">
-                                    {summaryError ? '-' : summaryLoading ? (
-                                        <Skeleton className="h-8 w-16" />
-                                    ) : (
-                                        sisaPoCountState
-                                    )}
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                                <p className="text-xs text-muted-foreground">
-                                    Masih ada sisa material belum dibuat PO
-                                </p>
-                                <div className="mt-1 text-sm font-semibold">
-                                    {summaryError ? '-' : summaryLoading ? (
-                                        <Skeleton className="h-5 w-24" />
-                                    ) : (
-                                        formatRupiah(sisaPoTotalState || 0)
-                                    )}
+                                </span>
+                                <div className="mt-1 flex items-baseline gap-1.5">
+                                    <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground tabular-nums">
+                                        {summaryError ? '-' : summaryLoading ? <Skeleton className="h-8 w-16" /> : formatNumber(sisaPoCountState)}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">Dokumen</span>
                                 </div>
-                            </CardContent>
-                        </Card>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Sebagian dibuat PO, ada sisa material
+                                </p>
+                                <div className="mt-2.5 pt-2 border-t border-sidebar-border/60 flex items-center justify-between text-xs">
+                                    <span className="text-muted-foreground">Total Nilai:</span>
+                                    <span className="font-bold text-foreground tabular-nums">
+                                        {summaryError ? '-' : summaryLoading ? <Skeleton className="h-4 w-20" /> : formatRupiah(sisaPoTotalState || 0)}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
                     </button>
 
-                    <Card
-                        className="cursor-pointer transition hover:border-emerald-500/60 hover:shadow-md"
-                        onClick={() => {
-                            setIsRealizedModalOpen(true);
-                        }}
+                    {/* Card 3: PR Terealisasi */}
+                    <div
+                        onClick={() => setIsRealizedModalOpen(true)}
+                        className="group text-left cursor-pointer focus:outline-none"
                     >
-                        <CardHeader className="pb-2">
-                            <div className="flex items-start justify-between gap-3">
-                                <div className="flex-1">
-                                    <div className="mb-3 inline-flex rounded-lg bg-muted p-2">
-                                        <ShieldCheck className="size-4 text-emerald-600" />
-                                    </div>
-                                    <CardDescription className="text-xs tracking-wide uppercase">
-                                        PR Terealisasi
-                                    </CardDescription>
-                                    <CardTitle className="text-2xl font-semibold">
-                                        {summaryError ? '-' : summaryLoading ? (
-                                            <Skeleton className="h-8 w-16" />
-                                        ) : (
-                                            realizedCountState
-                                        )}
-                                    </CardTitle>
-                                    <div className="mt-1 text-sm font-semibold">
-                                        {summaryError ? '-' : summaryLoading ? (
-                                            <Skeleton className="h-5 w-24" />
-                                        ) : (
-                                            formatRupiah(realizedTotalState)
-                                        )}
-                                    </div>
+                        <div className="h-full rounded-xl border border-sidebar-border/70 bg-card p-4 sm:p-5 shadow-xs transition-all duration-200 hover:border-emerald-500/60 hover:shadow-md">
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 group-hover:scale-105 transition-transform">
+                                    <ShieldCheck className="size-4" />
                                 </div>
-                                <div
-                                    className="flex flex-col items-end gap-2"
-                                    onClick={(e) => e.stopPropagation()}
-                                >
+                                <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
                                     <select
-                                        className="h-8 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs shadow-sm"
+                                        className="h-7 rounded-lg border border-sidebar-border/70 bg-background px-2 text-[11px] font-semibold text-muted-foreground shadow-xs"
                                         value={periodFilter}
                                         onChange={(e) => {
                                             const val = e.target.value;
@@ -1890,192 +1916,212 @@ export default function PurchaseRequirementIndex({
                                         }}
                                     >
                                         <option value="today">Hari Ini</option>
-                                        <option value="this_week">
-                                            Minggu Ini
-                                        </option>
-                                        <option value="this_month">
-                                            Bulan Ini
-                                        </option>
-                                        <option value="this_year">
-                                            Tahun Ini
-                                        </option>
+                                        <option value="this_week">Minggu Ini</option>
+                                        <option value="this_month">Bulan Ini</option>
+                                        <option value="this_year">Tahun Ini</option>
                                     </select>
-                                    <Button
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-8 w-8"
-                                        onClick={(e) => {
-                                            e.stopPropagation();
-                                            setIsRealizedModalOpen(true);
-                                                        }}
-                                        title="Lihat daftar PR terealisasi"
-                                    >
-                                        <Eye className="h-4 w-4" />
-                                    </Button>
+                                    <span className="inline-flex items-center rounded-md border border-emerald-500/25 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide">
+                                        Selesai
+                                    </span>
                                 </div>
                             </div>
-                        </CardHeader>
-                        <CardContent>
-                            <p className="text-xs text-muted-foreground">
-                                Semua material sudah dibuat PO
-                            </p>
-                        </CardContent>
-                    </Card>
-                </div>
 
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex w-full gap-1 rounded-lg border border-sidebar-border/70 bg-muted/30 p-1">
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('customer')}
-                            className={`rounded-md px-3 py-2 text-sm font-semibold ${activeTab === 'customer' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
-                        >
-                            Data PR Customer
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setActiveTab('material')}
-                            className={`rounded-md px-3 py-2 text-sm font-semibold ${activeTab === 'material' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
-                        >
-                            Data PR Material
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => {
-                                if (!insightLoadedRef.current.stock) {
-                                    setStockInsightLoading(true);
-                                }
-                                if (!insightLoadedRef.current.opex) {
-                                    setOpexInsightLoading(true);
-                                }
-                                setActiveTab('insight');
-                            }}
-                            className={`rounded-md px-3 py-2 text-sm font-semibold ${activeTab === 'insight' ? 'bg-background shadow-sm' : 'text-muted-foreground'}`}
-                        >
-                            Insight & Recommendation
-                        </button>
+                            <div className="mt-3.5">
+                                <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                                    PR Terealisasi
+                                </span>
+                                <div className="mt-1 flex items-baseline gap-1.5">
+                                    <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-foreground tabular-nums">
+                                        {summaryError ? '-' : summaryLoading ? <Skeleton className="h-8 w-16" /> : formatNumber(realizedCountState)}
+                                    </span>
+                                    <span className="text-xs text-muted-foreground">Dokumen</span>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-1">
+                                    Seluruh material sudah dibuatkan PO
+                                </p>
+                                <div className="mt-2.5 pt-2 border-t border-sidebar-border/60 flex items-center justify-between text-xs">
+                                    <span className="text-muted-foreground">Total Nilai:</span>
+                                    <span className="font-bold text-foreground tabular-nums">
+                                        {summaryError ? '-' : summaryLoading ? <Skeleton className="h-4 w-20" /> : formatRupiah(realizedTotalState || 0)}
+                                    </span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div
-                        className={`flex flex-wrap items-center gap-3 ${
-                            activeTab === 'insight' ? 'hidden' : ''
-                        }`}
-                    >
-                        <label className="text-sm text-muted-foreground">
-                            Tampilkan
-                            <select
-                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                value={pageSize === Infinity ? 'all' : pageSize}
-                                onChange={(e) =>
-                                    setPageSize(
-                                        e.target.value === 'all'
-                                            ? Infinity
-                                            : Number(e.target.value),
-                                    )
-                                }
+                </section>
+
+                {/* ─── 3. Navigation Tabs, Search & Filters ─────────────────────── */}
+                <section className="space-y-3">
+                    <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
+                        {/* Tab Switcher */}
+                        <div className="flex w-full lg:w-auto p-1 rounded-xl border border-sidebar-border/70 bg-muted/40 text-xs font-semibold">
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('customer')}
+                                className={cn(
+                                    'flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all',
+                                    activeTab === 'customer'
+                                        ? 'bg-background text-foreground shadow-xs font-bold'
+                                        : 'text-muted-foreground hover:text-foreground'
+                                )}
                             >
-                                <option value={5}>5</option>
-                                <option value={10}>10</option>
-                                <option value={25}>25</option>
-                                <option value={50}>50</option>
-                                <option value="all">Semua</option>
-                            </select>
-                        </label>
-                        <label className="text-sm text-muted-foreground">
-                            Status
-                            <select
-                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                value={statusFilter}
-                                onChange={(event) =>
-                                    setStatusFilter(event.target.value)
-                                }
+                                <ClipboardCheck className="size-3.5" />
+                                <span>Data PR Customer</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setActiveTab('material')}
+                                className={cn(
+                                    'flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all',
+                                    activeTab === 'material'
+                                        ? 'bg-background text-foreground shadow-xs font-bold'
+                                        : 'text-muted-foreground hover:text-foreground'
+                                )}
                             >
-                                <option value="all">Semua Data</option>
-                                <option value="outstanding">
-                                    PR Outstanding
-                                </option>
-                                <option value="sisa_po">PR Sisa PO</option>
-                                <option value="realized">PR Terealisasi</option>
-                            </select>
-                        </label>
-                        <label className="text-sm text-muted-foreground">
-                            Tanggal
-                            <select
-                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                value={tableDateFilter}
-                                onChange={(event) =>
-                                    setTableDateFilter(event.target.value)
-                                }
+                                <LayoutList className="size-3.5" />
+                                <span>Data PR Material</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    if (!insightLoadedRef.current.stock) setStockInsightLoading(true);
+                                    if (!insightLoadedRef.current.opex) setOpexInsightLoading(true);
+                                    setActiveTab('insight');
+                                }}
+                                className={cn(
+                                    'flex-1 lg:flex-none flex items-center justify-center gap-2 px-4 py-2 rounded-lg transition-all',
+                                    activeTab === 'insight'
+                                        ? 'bg-background text-foreground shadow-xs font-bold'
+                                        : 'text-muted-foreground hover:text-foreground'
+                                )}
                             >
-                                <option value="today">Hari Ini</option>
-                                <option value="this_week">Minggu Ini</option>
-                                <option value="this_month">Bulan Ini</option>
-                                <option value="this_year">Tahun Ini</option>
-                                <option value="range">Range Tanggal</option>
-                                <option value="all">Semua Data</option>
-                            </select>
-                        </label>
-                        {tableDateFilter === 'range' && (
-                            <>
-                                <label className="text-sm text-muted-foreground">
-                                    Dari
+                                <BrainCircuit className="size-3.5" />
+                                <span>Insight & Rekomendasi</span>
+                            </button>
+                        </div>
+
+                        {/* Search Bar (When not in insight tab) */}
+                        {activeTab !== 'insight' && (
+                            <div className="flex items-center gap-2">
+                                <div className="relative w-full sm:w-72 lg:w-80">
+                                    <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
                                     <input
-                                        type="date"
-                                        className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                        value={tableStartDate}
-                                        onChange={(event) =>
-                                            setTableStartDate(
-                                                event.target.value,
-                                            )
-                                        }
+                                        type="search"
+                                        className="h-9 w-full rounded-lg border border-sidebar-border/70 bg-background pl-8 pr-3 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+                                        placeholder={activeTab === 'material' ? 'Cari material...' : 'Cari customer, no PR, ref PO...'}
+                                        value={searchTerm}
+                                        onChange={(e) => setSearchTerm(e.target.value)}
                                     />
-                                </label>
-                                <label className="text-sm text-muted-foreground">
-                                    Sampai
-                                    <input
-                                        type="date"
-                                        className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                        value={tableEndDate}
-                                        onChange={(event) =>
-                                            setTableEndDate(event.target.value)
-                                        }
-                                    />
-                                </label>
-                            </>
+                                </div>
+                            </div>
                         )}
                     </div>
-                    <label
-                        className={`text-sm text-muted-foreground ${
-                            activeTab === 'insight' ? 'hidden' : ''
-                        }`}
-                    >
-                        Cari
-                        <input
-                            type="search"
-                            className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
-                            placeholder={
-                                activeTab === 'material'
-                                    ? 'Cari material...'
-                                    : 'Cari customer, no PR, ref PO...'
-                            }
-                            value={searchTerm}
-                            onChange={(event) =>
-                                setSearchTerm(event.target.value)
-                            }
-                        />
-                    </label>
-                </div>
 
+                    {/* Filter Controls Bar (Only when not in insight tab) */}
+                    {activeTab !== 'insight' && (
+                        <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-sidebar-border/70 bg-card p-3 shadow-xs">
+                            <div className="flex flex-wrap items-center gap-2 text-xs">
+                                <div className="flex items-center gap-1.5 text-muted-foreground font-semibold mr-1">
+                                    <Filter className="size-3.5" />
+                                    <span>Filter:</span>
+                                </div>
+
+                                {/* Status Filter */}
+                                <div className="flex items-center gap-1">
+                                    <span className="text-muted-foreground text-[11px]">Status:</span>
+                                    <select
+                                        className="h-8 rounded-lg border border-sidebar-border/70 bg-background px-2.5 text-xs font-medium text-foreground shadow-xs"
+                                        value={statusFilter}
+                                        onChange={(e) => setStatusFilter(e.target.value)}
+                                    >
+                                        <option value="all">Semua Status</option>
+                                        <option value="outstanding">PR Outstanding</option>
+                                        <option value="sisa_po">PR Sisa PO</option>
+                                        <option value="realized">PR Terealisasi</option>
+                                    </select>
+                                </div>
+
+                                {/* Tanggal Filter */}
+                                <div className="flex items-center gap-1">
+                                    <span className="text-muted-foreground text-[11px]">Tanggal:</span>
+                                    <select
+                                        className="h-8 rounded-lg border border-sidebar-border/70 bg-background px-2.5 text-xs font-medium text-foreground shadow-xs"
+                                        value={tableDateFilter}
+                                        onChange={(e) => setTableDateFilter(e.target.value)}
+                                    >
+                                        <option value="today">Hari Ini</option>
+                                        <option value="this_week">Minggu Ini</option>
+                                        <option value="this_month">Bulan Ini</option>
+                                        <option value="this_year">Tahun Ini</option>
+                                        <option value="range">Range Tanggal</option>
+                                        <option value="all">Semua Data</option>
+                                    </select>
+                                </div>
+
+                                {/* Date Range Picker Inputs */}
+                                {tableDateFilter === 'range' && (
+                                    <div className="flex items-center gap-1.5 bg-muted/40 p-1 rounded-lg border border-sidebar-border/70">
+                                        <input
+                                            type="date"
+                                            className="h-7 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs text-foreground"
+                                            value={tableStartDate}
+                                            onChange={(e) => setTableStartDate(e.target.value)}
+                                        />
+                                        <span className="text-xs text-muted-foreground">-</span>
+                                        <input
+                                            type="date"
+                                            className="h-7 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs text-foreground"
+                                            value={tableEndDate}
+                                            onChange={(e) => setTableEndDate(e.target.value)}
+                                        />
+                                    </div>
+                                )}
+
+                                {isCustomerOrMaterialFiltered && (
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={handleResetMainFilter}
+                                        className="h-8 gap-1 px-2.5 text-xs text-muted-foreground hover:text-foreground"
+                                    >
+                                        <RotateCcw className="size-3" />
+                                        <span>Reset Filter</span>
+                                    </Button>
+                                )}
+                            </div>
+
+                            {/* Page size selector */}
+                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                <span>Tampilkan:</span>
+                                <select
+                                    className="h-8 rounded-lg border border-sidebar-border/70 bg-background px-2 text-xs font-medium text-foreground shadow-xs"
+                                    value={pageSize === Infinity ? 'all' : pageSize}
+                                    onChange={(e) =>
+                                        setPageSize(e.target.value === 'all' ? Infinity : Number(e.target.value))
+                                    }
+                                >
+                                    <option value={5}>5 baris</option>
+                                    <option value={10}>10 baris</option>
+                                    <option value={25}>25 baris</option>
+                                    <option value={50}>50 baris</option>
+                                    <option value="all">Semua</option>
+                                </select>
+                            </div>
+                        </div>
+                    )}
+                </section>
+
+                {/* ─── 4. Main Content: Insight Tab or Main Table ───────────────── */}
                 {activeTab === 'insight' ? (
                     <section className="w-full space-y-4">
-                        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4">
-                            <h2 className="flex items-center gap-2 font-semibold">
+                        <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 sm:p-5 shadow-xs">
+                            <h2 className="flex items-center gap-2 text-sm sm:text-base font-bold text-foreground">
                                 <BrainCircuit className="size-5 text-primary" />
                                 Rekomendasi Purchase Requirement
                             </h2>
-                            <p className="mt-1 text-sm text-muted-foreground">
-                                Dihitung dari tren penjualan, landed cost PO
-                                termasuk alokasi biaya kirim, dan pola pembelian
-                                PR Opex.
+                            <p className="mt-1 text-xs text-muted-foreground">
+                                Dihitung dari tren penjualan, landed cost PO termasuk alokasi biaya kirim, dan pola pembelian PR Opex.
                             </p>
                         </div>
                         <div className="grid gap-4 xl:grid-cols-2">
@@ -2101,204 +2147,220 @@ export default function PurchaseRequirementIndex({
                     </section>
                 ) : (
                     <>
-                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                            <table className="w-full table-auto text-sm">
-                                <thead className="bg-muted/50 text-muted-foreground">
-                                    <tr>
-                                        <th className="w-px px-1 py-3 text-left whitespace-nowrap">
-                                            No PR
-                                        </th>
-                                        <th className="w-px px-1 py-3 text-left whitespace-nowrap">
-                                            Date
-                                        </th>
-                                        {activeTab === 'material' ? (
-                                            <>
-                                                <th className="px-1 py-3 text-left">
-                                                    Ref PO
-                                                </th>
-                                                <th className="px-1 py-3 text-left">
-                                                    Customer
-                                                </th>
-                                                <th className="px-1 py-3 text-left">
-                                                    Material
-                                                </th>
-                                                <th className="px-1 py-3 text-right">
-                                                    Qty
-                                                </th>
-                                                <th className="px-1 py-3 text-right">
-                                                    Sisa PR
-                                                </th>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <th className="w-[40%] min-w-72 px-1 py-3 text-left">
-                                                    Customer
-                                                </th>
-                                                <th className="w-max px-2 py-3 text-left whitespace-nowrap">
-                                                    Ref PO
-                                                </th>
-                                                <th className="px-2 py-3 text-left">
-                                                    Jenis PR
-                                                </th>
-                                                <th className="w-28 px-2 py-3 text-left">
-                                                    Action
-                                                </th>
-                                            </>
-                                        )}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <PlainTableStateRows
-                                        error={tableError}
-                                        onRetry={() => fetchTableData(tableDateFilter, statusFilter, tableStartDate, tableEndDate)}
-                                        columns={
-                                            activeTab === 'material' ? 8 : 5
-                                        }
-                                        loading={
-                                            tableLoading &&
-                                            displayedPurchaseRequirements.length ===
-                                                0
-                                        }
-                                        isEmpty={
-                                            !tableLoading &&
-                                            displayedPurchaseRequirements.length ===
-                                                0
-                                        }
-                                        emptyMessage="Belum ada data PR."
-                                    />
-                                    {displayedPurchaseRequirements.map(
-                                        (item) => (
+                        {/* Desktop Table View */}
+                        <div className="rounded-xl border border-sidebar-border/70 bg-card overflow-hidden shadow-xs">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-xs border-collapse">
+                                    <thead className="bg-muted/50 text-[11px] font-bold text-muted-foreground uppercase tracking-wider border-b-2 border-slate-300 dark:border-slate-700">
+                                        <tr>
+                                            <th className="w-10 px-2 py-2.5 text-center whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                No
+                                            </th>
+                                            <th className="w-px px-2.5 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                No PR
+                                            </th>
+                                            <th className="w-px px-2.5 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                Date
+                                            </th>
+                                            {activeTab === 'material' ? (
+                                                <>
+                                                    <th className="w-px px-2.5 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                        Ref PO
+                                                    </th>
+                                                    <th className="px-2.5 py-2.5 text-left border-b border-slate-300 dark:border-slate-700">
+                                                        Customer
+                                                    </th>
+                                                    <th className="px-2.5 py-2.5 text-left border-b border-slate-300 dark:border-slate-700">
+                                                        Material
+                                                    </th>
+                                                    <th className="w-20 px-2.5 py-2.5 text-right whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                        Qty
+                                                    </th>
+                                                    <th className="w-20 px-2.5 py-2.5 text-right whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                        Sisa PR
+                                                    </th>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <th className="px-2.5 py-2.5 text-left border-b border-slate-300 dark:border-slate-700">
+                                                        Customer
+                                                    </th>
+                                                    <th className="w-px px-2.5 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                        Ref PO
+                                                    </th>
+                                                    <th className="w-28 px-2.5 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                        Jenis PR
+                                                    </th>
+                                                    <th className="w-20 px-2.5 py-2.5 text-center whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                        Aksi
+                                                    </th>
+                                                </>
+                                            )}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-300 dark:divide-slate-700">
+                                        <PlainTableStateRows
+                                            error={tableError}
+                                            onRetry={() =>
+                                                fetchTableData(
+                                                    tableDateFilter,
+                                                    statusFilter,
+                                                    tableStartDate,
+                                                    tableEndDate,
+                                                )
+                                            }
+                                            loading={tableLoading}
+                                            columns={activeTab === 'material' ? 8 : 7}
+                                            rows={pageSize === Infinity ? 5 : pageSize}
+                                            isEmpty={!tableLoading && displayedPurchaseRequirements.length === 0}
+                                            emptyMessage={
+                                                tableError ||
+                                                (activeTab === 'material'
+                                                    ? 'Belum ada data material PR.'
+                                                    : 'Belum ada data PR.')
+                                            }
+                                        />
+                                        {displayedPurchaseRequirements.map((item, index) => (
                                             <tr
-                                                key={`${activeTab}-${item.no_pr}-${item.material ?? ''}`}
-                                                className="border-t border-sidebar-border/70"
+                                                key={
+                                                    activeTab === 'material'
+                                                        ? `${item.no_pr}-${item.material}-${index}`
+                                                        : item.no_pr
+                                                }
+                                                className="border-b border-slate-300 dark:border-slate-700 transition-colors hover:bg-muted/40"
                                             >
-                                                <td className="w-px px-1 py-3 whitespace-nowrap">
-                                                    {item.no_pr}
+                                                <td className="w-10 px-2 py-2.5 text-center text-muted-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                    {pageSize === Infinity
+                                                        ? index + 1
+                                                        : (currentPage - 1) * pageSize + index + 1}
                                                 </td>
-                                                <td className="w-px px-1 py-3 whitespace-nowrap">
+                                                <td className="w-px px-2.5 py-2.5 font-semibold text-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                    <span>{item.no_pr}</span>
+                                                </td>
+                                                <td className="w-px px-2.5 py-2.5 text-muted-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                                     {item.date}
                                                 </td>
                                                 {activeTab === 'material' ? (
                                                     <>
-                                                        <td className="px-1 py-3 whitespace-nowrap">
+                                                        <td className="w-px px-2.5 py-2.5 font-medium text-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                                             {item.ref_po ?? '-'}
                                                         </td>
-                                                        <td className="px-1 py-3">
+                                                        <td className="px-2.5 py-2.5 text-foreground border-b border-slate-300 dark:border-slate-700">
                                                             {renderCustomersWithOverdueMarkers(
                                                                 item.for_customer,
                                                             )}
                                                         </td>
-                                                        <td className="px-1 py-3">
-                                                            {item.material ??
-                                                                '-'}
+                                                        <td className="px-2.5 py-2.5 font-medium text-foreground border-b border-slate-300 dark:border-slate-700">
+                                                            {item.material ?? '-'}
                                                         </td>
-                                                        <td className="px-1 py-3 text-right whitespace-nowrap">
-                                                            {item.qty ?? 0}{' '}
-                                                            {item.unit ?? ''}
+                                                        <td className="w-20 px-2.5 py-2.5 text-right font-bold text-foreground tabular-nums whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                            {item.qty ?? 0}{' '}{item.unit ?? ''}
                                                         </td>
-                                                        <td className="px-1 py-3 text-right whitespace-nowrap">
-                                                            {item.sisa_pr ?? 0}
+                                                        <td className="w-20 px-2.5 py-2.5 text-right whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                            <span className={cn(
+                                                                'font-bold tabular-nums px-2 py-0.5 rounded-md text-xs',
+                                                                Number(item.sisa_pr ?? 0) > 0
+                                                                    ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+                                                                    : 'bg-muted text-muted-foreground'
+                                                            )}>
+                                                                {item.sisa_pr ?? 0}
+                                                            </span>
                                                         </td>
                                                     </>
                                                 ) : (
                                                     <>
-                                                        <td className="w-[40%] min-w-72 px-1 py-3 align-top [overflow-wrap:anywhere] whitespace-normal">
+                                                        <td className="px-2.5 py-2.5 text-foreground border-b border-slate-300 dark:border-slate-700">
                                                             {renderCustomersWithOverdueMarkers(
                                                                 item.for_customer,
                                                             )}
                                                         </td>
-                                                        <td className="w-max px-2 py-3 align-top whitespace-nowrap">
-                                                            {renderRefPoValues(
-                                                                item.ref_po,
-                                                            )}
+                                                        <td className="w-px px-2.5 py-2.5 text-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                            {renderRefPoValues(item.ref_po)}
                                                         </td>
-                                                        <td className="px-2 py-3 align-top text-sm [overflow-wrap:anywhere] whitespace-normal">
-                                                            {item.jenis_pr ??
-                                                                '-'}
+                                                        <td className="w-28 px-2.5 py-2.5 text-muted-foreground text-xs whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                            <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 font-medium text-foreground">
+                                                                {item.jenis_pr ?? '-'}
+                                                            </span>
                                                         </td>
-                                                        <td className="w-28 px-2 py-3 align-top whitespace-nowrap">
-                                                            <div className="flex min-w-max items-center gap-2">
-                                                                <button
+                                                        <td className="w-20 px-2.5 py-2.5 whitespace-nowrap text-center border-b border-slate-300 dark:border-slate-700">
+                                                            <div className="flex items-center justify-center gap-1">
+                                                                <Button
                                                                     type="button"
-                                                                    onClick={() =>
-                                                                        handleOpenModal(
-                                                                            item,
-                                                                        )
-                                                                    }
-                                                                    className="text-muted-foreground transition hover:text-foreground"
-                                                                    title="Lihat"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="h-7 w-7 p-0 rounded-md border-sidebar-border/70 hover:bg-emerald-500/15 hover:text-emerald-600 dark:hover:text-emerald-400 cursor-pointer"
+                                                                    onClick={() => handleOpenModal(item)}
+                                                                    title="Lihat Detail PR"
                                                                 >
-                                                                    <Eye className="size-4" />
-                                                                </button>
+                                                                    <Eye className="size-3.5 text-muted-foreground" />
+                                                                </Button>
                                                                 <a
                                                                     href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/print`}
-                                                                    className="text-muted-foreground transition hover:text-foreground"
-                                                                    title="Cetak"
                                                                     target="_blank"
                                                                     rel="noreferrer"
+                                                                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sidebar-border/70 bg-background text-muted-foreground shadow-xs transition-colors hover:bg-teal-500/15 hover:text-teal-600 dark:hover:text-teal-400 cursor-pointer"
+                                                                    title="Print Dokumen PR"
                                                                 >
-                                                                    <Printer className="size-4" />
+                                                                    <Printer className="size-3.5" />
                                                                 </a>
                                                             </div>
                                                         </td>
                                                     </>
                                                 )}
                                             </tr>
-                                        ),
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
-
-                        {pageSize !== Infinity && totalItems > 0 && (
-                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                <span>
-                                    Menampilkan{' '}
-                                    {Math.min(
-                                        (currentPage - 1) * pageSize + 1,
-                                        totalItems,
-                                    )}
-                                    -
-                                    {Math.min(
-                                        currentPage * pageSize,
-                                        totalItems,
-                                    )}{' '}
-                                    dari {totalItems} data
-                                </span>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setCurrentPage((page) =>
-                                                Math.max(1, page - 1),
-                                            )
-                                        }
-                                        disabled={currentPage === 1}
-                                    >
-                                        Sebelumnya
-                                    </Button>
-                                    <span className="text-sm text-muted-foreground">
-                                        Halaman {currentPage} dari {totalPages}
-                                    </span>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setCurrentPage((page) =>
-                                                Math.min(totalPages, page + 1),
-                                            )
-                                        }
-                                        disabled={currentPage === totalPages}
-                                    >
-                                        Berikutnya
-                                    </Button>
-                                </div>
+                                        ))}
+                                    </tbody>
+                                </table>
                             </div>
-                        )}
+
+                            {/* Pagination Section */}
+                            {pageSize !== Infinity && totalItems > 0 && (
+                                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-sidebar-border/70 bg-card px-4 py-3 text-xs text-muted-foreground">
+                                    <span>
+                                        Menampilkan{' '}
+                                        <span className="font-semibold text-foreground">
+                                            {Math.min((currentPage - 1) * pageSize + 1, totalItems)}
+                                        </span>
+                                        {' '}-{' '}
+                                        <span className="font-semibold text-foreground">
+                                            {Math.min(currentPage * pageSize, totalItems)}
+                                        </span>
+                                        {' '}dari{' '}
+                                        <span className="font-semibold text-foreground">{totalItems}</span>
+                                        {' '}data
+                                    </span>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8 gap-1 rounded-lg px-3 text-xs font-semibold shadow-xs"
+                                            onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                                            disabled={currentPage === 1}
+                                        >
+                                            <ChevronLeft className="size-3.5" />
+                                            <span>Sebelumnya</span>
+                                        </Button>
+                                        <span className="text-xs font-medium text-foreground px-1">
+                                            {currentPage} / {totalPages}
+                                        </span>
+                                        <Button
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8 gap-1 rounded-lg px-3 text-xs font-semibold shadow-xs"
+                                            onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                                            disabled={currentPage === totalPages}
+                                        >
+                                            <span>Berikutnya</span>
+                                            <ChevronRight className="size-3.5" />
+                                        </Button>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </>
                 )}
 
+                {/* ─── 5. DETAIL PR MODAL (Dialog) ─────────────────────────────── */}
                 <Dialog
                     open={isModalOpen}
                     onOpenChange={(open) => {
@@ -2314,181 +2376,180 @@ export default function PurchaseRequirementIndex({
                         }
                     }}
                 >
-                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
-                        <DialogHeader>
-                            <DialogTitle>
-                                Detail Purchase Requirement
-                            </DialogTitle>
-                            <DialogDescription>
-                                Menampilkan informasi header dan material pada
-                                PR.
-                            </DialogDescription>
+                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none bg-background p-4 sm:p-6">
+                        <DialogHeader className="border-b border-sidebar-border/70 pb-4">
+                            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                                <div className="flex items-center gap-3">
+                                    <div className="flex size-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                        <ClipboardCheck className="size-5" />
+                                    </div>
+                                    <div>
+                                        <DialogTitle className="text-lg sm:text-xl font-bold text-foreground">
+                                            Detail Purchase Requirement
+                                        </DialogTitle>
+                                        <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                                            Informasi dokumen header, daftar customer/PO, dan rincian material PR.
+                                        </DialogDescription>
+                                    </div>
+                                </div>
+                                {selectedPr && (
+                                    <div className="flex items-center gap-2">
+                                        <a
+                                            href={`/marketing/purchase-requirement/${encodeURIComponent(selectedPr.no_pr)}/print`}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-sidebar-border/70 bg-card px-3 text-xs font-semibold text-foreground shadow-xs hover:bg-muted"
+                                        >
+                                            <Printer className="size-3.5" />
+                                            <span>Cetak Dokumen</span>
+                                        </a>
+                                    </div>
+                                )}
+                            </div>
                         </DialogHeader>
 
-                        {!selectedPr && (
-                            <p className="text-sm text-muted-foreground">
-                                Data tidak tersedia.
-                            </p>
-                        )}
-
-                        {selectedPr && (
-                            <div className="flex flex-col gap-6 text-sm">
-                                <div className="grid gap-2">
-                                    <div className="grid grid-cols-[150px_1fr] gap-2">
-                                        <span className="text-muted-foreground">
-                                            No PR
-                                        </span>
-                                        <span>
-                                            {renderValue(selectedPr.no_pr)}
-                                        </span>
-                                    </div>
-                                    <div className="grid grid-cols-[150px_1fr] gap-2">
-                                        <span className="text-muted-foreground">
-                                            Date
-                                        </span>
-                                        <span>
-                                            {renderValue(selectedPr.date)}
-                                        </span>
-                                    </div>
-                                    {uniqueCustomerPOs.length > 1 ? (
-                                        <div className="mt-2 grid grid-cols-[150px_1fr] items-start gap-2">
-                                            <span className="mt-2 text-muted-foreground">
-                                                Customer / PO
+                        {!selectedPr ? (
+                            <p className="text-xs text-muted-foreground py-6 text-center">Data tidak tersedia.</p>
+                        ) : (
+                            <div className="flex flex-col gap-5 pt-2 text-xs">
+                                {/* Header Details Card */}
+                                <div className="rounded-xl border border-sidebar-border/70 bg-card p-4 sm:p-5 shadow-xs">
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                                        <div>
+                                            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                No PR
                                             </span>
-                                            <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                                            <p className="text-sm font-bold text-foreground mt-0.5">
+                                                {renderValue(selectedPr.no_pr)}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                Tanggal Dokumen
+                                            </span>
+                                            <p className="text-sm font-semibold text-foreground mt-0.5">
+                                                {renderValue(selectedPr.date)}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                Jenis PR
+                                            </span>
+                                            <p className="text-sm font-semibold text-primary mt-0.5">
+                                                {selectedPr.jenis_pr || '-'}
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                Payment Term
+                                            </span>
+                                            <p className="text-sm font-semibold text-foreground mt-0.5">
+                                                {getValue(selectedPr, ['payment', 'Payment', 'payment_term']) !== '-'
+                                                    ? getValue(selectedPr, ['payment', 'Payment', 'payment_term'])
+                                                    : getValue({ payment: detailMeta.payment }, ['payment', 'Payment', 'payment_term'])}
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    {/* Customer / PO section */}
+                                    <div className="mt-4 pt-3 border-t border-sidebar-border/60">
+                                        <span className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                                            Customer & Ref PO
+                                        </span>
+                                        {uniqueCustomerPOs.length > 1 ? (
+                                            <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3">
                                                 {uniqueCustomerPOs.map((po) => (
                                                     <div
                                                         key={po.ref_po}
-                                                        className="flex items-center justify-between gap-3 rounded-lg border bg-muted/20 p-3"
+                                                        className="flex items-center justify-between gap-3 rounded-lg border border-sidebar-border/70 bg-muted/20 p-2.5"
                                                     >
                                                         <div className="min-w-0">
-                                                            <div className="text-sm font-medium break-words whitespace-normal">
+                                                            <div className="text-xs font-bold text-foreground truncate">
                                                                 {po.ref_po}
                                                             </div>
-                                                            <div className="text-xs text-muted-foreground uppercase">
-                                                                {renderCustomerWithOverdueMarker(
-                                                                    po.customer,
-                                                                )}
+                                                            <div className="text-[11px] text-muted-foreground uppercase mt-0.5">
+                                                                {renderCustomerWithOverdueMarker(po.customer)}
                                                             </div>
                                                         </div>
                                                     </div>
                                                 ))}
                                             </div>
-                                        </div>
-                                    ) : (
-                                        <>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">
-                                                    Customer
-                                                </span>
+                                        ) : (
+                                            <div className="mt-1 flex flex-wrap items-center gap-4 text-xs">
                                                 <div>
-                                                    {renderCustomersWithOverdueMarkers(
-                                                        selectedPr.for_customer,
-                                                    )}
+                                                    <span className="text-muted-foreground">Customer: </span>
+                                                    <span className="font-semibold text-foreground">
+                                                        {renderCustomersWithOverdueMarkers(selectedPr.for_customer)}
+                                                    </span>
+                                                </div>
+                                                <div>
+                                                    <span className="text-muted-foreground">Ref PO: </span>
+                                                    <span className="font-semibold text-foreground">
+                                                        {renderValue(selectedPr.ref_po)}
+                                                    </span>
                                                 </div>
                                             </div>
-                                            <div className="grid grid-cols-[150px_1fr] gap-2">
-                                                <span className="text-muted-foreground">
-                                                    Ref PO
-                                                </span>
-                                                <span className="[overflow-wrap:anywhere] break-words whitespace-normal">
-                                                    {renderValue(
-                                                        selectedPr.ref_po,
-                                                    )}
-                                                </span>
-                                            </div>
-                                        </>
-                                    )}
-                                    {selectedPr.jenis_pr && (
-                                        <div className="grid grid-cols-[150px_1fr] gap-2">
-                                            <span className="text-muted-foreground">
-                                                Jenis PR
-                                            </span>
-                                            <span className="font-medium text-primary">
-                                                {selectedPr.jenis_pr}
-                                            </span>
-                                        </div>
-                                    )}
-                                    <div className="grid grid-cols-[150px_1fr] gap-2">
-                                        <span className="text-muted-foreground">
-                                            Payment Term
-                                        </span>
-                                        <span>
-                                            {getValue(selectedPr, [
-                                                'payment',
-                                                'Payment',
-                                                'payment_term',
-                                            ]) !== '-'
-                                                ? getValue(selectedPr, [
-                                                      'payment',
-                                                      'Payment',
-                                                      'payment_term',
-                                                  ])
-                                                : getValue(
-                                                      { payment: detailMeta.payment },
-                                                      [
-                                                          'payment',
-                                                          'Payment',
-                                                          'payment_term',
-                                                      ],
-                                                  )}
-                                        </span>
+                                        )}
                                     </div>
                                 </div>
 
+                                {/* Material Details Section */}
                                 <div className="space-y-3">
-                                    <h3 className="text-base font-semibold">
-                                        Data Material
-                                    </h3>
-                                    {!detailLoading && !detailError && <>
-                                        <PrFulfillmentPanel details={displayedMaterialDetails} />
-                                        <PrOrderHistory key={selectedPr.no_pr} noPr={selectedPr.no_pr} />
-                                    </>}
+                                    <div className="flex items-center justify-between">
+                                        <h3 className="text-sm sm:text-base font-bold text-foreground">
+                                            Rincian Material PR
+                                        </h3>
+                                    </div>
+
+                                    {!detailLoading && !detailError && (
+                                        <>
+                                            <PrFulfillmentPanel details={displayedMaterialDetails} />
+                                            <PrOrderHistory key={selectedPr.no_pr} noPr={selectedPr.no_pr} />
+                                        </>
+                                    )}
+
                                     {materialTabs.length > 0 && (
-                                        <div className="mt-2 mb-2 flex border-b border-sidebar-border/70">
+                                        <div className="flex flex-wrap gap-1 border-b border-sidebar-border/70 pb-1">
                                             {materialTabs.map((tab) => (
                                                 <button
                                                     key={tab}
                                                     type="button"
                                                     onClick={() => {
-                                                        setActiveMaterialTab(
-                                                            tab,
-                                                        );
-                                                        setMaterialCurrentPage(
-                                                            1,
-                                                        );
+                                                        setActiveMaterialTab(tab);
+                                                        setMaterialCurrentPage(1);
                                                     }}
-                                                    className={`-mb-[1px] border-b-2 px-4 py-2 text-sm font-medium transition-colors ${
-                                                        activeMaterialTab ===
-                                                        tab
-                                                            ? 'border-primary text-foreground'
-                                                            : 'border-transparent text-muted-foreground hover:border-sidebar-border hover:text-foreground'
-                                                    }`}
+                                                    className={cn(
+                                                        'rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors',
+                                                        activeMaterialTab === tab
+                                                            ? 'bg-primary text-primary-foreground shadow-xs'
+                                                            : 'text-muted-foreground hover:bg-muted/60 hover:text-foreground'
+                                                    )}
                                                 >
                                                     {tab}
                                                 </button>
                                             ))}
                                         </div>
                                     )}
-                                    <div className="flex flex-wrap items-center justify-between gap-3">
-                                        <label className="text-sm text-muted-foreground">
-                                            Tampilkan
+
+                                    <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-sidebar-border/70 bg-card p-3 shadow-xs">
+                                        <div className="relative w-full sm:w-72">
+                                            <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                                            <input
+                                                type="search"
+                                                className="h-8 w-full rounded-lg border border-sidebar-border/70 bg-background pl-8 pr-3 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+                                                placeholder="Cari material..."
+                                                value={materialSearchTerm}
+                                                onChange={(e) => setMaterialSearchTerm(e.target.value)}
+                                            />
+                                        </div>
+                                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                            <span>Tampilkan:</span>
                                             <select
-                                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                                value={
-                                                    materialPageSize ===
-                                                    Infinity
-                                                        ? 'all'
-                                                        : materialPageSize
-                                                }
-                                                onChange={(event) => {
-                                                    const value =
-                                                        event.target.value;
-                                                    setMaterialPageSize(
-                                                        value === 'all'
-                                                            ? Infinity
-                                                            : Number(value),
-                                                    );
+                                                className="h-8 rounded-lg border border-sidebar-border/70 bg-background px-2 text-xs font-medium text-foreground shadow-xs"
+                                                value={materialPageSize === Infinity ? 'all' : materialPageSize}
+                                                onChange={(e) => {
+                                                    const value = e.target.value;
+                                                    setMaterialPageSize(value === 'all' ? Infinity : Number(value));
                                                     setMaterialCurrentPage(1);
                                                 }}
                                             >
@@ -2496,296 +2557,160 @@ export default function PurchaseRequirementIndex({
                                                 <option value={10}>10</option>
                                                 <option value={25}>25</option>
                                                 <option value={50}>50</option>
-                                                <option value="all">
-                                                    Semua
-                                                </option>
+                                                <option value="all">Semua</option>
                                             </select>
-                                        </label>
-                                        <label className="text-sm text-muted-foreground">
-                                            Cari Material
-                                            <input
-                                                type="search"
-                                                className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
-                                                placeholder="Cari material..."
-                                                value={materialSearchTerm}
-                                                onChange={(event) =>
-                                                    setMaterialSearchTerm(
-                                                        event.target.value,
-                                                    )
-                                                }
-                                            />
-                                        </label>
+                                        </div>
                                     </div>
-                                    <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                                        <table className="w-full text-sm">
-                                            <thead className="bg-muted/50 text-muted-foreground">
-                                                <tr>
-                                                    <th
-                                                        rowSpan={2}
-                                                        className="w-14 px-2 py-3 text-left align-top"
-                                                    >
-                                                        No
-                                                    </th>
-                                                    <th
-                                                        rowSpan={2}
-                                                        className="px-2 py-3 text-left align-top"
-                                                    >
-                                                        Material
-                                                    </th>
-                                                    <th
-                                                        rowSpan={2}
-                                                        className="w-px px-2 py-3 text-left align-top whitespace-nowrap"
-                                                    >
-                                                        Qty
-                                                    </th>
-                                                    <th
-                                                        rowSpan={2}
-                                                        className="w-px px-2 py-3 text-left align-top whitespace-nowrap"
-                                                    >
-                                                        Sisa PR
-                                                    </th>
-                                                    <th
-                                                        colSpan={2}
-                                                        className="border-b border-sidebar-border/70 px-2 py-2 text-center"
-                                                    >
-                                                        Price In
-                                                    </th>
-                                                    <th
-                                                        rowSpan={2}
-                                                        className="w-[1%] px-2 py-3 text-right align-top whitespace-nowrap"
-                                                    >
-                                                        Margin
-                                                    </th>
-                                                    <th
-                                                        rowSpan={2}
-                                                        className="w-[1%] px-2 py-3 text-right align-top whitespace-nowrap"
-                                                    >
-                                                        Stok
-                                                    </th>
-                                                    <th
-                                                        rowSpan={2}
-                                                        className="px-2 py-3 text-left align-top"
-                                                    >
-                                                        Remark
-                                                    </th>
-                                                </tr>
-                                                <tr>
-                                                    <th className="w-[1%] border-r border-sidebar-border/70 px-2 py-2 text-right whitespace-nowrap">
-                                                        PO
-                                                    </th>
-                                                    <th className="w-[1%] px-2 py-2 text-right whitespace-nowrap">
-                                                        Estimate
-                                                    </th>
-                                                </tr>
-                                            </thead>
-                                            <tbody>
-                                                <PlainTableStateRows
-                                                    error={detailError}
-                                                    onRetry={() => handleOpenModal(selectedPr)}
-                                                    loading={detailLoading}
-                                                    columns={9}
-                                                    rows={5}
-                                                    isEmpty={
-                                                        !detailLoading &&
-                                                        displayedMaterialDetails.length ===
-                                                            0
-                                                    }
-                                                    emptyMessage={
-                                                        detailError ||
-                                                        'Belum ada data material.'
-                                                    }
-                                                />
-                                                {displayedMaterialDetails.map(
-                                                    (detail, index) => (
-                                                        <tr
-                                                            key={`${detail.no_pr}-${index}`}
-                                                            className="border-t border-sidebar-border/70"
-                                                        >
-                                                            <td className="px-2 py-3">
-                                                                {(materialPageSize ===
-                                                                Infinity
-                                                                    ? index
-                                                                    : (materialCurrentPage -
-                                                                          1) *
-                                                                          materialPageSize +
-                                                                      index) +
-                                                                    1}
+
+                                    {/* Material Table */}
+                                    <div className="rounded-xl border border-sidebar-border/70 bg-card overflow-hidden shadow-xs">
+                                        <div className="overflow-x-auto">
+                                            <table className="w-full text-xs border-collapse">
+                                                <thead className="bg-muted/50 text-[11px] font-bold text-muted-foreground uppercase tracking-wider border-b-2 border-slate-300 dark:border-slate-700">
+                                                    <tr>
+                                                        <th rowSpan={2} className="w-10 px-2 py-2.5 text-center align-middle whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                            No
+                                                        </th>
+                                                        <th rowSpan={2} className="px-2.5 py-2.5 text-left align-middle border-b border-slate-300 dark:border-slate-700">
+                                                            Material
+                                                        </th>
+                                                        <th rowSpan={2} className="w-px px-2.5 py-2.5 text-right align-middle whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                            Qty
+                                                        </th>
+                                                        <th rowSpan={2} className="w-px px-2.5 py-2.5 text-right align-middle whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                            Sisa PR
+                                                        </th>
+                                                        <th colSpan={2} className="border-b border-slate-300 dark:border-slate-700 px-2 py-1.5 text-center">
+                                                            Price In
+                                                        </th>
+                                                        <th rowSpan={2} className="w-20 px-2.5 py-2.5 text-right align-middle whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                            Margin
+                                                        </th>
+                                                        <th rowSpan={2} className="w-20 px-2.5 py-2.5 text-right align-middle whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                            Stok
+                                                        </th>
+                                                        <th rowSpan={2} className="px-2.5 py-2.5 text-left align-middle border-b border-slate-300 dark:border-slate-700">
+                                                            Remark
+                                                        </th>
+                                                    </tr>
+                                                    <tr>
+                                                        <th className="w-24 border-r border-slate-300 dark:border-slate-700 px-2 py-1.5 text-right whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                            PO
+                                                        </th>
+                                                        <th className="w-24 px-2 py-1.5 text-right whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                            Estimate
+                                                        </th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody className="divide-y divide-slate-300 dark:divide-slate-700">
+                                                    <PlainTableStateRows
+                                                        error={detailError}
+                                                        onRetry={() => handleOpenModal(selectedPr)}
+                                                        loading={detailLoading}
+                                                        columns={9}
+                                                        rows={5}
+                                                        isEmpty={!detailLoading && displayedMaterialDetails.length === 0}
+                                                        emptyMessage={detailError || 'Belum ada data material PR.'}
+                                                    />
+                                                    {displayedMaterialDetails.map((detail, idx) => (
+                                                        <tr key={idx} className="border-b border-slate-300 dark:border-slate-700 transition-colors hover:bg-muted/40">
+                                                            <td className="w-10 px-2 py-2 text-center text-muted-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                                {materialPageSize === Infinity ? idx + 1 : (materialCurrentPage - 1) * materialPageSize + idx + 1}
                                                             </td>
-                                                            <td className="px-2 py-3">
-                                                                {getValue(
-                                                                    detail,
-                                                                    [
-                                                                        'material',
-                                                                        'Material',
-                                                                    ],
-                                                                )}
+                                                            <td className="px-2.5 py-2 font-medium text-foreground border-b border-slate-300 dark:border-slate-700">
+                                                                <div>
+                                                                    <span>{getValue(detail, ['material', 'Material', 'nama_material'])}</span>
+                                                                    {getValue(detail, ['unit', 'Unit']) !== '-' && (
+                                                                        <span className="ml-1.5 text-[10px] text-muted-foreground">
+                                                                            ({getValue(detail, ['unit', 'Unit'])})
+                                                                        </span>
+                                                                    )}
+                                                                </div>
                                                             </td>
-                                                            <td className="px-2 py-3 whitespace-nowrap">
-                                                                {getValue(
-                                                                    detail,
-                                                                    [
-                                                                        'qty',
-                                                                        'Qty',
-                                                                        'quantity',
-                                                                        'Quantity',
-                                                                    ],
-                                                                )}{' '}
-                                                                {getValue(
-                                                                    detail,
-                                                                    [
-                                                                        'satuan',
-                                                                        'Satuan',
-                                                                        'unit',
-                                                                        'Unit',
-                                                                    ],
-                                                                )}
+                                                            <td className="w-px px-2.5 py-2 text-right font-bold text-foreground tabular-nums whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                                {formatNumber(getValue(detail, ['qty', 'Qty']))}
                                                             </td>
-                                                            <td className="px-2 py-3 whitespace-nowrap">
-                                                                {getValue(
-                                                                    detail,
-                                                                    [
-                                                                        'sisa_pr',
-                                                                        'Sisa_pr',
-                                                                        'Sisa_PR',
-                                                                    ],
-                                                                )}
+                                                            <td className="w-px px-2.5 py-2 text-right whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                                <span className={cn(
+                                                                    'font-bold tabular-nums px-2 py-0.5 rounded-md text-xs',
+                                                                    Number(getValue(detail, ['sisa_pr', 'Sisa_pr', 'Sisa_PR'])) > 0
+                                                                        ? 'bg-amber-500/15 text-amber-700 dark:text-amber-400'
+                                                                        : 'bg-muted text-muted-foreground'
+                                                                )}>
+                                                                    {getValue(detail, ['sisa_pr', 'Sisa_pr', 'Sisa_PR'])}
+                                                                </span>
                                                             </td>
-                                                            <td className="w-[1%] border-r border-sidebar-border/70 px-2 py-3 text-right whitespace-nowrap">
-                                                                {formatRupiah(
-                                                                    getValue(
-                                                                        detail,
-                                                                        [
-                                                                            'price_po',
-                                                                        ],
-                                                                    ),
-                                                                )}
+                                                            <td className="w-24 border-r border-slate-300 dark:border-slate-700 px-2 py-2 text-right font-semibold text-foreground tabular-nums whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                                {formatRupiah(getValue(detail, ['price_po']))}
                                                             </td>
-                                                            <td className="w-[1%] px-2 py-3 text-right whitespace-nowrap">
-                                                                {formatRupiah(
-                                                                    getValue(
-                                                                        detail,
-                                                                        [
-                                                                            'unit_price',
-                                                                        ],
-                                                                    ),
-                                                                )}
+                                                            <td className="w-24 px-2 py-2 text-right font-semibold text-muted-foreground tabular-nums whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                                {formatRupiah(getValue(detail, ['unit_price']))}
                                                             </td>
-                                                            <td className="w-[1%] px-2 py-3 text-right whitespace-nowrap">
-                                                                {formatPercent(
-                                                                    getValue(
-                                                                        detail,
-                                                                        [
-                                                                            'margin',
-                                                                        ],
-                                                                    ),
-                                                                )}
+                                                            <td className="w-20 px-2.5 py-2 text-right font-semibold text-foreground tabular-nums whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                                {formatPercent(getValue(detail, ['margin']))}
                                                             </td>
-                                                            <td className="w-[1%] px-2 py-3 text-right whitespace-nowrap">
-                                                                {formatNumber(
-                                                                    getValue(
-                                                                        detail,
-                                                                        [
-                                                                            'stok',
-                                                                        ],
-                                                                    ),
-                                                                )}
+                                                            <td className="w-20 px-2.5 py-2 text-right font-semibold text-foreground tabular-nums whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                                {formatNumber(getValue(detail, ['stok']))}
                                                             </td>
-                                                            <td className="px-2 py-3">
-                                                                {getValue(
-                                                                    detail,
-                                                                    [
-                                                                        'renmark',
-                                                                        'Renmark',
-                                                                        'remark',
-                                                                        'Remark',
-                                                                        'keterangan',
-                                                                        'Keterangan',
-                                                                    ],
-                                                                )}
+                                                            <td className="px-2.5 py-2 text-muted-foreground text-xs border-b border-slate-300 dark:border-slate-700">
+                                                                {getValue(detail, ['renmark', 'Renmark', 'remark', 'Remark', 'keterangan', 'Keterangan'])}
                                                             </td>
                                                         </tr>
-                                                    ),
-                                                )}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                    {materialPageSize !== Infinity &&
-                                        materialTotalItems > 0 && (
-                                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                                                    ))}
+                                                </tbody>
+                                            </table>
+                                        </div>
+
+                                        {materialPageSize !== Infinity && materialTotalItems > 0 && (
+                                            <div className="flex flex-wrap items-center justify-between gap-3 border-t border-sidebar-border/70 bg-card px-4 py-3 text-xs text-muted-foreground">
                                                 <span>
                                                     Menampilkan{' '}
-                                                    {Math.min(
-                                                        (materialCurrentPage -
-                                                            1) *
-                                                            materialPageSize +
-                                                            1,
-                                                        materialTotalItems,
-                                                    )}
-                                                    -
-                                                    {Math.min(
-                                                        materialCurrentPage *
-                                                            materialPageSize,
-                                                        materialTotalItems,
-                                                    )}{' '}
-                                                    dari {materialTotalItems}{' '}
-                                                    data
+                                                    <span className="font-semibold text-foreground">
+                                                        {Math.min((materialCurrentPage - 1) * materialPageSize + 1, materialTotalItems)}
+                                                    </span>
+                                                    {' '}-{' '}
+                                                    <span className="font-semibold text-foreground">
+                                                        {Math.min(materialCurrentPage * materialPageSize, materialTotalItems)}
+                                                    </span>
+                                                    {' '}dari{' '}
+                                                    <span className="font-semibold text-foreground">{materialTotalItems}</span>
+                                                    {' '}data
                                                 </span>
                                                 <div className="flex items-center gap-2">
                                                     <Button
                                                         variant="outline"
                                                         size="sm"
-                                                        onClick={() =>
-                                                            setMaterialCurrentPage(
-                                                                (page) =>
-                                                                    Math.max(
-                                                                        1,
-                                                                        page -
-                                                                            1,
-                                                                    ),
-                                                            )
-                                                        }
-                                                        disabled={
-                                                            materialCurrentPage ===
-                                                            1
-                                                        }
+                                                        className="h-8 gap-1 rounded-lg px-3 text-xs font-semibold shadow-xs"
+                                                        onClick={() => setMaterialCurrentPage((page) => Math.max(1, page - 1))}
+                                                        disabled={materialCurrentPage === 1}
                                                     >
-                                                        Sebelumnya
+                                                        <ChevronLeft className="size-3.5" />
+                                                        <span>Sebelumnya</span>
                                                     </Button>
-                                                    <span className="text-sm text-muted-foreground">
-                                                        Halaman{' '}
-                                                        {materialCurrentPage}{' '}
-                                                        dari{' '}
-                                                        {materialTotalPages}
+                                                    <span className="text-xs font-medium text-foreground px-1">
+                                                        {materialCurrentPage} / {materialTotalPages}
                                                     </span>
                                                     <Button
                                                         variant="outline"
                                                         size="sm"
-                                                        onClick={() =>
-                                                            setMaterialCurrentPage(
-                                                                (page) =>
-                                                                    Math.min(
-                                                                        materialTotalPages,
-                                                                        page +
-                                                                            1,
-                                                                    ),
-                                                            )
-                                                        }
-                                                        disabled={
-                                                            materialCurrentPage ===
-                                                            materialTotalPages
-                                                        }
+                                                        className="h-8 gap-1 rounded-lg px-3 text-xs font-semibold shadow-xs"
+                                                        onClick={() => setMaterialCurrentPage((page) => Math.min(materialTotalPages, page + 1))}
+                                                        disabled={materialCurrentPage === materialTotalPages}
                                                     >
-                                                        Berikutnya
+                                                        <span>Berikutnya</span>
+                                                        <ChevronRight className="size-3.5" />
                                                     </Button>
                                                 </div>
                                             </div>
                                         )}
+                                    </div>
                                 </div>
                             </div>
                         )}
                     </DialogContent>
                 </Dialog>
 
+                {/* ─── 6. OUTSTANDING PR MODAL (Dialog) ────────────────────────── */}
                 <Dialog
                     open={isOutstandingModalOpen}
                     onOpenChange={(open) => {
@@ -2797,244 +2722,193 @@ export default function PurchaseRequirementIndex({
                         }
                     }}
                 >
-                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
-                        <DialogHeader>
-                            <DialogTitle>PR Outstanding</DialogTitle>
-                            <DialogDescription>
-                                Daftar PR yang belum terealisasi sama sekali
-                                (belum ada material dibuat PO).
-                            </DialogDescription>
+                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none bg-background p-4 sm:p-6">
+                        <DialogHeader className="border-b border-sidebar-border/70 pb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="flex size-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                    <ClipboardCheck className="size-5" />
+                                </div>
+                                <div>
+                                    <DialogTitle className="text-lg sm:text-xl font-bold text-foreground">
+                                        Daftar PR Outstanding
+                                    </DialogTitle>
+                                    <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                                        Daftar PR yang belum terealisasi sama sekali (belum ada material yang dibuatkan PO).
+                                    </DialogDescription>
+                                </div>
+                            </div>
                         </DialogHeader>
 
-                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                            <label>
-                                Tampilkan
+                        <div className="flex flex-wrap items-center justify-between gap-2.5 py-2 text-xs">
+                            <div className="relative w-full sm:w-80">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                                <input
+                                    type="search"
+                                    className="h-9 w-full rounded-lg border border-sidebar-border/70 bg-background pl-8 pr-3 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+                                    placeholder="Cari customer, no PR, ref PO..."
+                                    value={outstandingSearchTerm}
+                                    onChange={(e) => setOutstandingSearchTerm(e.target.value)}
+                                />
+                            </div>
+                            <div className="flex items-center gap-1.5 text-muted-foreground">
+                                <span>Tampilkan:</span>
                                 <select
-                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                    value={
-                                        outstandingPageSize === Infinity
-                                            ? 'all'
-                                            : outstandingPageSize
-                                    }
-                                    onChange={(event) => {
-                                        const value = event.target.value;
-                                        setOutstandingPageSize(
-                                            value === 'all'
-                                                ? Infinity
-                                                : Number(value),
-                                        );
+                                    className="h-8 rounded-lg border border-sidebar-border/70 bg-background px-2 text-xs font-medium text-foreground shadow-xs"
+                                    value={outstandingPageSize === Infinity ? 'all' : outstandingPageSize}
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        setOutstandingPageSize(value === 'all' ? Infinity : Number(value));
                                         setOutstandingCurrentPage(1);
                                     }}
                                 >
-                                    <option value={5}>5</option>
-                                    <option value={10}>10</option>
-                                    <option value={25}>25</option>
-                                    <option value={50}>50</option>
+                                    <option value={5}>5 baris</option>
+                                    <option value={10}>10 baris</option>
+                                    <option value={25}>25 baris</option>
+                                    <option value={50}>50 baris</option>
                                     <option value="all">Semua</option>
                                 </select>
-                            </label>
-                            <label>
-                                Cari
-                                <input
-                                    type="search"
-                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
-                                    placeholder="Cari customer, no PR, ref PO..."
-                                    value={outstandingSearchTerm}
-                                    onChange={(event) =>
-                                        setOutstandingSearchTerm(
-                                            event.target.value,
-                                        )
-                                    }
-                                />
-                            </label>
+                            </div>
                         </div>
 
-                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                            <table className="w-full table-auto text-sm">
-                                <thead className="bg-muted/50 text-muted-foreground">
-                                    <tr>
-                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
-                                            No PR
-                                        </th>
-                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
-                                            Date
-                                        </th>
-                                        <th className="w-full px-2 py-2 text-left whitespace-nowrap">
-                                            Customer
-                                        </th>
-                                        <th className="w-max px-2 py-2 text-left whitespace-nowrap">
-                                            Ref PO
-                                        </th>
-                                        <th className="px-2 py-2 text-left whitespace-nowrap">
-                                            Jenis PR
-                                        </th>
-                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
-                                            Action
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <PlainTableStateRows
-                                        error={outstandingError}
-                                        onRetry={loadOutstanding}
-                                        loading={outstandingLoading}
-                                        columns={5}
-                                        rows={5}
-                                        isEmpty={
-                                            !outstandingLoading &&
-                                            displayedOutstandingPurchaseRequirements.length ===
-                                                0
-                                        }
-                                        emptyMessage={
-                                            outstandingError ||
-                                            'Tidak ada PR outstanding.'
-                                        }
-                                    />
-                                    {displayedOutstandingPurchaseRequirements.map(
-                                        (item) => (
-                                            <tr
-                                                key={`outstanding-${item.no_pr}`}
-                                                className="border-t border-sidebar-border/70"
-                                            >
-                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
+                        <div className="rounded-xl border border-sidebar-border/70 bg-card overflow-hidden shadow-xs">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-xs border-collapse">
+                                    <thead className="bg-muted/50 text-[11px] font-bold text-muted-foreground uppercase tracking-wider border-b-2 border-slate-300 dark:border-slate-700">
+                                        <tr>
+                                            <th className="w-10 px-2 py-2.5 text-center whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                No
+                                            </th>
+                                            <th className="w-px px-2.5 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                No PR
+                                            </th>
+                                            <th className="w-px px-2.5 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                Date
+                                            </th>
+                                            <th className="px-2.5 py-2.5 text-left border-b border-slate-300 dark:border-slate-700">
+                                                Customer
+                                            </th>
+                                            <th className="w-px px-2.5 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                Ref PO
+                                            </th>
+                                            <th className="w-28 px-2.5 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                Jenis PR
+                                            </th>
+                                            <th className="w-20 px-2.5 py-2.5 text-center whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                Aksi
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-300 dark:divide-slate-700">
+                                        <PlainTableStateRows
+                                            error={outstandingError}
+                                            onRetry={loadOutstanding}
+                                            loading={outstandingLoading}
+                                            columns={7}
+                                            rows={5}
+                                            isEmpty={!outstandingLoading && displayedOutstandingPurchaseRequirements.length === 0}
+                                            emptyMessage={outstandingError || 'Tidak ada PR outstanding.'}
+                                        />
+                                        {displayedOutstandingPurchaseRequirements.map((item, index) => (
+                                            <tr key={`outstanding-${item.no_pr}`} className="border-b border-slate-300 dark:border-slate-700 transition-colors hover:bg-muted/40">
+                                                <td className="w-10 px-2 py-2.5 text-center text-muted-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                    {outstandingPageSize === Infinity ? index + 1 : (outstandingCurrentPage - 1) * outstandingPageSize + index + 1}
+                                                </td>
+                                                <td className="w-px px-2.5 py-2.5 font-semibold text-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                                     {item.no_pr}
                                                 </td>
-                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
+                                                <td className="w-px px-2.5 py-2.5 text-muted-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                                     {item.date}
                                                 </td>
-                                                <td className="w-full min-w-0 px-2 py-2 whitespace-nowrap">
-                                                    <div className="min-w-0">
-                                                        {renderCustomersWithOverdueMarkers(
-                                                            item.for_customer,
-                                                        )}
-                                                    </div>
+                                                <td className="px-2.5 py-2.5 text-foreground border-b border-slate-300 dark:border-slate-700">
+                                                    {renderCustomersWithOverdueMarkers(item.for_customer)}
                                                 </td>
-                                                <td className="w-max px-2 py-2 whitespace-nowrap">
-                                                    {renderRefPoValues(
-                                                        item.ref_po,
-                                                    )}
+                                                <td className="w-px px-2.5 py-2.5 text-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                    {renderRefPoValues(item.ref_po)}
                                                 </td>
-                                                <td className="px-2 py-2 text-sm whitespace-nowrap">
-                                                    {item.jenis_pr ?? '-'}
+                                                <td className="w-28 px-2.5 py-2.5 text-muted-foreground text-xs whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                    <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 font-medium text-foreground">
+                                                        {item.jenis_pr ?? '-'}
+                                                    </span>
                                                 </td>
-                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
-                                                    <div className="flex items-center gap-2">
-                                                        <button
+                                                <td className="w-20 px-2.5 py-2.5 whitespace-nowrap text-center border-b border-slate-300 dark:border-slate-700">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <Button
                                                             type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-7 w-7 p-0 rounded-md border-sidebar-border/70 hover:bg-emerald-500/15 hover:text-emerald-600 dark:hover:text-emerald-400 cursor-pointer"
                                                             onClick={() => {
-                                                                setIsOutstandingModalOpen(
-                                                                    false,
-                                                                );
-                                                                handleOpenModal(
-                                                                    item,
-                                                                );
+                                                                setIsOutstandingModalOpen(false);
+                                                                handleOpenModal(item);
                                                             }}
-                                                            className="text-muted-foreground transition hover:text-foreground"
-                                                            title="Lihat"
+                                                            title="Lihat Detail PR"
                                                         >
-                                                            <Eye className="size-4" />
-                                                        </button>
-                                                        <MenuAction
-                                                            action="update"
-                                                            as={Link}
-                                                            href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/edit`}
-                                                            className="text-muted-foreground transition hover:text-foreground"
-                                                            title="Edit"
+                                                            <Eye className="size-3.5 text-muted-foreground" />
+                                                        </Button>
+                                                        <a
+                                                            href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/print`}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sidebar-border/70 bg-background text-muted-foreground shadow-xs transition-colors hover:bg-teal-500/15 hover:text-teal-600 dark:hover:text-teal-400 cursor-pointer"
+                                                            title="Print Dokumen PR"
                                                         >
-                                                            <Pencil className="size-4" />
-                                                        </MenuAction>
-                                                        {item._canDelete && (
-                                                            <MenuAction
-                                                                action="delete"
-                                                                as="button"
-                                                                type="button"
-                                                                className="text-muted-foreground transition hover:text-destructive"
-                                                                title="Hapus"
-                                                                disabled={
-                                                                    isDeleting
-                                                                }
-                                                                onClick={() =>
-                                                                    handleDelete(
-                                                                        item.no_pr,
-                                                                    )
-                                                                }
-                                                            >
-                                                                <Trash2 className="size-4" />
-                                                            </MenuAction>
-                                                        )}
+                                                            <Printer className="size-3.5" />
+                                                        </a>
                                                     </div>
                                                 </td>
                                             </tr>
-                                        ),
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
 
-                        {outstandingPageSize !== Infinity &&
-                            outstandingTotalItems > 0 && (
-                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                            {outstandingPageSize !== Infinity && outstandingTotalItems > 0 && (
+                                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-sidebar-border/70 bg-card px-4 py-3 text-xs text-muted-foreground">
                                     <span>
                                         Menampilkan{' '}
-                                        {Math.min(
-                                            (outstandingCurrentPage - 1) *
-                                                outstandingPageSize +
-                                                1,
-                                            outstandingTotalItems,
-                                        )}
-                                        -
-                                        {Math.min(
-                                            outstandingCurrentPage *
-                                                outstandingPageSize,
-                                            outstandingTotalItems,
-                                        )}{' '}
-                                        dari {outstandingTotalItems} data
+                                        <span className="font-semibold text-foreground">
+                                            {Math.min((outstandingCurrentPage - 1) * outstandingPageSize + 1, outstandingTotalItems)}
+                                        </span>
+                                        {' '}-{' '}
+                                        <span className="font-semibold text-foreground">
+                                            {Math.min(outstandingCurrentPage * outstandingPageSize, outstandingTotalItems)}
+                                        </span>
+                                        {' '}dari{' '}
+                                        <span className="font-semibold text-foreground">{outstandingTotalItems}</span>
+                                        {' '}data
                                     </span>
                                     <div className="flex items-center gap-2">
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            onClick={() =>
-                                                setOutstandingCurrentPage(
-                                                    (page) =>
-                                                        Math.max(1, page - 1),
-                                                )
-                                            }
-                                            disabled={
-                                                outstandingCurrentPage === 1
-                                            }
+                                            className="h-8 gap-1 rounded-lg px-3 text-xs font-semibold shadow-xs"
+                                            onClick={() => setOutstandingCurrentPage((page) => Math.max(1, page - 1))}
+                                            disabled={outstandingCurrentPage === 1}
                                         >
-                                            Sebelumnya
+                                            <ChevronLeft className="size-3.5" />
+                                            <span>Sebelumnya</span>
                                         </Button>
-                                        <span className="text-sm text-muted-foreground">
-                                            Halaman {outstandingCurrentPage}{' '}
-                                            dari {outstandingTotalPages}
+                                        <span className="text-xs font-medium text-foreground px-1">
+                                            {outstandingCurrentPage} / {outstandingTotalPages}
                                         </span>
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            onClick={() =>
-                                                setOutstandingCurrentPage(
-                                                    (page) =>
-                                                        Math.min(
-                                                            outstandingTotalPages,
-                                                            page + 1,
-                                                        ),
-                                                )
-                                            }
-                                            disabled={
-                                                outstandingCurrentPage ===
-                                                outstandingTotalPages
-                                            }
+                                            className="h-8 gap-1 rounded-lg px-3 text-xs font-semibold shadow-xs"
+                                            onClick={() => setOutstandingCurrentPage((page) => Math.min(outstandingTotalPages, page + 1))}
+                                            disabled={outstandingCurrentPage === outstandingTotalPages}
                                         >
-                                            Berikutnya
+                                            <span>Berikutnya</span>
+                                            <ChevronRight className="size-3.5" />
                                         </Button>
                                     </div>
                                 </div>
                             )}
+                        </div>
                     </DialogContent>
                 </Dialog>
 
+                {/* ─── 7. SISA PO PR MODAL (Dialog) ────────────────────────────── */}
                 <Dialog
                     open={isSisaPoModalOpen}
                     onOpenChange={(open) => {
@@ -3046,237 +2920,193 @@ export default function PurchaseRequirementIndex({
                         }
                     }}
                 >
-                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
-                        <DialogHeader>
-                            <DialogTitle>PR Sisa PO</DialogTitle>
-                            <DialogDescription>
-                                Daftar PR yang sudah mulai dibuat PO namun masih
-                                memiliki sisa material.
-                            </DialogDescription>
+                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none bg-background p-4 sm:p-6">
+                        <DialogHeader className="border-b border-sidebar-border/70 pb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="flex size-10 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                                    <AlertCircle className="size-5" />
+                                </div>
+                                <div>
+                                    <DialogTitle className="text-lg sm:text-xl font-bold text-foreground">
+                                        Daftar PR Sisa PO
+                                    </DialogTitle>
+                                    <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                                        Daftar PR yang sudah mulai dibuat PO namun masih memiliki sisa material yang belum terealisasi.
+                                    </DialogDescription>
+                                </div>
+                            </div>
                         </DialogHeader>
 
-                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                            <label>
-                                Tampilkan
+                        <div className="flex flex-wrap items-center justify-between gap-2.5 py-2 text-xs">
+                            <div className="relative w-full sm:w-80">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                                <input
+                                    type="search"
+                                    className="h-9 w-full rounded-lg border border-sidebar-border/70 bg-background pl-8 pr-3 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+                                    placeholder="Cari customer, no PR, ref PO..."
+                                    value={sisaPoSearchTerm}
+                                    onChange={(e) => setSisaPoSearchTerm(e.target.value)}
+                                />
+                            </div>
+                            <div className="flex items-center gap-1.5 text-muted-foreground">
+                                <span>Tampilkan:</span>
                                 <select
-                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                    value={
-                                        sisaPoPageSize === Infinity
-                                            ? 'all'
-                                            : sisaPoPageSize
-                                    }
-                                    onChange={(event) => {
-                                        const value = event.target.value;
-                                        setSisaPoPageSize(
-                                            value === 'all'
-                                                ? Infinity
-                                                : Number(value),
-                                        );
+                                    className="h-8 rounded-lg border border-sidebar-border/70 bg-background px-2 text-xs font-medium text-foreground shadow-xs"
+                                    value={sisaPoPageSize === Infinity ? 'all' : sisaPoPageSize}
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        setSisaPoPageSize(value === 'all' ? Infinity : Number(value));
                                         setSisaPoCurrentPage(1);
                                     }}
                                 >
-                                    <option value={5}>5</option>
-                                    <option value={10}>10</option>
-                                    <option value={25}>25</option>
-                                    <option value={50}>50</option>
+                                    <option value={5}>5 baris</option>
+                                    <option value={10}>10 baris</option>
+                                    <option value={25}>25 baris</option>
+                                    <option value={50}>50 baris</option>
                                     <option value="all">Semua</option>
                                 </select>
-                            </label>
-                            <label>
-                                Cari
-                                <input
-                                    type="search"
-                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
-                                    placeholder="Cari customer, no PR, ref PO..."
-                                    value={sisaPoSearchTerm}
-                                    onChange={(event) =>
-                                        setSisaPoSearchTerm(event.target.value)
-                                    }
-                                />
-                            </label>
+                            </div>
                         </div>
 
-                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                            <table className="w-full table-auto text-sm">
-                                <thead className="bg-muted/50 text-muted-foreground">
-                                    <tr>
-                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
-                                            No PR
-                                        </th>
-                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
-                                            Date
-                                        </th>
-                                        <th className="w-full px-2 py-2 text-left whitespace-nowrap">
-                                            Customer
-                                        </th>
-                                        <th className="w-max px-2 py-2 text-left whitespace-nowrap">
-                                            Ref PO
-                                        </th>
-                                        <th className="px-2 py-2 text-left whitespace-nowrap">
-                                            Jenis PR
-                                        </th>
-                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
-                                            Action
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <PlainTableStateRows
-                                        error={sisaPoError}
-                                        onRetry={loadSisaPo}
-                                        loading={sisaPoLoading}
-                                        columns={5}
-                                        rows={5}
-                                        isEmpty={
-                                            !sisaPoLoading &&
-                                            displayedSisaPoPurchaseRequirements.length ===
-                                                0
-                                        }
-                                        emptyMessage={
-                                            sisaPoError ||
-                                            'Tidak ada PR sisa PO.'
-                                        }
-                                    />
-                                    {displayedSisaPoPurchaseRequirements.map(
-                                        (item) => (
-                                            <tr
-                                                key={`sisa-po-${item.no_pr}`}
-                                                className="border-t border-sidebar-border/70"
-                                            >
-                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
+                        <div className="rounded-xl border border-sidebar-border/70 bg-card overflow-hidden shadow-xs">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-xs border-collapse">
+                                    <thead className="bg-muted/50 text-[11px] font-bold text-muted-foreground uppercase tracking-wider border-b-2 border-slate-300 dark:border-slate-700">
+                                        <tr>
+                                            <th className="w-10 px-2 py-2.5 text-center whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                No
+                                            </th>
+                                            <th className="w-px px-2.5 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                No PR
+                                            </th>
+                                            <th className="w-px px-2.5 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                Date
+                                            </th>
+                                            <th className="px-2.5 py-2.5 text-left border-b border-slate-300 dark:border-slate-700">
+                                                Customer
+                                            </th>
+                                            <th className="w-px px-2.5 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                Ref PO
+                                            </th>
+                                            <th className="w-28 px-2.5 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                Jenis PR
+                                            </th>
+                                            <th className="w-20 px-2.5 py-2.5 text-center whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                Aksi
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-300 dark:divide-slate-700">
+                                        <PlainTableStateRows
+                                            error={sisaPoError}
+                                            onRetry={loadSisaPo}
+                                            loading={sisaPoLoading}
+                                            columns={7}
+                                            rows={5}
+                                            isEmpty={!sisaPoLoading && displayedSisaPoPurchaseRequirements.length === 0}
+                                            emptyMessage={sisaPoError || 'Tidak ada PR sisa PO.'}
+                                        />
+                                        {displayedSisaPoPurchaseRequirements.map((item, index) => (
+                                            <tr key={`sisa-po-${item.no_pr}`} className="border-b border-slate-300 dark:border-slate-700 transition-colors hover:bg-muted/40">
+                                                <td className="w-10 px-2 py-2.5 text-center text-muted-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                    {sisaPoPageSize === Infinity ? index + 1 : (sisaPoCurrentPage - 1) * sisaPoPageSize + index + 1}
+                                                </td>
+                                                <td className="w-px px-2.5 py-2.5 font-semibold text-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                                     {item.no_pr}
                                                 </td>
-                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
+                                                <td className="w-px px-2.5 py-2.5 text-muted-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                                     {item.date}
                                                 </td>
-                                                <td className="w-full min-w-0 px-2 py-2 whitespace-nowrap">
-                                                    <div className="min-w-0">
-                                                        {renderCustomersWithOverdueMarkers(
-                                                            item.for_customer,
-                                                        )}
-                                                    </div>
+                                                <td className="px-2.5 py-2.5 text-foreground border-b border-slate-300 dark:border-slate-700">
+                                                    {renderCustomersWithOverdueMarkers(item.for_customer)}
                                                 </td>
-                                                <td className="w-max px-2 py-2 whitespace-nowrap">
-                                                    {renderRefPoValues(
-                                                        item.ref_po,
-                                                    )}
+                                                <td className="w-px px-2.5 py-2.5 text-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                    {renderRefPoValues(item.ref_po)}
                                                 </td>
-                                                <td className="px-2 py-2 text-sm whitespace-nowrap">
-                                                    {item.jenis_pr ?? '-'}
+                                                <td className="w-28 px-2.5 py-2.5 text-muted-foreground text-xs whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                    <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 font-medium text-foreground">
+                                                        {item.jenis_pr ?? '-'}
+                                                    </span>
                                                 </td>
-                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
-                                                    <div className="flex items-center gap-2">
-                                                        <button
+                                                <td className="w-20 px-2.5 py-2.5 whitespace-nowrap text-center border-b border-slate-300 dark:border-slate-700">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <Button
                                                             type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-7 w-7 p-0 rounded-md border-sidebar-border/70 hover:bg-emerald-500/15 hover:text-emerald-600 dark:hover:text-emerald-400 cursor-pointer"
                                                             onClick={() => {
-                                                                setIsSisaPoModalOpen(
-                                                                    false,
-                                                                );
-                                                                handleOpenModal(
-                                                                    item,
-                                                                );
+                                                                setIsSisaPoModalOpen(false);
+                                                                handleOpenModal(item);
                                                             }}
-                                                            className="text-muted-foreground transition hover:text-foreground"
-                                                            title="Lihat"
+                                                            title="Lihat Detail PR"
                                                         >
-                                                            <Eye className="size-4" />
-                                                        </button>
-                                                        <MenuAction
-                                                            action="update"
-                                                            as={Link}
-                                                            href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/edit`}
-                                                            className="text-muted-foreground transition hover:text-foreground"
-                                                            title="Edit"
+                                                            <Eye className="size-3.5 text-muted-foreground" />
+                                                        </Button>
+                                                        <a
+                                                            href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/print`}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sidebar-border/70 bg-background text-muted-foreground shadow-xs transition-colors hover:bg-teal-500/15 hover:text-teal-600 dark:hover:text-teal-400 cursor-pointer"
+                                                            title="Print Dokumen PR"
                                                         >
-                                                            <Pencil className="size-4" />
-                                                        </MenuAction>
-                                                        {item._canDelete && (
-                                                            <MenuAction
-                                                                action="delete"
-                                                                as="button"
-                                                                type="button"
-                                                                className="text-muted-foreground transition hover:text-destructive"
-                                                                title="Hapus"
-                                                                disabled={
-                                                                    isDeleting
-                                                                }
-                                                                onClick={() =>
-                                                                    handleDelete(
-                                                                        item.no_pr,
-                                                                    )
-                                                                }
-                                                            >
-                                                                <Trash2 className="size-4" />
-                                                            </MenuAction>
-                                                        )}
+                                                            <Printer className="size-3.5" />
+                                                        </a>
                                                     </div>
                                                 </td>
                                             </tr>
-                                        ),
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
 
-                        {sisaPoPageSize !== Infinity &&
-                            sisaPoTotalItems > 0 && (
-                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                            {sisaPoPageSize !== Infinity && sisaPoTotalItems > 0 && (
+                                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-sidebar-border/70 bg-card px-4 py-3 text-xs text-muted-foreground">
                                     <span>
                                         Menampilkan{' '}
-                                        {Math.min(
-                                            (sisaPoCurrentPage - 1) *
-                                                sisaPoPageSize +
-                                                1,
-                                            sisaPoTotalItems,
-                                        )}
-                                        -
-                                        {Math.min(
-                                            sisaPoCurrentPage * sisaPoPageSize,
-                                            sisaPoTotalItems,
-                                        )}{' '}
-                                        dari {sisaPoTotalItems} data
+                                        <span className="font-semibold text-foreground">
+                                            {Math.min((sisaPoCurrentPage - 1) * sisaPoPageSize + 1, sisaPoTotalItems)}
+                                        </span>
+                                        {' '}-{' '}
+                                        <span className="font-semibold text-foreground">
+                                            {Math.min(sisaPoCurrentPage * sisaPoPageSize, sisaPoTotalItems)}
+                                        </span>
+                                        {' '}dari{' '}
+                                        <span className="font-semibold text-foreground">{sisaPoTotalItems}</span>
+                                        {' '}data
                                     </span>
                                     <div className="flex items-center gap-2">
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            onClick={() =>
-                                                setSisaPoCurrentPage((page) =>
-                                                    Math.max(1, page - 1),
-                                                )
-                                            }
+                                            className="h-8 gap-1 rounded-lg px-3 text-xs font-semibold shadow-xs"
+                                            onClick={() => setSisaPoCurrentPage((page) => Math.max(1, page - 1))}
                                             disabled={sisaPoCurrentPage === 1}
                                         >
-                                            Sebelumnya
+                                            <ChevronLeft className="size-3.5" />
+                                            <span>Sebelumnya</span>
                                         </Button>
-                                        <span className="text-sm text-muted-foreground">
-                                            Halaman {sisaPoCurrentPage} dari{' '}
-                                            {sisaPoTotalPages}
+                                        <span className="text-xs font-medium text-foreground px-1">
+                                            {sisaPoCurrentPage} / {sisaPoTotalPages}
                                         </span>
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            onClick={() =>
-                                                setSisaPoCurrentPage((page) =>
-                                                    Math.min(
-                                                        sisaPoTotalPages,
-                                                        page + 1,
-                                                    ),
-                                                )
-                                            }
-                                            disabled={
-                                                sisaPoCurrentPage ===
-                                                sisaPoTotalPages
-                                            }
+                                            className="h-8 gap-1 rounded-lg px-3 text-xs font-semibold shadow-xs"
+                                            onClick={() => setSisaPoCurrentPage((page) => Math.min(sisaPoTotalPages, page + 1))}
+                                            disabled={sisaPoCurrentPage === sisaPoTotalPages}
                                         >
-                                            Berikutnya
+                                            <span>Berikutnya</span>
+                                            <ChevronRight className="size-3.5" />
                                         </Button>
                                     </div>
                                 </div>
                             )}
+                        </div>
                     </DialogContent>
                 </Dialog>
 
+                {/* ─── 8. REALIZED PR MODAL (Dialog) ───────────────────────────── */}
                 <Dialog
                     open={isRealizedModalOpen}
                     onOpenChange={(open) => {
@@ -3288,213 +3118,193 @@ export default function PurchaseRequirementIndex({
                         }
                     }}
                 >
-                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
-                        <DialogHeader>
-                            <DialogTitle>PR Terealisasi</DialogTitle>
-                            <DialogDescription>
-                                Daftar PR yang sudah terealisasi sesuai periode
-                                terpilih.
-                            </DialogDescription>
+                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none bg-background p-4 sm:p-6">
+                        <DialogHeader className="border-b border-sidebar-border/70 pb-4">
+                            <div className="flex items-center gap-3">
+                                <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                    <ShieldCheck className="size-5" />
+                                </div>
+                                <div>
+                                    <DialogTitle className="text-lg sm:text-xl font-bold text-foreground">
+                                        Daftar PR Terealisasi
+                                    </DialogTitle>
+                                    <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                                        Daftar PR yang seluruh materialnya sudah selesai dibuatkan Purchase Order (PO).
+                                    </DialogDescription>
+                                </div>
+                            </div>
                         </DialogHeader>
 
-                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                            <label>
-                                Tampilkan
+                        <div className="flex flex-wrap items-center justify-between gap-2.5 py-2 text-xs">
+                            <div className="relative w-full sm:w-80">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                                <input
+                                    type="search"
+                                    className="h-9 w-full rounded-lg border border-sidebar-border/70 bg-background pl-8 pr-3 text-xs shadow-xs focus:outline-none focus:ring-1 focus:ring-primary placeholder:text-muted-foreground"
+                                    placeholder="Cari no PR, customer, ref PO..."
+                                    value={realizedSearchTerm}
+                                    onChange={(e) => setRealizedSearchTerm(e.target.value)}
+                                />
+                            </div>
+                            <div className="flex items-center gap-1.5 text-muted-foreground">
+                                <span>Tampilkan:</span>
                                 <select
-                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                    value={
-                                        realizedPageSize === Infinity
-                                            ? 'all'
-                                            : realizedPageSize
-                                    }
-                                    onChange={(event) => {
-                                        const value = event.target.value;
-                                        setRealizedPageSize(
-                                            value === 'all'
-                                                ? Infinity
-                                                : Number(value),
-                                        );
+                                    className="h-8 rounded-lg border border-sidebar-border/70 bg-background px-2 text-xs font-medium text-foreground shadow-xs"
+                                    value={realizedPageSize === Infinity ? 'all' : realizedPageSize}
+                                    onChange={(e) => {
+                                        const value = e.target.value;
+                                        setRealizedPageSize(value === 'all' ? Infinity : Number(value));
                                         setRealizedCurrentPage(1);
                                     }}
                                 >
-                                    <option value={5}>5</option>
-                                    <option value={10}>10</option>
-                                    <option value={25}>25</option>
-                                    <option value={50}>50</option>
+                                    <option value={5}>5 baris</option>
+                                    <option value={10}>10 baris</option>
+                                    <option value={25}>25 baris</option>
+                                    <option value={50}>50 baris</option>
                                     <option value="all">Semua</option>
                                 </select>
-                            </label>
-                            <label>
-                                Cari
-                                <input
-                                    type="search"
-                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
-                                    placeholder="Cari no PR, customer, ref PO..."
-                                    value={realizedSearchTerm}
-                                    onChange={(event) =>
-                                        setRealizedSearchTerm(
-                                            event.target.value,
-                                        )
-                                    }
-                                />
-                            </label>
+                            </div>
                         </div>
 
-                        <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                            <table className="w-full table-auto text-sm">
-                                <thead className="bg-muted/50 text-muted-foreground">
-                                    <tr>
-                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
-                                            No PR
-                                        </th>
-                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
-                                            Date
-                                        </th>
-                                        <th className="w-full px-2 py-2 text-left whitespace-nowrap">
-                                            Customer
-                                        </th>
-                                        <th className="w-max px-2 py-2 text-left whitespace-nowrap">
-                                            Ref PO
-                                        </th>
-                                        <th className="px-2 py-2 text-left whitespace-nowrap">
-                                            Jenis PR
-                                        </th>
-                                        <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
-                                            Action
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <PlainTableStateRows
-                                        error={realizedError}
-                                        onRetry={() => loadRealized(periodFilter)}
-                                        loading={realizedLoading}
-                                        columns={6}
-                                        rows={5}
-                                        isEmpty={
-                                            !realizedLoading &&
-                                            displayedRealizedPurchaseRequirements.length ===
-                                                0
-                                        }
-                                        emptyMessage={
-                                            realizedError ||
-                                            'Tidak ada PR terealisasi.'
-                                        }
-                                    />
-                                    {displayedRealizedPurchaseRequirements.map(
-                                        (item) => (
-                                            <tr
-                                                key={`realized-${item.no_pr}`}
-                                                className="border-t border-sidebar-border/70"
-                                            >
-                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
+                        <div className="rounded-xl border border-sidebar-border/70 bg-card overflow-hidden shadow-xs">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-xs border-collapse">
+                                    <thead className="bg-muted/50 text-[11px] font-bold text-muted-foreground uppercase tracking-wider border-b-2 border-slate-300 dark:border-slate-700">
+                                        <tr>
+                                            <th className="w-10 px-2 py-2.5 text-center whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                No
+                                            </th>
+                                            <th className="w-px px-2.5 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                No PR
+                                            </th>
+                                            <th className="w-px px-2.5 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                Date
+                                            </th>
+                                            <th className="px-2.5 py-2.5 text-left border-b border-slate-300 dark:border-slate-700">
+                                                Customer
+                                            </th>
+                                            <th className="w-px px-2.5 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                Ref PO
+                                            </th>
+                                            <th className="w-28 px-2.5 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                Jenis PR
+                                            </th>
+                                            <th className="w-20 px-2.5 py-2.5 text-center whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                Aksi
+                                            </th>
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-slate-300 dark:divide-slate-700">
+                                        <PlainTableStateRows
+                                            error={realizedError}
+                                            onRetry={() => loadRealized(periodFilter)}
+                                            loading={realizedLoading}
+                                            columns={7}
+                                            rows={5}
+                                            isEmpty={!realizedLoading && displayedRealizedPurchaseRequirements.length === 0}
+                                            emptyMessage={realizedError || 'Tidak ada PR terealisasi.'}
+                                        />
+                                        {displayedRealizedPurchaseRequirements.map((item, index) => (
+                                            <tr key={`realized-${item.no_pr}`} className="border-b border-slate-300 dark:border-slate-700 transition-colors hover:bg-muted/40">
+                                                <td className="w-10 px-2 py-2.5 text-center text-muted-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                    {realizedPageSize === Infinity ? index + 1 : (realizedCurrentPage - 1) * realizedPageSize + index + 1}
+                                                </td>
+                                                <td className="w-px px-2.5 py-2.5 font-semibold text-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                                     {item.no_pr}
                                                 </td>
-                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
-                                                    {item.date ||
-                                                        item.pr_date ||
-                                                        '-'}
+                                                <td className="w-px px-2.5 py-2.5 text-muted-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                    {item.date}
                                                 </td>
-                                                <td className="w-full min-w-0 px-2 py-2 whitespace-nowrap">
-                                                    <div className="min-w-0">
-                                                        {renderCustomersWithOverdueMarkers(
-                                                            getValue(item, [
-                                                                'for_customer',
-                                                            ]),
-                                                        )}
+                                                <td className="px-2.5 py-2.5 text-foreground border-b border-slate-300 dark:border-slate-700">
+                                                    {renderCustomersWithOverdueMarkers(item.for_customer)}
+                                                </td>
+                                                <td className="w-px px-2.5 py-2.5 text-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                    {renderRefPoValues(item.ref_po)}
+                                                </td>
+                                                <td className="w-28 px-2.5 py-2.5 text-muted-foreground text-xs whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                    <span className="inline-flex items-center rounded-md bg-muted px-2 py-0.5 font-medium text-foreground">
+                                                        {item.jenis_pr ?? '-'}
+                                                    </span>
+                                                </td>
+                                                <td className="w-20 px-2.5 py-2.5 whitespace-nowrap text-center border-b border-slate-300 dark:border-slate-700">
+                                                    <div className="flex items-center justify-center gap-1">
+                                                        <Button
+                                                            type="button"
+                                                            variant="outline"
+                                                            size="sm"
+                                                            className="h-7 w-7 p-0 rounded-md border-sidebar-border/70 hover:bg-emerald-500/15 hover:text-emerald-600 dark:hover:text-emerald-400 cursor-pointer"
+                                                            onClick={() => {
+                                                                setIsRealizedModalOpen(false);
+                                                                handleOpenModal(item);
+                                                            }}
+                                                            title="Lihat Detail PR"
+                                                        >
+                                                            <Eye className="size-3.5 text-muted-foreground" />
+                                                        </Button>
+                                                        <a
+                                                            href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/print`}
+                                                            target="_blank"
+                                                            rel="noreferrer"
+                                                            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sidebar-border/70 bg-background text-muted-foreground shadow-xs transition-colors hover:bg-teal-500/15 hover:text-teal-600 dark:hover:text-teal-400 cursor-pointer"
+                                                            title="Print Dokumen PR"
+                                                        >
+                                                            <Printer className="size-3.5" />
+                                                        </a>
                                                     </div>
                                                 </td>
-                                                <td className="w-max px-2 py-2 whitespace-nowrap">
-                                                    {renderRefPoValues(
-                                                        item.ref_po,
-                                                    )}
-                                                </td>
-                                                <td className="px-2 py-2 text-sm whitespace-nowrap">
-                                                    {item.jenis_pr ?? '-'}
-                                                </td>
-                                                <td className="w-1 px-2 py-2 whitespace-nowrap">
-                                                    <button
-                                                        type="button"
-                                                        className="text-muted-foreground transition hover:text-foreground"
-                                                        title="Lihat"
-                                                        onClick={() => {
-                                                            setIsRealizedModalOpen(
-                                                                false,
-                                                            );
-                                                            handleOpenModal(
-                                                                item,
-                                                            );
-                                                        }}
-                                                    >
-                                                        <Eye className="size-4" />
-                                                    </button>
-                                                </td>
                                             </tr>
-                                        ),
-                                    )}
-                                </tbody>
-                            </table>
-                        </div>
+                                        ))}
+                                    </tbody>
+                                </table>
+                            </div>
 
-                        {realizedPageSize !== Infinity &&
-                            realizedTotalItems > 0 && (
-                                <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
+                            {realizedPageSize !== Infinity && realizedTotalItems > 0 && (
+                                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-sidebar-border/70 bg-card px-4 py-3 text-xs text-muted-foreground">
                                     <span>
                                         Menampilkan{' '}
-                                        {Math.min(
-                                            (realizedCurrentPage - 1) *
-                                                realizedPageSize +
-                                                1,
-                                            realizedTotalItems,
-                                        )}
-                                        -
-                                        {Math.min(
-                                            realizedCurrentPage *
-                                                realizedPageSize,
-                                            realizedTotalItems,
-                                        )}{' '}
-                                        dari {realizedTotalItems} data
+                                        <span className="font-semibold text-foreground">
+                                            {Math.min((realizedCurrentPage - 1) * realizedPageSize + 1, realizedTotalItems)}
+                                        </span>
+                                        {' '}-{' '}
+                                        <span className="font-semibold text-foreground">
+                                            {Math.min(realizedCurrentPage * realizedPageSize, realizedTotalItems)}
+                                        </span>
+                                        {' '}dari{' '}
+                                        <span className="font-semibold text-foreground">{realizedTotalItems}</span>
+                                        {' '}data
                                     </span>
                                     <div className="flex items-center gap-2">
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            onClick={() =>
-                                                setRealizedCurrentPage((page) =>
-                                                    Math.max(1, page - 1),
-                                                )
-                                            }
+                                            className="h-8 gap-1 rounded-lg px-3 text-xs font-semibold shadow-xs"
+                                            onClick={() => setRealizedCurrentPage((page) => Math.max(1, page - 1))}
                                             disabled={realizedCurrentPage === 1}
                                         >
-                                            Sebelumnya
+                                            <ChevronLeft className="size-3.5" />
+                                            <span>Sebelumnya</span>
                                         </Button>
-                                        <span className="text-sm text-muted-foreground">
-                                            Halaman {realizedCurrentPage} from{' '}
-                                            {realizedTotalPages}
+                                        <span className="text-xs font-medium text-foreground px-1">
+                                            {realizedCurrentPage} / {realizedTotalPages}
                                         </span>
                                         <Button
                                             variant="outline"
                                             size="sm"
-                                            onClick={() =>
-                                                setRealizedCurrentPage((page) =>
-                                                    Math.min(
-                                                        realizedTotalPages,
-                                                        page + 1,
-                                                    ),
-                                                )
-                                            }
-                                            disabled={
-                                                realizedCurrentPage ===
-                                                realizedTotalPages
-                                            }
+                                            className="h-8 gap-1 rounded-lg px-3 text-xs font-semibold shadow-xs"
+                                            onClick={() => setRealizedCurrentPage((page) => Math.min(realizedTotalPages, page + 1))}
+                                            disabled={realizedCurrentPage === realizedTotalPages}
                                         >
-                                            Berikutnya
+                                            <span>Berikutnya</span>
+                                            <ChevronRight className="size-3.5" />
                                         </Button>
                                     </div>
                                 </div>
                             )}
+                        </div>
                     </DialogContent>
                 </Dialog>
+
+                {/* ─── 9. Overdue Dialog & Invoice Detail Dialog ────────────────── */}
                 <OverdueInvoiceWarningDialog
                     open={overdueDialogOpen}
                     onOpenChange={setOverdueDialogOpen}
