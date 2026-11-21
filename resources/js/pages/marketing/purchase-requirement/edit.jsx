@@ -153,8 +153,15 @@ const fetchNextRefPo = async (jenisPr, dateStr, excludeNoPr = '') => {
 };
 
 const parseNumber = (value) => {
-    const parsed = Number(value);
-    return Number.isNaN(parsed) ? 0 : parsed;
+    if (value === null || value === undefined || value === '') {
+        return 0;
+    }
+    if (typeof value === 'number') {
+        return Number.isFinite(value) ? value : 0;
+    }
+    const normalized = String(value).replace(/,/g, '').replace(/%/g, '').trim();
+    const parsed = Number(normalized);
+    return Number.isFinite(parsed) ? parsed : 0;
 };
 
 const renderValue = (value) =>
@@ -164,18 +171,15 @@ const formatPercent = (value) => {
     if (value === null || value === undefined || value === '') {
         return '';
     }
-    const number = Number(value);
-    if (Number.isNaN(number)) {
-        return String(value);
-    }
+    const number = parseNumber(value);
     return `${number.toFixed(2)}%`;
 };
 
 const calculateMargin = (priceInPo, priceEstimate) => {
-    const estimate = parseNumber(priceEstimate);
     const po = parseNumber(priceInPo);
-    if (!estimate) return '';
-    const margin = ((po - estimate) / estimate) * 100;
+    const estimate = parseNumber(priceEstimate);
+    if (po <= 0 || estimate <= 0) return '';
+    const margin = ((po - estimate) / po) * 100;
     return Number.isFinite(margin) ? margin.toFixed(2) : '';
 };
 
@@ -281,7 +285,14 @@ export default function PurchaseRequirementEdit({
             priceEstimate: item.unit_price ?? '',
             totalPrice: item.total_price ?? '',
             priceInPo: item.price_po ?? '',
-            margin: item.margin ?? '',
+            margin: (() => {
+                const calculated = calculateMargin(item.price_po, item.unit_price);
+                if (calculated !== '') return calculated;
+                if (item.margin && item.margin !== '0%' && item.margin !== '0.00%') {
+                    return item.margin;
+                }
+                return '';
+            })(),
             remark: item.renmark ?? '',
             qtyPo: parseNumber(item.qty_po),
             qtyPoIn: parseNumber(item.qty_po_in),
@@ -1592,7 +1603,9 @@ export default function PurchaseRequirementEdit({
                                     const source = isEditing && editingDraft ? editingDraft : item;
                                     const computedMargin = isEditing
                                         ? calculateMargin(source.priceInPo, source.priceEstimate)
-                                        : source.margin;
+                                        : (source.margin !== '' && source.margin !== null && source.margin !== undefined && source.margin !== '0%' && source.margin !== '0.00%'
+                                            ? source.margin
+                                            : calculateMargin(source.priceInPo, source.priceEstimate));
 
                                     return (
                                         <div

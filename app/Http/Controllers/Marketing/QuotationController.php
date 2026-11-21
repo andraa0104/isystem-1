@@ -220,20 +220,35 @@ class QuotationController
             $page = max(1, (int) $request->query('page', 1));
             $perPage = $request->query('per_page', 5);
             $search = trim((string) $request->query('search', ''));
-    
-            // Query sederhana tanpa alias
-            $query = DB::table('tb_penawarandetail')
-                ->select('ID', 'No_Penawaran', 'Material', 'Qty', 'Satuan', 'Harga', 'Harga_Modal as Harga_modal');
-    
+            $period = $request->query('period', 'today');
+
+            $query = DB::table('tb_penawarandetail as d')
+                ->join('tb_penawaran as p', 'd.No_Penawaran', '=', 'p.No_penawaran')
+                ->select('d.ID', 'd.No_Penawaran', 'd.Material', 'd.Qty', 'd.Satuan', 'd.Harga', 'd.Harga_Modal as Harga_modal');
+
+            $now = Carbon::now();
+            $range = match ($period) {
+                'today' => [$now->copy()->startOfDay(), $now->copy()->startOfDay()->addDay()],
+                'week' => [$now->copy()->startOfWeek(), $now->copy()->startOfWeek()->addWeek()],
+                'month' => [$now->copy()->startOfMonth(), $now->copy()->startOfMonth()->addMonth()],
+                'year' => [$now->copy()->startOfYear(), $now->copy()->startOfYear()->addYear()],
+                default => null,
+            };
+
+            if ($range !== null) {
+                $query->where('p.Tgl_Posting', '>=', $range[0]->toDateString())
+                    ->where('p.Tgl_Posting', '<', $range[1]->toDateString());
+            }
+
             if ($search !== '') {
                 $query->where(function($q) use ($search) {
-                    $q->where('No_Penawaran', 'LIKE', '%' . $search . '%')
-                        ->orWhere('Material', 'LIKE', "%{$search}%");
+                    $q->where('d.No_Penawaran', 'LIKE', '%' . $search . '%')
+                        ->orWhere('d.Material', 'LIKE', "%{$search}%");
                 });
             }
-    
-            $query->orderBy('ID', 'desc');
-    
+
+            $query->orderBy('d.ID', 'desc');
+
             if ($perPage === 'all') {
                 $items = $query->get();
                 $total = $items->count();
@@ -242,14 +257,14 @@ class QuotationController
                 $total = (clone $query)->count();
                 $items = $query->forPage($page, $perPage)->get();
             }
-    
+
             // Tambahkan can_delete
             $items = $items->map(function($item) {
                 $item->can_delete = 1;
                 $item->id_detail = $item->ID;
                 return $item;
             });
-    
+
             return response()->json([
                 'materials' => $items,
                 'total' => $total,

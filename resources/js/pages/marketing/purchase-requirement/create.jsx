@@ -117,7 +117,7 @@ const parseNumber = (value) => {
         return Number.isFinite(value) ? value : 0;
     }
 
-    const normalized = String(value).replace(/,/g, '').trim();
+    const normalized = String(value).replace(/,/g, '').replace(/%/g, '').trim();
     const parsed = Number(normalized);
     return Number.isFinite(parsed) ? parsed : 0;
 };
@@ -150,11 +150,11 @@ const calculateMargin = (hargaPoIn, hargaModal) => {
     const poIn = parseNumber(hargaPoIn);
     const modal = parseNumber(hargaModal);
 
-    if (modal <= 0) {
+    if (poIn <= 0 || modal <= 0) {
         return '';
     }
 
-    const margin = ((poIn - modal) / modal) * 100;
+    const margin = ((poIn - modal) / poIn) * 100;
     return Number.isFinite(margin) ? margin.toFixed(2) : '';
 };
 
@@ -553,12 +553,17 @@ export default function PurchaseRequirementCreate() {
                     hargaPoIn: item.harga_po_in ?? 0,
                     // Diisi langsung dari query batch backend (tb_detailpo & tb_invin)
                     hargaModal: hargaModalTerakhir,
-                    margin:
-                        item.margin ??
-                        calculateMargin(
+                    margin: (() => {
+                        const calculated = calculateMargin(
                             item.harga_po_in ?? 0,
                             hargaModalTerakhir,
-                        ),
+                        );
+                        if (calculated !== '') return calculated;
+                        if (item.margin && item.margin !== '0%' && item.margin !== '0.00%') {
+                            return item.margin;
+                        }
+                        return '';
+                    })(),
                     remark: item.remark ?? '',
                     refPo: selectedPoNumber,
                     forCustomer: selectedCustomer,
@@ -1658,24 +1663,31 @@ export default function PurchaseRequirementCreate() {
                                                                     {formatRupiah(calculateTotalPrice(item.qtyPr, item.hargaModal))}
                                                                 </p>
                                                             </div>
-                                                            {item.margin !== '' && (
-                                                                <div className="text-right">
-                                                                    <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
-                                                                        Margin
-                                                                    </span>
-                                                                    <Badge
-                                                                        variant={parseNumber(item.margin) < 0 ? 'destructive' : 'outline'}
-                                                                        className={cn(
-                                                                            'font-semibold tabular-nums text-xs sm:text-sm px-2.5 py-0.5',
-                                                                            parseNumber(item.margin) >= 0
-                                                                                ? 'bg-emerald-600 text-white border-transparent'
-                                                                                : 'bg-destructive text-white border-transparent'
-                                                                        )}
-                                                                    >
-                                                                        {formatMargin(item.margin)} %
-                                                                    </Badge>
-                                                                </div>
-                                                            )}
+                                                            {(() => {
+                                                                const displayMargin = item.margin !== '' && item.margin !== null && item.margin !== undefined
+                                                                    ? item.margin
+                                                                    : calculateMargin(item.hargaPoIn, item.hargaModal);
+                                                                if (!displayMargin) return null;
+                                                                const numMargin = parseNumber(displayMargin);
+                                                                return (
+                                                                    <div className="text-right">
+                                                                        <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider block">
+                                                                            Margin
+                                                                        </span>
+                                                                        <Badge
+                                                                            variant={numMargin < 0 ? 'destructive' : 'outline'}
+                                                                            className={cn(
+                                                                                'font-semibold tabular-nums text-xs sm:text-sm px-2.5 py-0.5',
+                                                                                numMargin >= 0
+                                                                                    ? 'bg-emerald-600 text-white border-transparent'
+                                                                                    : 'bg-destructive text-white border-transparent'
+                                                                            )}
+                                                                        >
+                                                                            {formatMargin(displayMargin)} %
+                                                                        </Badge>
+                                                                    </div>
+                                                                );
+                                                            })()}
                                                         </div>
 
                                                         {/* Remark Field */}

@@ -234,10 +234,11 @@ export default function QuotationIndex({
     );
 
     // ─── Fetch Data Tab 2 (Material) ─────────────────────────────────────
-    const fetchMaterialData = useCallback(async (page, perPage, search, signal) => {
+    const fetchMaterialData = useCallback(async (newPeriod, page, perPage, search, signal) => {
         setMaterialLoading(true);
         try {
             const params = new URLSearchParams({
+                period: newPeriod,
                 page: String(page),
                 per_page: perPage === Infinity ? 'all' : String(perPage),
                 search: search,
@@ -280,6 +281,7 @@ export default function QuotationIndex({
     const handlePeriodChange = (newPeriod) => {
         setStatusFilter(newPeriod);
         setCurrentPage(1);
+        setMaterialCurrentPage(1);
     };
 
     const handleTabChange = (tab) => {
@@ -332,9 +334,9 @@ export default function QuotationIndex({
     useEffect(() => {
         if (activeTab !== 'material') return;
         const controller = new AbortController();
-        fetchMaterialData(materialCurrentPage, materialPageSize, debouncedMaterialSearch, controller.signal);
+        fetchMaterialData(statusFilter, materialCurrentPage, materialPageSize, debouncedMaterialSearch, controller.signal);
         return () => controller.abort();
-    }, [activeTab, materialCurrentPage, materialPageSize, debouncedMaterialSearch, fetchMaterialData, realtimeRevision]);
+    }, [activeTab, statusFilter, materialCurrentPage, materialPageSize, debouncedMaterialSearch, fetchMaterialData, realtimeRevision]);
 
     useEffect(() => {
         if (materialCurrentPage > tab2TotalPages) {
@@ -802,26 +804,47 @@ export default function QuotationIndex({
                     <div className="flex flex-col gap-4">
                         {/* Filter & Search Bar */}
                         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 p-3 sm:p-4 rounded-xl border border-sidebar-border/70 bg-card shadow-xs">
-                            <div className="flex items-center gap-2">
-                                <span className="text-sm text-muted-foreground font-semibold">Tampilkan:</span>
-                                <select
-                                    className="h-9 rounded-xl border border-sidebar-border/80 bg-background px-2.5 text-sm font-semibold text-foreground focus:outline-hidden cursor-pointer"
-                                    value={materialPageSize === Infinity ? 'all' : materialPageSize}
-                                    onChange={handleMaterialPageSizeChange}
-                                >
-                                    <option value={5}>5 Baris</option>
-                                    <option value={10}>10 Baris</option>
-                                    <option value={25}>25 Baris</option>
-                                    <option value={50}>50 Baris</option>
-                                    <option value="all">Semua</option>
-                                </select>
+                            <div className="flex flex-wrap items-center gap-2.5">
+                                <div className="flex items-center gap-1.5 text-sm text-muted-foreground font-semibold">
+                                    <Filter className="size-4 text-emerald-600" />
+                                    <span>Filter:</span>
+                                </div>
+
+                                {/* Period Dropdown */}
+                                <Select value={statusFilter} onValueChange={handlePeriodChange}>
+                                    <SelectTrigger className="w-[160px] h-9 rounded-xl border-sidebar-border/80 bg-background text-sm font-semibold focus:ring-emerald-500/20">
+                                        <SelectValue placeholder="Pilih Periode" />
+                                    </SelectTrigger>
+                                    <SelectContent className="rounded-xl border-sidebar-border/70 bg-card shadow-md text-sm font-semibold">
+                                        <SelectItem value="today">Hari Ini</SelectItem>
+                                        <SelectItem value="week">Minggu Ini</SelectItem>
+                                        <SelectItem value="month">Bulan Ini</SelectItem>
+                                        <SelectItem value="year">Tahun Ini</SelectItem>
+                                        <SelectItem value="all">Semua Periode</SelectItem>
+                                    </SelectContent>
+                                </Select>
+
+                                <div className="flex items-center gap-1.5 text-sm text-muted-foreground font-semibold">
+                                    <span className="hidden sm:inline">Baris:</span>
+                                    <select
+                                        className="h-9 rounded-xl border border-sidebar-border/80 bg-background px-2.5 text-sm font-semibold text-foreground focus:outline-hidden cursor-pointer"
+                                        value={materialPageSize === Infinity ? 'all' : materialPageSize}
+                                        onChange={handleMaterialPageSizeChange}
+                                    >
+                                        <option value={5}>5 Baris</option>
+                                        <option value={10}>10 Baris</option>
+                                        <option value={25}>25 Baris</option>
+                                        <option value={50}>50 Baris</option>
+                                        <option value="all">Semua</option>
+                                    </select>
+                                </div>
                             </div>
 
                             <div className="relative w-full md:w-80">
                                 <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground/60" />
                                 <input
                                     type="search"
-                                    className="h-9 w-full rounded-xl border border-sidebar-border/80 bg-background pl-9 pr-8 text-sm font-medium placeholder:text-muted-foreground/60 focus:border-teal-500 focus:outline-hidden focus:ring-2 focus:ring-teal-500/20 transition-colors"
+                                    className="h-9 w-full rounded-xl border border-sidebar-border/80 bg-background pl-9 pr-8 text-sm font-medium placeholder:text-muted-foreground/60 focus:border-emerald-500 focus:outline-hidden focus:ring-2 focus:ring-emerald-500/20 transition-colors"
                                     placeholder="Cari No Penawaran atau Nama Material..."
                                     value={materialSearch}
                                     onChange={(e) => {
