@@ -25,13 +25,26 @@ import { cn } from '@/lib/utils';
 import { Head, router, usePage } from '@inertiajs/react';
 import {
     AlertCircle,
+    BarChart3,
+    Calendar,
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    ChevronUp,
     ClipboardCheck,
+    Download,
     Eye,
+    Filter,
+    Package,
     Pencil,
+    Plus,
     Printer,
+    RotateCcw,
     Search,
     ShieldCheck,
     Trash2,
+    Truck,
+    Users,
     X,
 } from 'lucide-react';
 import {
@@ -187,16 +200,17 @@ const getDeliveryUrgency = (value) => {
     );
 
     if (daysRemaining <= 0) return 'overdue';
-    if (daysRemaining <= 5) return 'soon';
+    if (daysRemaining <= 7) return 'soon';
     return null;
 };
 
-const getRowUrgency = (item) =>
-    item.sisa_qtydo !== undefined &&
-        item.sisa_qtydo !== null &&
-        Number(item.sisa_qtydo) !== 0
-        ? getDeliveryUrgency(item.delivery_date)
-        : null;
+const getRowUrgency = (item) => {
+    if (!item?.delivery_date) return null;
+    if (item.sisa_qtydo !== undefined && item.sisa_qtydo !== null && Number(item.sisa_qtydo) === 0) {
+        return null;
+    }
+    return getDeliveryUrgency(item.delivery_date);
+};
 
 const toDate = (value) => {
     const text = String(value ?? '').trim();
@@ -269,6 +283,7 @@ export default function PurchaseOrderInIndex({
     const [materialSearch, setMaterialSearch] = useState('');
     const [isTrackingModalOpen, setIsTrackingModalOpen] = useState(false);
 
+
     const handleOpenTrackingModal = () => {
         setIsTrackingModalOpen(true);
     };
@@ -291,6 +306,46 @@ export default function PurchaseOrderInIndex({
     const [dataPoInPeriod, setDataPoInPeriod] = useState('today');
     const [dataPoInStart, setDataPoInStart] = useState('');
     const [dataPoInEnd, setDataPoInEnd] = useState('');
+
+    const handleResetCustomerFilters = () => {
+        setSearch('');
+        setStatusFilter('outstanding_do');
+        setTableDateFilter('all');
+        setTableStartDate('');
+        setTableEndDate('');
+        setDeadlineFilter('all');
+        setPerPage('5');
+    };
+
+    const handleResetMaterialFilters = () => {
+        setMaterialSearch('');
+        setMaterialStatusFilter('outstanding_do');
+        setMaterialDateFilter('all');
+        setMaterialStartDate('');
+        setMaterialEndDate('');
+        setMaterialDeadlineFilter('all');
+        setMaterialPerPage('5');
+    };
+
+    const isCustomerFiltered = Boolean(
+        search ||
+        statusFilter !== 'outstanding_do' ||
+        tableDateFilter !== 'all' ||
+        tableStartDate ||
+        tableEndDate ||
+        deadlineFilter !== 'all' ||
+        perPage !== '5'
+    );
+
+    const isMaterialFiltered = Boolean(
+        materialSearch ||
+        materialStatusFilter !== 'outstanding_do' ||
+        materialDateFilter !== 'all' ||
+        materialStartDate ||
+        materialEndDate ||
+        materialDeadlineFilter !== 'all' ||
+        materialPerPage !== '5'
+    );
     const [activeModal, setActiveModal] = useState(null);
     const [activeModalTab, setActiveModalTab] = useState('do');
 
@@ -1229,18 +1284,30 @@ export default function PurchaseOrderInIndex({
                 open={isExportModalOpen}
                 onOpenChange={setIsExportModalOpen}
             >
-                <DialogContent className="sm:max-w-md">
-                    <DialogHeader>
-                        <DialogTitle>Range Tanggal Export</DialogTitle>
-                        <DialogDescription>
-                            Pilih range berdasarkan Date Doc.
-                        </DialogDescription>
+                <DialogContent className="sm:max-w-md rounded-2xl border border-sidebar-border/70 bg-card p-5 shadow-xl">
+                    <DialogHeader className="border-b border-sidebar-border/60 pb-3">
+                        <div className="flex items-center gap-2.5">
+                            <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                <Download className="size-4" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-base font-bold text-foreground">
+                                    Export Data PO Customer
+                                </DialogTitle>
+                                <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                                    Unduh rekapan dokumen PO Customer dalam format Excel.
+                                </DialogDescription>
+                            </div>
+                        </div>
                     </DialogHeader>
-                    <div className="space-y-4">
-                        <label className="block space-y-2 text-sm">
-                            <span className="font-medium">Status</span>
+
+                    <div className="space-y-3.5 py-2 text-xs">
+                        <div>
+                            <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                                Status PO
+                            </label>
                             <select
-                                className="h-10 w-full rounded-md border border-input bg-background px-3"
+                                className="h-9 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-xs font-medium text-foreground focus:border-emerald-500 focus:outline-none"
                                 value={exportStatus}
                                 onChange={(event) =>
                                     setExportStatus(event.target.value)
@@ -1254,11 +1321,14 @@ export default function PurchaseOrderInIndex({
                                 <option value="realized_pr">PR Selesai</option>
                                 <option value="realized_do">DO Selesai</option>
                             </select>
-                        </label>
-                        <label className="block space-y-2 text-sm">
-                            <span className="font-medium">Filter Tanggal</span>
+                        </div>
+
+                        <div>
+                            <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                                Periode Tanggal
+                            </label>
                             <select
-                                className="h-10 w-full rounded-md border border-input bg-background px-3"
+                                className="h-9 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-xs font-medium text-foreground focus:border-emerald-500 focus:outline-none"
                                 value={exportDateFilter}
                                 onChange={(event) =>
                                     setExportDateFilter(event.target.value)
@@ -1268,14 +1338,17 @@ export default function PurchaseOrderInIndex({
                                 <option value="this_week">Minggu Ini</option>
                                 <option value="this_month">Bulan Ini</option>
                                 <option value="this_year">Tahun Ini</option>
-                                <option value="range">Range Tanggal</option>
+                                <option value="range">Rentang Tanggal</option>
                                 <option value="all">Semua Data</option>
                             </select>
-                        </label>
-                        <label className="block space-y-2 text-sm">
-                            <span className="font-medium">Filter Deadline</span>
+                        </div>
+
+                        <div>
+                            <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
+                                Filter Deadline
+                            </label>
                             <select
-                                className="h-10 w-full rounded-md border border-input bg-background px-3"
+                                className="h-9 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-xs font-medium text-foreground focus:border-emerald-500 focus:outline-none"
                                 value={exportDeadlineFilter}
                                 onChange={(event) =>
                                     setExportDeadlineFilter(event.target.value)
@@ -1285,16 +1358,17 @@ export default function PurchaseOrderInIndex({
                                 <option value="soon">≤ 5 Hari</option>
                                 <option value="overdue">Lewat Deadline</option>
                             </select>
-                        </label>
+                        </div>
+
                         {exportDateFilter === 'range' && (
-                            <div className="flex gap-4">
-                                <label className="block flex-1 space-y-2 text-sm">
-                                    <span className="font-medium">
+                            <div className="grid grid-cols-2 gap-2.5 pt-1">
+                                <div>
+                                    <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
                                         Tanggal Awal
-                                    </span>
+                                    </label>
                                     <input
                                         type="date"
-                                        className="h-10 w-full rounded-md border border-input bg-background px-3"
+                                        className="h-9 w-full rounded-lg border border-sidebar-border/70 bg-background px-2.5 text-xs text-foreground focus:border-emerald-500 focus:outline-none"
                                         value={exportStartDate}
                                         max={exportEndDate}
                                         onChange={(event) =>
@@ -1303,33 +1377,39 @@ export default function PurchaseOrderInIndex({
                                             )
                                         }
                                     />
-                                </label>
-                                <label className="block flex-1 space-y-2 text-sm">
-                                    <span className="font-medium">
+                                </div>
+                                <div>
+                                    <label className="block text-[11px] font-semibold text-muted-foreground uppercase tracking-wider mb-1">
                                         Tanggal Akhir
-                                    </span>
+                                    </label>
                                     <input
                                         type="date"
-                                        className="h-10 w-full rounded-md border border-input bg-background px-3"
+                                        className="h-9 w-full rounded-lg border border-sidebar-border/70 bg-background px-2.5 text-xs text-foreground focus:border-emerald-500 focus:outline-none"
                                         value={exportEndDate}
                                         min={exportStartDate}
                                         onChange={(event) =>
                                             setExportEndDate(event.target.value)
                                         }
                                     />
-                                </label>
+                                </div>
                             </div>
                         )}
-                        <div className="flex justify-end gap-2">
+
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-sidebar-border/60">
                             <Button
                                 type="button"
                                 variant="outline"
+                                size="sm"
+                                className="h-9 rounded-lg text-xs font-semibold"
                                 onClick={() => setIsExportModalOpen(false)}
                             >
                                 Batal
                             </Button>
                             <Button
                                 type="button"
+                                size="sm"
+                                className="h-9 gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs cursor-pointer"
+                                style={{ backgroundColor: '#059669', color: '#ffffff' }}
                                 disabled={
                                     exportDateFilter === 'range' &&
                                     (!exportStartDate || !exportEndDate)
@@ -1341,58 +1421,60 @@ export default function PurchaseOrderInIndex({
                                         deadline_filter: exportDeadlineFilter,
                                     });
                                     if (exportDateFilter === 'range') {
-                                        params.set(
-                                            'start_date',
-                                            exportStartDate,
-                                        );
+                                        params.set('start_date', exportStartDate);
                                         params.set('end_date', exportEndDate);
                                     }
                                     window.open(
-                                        `/marketing/purchase-order-in/export?${params}`,
+                                        `/marketing/purchase-order-in/export?${params.toString()}`,
                                         '_blank',
                                         'noopener,noreferrer',
                                     );
                                     setIsExportModalOpen(false);
                                 }}
                             >
-                                Export
+                                <Download className="size-3.5" />
+                                <span>Export Excel</span>
                             </Button>
                         </div>
                     </div>
                 </DialogContent>
             </Dialog>
-            <div className="flex h-full min-w-0 flex-1 flex-col gap-4 p-3 sm:gap-5 sm:p-4">
-                {/* Header section with explicit hex background for maximum compatibility */}
-                <section
-                    className="rounded-xl border border-slate-700 bg-[#0f172a] p-4 text-white shadow-lg sm:rounded-2xl sm:p-5"
-                    style={{ backgroundColor: '#0f172a' }}
-                >
-                    <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-                        <div className="min-w-0">
-                            <p className="text-xs font-bold tracking-[0.22em] text-[#e2e8f0] uppercase">
-                                Marketing Workspace
-                            </p>
-                            <h1 className="mt-1 text-xl font-bold text-white sm:text-2xl">
-                                Purchase Order In (PO In)
-                            </h1>
+            <div className="flex h-full min-w-0 flex-1 flex-col gap-3.5 p-3 sm:gap-4 sm:p-4">
+                {/* ─── 1. Header Banner & Action Bar ────────────────────────────── */}
+                <section className="rounded-xl border border-sidebar-border/70 bg-card p-4 sm:p-5 shadow-xs">
+                    <div className="flex flex-col gap-3.5 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="flex items-start gap-3">
+                            <div className="hidden sm:flex size-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                <ClipboardCheck className="size-5" />
+                            </div>
+                            <div className="min-w-0">
+                                <h1 className="text-lg sm:text-2xl font-bold tracking-tight text-foreground">
+                                    Purchase Order In (PO In)
+                                </h1>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    Kelola pesanan masuk customer, kontrol sisa outstanding PR/DO, dan pantau status realisasi.
+                                </p>
+                            </div>
                         </div>
-                        <div className="grid gap-2 sm:grid-cols-2 md:flex md:flex-wrap md:justify-end">
+
+                        {/* Action Buttons & Summary Toggle (Fully Responsive on 720px screens) */}
+                        <div className="flex flex-wrap items-center gap-2">
+
                             <Button
-                                className="w-full border-2 border-slate-700 bg-[#ffffff] font-bold text-[#0f172a] hover:bg-[#f1f5f9] md:w-auto"
-                                style={{
-                                    backgroundColor: '#ffffff',
-                                    color: '#0f172a',
-                                }}
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-9 gap-1.5 rounded-lg border-sidebar-border/70 bg-background text-xs font-semibold shadow-xs hover:bg-muted/60"
                                 onClick={handleOpenTrackingModal}
                             >
-                                Tracking PO Customer
+                                <Truck className="size-3.5 text-muted-foreground" />
+                                <span>Tracking PO</span>
                             </Button>
                             <Button
-                                className="w-full border-2 border-slate-700 bg-[#ffffff] font-bold text-[#0f172a] hover:bg-[#f1f5f9] md:w-auto"
-                                style={{
-                                    backgroundColor: '#ffffff',
-                                    color: '#0f172a',
-                                }}
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                className="h-9 gap-1.5 rounded-lg border-sidebar-border/70 bg-background text-xs font-semibold shadow-xs hover:bg-muted/60"
                                 onClick={() => {
                                     setExportDeadlineFilter(
                                         activeDataTab === 'material'
@@ -1402,15 +1484,14 @@ export default function PurchaseOrderInIndex({
                                     setIsExportModalOpen(true);
                                 }}
                             >
-                                Export Data
+                                <Download className="size-3.5 text-muted-foreground" />
+                                <span>Export Data</span>
                             </Button>
                             <MenuAction
                                 action="create"
-                                className="w-full border-2 border-slate-700 bg-[#ffffff] font-bold text-[#0f172a] hover:bg-[#f1f5f9] md:w-auto"
-                                style={{
-                                    backgroundColor: '#ffffff',
-                                    color: '#0f172a',
-                                }}
+                                type="button"
+                                className="inline-flex items-center justify-center h-9 px-4 gap-1.5 rounded-lg font-bold text-xs bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs cursor-pointer"
+                                style={{ backgroundColor: '#059669', color: '#ffffff' }}
                                 onClick={() => {
                                     if (!canCreate) {
                                         toastError(
@@ -1424,257 +1505,157 @@ export default function PurchaseOrderInIndex({
                                     );
                                 }}
                             >
-                                Tambah PO IN
+                                <Plus className="size-4" />
+                                <span>Tambah PO IN</span>
                             </MenuAction>
                         </div>
                     </div>
                 </section>
 
-                <section className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                    {/* Card PO IN Outstanding */}
-                    <article
-                        className={cn(
-                            'rounded-xl border p-4 shadow-sm',
-                            isDark
-                                ? 'border-slate-800 bg-[#1e293b] text-white hover:border-amber-400/50'
-                                : 'border-slate-200 bg-[#ffffff] text-slate-900 hover:border-amber-400/50',
-                        )}
-                        style={{
-                            backgroundColor: isDark ? '#1e293b' : '#ffffff',
-                        }}
-                    >
-                        <div
-                            className={cn(
-                                'mb-3 inline-flex rounded-lg p-2',
-                                isDark ? 'bg-slate-800' : 'bg-[#f1f5f9]',
-                            )}
-                        >
-                            <ClipboardCheck className="size-4 text-amber-600" />
+                {/* ─── 2. KPI Summary Metric Cards ───────────────────────────────── */}
+                
+                    <section className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                    {/* Card 1: PO IN Outstanding */}
+                    <article className="rounded-xl border border-sidebar-border/70 bg-card p-3.5 sm:p-4 shadow-xs hover:shadow-sm hover:border-amber-500/40 transition-all flex flex-col justify-between">
+                        <div>
+                            <div className="flex items-center justify-between gap-2 mb-2.5">
+                                <span className="inline-flex items-center justify-center size-8 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 border border-amber-500/20">
+                                    <ClipboardCheck className="size-4" />
+                                </span>
+                                <span className="rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-bold text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                                    Outstanding
+                                </span>
+                            </div>
+                            <p className="text-xs font-bold tracking-wide uppercase text-muted-foreground">
+                                PO IN Outstanding
+                            </p>
+                            <div className="mt-2.5 grid grid-cols-2 gap-2">
+                                <SummaryMetric
+                                    label="Belum PR"
+                                    value={summary.outstanding_pr ?? 0}
+                                    grandTotal={summary.outstanding_pr_amount ?? 0}
+                                    grandTotalHint={SUMMARY_AMOUNT_HINTS.outstanding}
+                                    loading={summaryLoading.outstanding_pr}
+                                    error={summaryErrors.outstanding_pr}
+                                    onRetry={() => fetchPoInSummary(['outstanding'])}
+                                    soonCount={summary.outstanding_pr_soon}
+                                    overdueCount={summary.outstanding_pr_overdue}
+                                    onClick={() => openSummaryModal('outstanding', 'pr')}
+                                />
+                                <SummaryMetric
+                                    label="Belum DO"
+                                    value={summary.outstanding_do ?? 0}
+                                    grandTotal={summary.outstanding_do_amount ?? 0}
+                                    grandTotalHint={SUMMARY_AMOUNT_HINTS.outstanding}
+                                    loading={summaryLoading.outstanding_do}
+                                    error={summaryErrors.outstanding_do}
+                                    onRetry={() => fetchPoInSummary(['outstanding'])}
+                                    soonCount={summary.outstanding_do_soon}
+                                    overdueCount={summary.outstanding_do_overdue}
+                                    onClick={() => openSummaryModal('outstanding', 'do')}
+                                />
+                            </div>
                         </div>
-                        <div className="flex items-center justify-between gap-2">
-                        <p
-                            className={cn(
-                                'text-xs font-bold tracking-wide uppercase',
-                                    isDark
-                                        ? 'text-slate-400'
-                                        : 'text-slate-600',
-                            )}
-                        >
-                            PO IN Outstanding
-                        </p>
-                        </div>
-                        <div className="mt-3 grid grid-cols-2 gap-2">
-                            <SummaryMetric
-                                label="Belum PR"
-                                value={summary.outstanding_pr ?? 0}
-                                grandTotal={summary.outstanding_pr_amount ?? 0}
-                                grandTotalHint={
-                                    SUMMARY_AMOUNT_HINTS.outstanding
-                                }
-                                loading={summaryLoading.outstanding_pr}
-                                error={summaryErrors.outstanding_pr}
-                                onRetry={() =>
-                                    fetchPoInSummary(['outstanding'])
-                                }
-                                soonCount={summary.outstanding_pr_soon}
-                                overdueCount={summary.outstanding_pr_overdue}
-                                onClick={() =>
-                                    openSummaryModal('outstanding', 'pr')
-                                }
-                            />
-                            <SummaryMetric
-                                label="Belum DO"
-                                value={summary.outstanding_do ?? 0}
-                                grandTotal={summary.outstanding_do_amount ?? 0}
-                                grandTotalHint={
-                                    SUMMARY_AMOUNT_HINTS.outstanding
-                                }
-                                loading={summaryLoading.outstanding_do}
-                                error={summaryErrors.outstanding_do}
-                                onRetry={() =>
-                                    fetchPoInSummary(['outstanding'])
-                                }
-                                soonCount={summary.outstanding_do_soon}
-                                overdueCount={summary.outstanding_do_overdue}
-                                onClick={() =>
-                                    openSummaryModal('outstanding', 'do')
-                                }
-                            />
-                        </div>
-                        <p
-                            className={cn(
-                                'mt-1 text-xs font-medium',
-                                isDark ? 'text-slate-500' : 'text-slate-500',
-                            )}
-                        >
+                        <p className="mt-2.5 text-[11px] text-muted-foreground/80 border-t border-sidebar-border/40 pt-2">
                             Dipisah berdasarkan dokumen yang belum dibuat
                         </p>
                     </article>
 
-                    {/* Card PO IN Sisa */}
-                    <article
-                        className={cn(
-                            'rounded-xl border p-4 shadow-sm',
-                            isDark
-                                ? 'border-slate-800 bg-[#1e293b] text-white hover:border-rose-400/50'
-                                : 'border-slate-200 bg-[#ffffff] text-slate-900 hover:border-rose-400/50',
-                        )}
-                        style={{
-                            backgroundColor: isDark ? '#1e293b' : '#ffffff',
-                        }}
-                    >
-                        <div
-                            className={cn(
-                                'mb-3 inline-flex rounded-lg p-2',
-                                isDark ? 'bg-slate-800' : 'bg-[#f1f5f9]',
-                            )}
-                        >
-                            <AlertCircle className="size-4 text-rose-600" />
+                    {/* Card 2: PO IN Sisa */}
+                    <article className="rounded-xl border border-sidebar-border/70 bg-card p-3.5 sm:p-4 shadow-xs hover:shadow-sm hover:border-rose-500/40 transition-all flex flex-col justify-between">
+                        <div>
+                            <div className="flex items-center justify-between gap-2 mb-2.5">
+                                <span className="inline-flex items-center justify-center size-8 rounded-lg bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                                    <AlertCircle className="size-4" />
+                                </span>
+                                <span className="rounded-full bg-rose-500/10 px-2 py-0.5 text-[10px] font-bold text-rose-700 dark:text-rose-400 border border-rose-500/20">
+                                    Sisa Parsial
+                                </span>
+                            </div>
+                            <p className="text-xs font-bold tracking-wide uppercase text-muted-foreground">
+                                PO IN Sisa
+                            </p>
+                            <div className="mt-2.5 grid grid-cols-2 gap-2">
+                                <SummaryMetric
+                                    label="Sisa PR"
+                                    value={summary.sisa_pr ?? 0}
+                                    grandTotal={summary.sisa_pr_amount ?? 0}
+                                    grandTotalHint={SUMMARY_AMOUNT_HINTS.sisa_pr}
+                                    loading={summaryLoading.sisa_pr}
+                                    error={summaryErrors.sisa_pr}
+                                    onRetry={() => fetchPoInSummary(['sisa'])}
+                                    soonCount={summary.sisa_pr_soon}
+                                    overdueCount={summary.sisa_pr_overdue}
+                                    onClick={() => openSummaryModal('sisa', 'pr')}
+                                />
+                                <SummaryMetric
+                                    label="Sisa DO"
+                                    value={summary.sisa_do ?? 0}
+                                    grandTotal={summary.sisa_do_amount ?? 0}
+                                    grandTotalHint={SUMMARY_AMOUNT_HINTS.sisa_do}
+                                    loading={summaryLoading.sisa_do}
+                                    error={summaryErrors.sisa_do}
+                                    onRetry={() => fetchPoInSummary(['sisa'])}
+                                    soonCount={summary.sisa_do_soon}
+                                    overdueCount={summary.sisa_do_overdue}
+                                    onClick={() => openSummaryModal('sisa', 'do')}
+                                />
+                            </div>
                         </div>
-                        <div className="flex items-center justify-between gap-2">
-                        <p
-                            className={cn(
-                                'text-xs font-bold tracking-wide uppercase',
-                                    isDark
-                                        ? 'text-slate-400'
-                                        : 'text-slate-600',
-                            )}
-                        >
-                            PO IN Sisa
-                        </p>
-                        </div>
-                        <div className="mt-3 grid grid-cols-2 gap-2">
-                            <SummaryMetric
-                                label="Sisa PR"
-                                value={summary.sisa_pr ?? 0}
-                                grandTotal={summary.sisa_pr_amount ?? 0}
-                                grandTotalHint={SUMMARY_AMOUNT_HINTS.sisa_pr}
-                                loading={summaryLoading.sisa_pr}
-                                error={summaryErrors.sisa_pr}
-                                onRetry={() => fetchPoInSummary(['sisa'])}
-                                soonCount={summary.sisa_pr_soon}
-                                overdueCount={summary.sisa_pr_overdue}
-                                onClick={() => openSummaryModal('sisa', 'pr')}
-                            />
-                            <SummaryMetric
-                                label="Sisa DO"
-                                value={summary.sisa_do ?? 0}
-                                grandTotal={summary.sisa_do_amount ?? 0}
-                                grandTotalHint={SUMMARY_AMOUNT_HINTS.sisa_do}
-                                loading={summaryLoading.sisa_do}
-                                error={summaryErrors.sisa_do}
-                                onRetry={() => fetchPoInSummary(['sisa'])}
-                                soonCount={summary.sisa_do_soon}
-                                overdueCount={summary.sisa_do_overdue}
-                                onClick={() => openSummaryModal('sisa', 'do')}
-                            />
-                        </div>
-                        <p
-                            className={cn(
-                                'mt-1 text-xs font-medium',
-                                isDark ? 'text-slate-500' : 'text-slate-500',
-                            )}
-                        >
+                        <p className="mt-2.5 text-[11px] text-muted-foreground/80 border-t border-sidebar-border/40 pt-2">
                             Sudah sebagian dibuat, masih ada sisa material
                         </p>
                     </article>
 
-                    {/* Card PO IN Terealisasi */}
-                    <article
-                        className={cn(
-                            'rounded-xl border p-4 shadow-sm',
-                            isDark
-                                ? 'border-slate-800 bg-[#1e293b] text-white hover:border-emerald-400/50'
-                                : 'border-slate-200 bg-[#ffffff] text-slate-900 hover:border-emerald-400/50',
-                        )}
-                        style={{
-                            backgroundColor: isDark ? '#1e293b' : '#ffffff',
-                        }}
-                    >
-                        <div className="mb-3 flex items-center justify-between gap-2">
-                            <span
-                                className={cn(
-                                    'inline-flex rounded-lg p-2',
-                                    isDark ? 'bg-slate-800' : 'bg-[#f1f5f9]',
-                                )}
-                            >
-                                <ShieldCheck className="size-4 text-emerald-600" />
-                            </span>
-                            <select
-                                className={cn(
-                                    'h-8 rounded-md border px-2 text-xs font-bold ring-offset-background outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                                    isDark
-                                        ? 'border-slate-700 bg-slate-800 text-white'
-                                        : 'border-slate-300 bg-[#ffffff] text-slate-900',
-                                )}
-                                value={realizedPeriod}
-                                onChange={(event) =>
-                                    setRealizedPeriod(event.target.value)
-                                }
-                            >
-                                <option value="today">Hari Ini</option>
-                                <option value="this_week">Minggu Ini</option>
-                                <option value="this_month">Bulan Ini</option>
-                                <option value="this_year">Tahun Ini</option>
-                                <option value="all">Semua Data</option>
-                            </select>
+                    {/* Card 3: PO IN Terealisasi */}
+                    <article className="rounded-xl border border-sidebar-border/70 bg-card p-3.5 sm:p-4 shadow-xs hover:shadow-sm hover:border-emerald-500/40 transition-all flex flex-col justify-between">
+                        <div>
+                            <div className="flex items-center justify-between gap-2 mb-2.5">
+                                <span className="inline-flex items-center justify-center size-8 rounded-lg bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                    <ShieldCheck className="size-4" />
+                                </span>
+                                <select
+                                    className="h-7 rounded-md border border-sidebar-border/70 bg-background px-2 text-[11px] font-semibold text-foreground outline-none focus:border-emerald-500"
+                                    value={realizedPeriod}
+                                    onChange={(event) => setRealizedPeriod(event.target.value)}
+                                >
+                                    <option value="today">Hari Ini</option>
+                                    <option value="this_week">Minggu Ini</option>
+                                    <option value="this_month">Bulan Ini</option>
+                                    <option value="this_year">Tahun Ini</option>
+                                    <option value="all">Semua Data</option>
+                                </select>
+                            </div>
+                            <p className="text-xs font-bold tracking-wide uppercase text-muted-foreground">
+                                PO IN Terealisasi
+                            </p>
+                            <div className="mt-2.5 grid grid-cols-2 gap-2">
+                                <SummaryMetric
+                                    label="PR Selesai"
+                                    value={realizedPrCount}
+                                    loading={summaryLoading.realized_pr}
+                                    error={summaryErrors.realized_pr}
+                                    onRetry={() => fetchPoInSummary(['realized'])}
+                                    onClick={() => openSummaryModal('realized', 'pr')}
+                                />
+                                <SummaryMetric
+                                    label="DO Selesai"
+                                    value={realizedDoCount}
+                                    loading={summaryLoading.realized_do}
+                                    error={summaryErrors.realized_do}
+                                    onRetry={() => fetchPoInSummary(['realized'])}
+                                    onClick={() => openSummaryModal('realized', 'do')}
+                                />
+                            </div>
                         </div>
-                        <div className="flex items-center justify-between gap-2">
-                        <p
-                            className={cn(
-                                'text-xs font-bold tracking-wide uppercase',
-                                    isDark
-                                        ? 'text-slate-400'
-                                        : 'text-slate-600',
-                            )}
-                        >
-                            PO IN Terealisasi
-                        </p>
-                        </div>
-                        <div className="mt-3 grid grid-cols-2 gap-2">
-                            <SummaryMetric
-                                label="PR Selesai"
-                                value={realizedPrCount}
-                                loading={summaryLoading.realized_pr}
-                                error={summaryErrors.realized_pr}
-                                onRetry={() => fetchPoInSummary(['realized'])}
-                                onClick={() =>
-                                    openSummaryModal('realized', 'pr')
-                                }
-                            />
-                            <SummaryMetric
-                                label="DO Selesai"
-                                value={realizedDoCount}
-                                loading={summaryLoading.realized_do}
-                                error={summaryErrors.realized_do}
-                                onRetry={() => fetchPoInSummary(['realized'])}
-                                onClick={() =>
-                                    openSummaryModal('realized', 'do')
-                                }
-                            />
-                        </div>
-                        <p
-                            className={cn(
-                                'mt-1 text-xs font-medium',
-                                isDark ? 'text-slate-500' : 'text-slate-500',
-                            )}
-                        >
-                            Semua material sudah dibuat DO —{' '}
-                            {periodLabelMap[realizedPeriod]}
+                        <p className="mt-2.5 text-[11px] text-muted-foreground/80 border-t border-sidebar-border/40 pt-2 truncate">
+                            Semua material selesai DO — {periodLabelMap[realizedPeriod]}
                         </p>
                     </article>
 
-                    {/* Card Data PO IN (Total) */}
+                    {/* Card 4: Total Data PO IN */}
                     <article
-                        className={cn(
-                            'cursor-pointer rounded-xl border p-4 shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                            isDark
-                                ? 'border-slate-800 bg-[#1e293b] text-white hover:border-blue-400/50'
-                                : 'border-slate-200 bg-[#ffffff] text-slate-900 hover:border-blue-400/50',
-                        )}
-                        style={{
-                            backgroundColor: isDark ? '#1e293b' : '#ffffff',
-                        }}
+                        className="rounded-xl border border-sidebar-border/70 bg-card p-3.5 sm:p-4 shadow-xs hover:shadow-sm hover:border-indigo-500/40 transition-all flex flex-col justify-between cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-ring"
                         role="button"
                         tabIndex={0}
                         aria-label="Buka data PO IN"
@@ -1690,259 +1671,325 @@ export default function PurchaseOrderInIndex({
                             }
                         }}
                     >
-                        <div className="mb-3 flex items-center justify-between gap-2">
-                            <span
-                                className={cn(
-                                    'inline-flex rounded-lg p-2',
-                                    isDark ? 'bg-slate-800' : 'bg-[#f1f5f9]',
-                                )}
-                            >
-                                <Search className="size-4 text-blue-600" />
-                            </span>
-                            <select
-                                className={cn(
-                                    'h-8 rounded-md border px-2 text-xs font-bold ring-offset-background outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
-                                    isDark
-                                        ? 'border-slate-700 bg-slate-800 text-white'
-                                        : 'border-slate-300 bg-[#ffffff] text-slate-900',
-                                )}
-                                value={dataPoInPeriod}
-                                onChange={(event) =>
-                                    setDataPoInPeriod(event.target.value)
-                                }
-                            >
-                                <option value="today">Hari Ini</option>
-                                <option value="this_week">Minggu Ini</option>
-                                <option value="this_month">Bulan Ini</option>
-                                <option value="this_year">Tahun Ini</option>
-                                <option value="range">Range Tanggal</option>
-                                <option value="all">Semua Data</option>
-                            </select>
-                        </div>
-                        {dataPoInPeriod === 'range' && (
-                            <div className="mb-3 flex flex-wrap gap-2">
-                                <div className="flex flex-1 flex-col gap-1">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase">
-                                        Dari
-                                    </label>
-                                    <input
-                                        type="date"
-                                        className={cn(
-                                            'h-8 w-full rounded-md border px-2 text-xs',
-                                            isDark
-                                                ? 'border-slate-700 bg-slate-800 text-white'
-                                                : 'border-slate-300 bg-[#ffffff] text-slate-900',
-                                        )}
-                                        value={dataPoInStart}
-                                        onChange={(e) =>
-                                            setDataPoInStart(e.target.value)
-                                        }
-                                    />
-                                </div>
-                                <div className="flex flex-1 flex-col gap-1">
-                                    <label className="text-[10px] font-bold text-slate-500 uppercase">
-                                        Sampai
-                                    </label>
-                                    <input
-                                        type="date"
-                                        className={cn(
-                                            'h-8 w-full rounded-md border px-2 text-xs',
-                                            isDark
-                                                ? 'border-slate-700 bg-slate-800 text-white'
-                                                : 'border-slate-300 bg-[#ffffff] text-slate-900',
-                                        )}
-                                        value={dataPoInEnd}
-                                        onChange={(e) =>
-                                            setDataPoInEnd(e.target.value)
-                                        }
-                                    />
-                                </div>
-                            </div>
-                        )}
-                        <div className="flex items-center justify-between gap-2">
-                        <p
-                            className={cn(
-                                'text-xs font-bold tracking-wide uppercase',
-                                    isDark
-                                        ? 'text-slate-400'
-                                        : 'text-slate-600',
-                            )}
-                        >
-                            Total Data PO IN
-                        </p>
-                        </div>
-                        {summaryErrors.total && !summaryLoading.total ? (
-                            <div className="mt-2">
-                                <SummaryLoadError
-                                    label="Total Data PO IN"
-                                    onRetry={() => fetchPoInSummary(['total'])}
-                                />
-                            </div>
-                        ) : (
-                            <>
-                                <div className="mt-1 flex items-baseline gap-2">
-                                    <div className="text-2xl font-bold">
-                                        {summaryLoading.total ? (
-                                            <Skeleton className="h-8 w-12" />
-                                        ) : (
-                                            dataPoInCount
-                                        )}
-                                    </div>
-                                    <span
-                                        className={cn(
-                                            'text-xs font-medium',
-                                            isDark
-                                                ? 'text-slate-400'
-                                                : 'text-slate-500',
-                                        )}
-                                    >
-                                        Document
-                                    </span>
-                                </div>
-                                <div
-                                    className={cn(
-                                        'mt-2.5 flex flex-col gap-0.5 border-t pt-2',
-                                        isDark
-                                            ? 'border-slate-800'
-                                            : 'border-slate-200/80',
-                                    )}
+                        <div>
+                            <div className="flex items-center justify-between gap-2 mb-2.5">
+                                <span className="inline-flex items-center justify-center size-8 rounded-lg bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                                    <Search className="size-4" />
+                                </span>
+                                <select
+                                    className="h-7 rounded-md border border-sidebar-border/70 bg-background px-2 text-[11px] font-semibold text-foreground outline-none focus:border-indigo-500"
+                                    value={dataPoInPeriod}
+                                    onChange={(event) => setDataPoInPeriod(event.target.value)}
                                 >
-                                    <span
-                                        className={cn(
-                                            'text-[10px] font-bold tracking-wider uppercase',
-                                            isDark
-                                                ? 'text-slate-400'
-                                                : 'text-slate-500',
-                                        )}
-                                    >
-                                        Total Nominal PO IN
-                                    </span>
-                                    <div
-                                        className={cn(
-                                            'text-sm font-bold',
-                                            isDark
-                                                ? 'text-emerald-400'
-                                                : 'text-emerald-600',
-                                        )}
-                                    >
-                                        {summaryLoading.total ? (
-                                            <Skeleton className="h-5 w-32" />
-                                        ) : (
-                                            `Rp ${formatRupiah(dataPoInTotalAmount)}`
-                                        )}
-                                    </div>
+                                    <option value="today">Hari Ini</option>
+                                    <option value="this_week">Minggu Ini</option>
+                                    <option value="this_month">Bulan Ini</option>
+                                    <option value="this_year">Tahun Ini</option>
+                                    <option value="range">Range Tanggal</option>
+                                    <option value="all">Semua Data</option>
+                                </select>
+                            </div>
+                            {dataPoInPeriod === 'range' && (
+                                <div className="mb-2.5 flex items-center gap-1.5">
+                                    <input
+                                        type="date"
+                                        className="h-7 w-full rounded-md border border-sidebar-border/70 bg-background px-1.5 text-[10px] text-foreground"
+                                        value={dataPoInStart}
+                                        onChange={(e) => setDataPoInStart(e.target.value)}
+                                    />
+                                    <span className="text-[10px] text-muted-foreground">-</span>
+                                    <input
+                                        type="date"
+                                        className="h-7 w-full rounded-md border border-sidebar-border/70 bg-background px-1.5 text-[10px] text-foreground"
+                                        value={dataPoInEnd}
+                                        onChange={(e) => setDataPoInEnd(e.target.value)}
+                                    />
                                 </div>
-                            </>
-                        )}
+                            )}
+                            <p className="text-xs font-bold tracking-wide uppercase text-muted-foreground">
+                                Total Data PO IN
+                            </p>
+                            {summaryErrors.total && !summaryLoading.total ? (
+                                <div className="mt-2">
+                                    <SummaryLoadError
+                                        label="Total Data PO IN"
+                                        onRetry={() => fetchPoInSummary(['total'])}
+                                    />
+                                </div>
+                            ) : (
+                                <>
+                                    <div className="mt-1 flex items-baseline gap-2">
+                                        <div className="text-2xl font-bold tracking-tight text-foreground">
+                                            {summaryLoading.total ? (
+                                                <Skeleton className="h-8 w-12" />
+                                            ) : (
+                                                dataPoInCount
+                                            )}
+                                        </div>
+                                        <span className="text-xs font-medium text-muted-foreground">
+                                            Dokumen
+                                        </span>
+                                    </div>
+                                    <div className="mt-2 flex flex-col gap-0.5 border-t border-sidebar-border/50 pt-1.5">
+                                        <span className="text-[10px] font-bold tracking-wider uppercase text-muted-foreground">
+                                            Total Nominal PO IN
+                                        </span>
+                                        <div className="text-sm font-bold text-emerald-600 dark:text-emerald-400 tabular-nums">
+                                            {summaryLoading.total ? (
+                                                <Skeleton className="h-5 w-32" />
+                                            ) : (
+                                                `Rp ${formatRupiah(dataPoInTotalAmount)}`
+                                            )}
+                                        </div>
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                        <p className="mt-2.5 text-[11px] text-muted-foreground/80 border-t border-sidebar-border/40 pt-2">
+                            Klik card untuk melihat seluruh data
+                        </p>
                     </article>
                 </section>
 
-                <section className="min-w-0 rounded-xl border border-sidebar-border/70 bg-background p-3 shadow-sm sm:rounded-2xl sm:p-4">
-                    <div className="mb-4 flex gap-2 border-b border-sidebar-border/70">
-                        <Button
-                            type="button"
-                            size="sm"
-                            variant={
-                                activeDataTab === 'customer'
-                                    ? 'default'
-                                    : 'ghost'
-                            }
-                            onClick={() => setActiveDataTab('customer')}
-                        >
-                            Data By Customer
-                        </Button>
-                        <Button
-                            type="button"
-                            size="sm"
-                            variant={
-                                activeDataTab === 'material'
-                                    ? 'default'
-                                    : 'ghost'
-                            }
-                            onClick={() => setActiveDataTab('material')}
-                        >
-                            Data By Material
-                        </Button>
-                    </div>
-                    <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(260px,1fr)_auto] lg:items-start">
-                        <div className="relative min-w-0">
-                            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                            <input
-                                type="search"
-                                className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background pr-3 pl-9 text-sm"
-                                placeholder={
-                                    activeDataTab === 'material'
-                                        ? 'Cari Ref PO atau material...'
-                                        : 'Cari Nomor Document, Ref PO, atau nama customer...'
+                {/* ─── 3. Main Data Container ───────────────────────────────────── */}
+                <section className="min-w-0 rounded-xl border border-sidebar-border/70 bg-card p-3.5 sm:p-5 shadow-xs flex flex-col gap-3.5">
+                    {/* Top Row: Segmented Tab Switcher + Search Bar & Live Sync Indicator */}
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between border-b border-sidebar-border/60 pb-3.5">
+                        {/* Segmented Tab Switcher */}
+                        <div className="inline-flex items-center p-1 rounded-xl bg-muted/60 border border-sidebar-border/60 shadow-xs">
+                            <button
+                                type="button"
+                                onClick={() => setActiveDataTab('customer')}
+                                className={cn(
+                                    'flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer select-none',
+                                    activeDataTab === 'customer'
+                                        ? 'bg-emerald-600 text-white shadow-xs'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-background/60',
+                                )}
+                                style={
+                                    activeDataTab === 'customer'
+                                        ? { backgroundColor: '#059669', color: '#ffffff' }
+                                        : undefined
                                 }
-                                value={
+                            >
+                                <Users className="size-3.5" />
+                                <span>PO By Customer</span>
+                                {Number(pagination.total || 0) > 0 && (
+                                    <span
+                                        className={cn(
+                                            'rounded-full px-2 py-0.2 text-[10px] font-bold tabular-nums',
+                                            activeDataTab === 'customer'
+                                                ? 'bg-white/20 text-white'
+                                                : 'bg-muted text-muted-foreground',
+                                        )}
+                                    >
+                                        {pagination.total}
+                                    </span>
+                                )}
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setActiveDataTab('material')}
+                                className={cn(
+                                    'flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer select-none',
                                     activeDataTab === 'material'
-                                        ? materialSearch
-                                        : search
-                                }
-                                onChange={(event) =>
+                                        ? 'bg-emerald-600 text-white shadow-xs'
+                                        : 'text-muted-foreground hover:text-foreground hover:bg-background/60',
+                                )}
+                                style={
                                     activeDataTab === 'material'
-                                        ? setMaterialSearch(event.target.value)
-                                        : setSearch(event.target.value)
+                                        ? { backgroundColor: '#059669', color: '#ffffff' }
+                                        : undefined
                                 }
-                            />
+                            >
+                                <Package className="size-3.5" />
+                                <span>PO By Material</span>
+                                {Number(materialPagination.total || 0) > 0 && (
+                                    <span
+                                        className={cn(
+                                            'rounded-full px-2 py-0.2 text-[10px] font-bold tabular-nums',
+                                            activeDataTab === 'material'
+                                                ? 'bg-white/20 text-white'
+                                                : 'bg-muted text-muted-foreground',
+                                        )}
+                                    >
+                                        {materialPagination.total}
+                                    </span>
+                                )}
+                            </button>
                         </div>
-                        <div className="grid min-w-0 gap-2 sm:grid-cols-2 lg:flex lg:flex-wrap lg:justify-end">
-                            <select
-                                className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm lg:w-auto"
-                                value={
-                                    activeDataTab === 'material'
-                                        ? materialStatusFilter
-                                        : statusFilter
-                                }
-                                onChange={(event) => {
-                                    if (activeDataTab === 'material') {
-                                        setMaterialStatusFilter(
-                                            event.target.value,
-                                        );
-                                    } else {
-                                        setStatusFilter(event.target.value);
+
+                        {/* Search Input & Realtime Indicator */}
+                        <div className="flex items-center gap-2.5 flex-1 max-w-md lg:justify-end">
+                            <div className="relative w-full">
+                                <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground/70" />
+                                <input
+                                    type="search"
+                                    className="h-9 w-full rounded-lg border border-sidebar-border/70 bg-background pl-8.5 pr-8 text-xs text-foreground placeholder:text-muted-foreground/60 transition-colors focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500/20"
+                                    placeholder={
+                                        activeDataTab === 'material'
+                                            ? 'Cari Ref PO atau nama material...'
+                                            : 'Cari No Document, Ref PO, atau customer...'
                                     }
-                                    // The useEffect will handle the partial fetch
-                                }}
+                                    value={
+                                        activeDataTab === 'material'
+                                            ? materialSearch
+                                            : search
+                                    }
+                                    onChange={(event) =>
+                                        activeDataTab === 'material'
+                                            ? setMaterialSearch(event.target.value)
+                                            : setSearch(event.target.value)
+                                    }
+                                />
+                                {(activeDataTab === 'material'
+                                    ? materialSearch
+                                    : search) && (
+                                    <button
+                                        type="button"
+                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground/60 hover:text-foreground cursor-pointer"
+                                        onClick={() =>
+                                            activeDataTab === 'material'
+                                                ? setMaterialSearch('')
+                                                : setSearch('')
+                                        }
+                                    >
+                                        <X className="size-3.5" />
+                                    </button>
+                                )}
+                            </div>
+                            <div
+                                className="hidden sm:flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 select-none"
+                                title="Realtime data sync aktif"
                             >
-                                <option value="all">Semua Data</option>
-                                <option value="outstanding_pr">Belum PR</option>
-                                <option value="outstanding_do">Belum DO</option>
-                                <option value="sisa_pr">Sisa PR</option>
-                                <option value="sisa_do">Sisa DO</option>
-                                <option value="realized_pr">PR Selesai</option>
-                                <option value="realized_do">DO Selesai</option>
-                            </select>
-                            <select
-                                className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm lg:w-auto"
-                                value={
-                                    activeDataTab === 'material'
-                                        ? materialDateFilter
-                                        : tableDateFilter
-                                }
-                                onChange={(event) =>
-                                    activeDataTab === 'material'
-                                        ? setMaterialDateFilter(
-                                              event.target.value,
-                                          )
-                                        : setTableDateFilter(event.target.value)
-                                }
-                            >
-                                <option value="today">Hari Ini</option>
-                                <option value="this_week">Minggu Ini</option>
-                                <option value="this_month">Bulan Ini</option>
-                                <option value="this_year">Tahun Ini</option>
-                                <option value="range">Range Tanggal</option>
-                                <option value="all">Semua Data</option>
-                            </select>
+                                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                <span>Live</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Dedicated Filter Toolbar Strip (Lighter, Clear Labels, Reset Action) */}
+                    <div className="rounded-lg border border-sidebar-border/60 bg-muted/20 p-2.5 flex flex-wrap items-center justify-between gap-2.5 text-xs">
+                        {/* Filter Controls Group */}
+                        <div className="flex flex-wrap items-center gap-2">
+                            <div className="flex items-center gap-1 font-semibold text-muted-foreground mr-0.5">
+                                <Filter className="size-3.5 text-emerald-600 dark:text-emerald-400" />
+                                <span className="text-[11px]">Filter:</span>
+                            </div>
+
+                            {/* Status Dropdown */}
+                            <div className="flex items-center gap-1">
+                                <span className="text-[11px] text-muted-foreground hidden sm:inline">Status:</span>
+                                <select
+                                    className="h-8 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs font-medium text-foreground focus:border-emerald-500 focus:outline-none cursor-pointer"
+                                    value={
+                                        activeDataTab === 'material'
+                                            ? materialStatusFilter
+                                            : statusFilter
+                                    }
+                                    onChange={(event) => {
+                                        if (activeDataTab === 'material') {
+                                            setMaterialStatusFilter(
+                                                event.target.value,
+                                            );
+                                        } else {
+                                            setStatusFilter(event.target.value);
+                                        }
+                                    }}
+                                >
+                                    <option value="all">Semua Status</option>
+                                    <option value="outstanding_pr">Belum PR</option>
+                                    <option value="outstanding_do">Belum DO</option>
+                                    <option value="sisa_pr">Sisa PR</option>
+                                    <option value="sisa_do">Sisa DO</option>
+                                    <option value="realized_pr">PR Selesai</option>
+                                    <option value="realized_do">DO Selesai</option>
+                                </select>
+                            </div>
+
+                            {/* Periode Dropdown */}
+                            <div className="flex items-center gap-1">
+                                <span className="text-[11px] text-muted-foreground hidden sm:inline">Periode:</span>
+                                <select
+                                    className="h-8 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs font-medium text-foreground focus:border-emerald-500 focus:outline-none cursor-pointer"
+                                    value={
+                                        activeDataTab === 'material'
+                                            ? materialDateFilter
+                                            : tableDateFilter
+                                    }
+                                    onChange={(event) =>
+                                        activeDataTab === 'material'
+                                            ? setMaterialDateFilter(
+                                                  event.target.value,
+                                              )
+                                            : setTableDateFilter(event.target.value)
+                                    }
+                                >
+                                    <option value="today">Hari Ini</option>
+                                    <option value="this_week">Minggu Ini</option>
+                                    <option value="this_month">Bulan Ini</option>
+                                    <option value="this_year">Tahun Ini</option>
+                                    <option value="range">Rentang Tanggal</option>
+                                    <option value="all">Semua Periode</option>
+                                </select>
+                            </div>
+
+                            {/* Range Date Inputs (if Rentang Tanggal) */}
+                            {(activeDataTab === 'material'
+                                ? materialDateFilter
+                                : tableDateFilter) === 'range' && (
+                                <div className="flex items-center gap-1 bg-background rounded-md border border-sidebar-border/70 px-1.5 py-0.5">
+                                    <Calendar className="size-3 text-muted-foreground" />
+                                    <input
+                                        type="date"
+                                        className="h-7 rounded border-none bg-transparent px-1 text-xs text-foreground focus:outline-none"
+                                        value={
+                                            activeDataTab === 'material'
+                                                ? materialStartDate
+                                                : tableStartDate
+                                        }
+                                        onChange={(event) =>
+                                            activeDataTab === 'material'
+                                                ? setMaterialStartDate(
+                                                      event.target.value,
+                                                  )
+                                                : setTableStartDate(
+                                                      event.target.value,
+                                                  )
+                                        }
+                                    />
+                                    <span className="text-muted-foreground">-</span>
+                                    <input
+                                        type="date"
+                                        className="h-7 rounded border-none bg-transparent px-1 text-xs text-foreground focus:outline-none"
+                                        value={
+                                            activeDataTab === 'material'
+                                                ? materialEndDate
+                                                : tableEndDate
+                                        }
+                                        onChange={(event) =>
+                                            activeDataTab === 'material'
+                                                ? setMaterialEndDate(
+                                                      event.target.value,
+                                                  )
+                                                : setTableEndDate(
+                                                      event.target.value,
+                                                  )
+                                        }
+                                    />
+                                </div>
+                            )}
+
+                            {/* Deadline Dropdown (if not realized) */}
                             {!['realized_pr', 'realized_do'].includes(
                                 activeDataTab === 'material'
                                     ? materialStatusFilter
                                     : statusFilter,
                             ) && (
+                                <div className="flex items-center gap-1">
+                                    <span className="text-[11px] text-muted-foreground hidden sm:inline">Deadline:</span>
                                     <select
-                                        className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm lg:w-auto"
+                                        className="h-8 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs font-medium text-foreground focus:border-emerald-500 focus:outline-none cursor-pointer"
                                         value={
                                             activeDataTab === 'material'
                                                 ? materialDeadlineFilter
@@ -1950,67 +1997,49 @@ export default function PurchaseOrderInIndex({
                                         }
                                         onChange={(event) =>
                                             activeDataTab === 'material'
-                                            ? setMaterialDeadlineFilter(
-                                                  event.target.value,
-                                              )
-                                            : setDeadlineFilter(
-                                                  event.target.value,
-                                              )
+                                                ? setMaterialDeadlineFilter(
+                                                      event.target.value,
+                                                  )
+                                                : setDeadlineFilter(
+                                                      event.target.value,
+                                                  )
                                         }
                                     >
                                         <option value="all">Semua Deadline</option>
                                         <option value="soon">
-                                            5 Hari Sebelum Deadline
+                                            ≤ 5 Hari
                                         </option>
                                         <option value="overdue">
                                             Lewat Deadline
                                         </option>
                                     </select>
-                                )}
-                            {(activeDataTab === 'material'
-                                ? materialDateFilter
-                                : tableDateFilter) === 'range' && (
-                                    <>
-                                        <input
-                                            type="date"
-                                            className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm lg:w-auto"
-                                            value={
-                                                activeDataTab === 'material'
-                                                    ? materialStartDate
-                                                    : tableStartDate
-                                            }
-                                            onChange={(event) =>
-                                                activeDataTab === 'material'
-                                                ? setMaterialStartDate(
-                                                      event.target.value,
-                                                  )
-                                                : setTableStartDate(
-                                                      event.target.value,
-                                                  )
-                                            }
-                                        />
-                                        <input
-                                            type="date"
-                                            className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm lg:w-auto"
-                                            value={
-                                                activeDataTab === 'material'
-                                                    ? materialEndDate
-                                                    : tableEndDate
-                                            }
-                                            onChange={(event) =>
-                                                activeDataTab === 'material'
-                                                ? setMaterialEndDate(
-                                                      event.target.value,
-                                                  )
-                                                : setTableEndDate(
-                                                      event.target.value,
-                                                  )
-                                            }
-                                        />
-                                    </>
-                                )}
+                                </div>
+                            )}
+
+                            {/* Quick Reset Filter Button */}
+                            {((activeDataTab === 'customer' && isCustomerFiltered) ||
+                                (activeDataTab === 'material' && isMaterialFiltered)) && (
+                                <button
+                                    type="button"
+                                    onClick={
+                                        activeDataTab === 'customer'
+                                            ? handleResetCustomerFilters
+                                            : handleResetMaterialFilters
+                                    }
+                                    className="inline-flex items-center gap-1 h-8 px-2 text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 rounded-md transition-colors cursor-pointer"
+                                    title="Kembalikan semua filter ke awal"
+                                >
+                                    <RotateCcw className="size-3" />
+                                    <span>Reset</span>
+                                </button>
+                            )}
+                        </div>
+
+                        {/* Page Size Control */}
+                        <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                            <span className="text-[11px] text-muted-foreground">Tampilkan:</span>
                             <select
-                                className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm lg:w-auto"
+                                className="h-8 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs font-medium text-foreground focus:border-emerald-500 focus:outline-none cursor-pointer"
                                 value={
                                     activeDataTab === 'material'
                                         ? materialPerPage
@@ -2023,17 +2052,19 @@ export default function PurchaseOrderInIndex({
                                     } else {
                                         setPerPage(value);
                                     }
-                                    // The useEffect will handle the partial fetch
                                 }}
                             >
-                                <option value="5">5 data</option>
-                                <option value="10">10 data</option>
-                                <option value="25">25 data</option>
-                                <option value="50">50 data</option>
-                                <option value="all">Semua data</option>
+                                <option value="5">5 baris</option>
+                                <option value="10">10 baris</option>
+                                <option value="25">25 baris</option>
+                                <option value="50">50 baris</option>
+                                <option value="all">Semua baris</option>
                             </select>
                         </div>
                     </div>
+
+                    {/* ─── Customer Data View ─────────────────────────────── */}
+                    {/* Mobile Card View (Customer) */}
                     <div
                         className={cn(
                             'grid gap-3 md:hidden',
@@ -2052,11 +2083,11 @@ export default function PurchaseOrderInIndex({
                                 }).map((_, index) => (
                                     <div
                                         key={`mobile-skeleton-${index}`}
-                                        className="rounded-xl border border-sidebar-border/70 p-3"
+                                        className="rounded-xl border border-sidebar-border/70 bg-card p-3.5 space-y-2.5"
                                     >
                                         <Skeleton className="h-4 w-36" />
-                                        <Skeleton className="mt-3 h-4 w-full" />
-                                        <Skeleton className="mt-2 h-4 w-28" />
+                                        <Skeleton className="h-4 w-full" />
+                                        <Skeleton className="h-4 w-28" />
                                     </div>
                                 ))}
                             </>
@@ -2074,7 +2105,7 @@ export default function PurchaseOrderInIndex({
                             !tableLoading &&
                             !tableError &&
                             purchaseOrderIns.length === 0 && (
-                            <div className="rounded-xl border border-sidebar-border/70 px-4 py-8 text-center text-sm text-muted-foreground">
+                            <div className="rounded-xl border border-sidebar-border/70 bg-card px-4 py-8 text-center text-xs text-muted-foreground">
                                 Belum ada data PO In.
                             </div>
                         )}
@@ -2086,140 +2117,108 @@ export default function PurchaseOrderInIndex({
                                 purchaseOrderIns.map((item, index) =>
                             (() => {
                                 const urgency = getRowUrgency(item);
+                                const itemIndex =
+                                    pagination.per_page === 'all'
+                                        ? index + 1
+                                        : (Number(pagination.page || 1) - 1) *
+                                              Number(pagination.per_page || 5) +
+                                          index +
+                                          1;
                                 return (
                                     <div
                                         key={item.id ?? item.no_poin}
                                         className={cn(
-                                            'rounded-xl border p-3 text-sm',
+                                            'rounded-xl border p-3.5 text-xs shadow-xs transition-all',
                                             urgency === 'overdue'
-                                                ? 'border-red-500/40 bg-red-500/10'
+                                                ? 'border-rose-500/40 bg-rose-500/5 border-l-4 border-l-rose-500'
                                                 : urgency === 'soon'
-                                                    ? 'border-yellow-500/40 bg-yellow-500/10'
-                                                    : 'border-sidebar-border/70',
+                                                    ? 'border-amber-500/40 bg-amber-500/5 border-l-4 border-l-amber-500'
+                                                    : 'border-sidebar-border/70 bg-card',
                                         )}
                                     >
-                                        <div className="mb-3 flex items-start justify-between gap-3">
+                                        <div className="flex items-start justify-between gap-2 border-b border-sidebar-border/40 pb-2 mb-2.5">
                                             <div className="min-w-0">
-                                                <p className="text-xs text-muted-foreground">
-                                                    #
-                                                    {pagination.per_page ===
-                                                        'all'
-                                                        ? index + 1
-                                                        : (Number(
-                                                            pagination.page ||
-                                                            1,
-                                                        ) -
-                                                            1) *
-                                                        Number(
-                                                            pagination.per_page ||
-                                                            5,
-                                                        ) +
-                                                        index +
-                                                        1}
-                                                </p>
-                                                <p className="mt-1 font-semibold break-words">
-                                                    {urgency && (
-                                                        <span
-                                                            className={cn(
-                                                                'animate-attention-glow mr-2 inline-block size-4 rounded-full align-middle',
-                                                                urgency ===
-                                                                    'overdue'
-                                                                    ? 'bg-red-600 text-red-600'
-                                                                    : 'bg-yellow-500 text-yellow-500',
-                                                            )}
-                                                            title="Segera dikirim"
-                                                            aria-label="Segera dikirim"
-                                                        />
-                                                    )}
+                                                <span className="text-[10px] text-muted-foreground font-semibold">
+                                                    #{itemIndex}
+                                                </span>
+                                                <p className="font-bold text-sm text-foreground break-words">
                                                     {item.kode_poin}
                                                 </p>
-                                                <p className="break-words text-muted-foreground">
-                                                    Ref PO:{' '}
-                                                            {item.no_poin ||
-                                                                '-'}
+                                                <p className="text-[11px] text-muted-foreground">
+                                                    Ref PO: <span className="font-medium text-foreground">{item.no_poin || '-'}</span>
                                                 </p>
                                             </div>
-                                            <div className="flex shrink-0 items-center gap-2">
-                                                <Button
-                                                    type="button"
-                                                    variant="outline"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                        openDetailModal(
-                                                            item.kode_poin,
-                                                        )
-                                                    }
-                                                    title="Lihat"
+                                            {urgency && (
+                                                <span
+                                                    className={cn(
+                                                        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold shrink-0',
+                                                        urgency === 'overdue'
+                                                            ? 'bg-rose-500/15 text-rose-600 border border-rose-500/30'
+                                                            : 'bg-amber-500/15 text-amber-600 border border-amber-500/30',
+                                                    )}
                                                 >
-                                                    <Eye className="size-4" />
-                                                </Button>
-                                                <a
-                                                    href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-2 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                                                    title="Print"
-                                                >
-                                                    <Printer className="size-4" />
-                                                </a>
+                                                    <span
+                                                        className={cn(
+                                                            'size-1.5 rounded-full animate-ping',
+                                                            urgency === 'overdue'
+                                                                ? 'bg-rose-500'
+                                                                : 'bg-amber-500',
+                                                        )}
+                                                    />
+                                                    <span>Segera dikirim</span>
+                                                </span>
+                                            )}
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-2 text-[11px] mb-3">
+                                            <div>
+                                                <span className="text-muted-foreground">Customer:</span>
+                                                <p className="font-semibold text-foreground truncate">
+                                                    {item.customer_name || '-'}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <span className="text-muted-foreground">Delivery:</span>
+                                                <p className="font-medium text-foreground">
+                                                    {formatDateDisplay(item.delivery_date || '-')}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <span className="text-muted-foreground">Tanggal Input:</span>
+                                                <p className="font-medium text-foreground">
+                                                    {formatDateDisplay(item.created_at || item.date_poin)}
+                                                </p>
+                                            </div>
+                                            <div>
+                                                <span className="text-muted-foreground">Grand Total:</span>
+                                                <p className="font-bold text-emerald-600 dark:text-emerald-400">
+                                                    Rp {formatRupiah(item.grand_total)}
+                                                </p>
                                             </div>
                                         </div>
-                                        <div className="grid grid-cols-2 gap-3">
-                                            <div className="col-span-2">
-                                                <p className="text-xs text-muted-foreground">
-                                                    Customer
-                                                </p>
-                                                <p className="font-medium break-words">
-                                                            {item.customer_name ||
-                                                                '-'}
-                                                    {urgency && (
-                                                        <span
-                                                            className={cn(
-                                                                'ml-2 inline-block rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold',
-                                                                urgency ===
-                                                                    'overdue'
-                                                                    ? 'border-red-600/40 bg-red-600/15 text-red-700'
-                                                                    : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800',
-                                                            )}
-                                                        >
-                                                                    Segera
-                                                                    dikirim
-                                                        </span>
-                                                    )}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-xs text-muted-foreground">
-                                                    Delivery Date
-                                                </p>
-                                                <p className="font-medium">
-                                                    {formatDateDisplay(
-                                                        item.delivery_date ||
-                                                        '-',
-                                                    )}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-xs text-muted-foreground">
-                                                    Date Input
-                                                </p>
-                                                <p className="font-medium">
-                                                    {formatDateDisplay(
-                                                        item.created_at ||
-                                                        item.date_poin,
-                                                    )}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <p className="text-xs text-muted-foreground">
-                                                    Grand Total
-                                                </p>
-                                                <p className="font-semibold">
-                                                    {formatRupiah(
-                                                        item.grand_total,
-                                                    )}
-                                                </p>
-                                            </div>
+
+                                        <div className="flex items-center justify-end gap-2 border-t border-sidebar-border/40 pt-2.5">
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                size="sm"
+                                                className="h-8 gap-1.5 text-xs font-semibold rounded-lg"
+                                                onClick={() =>
+                                                    openDetailModal(item.kode_poin)
+                                                }
+                                            >
+                                                <Eye className="size-3.5" />
+                                                <span>Detail</span>
+                                            </Button>
+                                            <a
+                                                href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-sidebar-border/70 bg-background px-3 text-xs font-semibold shadow-xs hover:bg-muted/60"
+                                            >
+                                                <Printer className="size-3.5" />
+                                                <span>Print</span>
+                                            </a>
                                         </div>
                                     </div>
                                 );
@@ -2228,42 +2227,43 @@ export default function PurchaseOrderInIndex({
                         </Profiler>
                     </div>
 
+                    {/* Desktop Table View (Customer) */}
                     <div
                         className={cn(
                             'hidden overflow-x-auto rounded-xl border border-sidebar-border/70 md:block',
                             activeDataTab !== 'customer' && '!hidden',
                         )}
                     >
-                        <table className="w-full min-w-[720px] table-auto text-sm">
-                            <thead className="bg-muted/40 text-muted-foreground">
+                        <table className="w-full text-xs border-collapse">
+                            <thead className="bg-muted/50 text-[11px] font-bold text-muted-foreground uppercase tracking-wider border-b-2 border-slate-300 dark:border-slate-700">
                                 <tr>
-                                    <th className="w-px px-1 py-2 text-left whitespace-nowrap">
+                                    <th className="w-10 px-2 py-2.5 text-center whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                         No
                                     </th>
-                                    <th className="w-px px-1 py-2 text-left whitespace-nowrap">
+                                    <th className="w-px px-2 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                         No Document
                                     </th>
-                                    <th className="w-px px-1 py-2 text-left whitespace-nowrap">
+                                    <th className="w-px px-2 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                         Ref PO
                                     </th>
-                                    <th className="w-px px-1 py-2 text-left whitespace-nowrap">
+                                    <th className="w-px px-2 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                         Delivery
                                     </th>
-                                    <th className="w-px px-1 py-2 text-left whitespace-nowrap">
+                                    <th className="w-px px-2 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                         Input
                                     </th>
-                                    <th className="px-1 py-2 text-left">
+                                    <th className="px-2 py-2.5 text-left border-b border-slate-300 dark:border-slate-700">
                                         Customer
                                     </th>
-                                    <th className="w-36 px-2 py-2 text-right">
-                                        Grand Total (Rp.)
+                                    <th className="w-32 px-2 py-2.5 text-right whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                        Grand Total
                                     </th>
-                                    <th className="w-24 px-2 py-2 text-left">
-                                        Action
+                                    <th className="w-20 px-2 py-2.5 text-center whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                        Aksi
                                     </th>
                                 </tr>
                             </thead>
-                            <tbody>
+                            <tbody className="divide-y divide-slate-300 dark:divide-slate-700">
                                 <PlainTableStateRows
                                     error={isMobile ? '' : tableError}
                                     onRetry={() =>
@@ -2292,26 +2292,24 @@ export default function PurchaseOrderInIndex({
                                     {!isMobile &&
                                         purchaseOrderIns.map((item, index) =>
                                     (() => {
-                                                const urgency =
-                                                    getRowUrgency(item);
+                                        const urgency =
+                                            getRowUrgency(item);
                                         return (
                                             <tr
-                                                        key={
-                                                            item.id ??
-                                                            item.no_poin
-                                                        }
+                                                key={
+                                                    item.id ??
+                                                    item.no_poin
+                                                }
                                                 className={cn(
-                                                    'border-t',
-                                                            urgency ===
-                                                                'overdue'
-                                                        ? 'border-red-500/40 bg-red-500/10'
-                                                                : urgency ===
-                                                                    'soon'
-                                                            ? 'border-yellow-500/40 bg-yellow-500/10'
-                                                            : 'border-sidebar-border/70',
+                                                    'border-b border-slate-300 dark:border-slate-700 transition-colors hover:bg-muted/40',
+                                                    urgency === 'overdue'
+                                                        ? 'bg-red-500/10 border-l-4 border-l-red-500'
+                                                        : urgency === 'soon'
+                                                            ? 'bg-yellow-500/10 border-l-4 border-l-yellow-500'
+                                                            : '',
                                                 )}
                                             >
-                                                <td className="w-px px-1 py-2 whitespace-nowrap">
+                                                <td className="w-10 px-2 py-2.5 text-center text-muted-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                                     {pagination.per_page ===
                                                         'all'
                                                         ? index + 1
@@ -2327,82 +2325,68 @@ export default function PurchaseOrderInIndex({
                                                         index +
                                                         1}
                                                 </td>
-                                                <td className="w-px px-1 py-2 font-semibold whitespace-nowrap">
-                                                    {urgency && (
-                                                        <span
-                                                            className={cn(
-                                                                'animate-attention-glow mr-2 inline-block size-4 rounded-full align-middle',
-                                                                urgency ===
-                                                                    'overdue'
-                                                                    ? 'bg-red-600 text-red-600'
-                                                                    : 'bg-yellow-500 text-yellow-500',
-                                                            )}
-                                                            title="Segera dikirim"
-                                                            aria-label="Segera dikirim"
-                                                        />
-                                                    )}
-                                                    {item.kode_poin}
+                                                <td className="w-px px-2 py-2.5 font-semibold text-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                    <span>{item.kode_poin}</span>
                                                 </td>
-                                                <td className="w-px px-1 py-2 font-semibold whitespace-nowrap">
-                                                    {item.no_poin}
+                                                <td className="w-px px-2 py-2.5 font-medium text-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                    {item.no_poin || '-'}
                                                 </td>
-                                                <td className="w-px px-1 py-2 whitespace-nowrap">
+                                                <td className="w-px px-2 py-2.5 text-muted-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                                     {formatDateDisplay(
                                                         item.delivery_date ||
                                                         '-',
                                                     )}
                                                 </td>
-                                                <td className="w-px px-1 py-2 whitespace-nowrap">
+                                                <td className="w-px px-2 py-2.5 text-muted-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                                     {formatDateDisplay(
                                                         item.created_at ||
                                                         item.date_poin,
                                                     )}
                                                 </td>
-                                                <td className="px-1 py-2">
-                                                    {item.customer_name}
-                                                    {urgency && (
-                                                        <span
-                                                            className={cn(
-                                                                'ml-2 inline-block rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold',
-                                                                urgency ===
-                                                                    'overdue'
-                                                                    ? 'border-red-600/40 bg-red-600/15 text-red-700'
-                                                                    : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800',
-                                                            )}
-                                                        >
-                                                                    Segera
-                                                                    dikirim
-                                                        </span>
-                                                    )}
+                                                <td className="px-2 py-2.5 font-medium text-foreground border-b border-slate-300 dark:border-slate-700">
+                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                        <span>{item.customer_name}</span>
+                                                        {urgency && (
+                                                            <span
+                                                                className={cn(
+                                                                    'rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold shrink-0',
+                                                                    urgency === 'overdue'
+                                                                        ? 'border-red-600/40 bg-red-600/15 text-red-700 dark:text-red-400'
+                                                                        : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800 dark:text-yellow-400',
+                                                                )}
+                                                            >
+                                                                Segera dikirim
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </td>
-                                                <td className="px-2 py-2 text-right whitespace-nowrap">
-                                                    {formatRupiah(
-                                                        item.grand_total,
-                                                    )}
+                                                <td className="w-32 px-2 py-2.5 text-right font-bold text-foreground tabular-nums whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                    Rp {formatRupiah(item.grand_total)}
                                                 </td>
-                                                <td className="px-2 py-2">
-                                                    <div className="flex items-center gap-2">
+                                                <td className="w-20 px-2 py-2.5 whitespace-nowrap text-center border-b border-slate-300 dark:border-slate-700">
+                                                    <div className="flex items-center justify-center gap-1">
                                                         <Button
                                                             type="button"
                                                             variant="outline"
                                                             size="sm"
+                                                            className="h-7 w-7 p-0 rounded-md border-sidebar-border/70 hover:bg-emerald-500/15 hover:text-emerald-600 dark:hover:text-emerald-400 cursor-pointer"
                                                             onClick={() =>
                                                                 openDetailModal(
                                                                     item.kode_poin,
                                                                 )
                                                             }
-                                                            title="Lihat"
+                                                            title="Lihat Detail"
                                                         >
-                                                            <Eye className="size-4" />
+                                                            <Eye className="size-3.5 text-muted-foreground" />
                                                         </Button>
                                                         <a
                                                             href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
                                                             target="_blank"
                                                             rel="noopener noreferrer"
-                                                            className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-2 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                                                            title="Print"
+                                                            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sidebar-border/70 bg-background text-muted-foreground shadow-xs transition-colors hover:bg-teal-500/15 hover:text-teal-600 dark:hover:text-teal-400 cursor-pointer"
+                                                            title="Print Dokumen"
                                                         >
-                                                            <Printer className="size-4" />
+                                                            <Printer className="size-3.5" />
                                                         </a>
                                                     </div>
                                                 </td>
@@ -2414,19 +2398,21 @@ export default function PurchaseOrderInIndex({
                             </tbody>
                         </table>
                     </div>
+
+                    {/* Pagination (Customer) */}
                     {activeDataTab === 'customer' &&
                         paginationError &&
                         !paginationLoading && (
                         <div className="mt-3">
-                                <SummaryLoadError
-                                    label="pagination PO IN"
-                                    message={paginationError}
-                                    onRetry={() =>
-                                        fetchPoInPagination(
-                                            lastTableParams.current,
-                                        )
-                                    }
-                                />
+                            <SummaryLoadError
+                                label="pagination PO IN"
+                                message={paginationError}
+                                onRetry={() =>
+                                    fetchPoInPagination(
+                                        lastTableParams.current,
+                                    )
+                                }
+                            />
                         </div>
                     )}
                     {activeDataTab === 'customer' &&
@@ -2435,36 +2421,41 @@ export default function PurchaseOrderInIndex({
                         String(pagination.per_page) !== 'all' &&
                         (paginationLoading ||
                             Number(pagination.total || 0) > 0) && (
-                            <div className="mt-3 grid gap-3 text-sm text-muted-foreground sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                            <div className="mt-3.5 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between text-xs text-muted-foreground border-t border-sidebar-border/40 pt-3">
                                 {paginationLoading ? (
                                     <Skeleton className="h-5 w-48" />
                                 ) : (
                                     <span>
                                         Menampilkan{' '}
-                                        {Math.min(
-                                            (Number(pagination.page || 1) - 1) *
-                                            Number(
-                                                pagination.per_page || 5,
-                                            ) +
-                                            1,
-                                            Number(pagination.total || 0),
-                                        )}
+                                        <span className="font-semibold text-foreground">
+                                            {Math.min(
+                                                (Number(pagination.page || 1) - 1) *
+                                                    Number(pagination.per_page || 5) +
+                                                    1,
+                                                Number(pagination.total || 0),
+                                            )}
+                                        </span>
                                         -
-                                        {Math.min(
-                                            Number(pagination.page || 1) *
-                                            Number(
-                                                pagination.per_page || 5,
-                                            ),
-                                            Number(pagination.total || 0),
-                                        )}{' '}
-                                        dari {pagination.total} data
+                                        <span className="font-semibold text-foreground">
+                                            {Math.min(
+                                                Number(pagination.page || 1) *
+                                                    Number(pagination.per_page || 5),
+                                                Number(pagination.total || 0),
+                                            )}
+                                        </span>{' '}
+                                        dari{' '}
+                                        <span className="font-semibold text-foreground">
+                                            {pagination.total}
+                                        </span>{' '}
+                                        data
                                     </span>
                                 )}
-                                <div className="grid grid-cols-2 items-center gap-2 sm:flex">
+                                <div className="flex items-center gap-2 self-end sm:self-auto">
                                     <Button
                                         type="button"
                                         variant="outline"
                                         size="sm"
+                                        className="h-8 px-2.5 text-xs font-semibold rounded-lg"
                                         disabled={
                                             paginationLoading ||
                                             Number(pagination.page || 1) <= 1
@@ -2484,10 +2475,10 @@ export default function PurchaseOrderInIndex({
                                         Sebelumnya
                                     </Button>
                                     {paginationLoading ? (
-                                        <Skeleton className="h-5 w-24" />
+                                        <Skeleton className="h-5 w-20" />
                                     ) : (
-                                        <span className="col-span-2 text-center sm:col-span-1">
-                                            Halaman {pagination.page || 1} /{' '}
+                                        <span className="rounded-md bg-muted px-2 py-1 text-[11px] font-semibold text-foreground">
+                                            {pagination.page || 1} /{' '}
                                             {pagination.total_pages || 1}
                                         </span>
                                     )}
@@ -2495,6 +2486,7 @@ export default function PurchaseOrderInIndex({
                                         type="button"
                                         variant="outline"
                                         size="sm"
+                                        className="h-8 px-2.5 text-xs font-semibold rounded-lg"
                                         disabled={
                                             paginationLoading ||
                                             Number(pagination.page || 1) >=
@@ -2522,8 +2514,10 @@ export default function PurchaseOrderInIndex({
                                 </div>
                             </div>
                         )}
+                    {/* ─── Material Data View ─────────────────────────────── */}
                     {activeDataTab === 'material' && (
                         <>
+                            {/* Mobile Card View (Material) */}
                             <div className="grid gap-3 md:hidden">
                                 {isMobile &&
                                 materialLoading &&
@@ -2536,11 +2530,11 @@ export default function PurchaseOrderInIndex({
                                     }).map((_, index) => (
                                         <div
                                             key={`material-skeleton-${index}`}
-                                            className="rounded-xl border border-sidebar-border/70 p-3"
+                                            className="rounded-xl border border-sidebar-border/70 bg-card p-3.5 space-y-2.5"
                                         >
                                             <Skeleton className="h-4 w-36" />
-                                            <Skeleton className="mt-3 h-4 w-full" />
-                                            <Skeleton className="mt-2 h-4 w-28" />
+                                            <Skeleton className="h-4 w-full" />
+                                            <Skeleton className="h-4 w-28" />
                                         </div>
                                     ))
                                 ) : isMobile && materialError ? (
@@ -2554,7 +2548,7 @@ export default function PurchaseOrderInIndex({
                                         }
                                     />
                                 ) : isMobile && materialRows.length === 0 ? (
-                                    <div className="rounded-xl border border-sidebar-border/70 px-4 py-8 text-center text-sm text-muted-foreground">
+                                    <div className="rounded-xl border border-sidebar-border/70 bg-card px-4 py-8 text-center text-xs text-muted-foreground">
                                         Belum ada data material PO In.
                                     </div>
                                 ) : (
@@ -2570,169 +2564,159 @@ export default function PurchaseOrderInIndex({
                                                     ) === 0
                                             ? null
                                             : getRowUrgency(item);
-                                        return (
-                                            <div
+                                                const itemIndex =
+                                                    (Number(
+                                                        materialPagination.page ||
+                                                            1,
+                                                    ) -
+                                                        1) *
+                                                        Number(
+                                                            materialPagination.per_page ||
+                                                                5,
+                                                        ) +
+                                                    index +
+                                                    1;
+                                                return (
+                                                    <div
                                                         key={
                                                             item.id ??
                                                             `${item.no_poin}-${index}`
                                                         }
-                                                className={cn(
-                                                    'rounded-xl border p-3 text-sm',
-                                                            urgency ===
-                                                                'overdue'
-                                                        ? 'border-red-500/40 bg-red-500/10'
-                                                                : urgency ===
-                                                                    'soon'
-                                                            ? 'border-yellow-500/40 bg-yellow-500/10'
-                                                            : 'border-sidebar-border/70',
-                                                )}
-                                            >
-                                                <p className="text-xs text-muted-foreground">
-                                                            #
-                                                            {(Number(
-                                                                materialPagination.page ||
-                                                                    1,
-                                                            ) -
-                                                                1) *
-                                                                Number(
-                                                                    materialPagination.per_page ||
-                                                                        5,
-                                                                ) +
-                                                                index +
-                                                                1}
-                                                </p>
-                                                <p className="mt-1 font-semibold break-words">
-                                                    {urgency && (
-                                                        <span
-                                                            className={cn(
-                                                                'animate-attention-glow mr-2 inline-block size-4 rounded-full align-middle',
-                                                                        urgency ===
-                                                                            'overdue'
-                                                                    ? 'bg-red-600 text-red-600'
-                                                                    : 'bg-yellow-500 text-yellow-500',
+                                                        className={cn(
+                                                            'rounded-xl border p-3.5 text-xs shadow-xs transition-all',
+                                                            urgency === 'overdue'
+                                                                ? 'border-rose-500/40 bg-rose-500/5 border-l-4 border-l-rose-500'
+                                                                : urgency === 'soon'
+                                                                    ? 'border-amber-500/40 bg-amber-500/5 border-l-4 border-l-amber-500'
+                                                                    : 'border-sidebar-border/70 bg-card',
+                                                        )}
+                                                    >
+                                                        <div className="flex items-start justify-between gap-2 border-b border-sidebar-border/40 pb-2 mb-2.5">
+                                                            <div className="min-w-0">
+                                                                <span className="text-[10px] text-muted-foreground font-semibold">
+                                                                    #{itemIndex}
+                                                                </span>
+                                                                <p className="font-bold text-sm text-foreground break-words">
+                                                                    {item.material || '-'}
+                                                                </p>
+                                                                <p className="text-[11px] text-muted-foreground">
+                                                                    Ref PO: <span className="font-medium text-foreground">{item.no_poin || '-'}</span>
+                                                                </p>
+                                                            </div>
+                                                            {urgency && (
+                                                                <span
+                                                                    className={cn(
+                                                                        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold shrink-0',
+                                                                        urgency === 'overdue'
+                                                                            ? 'bg-rose-500/15 text-rose-600 border border-rose-500/30'
+                                                                            : 'bg-amber-500/15 text-amber-600 border border-amber-500/30',
+                                                                    )}
+                                                                >
+                                                                    <span
+                                                                        className={cn(
+                                                                            'size-1.5 rounded-full animate-ping',
+                                                                            urgency === 'overdue'
+                                                                                ? 'bg-rose-500'
+                                                                                : 'bg-amber-500',
+                                                                        )}
+                                                                    />
+                                                                    <span>Segera dikirim</span>
+                                                                </span>
                                                             )}
-                                                        />
-                                                    )}
-                                                            {item.material ||
-                                                                '-'}
-                                                </p>
-                                                <p className="mt-2 break-words text-muted-foreground">
-                                                            Ref PO:{' '}
-                                                            {item.no_poin ||
-                                                                '-'}
-                                                </p>
-                                                <p className="mt-1 break-words text-muted-foreground">
-                                                            Customer:{' '}
-                                                            {item.customer_name ||
-                                                                '-'}
-                                                    {urgency && (
-                                                        <span
-                                                            className={cn(
-                                                                'ml-2 inline-block rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold',
-                                                                        urgency ===
-                                                                            'overdue'
-                                                                    ? 'border-red-600/40 bg-red-600/15 text-red-700'
-                                                                    : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800',
-                                                            )}
-                                                        >
-                                                                    Segera
-                                                                    dikirim
-                                                        </span>
-                                                    )}
-                                                </p>
-                                                <div className="mt-3 grid grid-cols-3 gap-2">
+                                                        </div>
+
+                                                        <p className="text-[11px] text-muted-foreground mb-2">
+                                                            Customer: <span className="font-semibold text-foreground">{item.customer_name || '-'}</span>
+                                                        </p>
+
+                                                        <div className="grid grid-cols-3 gap-2 rounded-lg bg-muted/40 p-2 text-center text-[11px] mb-3">
                                                             <div>
-                                                                <p className="text-xs text-muted-foreground">
-                                                                    Qty
-                                                                </p>
-                                                                <p className="font-medium">
-                                                                    {item.qty ??
-                                                                        0}
+                                                                <p className="text-muted-foreground text-[10px]">Qty PO</p>
+                                                                <p className="font-bold text-foreground">{item.qty ?? 0}</p>
+                                                            </div>
+                                                            <div>
+                                                                <p className="text-muted-foreground text-[10px]">Sisa PR</p>
+                                                                <p className={cn(
+                                                                    "font-bold",
+                                                                    Number(item.sisa_qtypr ?? item.qty ?? 0) === 0 ? "text-muted-foreground" : "text-amber-600 dark:text-amber-400"
+                                                                )}>
+                                                                    {item.sisa_qtypr ?? item.qty ?? 0}
                                                                 </p>
                                                             </div>
                                                             <div>
-                                                                <p className="text-xs text-muted-foreground">
-                                                                    Sisa PR
-                                                                </p>
-                                                                <p className="font-medium">
-                                                                    {item.sisa_qtypr ??
-                                                                        item.qty ??
-                                                                        0}
-                                                                </p>
-                                                            </div>
-                                                            <div>
-                                                                <p className="text-xs text-muted-foreground">
-                                                                    Sisa DO
-                                                                </p>
-                                                                <p className="font-medium">
-                                                                    {item.sisa_qtydo ??
-                                                                        item.qty ??
-                                                                        0}
+                                                                <p className="text-muted-foreground text-[10px]">Sisa DO</p>
+                                                                <p className={cn(
+                                                                    "font-bold",
+                                                                    Number(item.sisa_qtydo ?? item.qty ?? 0) === 0 ? "text-muted-foreground" : "text-rose-600 dark:text-rose-400"
+                                                                )}>
+                                                                    {item.sisa_qtydo ?? item.qty ?? 0}
                                                                 </p>
                                                             </div>
-                                                </div>
-                                                <div className="mt-3 flex gap-2">
+                                                        </div>
+
+                                                        <div className="flex items-center justify-end gap-2 border-t border-sidebar-border/40 pt-2.5">
                                                             <Button
                                                                 type="button"
                                                                 variant="outline"
                                                                 size="sm"
+                                                                className="h-8 gap-1.5 text-xs font-semibold rounded-lg"
                                                                 onClick={() =>
-                                                                    openDetailModal(
-                                                                        item.kode_poin,
-                                                                    )
+                                                                    openDetailModal(item.kode_poin)
                                                                 }
-                                                                title="Lihat"
                                                             >
-                                                        <Eye className="size-4" />
-                                                    </Button>
-                                                    <a
-                                                        href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
-                                                        target="_blank"
-                                                        rel="noopener noreferrer"
-                                                        className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-2 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                                                        title="Print"
-                                                    >
-                                                        <Printer className="size-4" />
-                                                    </a>
-                                                </div>
-                                            </div>
-                                        );
+                                                                <Eye className="size-3.5" />
+                                                                <span>Detail</span>
+                                                            </Button>
+                                                            <a
+                                                                href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-sidebar-border/70 bg-background px-3 text-xs font-semibold shadow-xs hover:bg-muted/60"
+                                                            >
+                                                                <Printer className="size-3.5" />
+                                                                <span>Print</span>
+                                                            </a>
+                                                        </div>
+                                                    </div>
+                                                );
                                             })}
                                         </Profiler>
                                     )
                                 )}
                             </div>
+
+                            {/* Desktop Table View (Material) */}
                             <div className="hidden overflow-x-auto rounded-xl border border-sidebar-border/70 md:block">
-                                <table className="w-full min-w-[860px] table-auto text-sm">
-                                    <thead className="bg-muted/40 text-muted-foreground">
+                                <table className="w-full text-xs border-collapse">
+                                    <thead className="bg-muted/50 text-[11px] font-bold text-muted-foreground uppercase tracking-wider border-b-2 border-slate-300 dark:border-slate-700">
                                         <tr>
-                                            <th className="w-px px-2 py-2 text-left whitespace-nowrap">
+                                            <th className="w-10 px-2 py-2.5 text-center whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                                 No
                                             </th>
-                                            <th className="px-2 py-2 text-left">
+                                            <th className="w-px px-2 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                                 Ref PO
                                             </th>
-                                            <th className="px-2 py-2 text-left">
+                                            <th className="px-2 py-2.5 text-left border-b border-slate-300 dark:border-slate-700">
                                                 Customer
                                             </th>
-                                            <th className="px-2 py-2 text-left">
+                                            <th className="px-2 py-2.5 text-left border-b border-slate-300 dark:border-slate-700">
                                                 Material
                                             </th>
-                                            <th className="w-28 px-2 py-2 text-right">
+                                            <th className="w-20 px-2 py-2.5 text-right whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                                 Qty
                                             </th>
-                                            <th className="w-28 px-2 py-2 text-right">
+                                            <th className="w-20 px-2 py-2.5 text-right whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                                 Sisa PR
                                             </th>
-                                            <th className="w-28 px-2 py-2 text-right">
+                                            <th className="w-20 px-2 py-2.5 text-right whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                                 Sisa DO
                                             </th>
-                                            <th className="w-24 px-2 py-2 text-left">
-                                                Action
+                                            <th className="w-20 px-2 py-2.5 text-center whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                Aksi
                                             </th>
                                         </tr>
                                     </thead>
-                                    <tbody>
+                                    <tbody className="divide-y divide-slate-300 dark:divide-slate-700">
                                         <PlainTableStateRows
                                             error={
                                                 isMobile ? '' : materialError
@@ -2778,112 +2762,124 @@ export default function PurchaseOrderInIndex({
                                                                   );
                                             return (
                                                 <tr
-                                                                key={
-                                                                    item.id ??
-                                                                    `${item.no_poin}-${index}`
-                                                                }
+                                                    key={
+                                                        item.id ??
+                                                        `${item.no_poin}-${index}`
+                                                    }
                                                     className={cn(
-                                                        'border-t',
-                                                                    urgency ===
-                                                                        'overdue'
-                                                            ? 'border-red-500/40 bg-red-500/10'
-                                                                        : urgency ===
-                                                                            'soon'
-                                                                ? 'border-yellow-500/40 bg-yellow-500/10'
-                                                                : 'border-sidebar-border/70',
+                                                        'border-b border-slate-300 dark:border-slate-700 transition-colors hover:bg-muted/40',
+                                                        urgency ===
+                                                            'overdue'
+                                                            ? 'bg-red-500/10 border-l-4 border-l-red-500'
+                                                            : urgency ===
+                                                                'soon'
+                                                                ? 'bg-yellow-500/10 border-l-4 border-l-yellow-500'
+                                                                : '',
                                                     )}
                                                 >
-                                                                <td className="px-2 py-2 whitespace-nowrap">
-                                                                    {materialPagination.per_page ===
-                                                                    'all'
-                                                                        ? index +
-                                                                          1
-                                                                        : (Number(
-                                                                              materialPagination.page ||
-                                                                                  1,
-                                                                          ) -
-                                                                              1) *
-                                                                              Number(
-                                                                                  materialPagination.per_page ||
-                                                                                      5,
-                                                                              ) +
-                                                                          index +
-                                                                          1}
-                                                                </td>
-                                                    <td className="px-2 py-2 font-semibold whitespace-nowrap">
-                                                        {urgency && (
-                                                            <span
-                                                                className={cn(
-                                                                    'animate-attention-glow mr-2 inline-block size-4 rounded-full align-middle',
-                                                                                urgency ===
-                                                                                    'overdue'
-                                                                        ? 'bg-red-600 text-red-600'
-                                                                        : 'bg-yellow-500 text-yellow-500',
-                                                                )}
-                                                            />
-                                                        )}
-                                                                    {item.no_poin ||
-                                                                        '-'}
+                                                    <td className="w-10 px-2 py-2.5 text-center text-muted-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                        {materialPagination.per_page ===
+                                                        'all'
+                                                            ? index +
+                                                              1
+                                                            : (Number(
+                                                                  materialPagination.page ||
+                                                                      1,
+                                                              ) -
+                                                                  1) *
+                                                                  Number(
+                                                                      materialPagination.per_page ||
+                                                                          5,
+                                                                  ) +
+                                                              index +
+                                                              1}
                                                     </td>
-                                                    <td className="px-2 py-2">
-                                                                    {item.customer_name ||
-                                                                        '-'}
-                                                        {urgency && (
-                                                            <span
-                                                                className={cn(
-                                                                    'ml-2 inline-block rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold',
-                                                                                urgency ===
-                                                                                    'overdue'
-                                                                        ? 'border-red-600/40 bg-red-600/15 text-red-700'
-                                                                        : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800',
-                                                                )}
+                                                    <td className="w-px px-2 py-2.5 font-semibold text-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                        <span>{item.no_poin || '-'}</span>
+                                                    </td>
+                                                    <td className="px-2 py-2.5 text-foreground border-b border-slate-300 dark:border-slate-700">
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            <span>{item.customer_name || '-'}</span>
+                                                            {urgency && (
+                                                                <span
+                                                                    className={cn(
+                                                                        'rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold shrink-0',
+                                                                        urgency === 'overdue'
+                                                                            ? 'border-red-600/40 bg-red-600/15 text-red-700 dark:text-red-400'
+                                                                            : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800 dark:text-yellow-400',
+                                                                    )}
+                                                                >
+                                                                    Segera dikirim
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="px-2 py-2.5 font-medium text-foreground border-b border-slate-300 dark:border-slate-700">
+                                                        {item.material || '-'}
+                                                    </td>
+                                                    <td className="w-20 px-2 py-2.5 text-right font-bold text-foreground tabular-nums whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                        {item.qty ?? 0}
+                                                    </td>
+                                                    <td className="w-20 px-2 py-2.5 text-right whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                        <span
+                                                            className={cn(
+                                                                'font-bold tabular-nums px-2 py-0.5 rounded-md text-xs',
+                                                                Number(
+                                                                    item.sisa_qtypr ??
+                                                                        item.qty ??
+                                                                        0,
+                                                                ) === 0
+                                                                    ? 'bg-muted text-muted-foreground'
+                                                                    : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 font-bold',
+                                                            )}
+                                                        >
+                                                            {item.sisa_qtypr ??
+                                                                item.qty ??
+                                                                0}
+                                                        </span>
+                                                    </td>
+                                                    <td className="w-20 px-2 py-2.5 text-right whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                        <span
+                                                            className={cn(
+                                                                'font-bold tabular-nums px-2 py-0.5 rounded-md text-xs',
+                                                                Number(
+                                                                    item.sisa_qtydo ??
+                                                                        item.qty ??
+                                                                        0,
+                                                                ) === 0
+                                                                    ? 'bg-muted text-muted-foreground'
+                                                                    : 'bg-rose-500/10 text-rose-700 dark:text-rose-400 font-bold',
+                                                            )}
+                                                        >
+                                                            {item.sisa_qtydo ??
+                                                                item.qty ??
+                                                                0}
+                                                        </span>
+                                                    </td>
+                                                    <td className="w-20 px-2 py-2.5 whitespace-nowrap text-center border-b border-slate-300 dark:border-slate-700">
+                                                        <div className="flex items-center justify-center gap-1">
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="h-7 w-7 p-0 rounded-md border-sidebar-border/70 hover:bg-emerald-500/15 hover:text-emerald-600 dark:hover:text-emerald-400 cursor-pointer"
+                                                                onClick={() =>
+                                                                    openDetailModal(
+                                                                        item.kode_poin,
+                                                                    )
+                                                                }
+                                                                title="Lihat Detail"
                                                             >
-                                                                            Segera
-                                                                            dikirim
-                                                            </span>
-                                                        )}
-                                                    </td>
-                                                                <td className="px-2 py-2">
-                                                                    {item.material ||
-                                                                        '-'}
-                                                                </td>
-                                                                <td className="px-2 py-2 text-right whitespace-nowrap">
-                                                                    {item.qty ??
-                                                                        0}
-                                                                </td>
-                                                                <td className="px-2 py-2 text-right whitespace-nowrap">
-                                                                    {item.sisa_qtypr ??
-                                                                        item.qty ??
-                                                                        0}
-                                                                </td>
-                                                                <td className="px-2 py-2 text-right whitespace-nowrap">
-                                                                    {item.sisa_qtydo ??
-                                                                        item.qty ??
-                                                                        0}
-                                                                </td>
-                                                    <td className="px-2 py-2">
-                                                        <div className="flex items-center gap-2">
-                                                                        <Button
-                                                                            type="button"
-                                                                            variant="outline"
-                                                                            size="sm"
-                                                                            onClick={() =>
-                                                                                openDetailModal(
-                                                                                    item.kode_poin,
-                                                                                )
-                                                                            }
-                                                                            title="Lihat"
-                                                                        >
-                                                                <Eye className="size-4" />
+                                                                <Eye className="size-3.5 text-muted-foreground" />
                                                             </Button>
                                                             <a
                                                                 href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
                                                                 target="_blank"
                                                                 rel="noopener noreferrer"
-                                                                className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-2 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                                                                title="Print"
+                                                                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sidebar-border/70 bg-background text-muted-foreground shadow-xs transition-colors hover:bg-teal-500/15 hover:text-teal-600 dark:hover:text-teal-400 cursor-pointer"
+                                                                title="Print Dokumen"
                                                             >
-                                                                <Printer className="size-4" />
+                                                                <Printer className="size-3.5" />
                                                             </a>
                                                         </div>
                                                     </td>
@@ -2895,22 +2891,41 @@ export default function PurchaseOrderInIndex({
                                     </tbody>
                                 </table>
                             </div>
+
+                            {/* Pagination (Material) */}
                             {!materialError &&
                                 (materialLoading ||
                                     Number(materialPagination.total || 0) >
                                         0) && (
-                                    <div className="mt-3 grid gap-3 text-sm text-muted-foreground sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                                    <div className="mt-3.5 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between text-xs text-muted-foreground border-t border-sidebar-border/40 pt-3">
                                         <span>
-                                            {materialLoading
-                                                ? 'Memuat...'
-                                                : `Menampilkan ${materialRange.from}-${materialRange.to} dari ${materialRange.total} data`}
+                                            {materialLoading ? (
+                                                <Skeleton className="h-5 w-48" />
+                                            ) : (
+                                                <span>
+                                                    Menampilkan{' '}
+                                                    <span className="font-semibold text-foreground">
+                                                        {materialRange.from}
+                                                    </span>
+                                                    -
+                                                    <span className="font-semibold text-foreground">
+                                                        {materialRange.to}
+                                                    </span>{' '}
+                                                    dari{' '}
+                                                    <span className="font-semibold text-foreground">
+                                                        {materialRange.total}
+                                                    </span>{' '}
+                                                    data
+                                                </span>
+                                            )}
                                         </span>
                                         {materialPerPage !== 'all' && (
-                                            <div className="grid grid-cols-2 items-center gap-2 sm:flex">
+                                            <div className="flex items-center gap-2 self-end sm:self-auto">
                                                 <Button
                                                     type="button"
                                                     variant="outline"
                                                     size="sm"
+                                                    className="h-8 px-2.5 text-xs font-semibold rounded-lg"
                                                     disabled={
                                                         materialLoading ||
                                                         Number(
@@ -2932,8 +2947,7 @@ export default function PurchaseOrderInIndex({
                                                 >
                                                     Sebelumnya
                                                 </Button>
-                                                <span className="col-span-2 text-center sm:col-span-1">
-                                                    Halaman{' '}
+                                                <span className="rounded-md bg-muted px-2 py-1 text-[11px] font-semibold text-foreground">
                                                     {materialPagination.page ||
                                                         1}{' '}
                                                     /{' '}
@@ -2944,6 +2958,7 @@ export default function PurchaseOrderInIndex({
                                                     type="button"
                                                     variant="outline"
                                                     size="sm"
+                                                    className="h-8 px-2.5 text-xs font-semibold rounded-lg"
                                                     disabled={
                                                         materialLoading ||
                                                         Number(
@@ -2953,7 +2968,7 @@ export default function PurchaseOrderInIndex({
                                                             Number(
                                                                 materialPagination.total_pages ||
                                                                     1,
-                                                            )
+                                                              )
                                                     }
                                                     onClick={() =>
                                                         fetchMaterialData({
@@ -2995,31 +3010,60 @@ export default function PurchaseOrderInIndex({
                         }
                     }}
                 >
-                    <DialogContent className="!top-[2vh] !left-[0.5vw] !h-[96vh] !w-[99vw] !max-w-[99vw] !translate-x-0 !translate-y-0 overflow-y-auto p-0">
-                        <DialogHeader className="sticky top-0 z-20 border-b border-sidebar-border/70 bg-background px-4 py-3 pr-12">
+                    <DialogContent className="!top-[2vh] !left-[0.5vw] !h-[96vh] !w-[99vw] !max-w-[99vw] !translate-x-0 !translate-y-0 overflow-y-auto p-0 rounded-2xl border border-sidebar-border/70 bg-card shadow-2xl flex flex-col">
+                        <DialogHeader className="sticky top-0 z-20 border-b border-sidebar-border/70 bg-background/95 backdrop-blur-xs px-4 py-3 sm:px-6 shrink-0">
                             <div className="flex items-center justify-between">
-                                <DialogTitle>Detail PO In</DialogTitle>
-                                <DialogClose asChild>
-                                    <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="h-8 w-8 p-0"
-                                        title="Tutup"
-                                    >
-                                        <X className="size-4" />
-                                    </Button>
-                                </DialogClose>
+                                <div className="flex items-center gap-2.5">
+                                    <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                        <ClipboardCheck className="size-5" />
+                                    </div>
+                                    <div>
+                                        <DialogTitle className="text-base font-bold text-foreground">
+                                            Detail Purchase Order In
+                                        </DialogTitle>
+                                        {detailHeader && (
+                                            <p className="text-xs text-muted-foreground mt-0.5">
+                                                No Document: <span className="font-semibold text-foreground">{detailHeader.kode_poin}</span> • Ref PO: <span className="font-semibold text-foreground">{detailHeader.no_poin || '-'}</span>
+                                            </p>
+                                        )}
+                                    </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    {detailHeader && (
+                                        <a
+                                            href={`/marketing/purchase-order-in/${encodeURIComponent(detailHeader.kode_poin)}/print`}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-sidebar-border/70 bg-background px-3 text-xs font-semibold shadow-xs hover:bg-muted/60 text-muted-foreground hover:text-foreground cursor-pointer"
+                                            title="Print Dokumen"
+                                        >
+                                            <Printer className="size-3.5" />
+                                            <span className="hidden sm:inline">Print Dokumen</span>
+                                        </a>
+                                    )}
+                                    <DialogClose asChild>
+                                        <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            className="size-8 p-0 rounded-lg hover:bg-muted/60 cursor-pointer"
+                                            title="Tutup"
+                                        >
+                                            <X className="size-4" />
+                                        </Button>
+                                    </DialogClose>
+                                </div>
                             </div>
                         </DialogHeader>
-                        <div className="p-3">
+
+                        <div className="p-4 sm:p-6 flex-1 space-y-4">
                             {detailLoading && (
-                                <div className="py-10 text-center text-sm text-muted-foreground">
-                                    Memuat detail PO In...
+                                <div className="py-16 text-center text-sm text-muted-foreground">
+                                    Memuat detail data PO In...
                                 </div>
                             )}
                             {!detailLoading && detailError && (
-                                <div className="py-10 text-center">
+                                <div className="py-16 text-center">
                                     <SummaryLoadError
                                         label="detail PO IN"
                                         message={detailError}
@@ -3032,120 +3076,65 @@ export default function PurchaseOrderInIndex({
                                 </div>
                             )}
                             {!detailLoading && !detailError && detailHeader && (
-                                <div className="space-y-3">
-                                    <div className="flex flex-wrap gap-1.5">
-                                        <div className="min-w-36 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
-                                            <p className="text-xs text-muted-foreground">
-                                                No Doc
-                                            </p>
-                                            <p className="text-sm font-semibold whitespace-nowrap">
-                                                {detailHeader.kode_poin ?? '-'}
+                                <div className="space-y-4">
+                                    {/* Structured Header Metadata Cards */}
+                                    <div className="rounded-xl border border-sidebar-border/70 bg-muted/20 p-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-xs">
+                                        <div>
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">No Document</span>
+                                            <p className="font-bold text-foreground mt-0.5">{detailHeader.kode_poin ?? '-'}</p>
+                                        </div>
+                                        <div>
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Ref PO Customer</span>
+                                            <p className="font-semibold text-foreground mt-0.5">{detailHeader.no_poin ?? '-'}</p>
+                                        </div>
+                                        <div className="col-span-2 sm:col-span-1">
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Customer</span>
+                                            <p className="font-semibold text-foreground mt-0.5 truncate" title={detailHeader.customer_name}>
+                                                {detailHeader.customer_name ?? '-'}
                                             </p>
                                         </div>
-                                        <div className="min-w-32 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
-                                            <p className="text-xs text-muted-foreground">
-                                                Ref PO
-                                            </p>
-                                            <p className="text-sm font-semibold whitespace-nowrap">
-                                                {detailHeader.no_poin ?? '-'}
-                                            </p>
+                                        <div>
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">PIC PO Customer</span>
+                                            <p className="font-semibold text-foreground mt-0.5">{detailHeader.sender_name ?? '-'}</p>
                                         </div>
-                                        <div className="min-w-56 flex-1 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
-                                            <p className="text-xs text-muted-foreground">
-                                                Customer
-                                            </p>
-                                            <p className="text-sm font-semibold">
-                                                {detailHeader.customer_name ??
-                                                    '-'}
-                                            </p>
+                                        <div>
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Tgl Buat / Input</span>
+                                            <p className="font-medium text-foreground mt-0.5">{formatDateDisplay(detailHeader.created_at || detailHeader.date_poin)}</p>
                                         </div>
-                                        <div className="min-w-40 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
-                                            <p className="text-xs text-muted-foreground">
-                                                PIC PO Customer
-                                            </p>
-                                            <p className="text-sm font-semibold">
-                                                {detailHeader.sender_name ??
-                                                    '-'}
-                                            </p>
+                                        <div>
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Date PO In</span>
+                                            <p className="font-medium text-foreground mt-0.5">{formatDateDisplay(detailHeader.date_poin)}</p>
                                         </div>
-                                        <div className="min-w-32 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
-                                            <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
-                                                Tgl Buat
-                                            </p>
-                                            <p className="text-sm font-semibold whitespace-nowrap">
-                                                {formatDateDisplay(
-                                                    detailHeader.created_at ||
-                                                    detailHeader.date_poin,
-                                                )}
-                                            </p>
+                                        <div>
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Delivery Date</span>
+                                            <p className="font-semibold text-foreground mt-0.5">{formatDateDisplay(detailHeader.delivery_date)}</p>
                                         </div>
-                                        <div className="min-w-36 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
-                                            <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
-                                                Term of Payment
-                                            </p>
-                                            <p className="text-sm font-semibold whitespace-nowrap">
-                                                {detailHeader.payment_term ??
-                                                    '-'}
-                                            </p>
+                                        <div>
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Term of Payment</span>
+                                            <p className="font-medium text-foreground mt-0.5">{detailHeader.payment_term ?? '-'}</p>
                                         </div>
-                                        <div className="min-w-36 flex-1 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
-                                            <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
-                                                Franco / Loco
-                                            </p>
-                                            <p className="text-sm font-semibold whitespace-nowrap">
-                                                {detailHeader.franco_loco ??
-                                                    '-'}
-                                            </p>
+                                        <div>
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Franco / Loco</span>
+                                            <p className="font-medium text-foreground mt-0.5">{detailHeader.franco_loco ?? '-'}</p>
                                         </div>
-                                        <div className="min-w-32 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
-                                            <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
-                                                Date PO In
-                                            </p>
-                                            <p className="text-sm font-semibold whitespace-nowrap">
-                                                {formatDateDisplay(
-                                                    detailHeader.date_poin,
-                                                )}
-                                            </p>
+                                        <div>
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">PPN</span>
+                                            <p className="font-semibold text-foreground mt-0.5">{detailHeader.ppn_input_percent ?? 0}%</p>
                                         </div>
-                                        <div className="min-w-32 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
-                                            <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
-                                                Delivery Date
-                                            </p>
-                                            <p className="text-sm font-semibold whitespace-nowrap">
-                                                {formatDateDisplay(
-                                                    detailHeader.delivery_date,
-                                                )}
-                                            </p>
+                                        <div className="col-span-2 sm:col-span-3 lg:col-span-5 border-t border-sidebar-border/50 pt-2.5 mt-1">
+                                            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Keterangan:</span>
+                                            <span className="font-medium text-foreground ml-2 whitespace-pre-wrap">{String(detailHeader.note_doc ?? '').trim() || '-'}</span>
                                         </div>
-                                        <div className="min-w-20 rounded-lg border border-sidebar-border/70 px-2 py-1.5">
-                                            <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
-                                                PPN
-                                            </p>
-                                            <p className="text-sm font-semibold whitespace-nowrap">
-                                                {detailHeader.ppn_input_percent ??
-                                                    0}
-                                                %
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <div className="rounded-lg border border-sidebar-border/70 px-2 py-1.5">
-                                        <p className="text-xs font-bold tracking-wider text-muted-foreground uppercase">
-                                            Keterangan
-                                        </p>
-                                        <p className="text-sm font-semibold whitespace-pre-wrap">
-                                            {String(
-                                                detailHeader.note_doc ?? '',
-                                            ).trim() || '-'}
-                                        </p>
                                     </div>
 
-                                    <div className="flex flex-wrap items-center justify-between gap-3">
-                                        <div className="relative w-full max-w-md">
-                                            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                                    {/* Material List Search & Filter Toolbar */}
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+                                        <div className="relative w-full max-w-sm">
+                                            <Search className="pointer-events-none absolute top-1/2 left-3 size-3.5 -translate-y-1/2 text-muted-foreground" />
                                             <input
                                                 type="search"
-                                                className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background pr-3 pl-9 text-sm"
-                                                placeholder="Cari material..."
+                                                className="h-9 w-full rounded-lg border border-sidebar-border/70 bg-background pr-8 pl-8.5 text-xs placeholder:text-muted-foreground/60 focus:border-emerald-500 focus:outline-none"
+                                                placeholder="Cari nama material..."
                                                 value={detailSearch}
                                                 onChange={(event) => {
                                                     setDetailSearch(
@@ -3154,11 +3143,23 @@ export default function PurchaseOrderInIndex({
                                                     setDetailPage(1);
                                                 }}
                                             />
+                                            {detailSearch && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setDetailSearch('');
+                                                        setDetailPage(1);
+                                                    }}
+                                                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                                                >
+                                                    <X className="size-3.5" />
+                                                </button>
+                                            )}
                                         </div>
-                                        <label className="text-sm text-muted-foreground">
-                                            Tampilkan
+                                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                                            <span>Tampilkan:</span>
                                             <select
-                                                className="ml-2 h-10 rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm"
+                                                className="h-8 rounded-lg border border-sidebar-border/70 bg-background px-2.5 text-xs font-medium text-foreground cursor-pointer focus:border-emerald-500 focus:outline-none"
                                                 value={
                                                     detailPageSize === Infinity
                                                         ? 'all'
@@ -3175,103 +3176,101 @@ export default function PurchaseOrderInIndex({
                                                     setDetailPage(1);
                                                 }}
                                             >
-                                                <option value="5">5</option>
-                                                <option value="10">10</option>
-                                                <option value="25">25</option>
-                                                <option value="50">50</option>
-                                                <option value="all">
-                                                    Semua
-                                                </option>
+                                                <option value="5">5 baris</option>
+                                                <option value="10">10 baris</option>
+                                                <option value="25">25 baris</option>
+                                                <option value="50">50 baris</option>
+                                                <option value="all">Semua</option>
                                             </select>
-                                        </label>
+                                        </div>
                                     </div>
 
+                                    {/* Material Table with Crisp Horizontal Lines */}
                                     <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                                        <table className="w-full min-w-[860px] table-auto text-sm">
-                                            <thead className="bg-muted/40 text-muted-foreground">
+                                        <table className="w-full min-w-[860px] text-xs border-collapse">
+                                            <thead className="bg-muted/50 text-[11px] font-bold text-muted-foreground uppercase tracking-wider border-b border-sidebar-border/70">
                                                 <tr>
                                                     <th
                                                         rowSpan={2}
-                                                        className="w-px px-1 py-2 text-left align-middle whitespace-nowrap"
+                                                        className="w-10 px-2 py-2.5 text-center align-middle whitespace-nowrap"
                                                     >
                                                         No
                                                     </th>
                                                     <th
                                                         rowSpan={2}
-                                                        className="px-1 py-2 text-left align-middle"
+                                                        className="px-2.5 py-2.5 text-left align-middle"
                                                     >
-                                                        Material
+                                                        Material / Part Name
                                                     </th>
                                                     <th
                                                         rowSpan={2}
-                                                        className="w-px px-1 py-2 text-right align-middle whitespace-nowrap"
+                                                        className="w-24 px-2.5 py-2.5 text-right align-middle whitespace-nowrap"
                                                     >
-                                                        Qty
+                                                        Qty PO
                                                     </th>
                                                     <th
                                                         rowSpan={2}
-                                                        className="w-px px-1 py-2 text-right align-middle whitespace-nowrap"
+                                                        className="w-28 px-2.5 py-2.5 text-right align-middle whitespace-nowrap"
                                                     >
-                                                        Price
+                                                        Harga (Rp)
                                                     </th>
                                                     <th
                                                         rowSpan={2}
-                                                        className="w-px px-1 py-2 text-right align-middle whitespace-nowrap"
+                                                        className="w-32 px-2.5 py-2.5 text-right align-middle whitespace-nowrap"
                                                     >
-                                                        Total Price
+                                                        Total (Rp)
                                                     </th>
                                                     <th
                                                         colSpan={2}
-                                                        className="px-1 py-2 text-center"
+                                                        className="px-2.5 py-1.5 text-center border-b border-sidebar-border/50"
                                                     >
-                                                        Sisa
+                                                        Sisa Realisasi
                                                     </th>
                                                     <th
                                                         rowSpan={2}
-                                                        className="px-1 py-2 text-left align-middle"
+                                                        className="px-2.5 py-2.5 text-left align-middle"
                                                     >
                                                         Remark
                                                     </th>
                                                 </tr>
                                                 <tr>
-                                                    <th className="w-px px-1 py-2 text-right whitespace-nowrap">
-                                                        PR
+                                                    <th className="w-20 px-2 py-1.5 text-right whitespace-nowrap">
+                                                        Sisa PR
                                                     </th>
-                                                    <th className="w-px px-1 py-2 text-right whitespace-nowrap">
-                                                        DO
+                                                    <th className="w-20 px-2 py-1.5 text-right whitespace-nowrap">
+                                                        Sisa DO
                                                     </th>
                                                 </tr>
                                             </thead>
-                                            <tbody>
+                                            <tbody className="divide-y divide-sidebar-border/70">
                                                 <PlainTableStateRows
-                                                    columns={10}
                                                     loading={detailTableLoading}
-                                                    error={detailError}
                                                     isEmpty={
                                                         !detailTableLoading &&
-                                                        !detailError &&
                                                         detailItems.length === 0
                                                     }
-                                                    emptyTitle="Tidak ada detail material."
+                                                    emptyTitle="Belum ada material untuk PO In ini."
+                                                    columns={8}
                                                     skeletonRows={
-                                                        detailPageSize
+                                                        detailPageSize ===
+                                                        Infinity
+                                                            ? 5
+                                                            : Number(
+                                                                  detailPageSize,
+                                                              )
                                                     }
                                                 />
                                                 {!detailTableLoading &&
                                                     detailItems.map(
                                                         (row, index) => (
                                                             <tr
-                                                                key={
-                                                                    row.id ??
-                                                                    `${row.kode_poin}-${index}`
-                                                                }
-                                                                className="border-t border-sidebar-border/70"
+                                                                key={`${row.material}-${index}`}
+                                                                className="border-b border-sidebar-border/70 hover:bg-muted/40 transition-colors"
                                                             >
-                                                                <td className="w-px px-1 py-2 whitespace-nowrap">
+                                                                <td className="w-10 px-2 py-2.5 text-center text-muted-foreground whitespace-nowrap">
                                                                     {detailPagination.per_page ===
-                                                                        'all'
-                                                                        ? index +
-                                                                        1
+                                                                    'all'
+                                                                        ? index + 1
                                                                         : (Number(
                                                                             detailPagination.page ||
                                                                             1,
@@ -3284,36 +3283,44 @@ export default function PurchaseOrderInIndex({
                                                                         index +
                                                                         1}
                                                                 </td>
-                                                                <td className="px-1 py-2">
-                                                                    {row.material ??
-                                                                        '-'}
+                                                                <td className="px-2.5 py-2.5 font-medium text-foreground">
+                                                                    {row.material ?? '-'}
                                                                 </td>
-                                                                <td className="w-px px-1 py-2 text-right whitespace-nowrap">
+                                                                <td className="w-24 px-2.5 py-2.5 text-right font-bold text-foreground tabular-nums whitespace-nowrap">
                                                                     {`${row.qty ?? 0} ${row.satuan ?? ''}`}
                                                                 </td>
-                                                                <td className="w-px px-1 py-2 text-right whitespace-nowrap">
-                                                                    {formatRupiah(
-                                                                        row.price_po_in ??
-                                                                        0,
-                                                                    )}
+                                                                <td className="w-28 px-2.5 py-2.5 text-right font-medium tabular-nums whitespace-nowrap">
+                                                                    {formatRupiah(row.price_po_in ?? 0)}
                                                                 </td>
-                                                                <td className="w-px px-1 py-2 text-right whitespace-nowrap">
-                                                                    {formatRupiah(
-                                                                        row.total_price_po_in ??
-                                                                        0,
-                                                                    )}
+                                                                <td className="w-32 px-2.5 py-2.5 text-right font-bold text-foreground tabular-nums whitespace-nowrap">
+                                                                    {formatRupiah(row.total_price_po_in ?? 0)}
                                                                 </td>
-                                                                <td className="w-px px-1 py-2 text-right whitespace-nowrap">
-                                                                    {row.sisa_qtypr ??
-                                                                        0}
+                                                                <td className="w-20 px-2.5 py-2.5 text-right whitespace-nowrap">
+                                                                    <span
+                                                                        className={cn(
+                                                                            'font-bold tabular-nums px-2 py-0.5 rounded-md text-xs',
+                                                                            Number(row.sisa_qtypr ?? 0) === 0
+                                                                                ? 'bg-muted text-muted-foreground'
+                                                                                : 'bg-amber-500/10 text-amber-700 dark:text-amber-400',
+                                                                        )}
+                                                                    >
+                                                                        {row.sisa_qtypr ?? 0}
+                                                                    </span>
                                                                 </td>
-                                                                <td className="w-px px-1 py-2 text-right whitespace-nowrap">
-                                                                    {row.sisa_qtydo ??
-                                                                        0}
+                                                                <td className="w-20 px-2.5 py-2.5 text-right whitespace-nowrap">
+                                                                    <span
+                                                                        className={cn(
+                                                                            'font-bold tabular-nums px-2 py-0.5 rounded-md text-xs',
+                                                                            Number(row.sisa_qtydo ?? 0) === 0
+                                                                                ? 'bg-muted text-muted-foreground'
+                                                                                : 'bg-rose-500/10 text-rose-700 dark:text-rose-400',
+                                                                        )}
+                                                                    >
+                                                                        {row.sisa_qtydo ?? 0}
+                                                                    </span>
                                                                 </td>
-                                                                <td className="px-1 py-2">
-                                                                    {row.remark ||
-                                                                        '-'}
+                                                                <td className="px-2.5 py-2.5 text-muted-foreground">
+                                                                    {row.remark || '-'}
                                                                 </td>
                                                             </tr>
                                                         ),
@@ -3321,113 +3328,94 @@ export default function PurchaseOrderInIndex({
                                             </tbody>
                                         </table>
                                     </div>
-                                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm">
-                                        <p className="text-muted-foreground">
-                                            Total {detailPagination.total} data
+
+                                    {/* Pagination Footer */}
+                                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-muted-foreground border-t border-sidebar-border/40 pt-3">
+                                        <p>
+                                            Total <span className="font-semibold text-foreground">{detailPagination.total}</span> data material
                                         </p>
-                                        {String(detailPagination.per_page) !==
-                                            'all' && (
-                                                <div className="flex items-center gap-2">
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        disabled={
-                                                            Number(
-                                                                detailPagination.page ||
+                                        {String(detailPagination.per_page) !== 'all' && (
+                                            <div className="flex items-center gap-2">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-8 px-2.5 text-xs font-semibold rounded-lg"
+                                                    disabled={
+                                                        Number(
+                                                            detailPagination.page ||
+                                                            1,
+                                                        ) <= 1
+                                                    }
+                                                    onClick={() =>
+                                                        setDetailPage((prev) =>
+                                                            Math.max(
                                                                 1,
-                                                            ) <= 1
-                                                        }
-                                                        onClick={() =>
-                                                            setDetailPage((prev) =>
-                                                                Math.max(
+                                                                prev - 1,
+                                                            ),
+                                                        )
+                                                    }
+                                                >
+                                                    Sebelumnya
+                                                </Button>
+                                                <span className="rounded-md bg-muted px-2 py-1 text-[11px] font-semibold text-foreground">
+                                                    {detailPagination.page} / {detailPagination.total_pages}
+                                                </span>
+                                                <Button
+                                                    type="button"
+                                                    variant="outline"
+                                                    size="sm"
+                                                    className="h-8 px-2.5 text-xs font-semibold rounded-lg"
+                                                    disabled={
+                                                        Number(
+                                                            detailPagination.page,
+                                                        ) >=
+                                                        Number(
+                                                            detailPagination.total_pages,
+                                                        )
+                                                    }
+                                                    onClick={() =>
+                                                        setDetailPage((prev) =>
+                                                            Math.min(
+                                                                Number(
+                                                                    detailPagination.total_pages ||
                                                                     1,
-                                                                    prev - 1,
                                                                 ),
-                                                            )
-                                                        }
-                                                    >
-                                                        Sebelumnya
-                                                    </Button>
-                                                    <span className="text-muted-foreground">
-                                                        Halaman{' '}
-                                                        {detailPagination.page} /{' '}
-                                                        {
-                                                            detailPagination.total_pages
-                                                        }
-                                                    </span>
-                                                    <Button
-                                                        type="button"
-                                                        variant="outline"
-                                                        size="sm"
-                                                        disabled={
-                                                            Number(
-                                                                detailPagination.page,
-                                                            ) >=
-                                                            Number(
-                                                                detailPagination.total_pages,
-                                                            )
-                                                        }
-                                                        onClick={() =>
-                                                            setDetailPage((prev) =>
-                                                                Math.min(
-                                                                    Number(
-                                                                        detailPagination.total_pages ||
-                                                                        1,
-                                                                    ),
-                                                                    prev + 1,
-                                                                ),
-                                                            )
-                                                        }
-                                                    >
-                                                        Berikutnya
-                                                    </Button>
-                                                </div>
-                                            )}
+                                                                prev + 1,
+                                                            ),
+                                                        )
+                                                    }
+                                                >
+                                                    Berikutnya
+                                                </Button>
+                                            </div>
+                                        )}
                                     </div>
 
-                                    <div className="grid gap-2 md:grid-cols-4">
-                                        <div className="rounded-lg border border-sidebar-border/70 p-2">
-                                            <p className="text-xs text-muted-foreground">
-                                                Total Price
-                                            </p>
-                                            <p className="font-semibold">
-                                                {formatRupiah(
-                                                    detailHeader.total_price ??
-                                                    0,
-                                                )}
+                                    {/* Financial Summary 4 KPI Blocks */}
+                                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5 pt-2">
+                                        <div className="rounded-xl border border-sidebar-border/70 bg-card p-3 shadow-xs">
+                                            <span className="text-[10.5px] font-bold text-muted-foreground uppercase tracking-wider">Total Price</span>
+                                            <p className="text-sm font-bold text-foreground mt-0.5 tabular-nums">
+                                                Rp {formatRupiah(detailHeader.total_price ?? 0)}
                                             </p>
                                         </div>
-                                        <div className="rounded-lg border border-sidebar-border/70 p-2">
-                                            <p className="text-xs text-muted-foreground">
-                                                DPP
-                                            </p>
-                                            <p className="font-semibold">
-                                                {formatRupiah(
-                                                    detailHeader.dpp ?? 0,
-                                                )}
+                                        <div className="rounded-xl border border-sidebar-border/70 bg-card p-3 shadow-xs">
+                                            <span className="text-[10.5px] font-bold text-muted-foreground uppercase tracking-wider">DPP</span>
+                                            <p className="text-sm font-bold text-foreground mt-0.5 tabular-nums">
+                                                Rp {formatRupiah(detailHeader.dpp ?? 0)}
                                             </p>
                                         </div>
-                                        <div className="rounded-lg border border-sidebar-border/70 p-2">
-                                            <p className="text-xs text-muted-foreground">
-                                                PPN
-                                            </p>
-                                            <p className="font-semibold">
-                                                {formatRupiah(
-                                                    detailHeader.ppn_amount ??
-                                                    0,
-                                                )}
+                                        <div className="rounded-xl border border-sidebar-border/70 bg-card p-3 shadow-xs">
+                                            <span className="text-[10.5px] font-bold text-muted-foreground uppercase tracking-wider">PPN</span>
+                                            <p className="text-sm font-bold text-foreground mt-0.5 tabular-nums">
+                                                Rp {formatRupiah(detailHeader.ppn_amount ?? 0)}
                                             </p>
                                         </div>
-                                        <div className="rounded-lg border border-sidebar-border/70 p-2">
-                                            <p className="text-xs text-muted-foreground">
-                                                Grand Total
-                                            </p>
-                                            <p className="font-semibold">
-                                                {formatRupiah(
-                                                    detailHeader.grand_total ??
-                                                    0,
-                                                )}
+                                        <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-3 shadow-xs">
+                                            <span className="text-[10.5px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Grand Total</span>
+                                            <p className="text-base font-extrabold text-emerald-600 dark:text-emerald-400 mt-0.5 tabular-nums">
+                                                Rp {formatRupiah(detailHeader.grand_total ?? 0)}
                                             </p>
                                         </div>
                                     </div>
@@ -3448,411 +3436,461 @@ export default function PurchaseOrderInIndex({
                         }
                     }}
                 >
-                    <DialogContent className="h-[96vh] w-[99vw] max-w-[99vw] p-4 sm:!max-w-[99vw]">
-                        <DialogHeader>
-                            <DialogTitle>
-                                {activeModal === 'all_data'
-                                    ? 'Data PO IN'
-                                    : activeModal === 'outstanding'
-                                        ? 'Data PO IN Outstanding'
-                                        : activeModal === 'sisa'
-                                            ? 'Data PO IN Sisa'
-                                            : `Data PO IN Terealisasi (${periodLabelMap[realizedPeriod]})`}
-                            </DialogTitle>
+                    <DialogContent className="!top-[2vh] !left-[0.5vw] !h-[96vh] !w-[99vw] !max-w-[99vw] !translate-x-0 !translate-y-0 overflow-y-auto p-0 rounded-2xl border border-sidebar-border/70 bg-card shadow-2xl flex flex-col">
+                        <DialogHeader className="sticky top-0 z-20 border-b border-sidebar-border/70 bg-background/95 backdrop-blur-xs px-4 py-3 sm:px-6 shrink-0">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2.5">
+                                    <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+                                        <ClipboardCheck className="size-5" />
+                                    </div>
+                                    <div>
+                                        <DialogTitle className="text-base font-bold text-foreground">
+                                            {activeModal === 'all_data'
+                                                ? 'Semua Data PO IN'
+                                                : activeModal === 'outstanding'
+                                                    ? 'Data PO IN Outstanding'
+                                                    : activeModal === 'sisa'
+                                                        ? 'Data PO IN Sisa Parsial'
+                                                        : `Data PO IN Terealisasi (${periodLabelMap[realizedPeriod]})`}
+                                        </DialogTitle>
+                                        <p className="text-xs text-muted-foreground mt-0.5">
+                                            {activeModal === 'all_data'
+                                                ? 'Daftar keseluruhan data Purchase Order Masuk'
+                                                : activeModal === 'outstanding'
+                                                    ? 'Daftar dokumen PO IN yang belum diproses'
+                                                    : activeModal === 'sisa'
+                                                        ? 'Daftar dokumen PO IN yang masih memiliki sisa kuantitas'
+                                                        : 'Daftar dokumen PO IN yang telah selesai terealisasi'}
+                                        </p>
+                                    </div>
+                                </div>
+                                <DialogClose asChild>
+                                    <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="sm"
+                                        className="size-8 p-0 rounded-lg hover:bg-muted/60 cursor-pointer"
+                                        title="Tutup"
+                                    >
+                                        <X className="size-4" />
+                                    </Button>
+                                </DialogClose>
+                            </div>
                         </DialogHeader>
 
-                        {activeModal !== 'all_data' && (
-                            <div className="mb-3 grid h-11 w-full max-w-sm grid-cols-2 rounded-lg border border-sidebar-border/70 bg-muted/30 p-1">
-                                <button
-                                    type="button"
-                                    className={cn(
-                                        'flex h-9 items-center justify-center rounded-md px-3 text-sm font-semibold whitespace-nowrap transition',
-                                        activeModalTab === 'pr'
-                                            ? 'bg-background text-foreground shadow-sm'
-                                            : 'text-muted-foreground hover:text-foreground',
-                                    )}
-                                    onClick={() => {
-                                        setActiveModalTab('pr');
-                                        setModalSearch('');
-                                        setModalPage(1);
-                                    }}
-                                >
-                                    {activeModal === 'outstanding'
-                                        ? 'Outstanding PR'
-                                        : activeModal === 'sisa'
-                                            ? 'Sisa PR'
-                                            : 'PR Selesai'}
-                                </button>
-                                <button
-                                    type="button"
-                                    className={cn(
-                                        'flex h-9 items-center justify-center rounded-md px-3 text-sm font-semibold whitespace-nowrap transition',
-                                        activeModalTab === 'do'
-                                            ? 'bg-background text-foreground shadow-sm'
-                                            : 'text-muted-foreground hover:text-foreground',
-                                    )}
-                                    onClick={() => {
-                                        setActiveModalTab('do');
-                                        setModalSearch('');
-                                        setModalPage(1);
-                                    }}
-                                >
-                                    {activeModal === 'outstanding'
-                                        ? 'Outstanding DO'
-                                        : activeModal === 'sisa'
-                                            ? 'Sisa DO'
-                                            : 'DO Selesai'}
-                                </button>
-                            </div>
-                        )}
+                        <div className="p-4 sm:p-6 flex-1 space-y-3.5">
+                            {/* Segmented Tab Switcher (if not all_data) */}
+                            {activeModal !== 'all_data' && (
+                                <div className="inline-flex items-center p-1 rounded-xl bg-muted/60 border border-sidebar-border/60 shadow-xs">
+                                    <button
+                                        type="button"
+                                        className={cn(
+                                            'flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer select-none',
+                                            activeModalTab === 'pr'
+                                                ? 'bg-emerald-600 text-white shadow-xs'
+                                                : 'text-muted-foreground hover:text-foreground hover:bg-background/60',
+                                        )}
+                                        style={
+                                            activeModalTab === 'pr'
+                                                ? { backgroundColor: '#059669', color: '#ffffff' }
+                                                : undefined
+                                        }
+                                        onClick={() => {
+                                            setActiveModalTab('pr');
+                                            setModalSearch('');
+                                            setModalPage(1);
+                                        }}
+                                    >
+                                        <span>
+                                            {activeModal === 'outstanding'
+                                                ? 'Outstanding PR'
+                                                : activeModal === 'sisa'
+                                                    ? 'Sisa PR'
+                                                    : 'PR Selesai'}
+                                        </span>
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className={cn(
+                                            'flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-all cursor-pointer select-none',
+                                            activeModalTab === 'do'
+                                                ? 'bg-emerald-600 text-white shadow-xs'
+                                                : 'text-muted-foreground hover:text-foreground hover:bg-background/60',
+                                        )}
+                                        style={
+                                            activeModalTab === 'do'
+                                                ? { backgroundColor: '#059669', color: '#ffffff' }
+                                                : undefined
+                                        }
+                                        onClick={() => {
+                                            setActiveModalTab('do');
+                                            setModalSearch('');
+                                            setModalPage(1);
+                                        }}
+                                    >
+                                        <span>
+                                            {activeModal === 'outstanding'
+                                                ? 'Outstanding DO'
+                                                : activeModal === 'sisa'
+                                                    ? 'Sisa DO'
+                                                    : 'DO Selesai'}
+                                        </span>
+                                    </button>
+                                </div>
+                            )}
 
-                        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                            <div className="relative w-full max-w-md">
-                                <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                                <input
-                                    type="search"
-                                    className="h-10 w-full rounded-lg border border-sidebar-border/70 bg-background pr-3 pl-9 text-sm"
-                                    placeholder="Cari data di modal..."
-                                    value={modalSearch}
-                                    onChange={(event) => {
-                                        setModalSearch(event.target.value);
-                                        setModalPage(1);
-                                    }}
-                                />
-                            </div>
-                            <div className="flex flex-wrap items-center gap-4">
-                                {['outstanding', 'sisa'].includes(
-                                    activeModal,
-                                ) && (
+                            {/* Toolbar: Search & Filters */}
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div className="relative w-full max-w-sm">
+                                    <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+                                    <input
+                                        type="search"
+                                        className="h-9 w-full rounded-lg border border-sidebar-border/70 bg-background pr-8 pl-8.5 text-xs placeholder:text-muted-foreground/60 focus:border-emerald-500 focus:outline-none"
+                                        placeholder="Cari No Doc, Ref PO, customer..."
+                                        value={modalSearch}
+                                        onChange={(event) => {
+                                            setModalSearch(event.target.value);
+                                            setModalPage(1);
+                                        }}
+                                    />
+                                    {modalSearch && (
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                setModalSearch('');
+                                                setModalPage(1);
+                                            }}
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground cursor-pointer"
+                                        >
+                                            <X className="size-3.5" />
+                                        </button>
+                                    )}
+                                </div>
+
+                                <div className="flex flex-wrap items-center gap-2 text-xs">
+                                    {activeModal !== 'all_data' &&
+                                        activeModal !== 'realized' && (
+                                            <div className="flex items-center gap-1">
+                                                <span className="text-[11px] text-muted-foreground hidden sm:inline">Deadline:</span>
+                                                <select
+                                                    className="h-8 rounded-lg border border-sidebar-border/70 bg-background px-2.5 text-xs font-medium text-foreground cursor-pointer focus:border-emerald-500 focus:outline-none"
+                                                    value={modalDeadlineFilter}
+                                                    onChange={(event) => {
+                                                        setModalDeadlineFilter(
+                                                            event.target.value,
+                                                        );
+                                                        setModalPage(1);
+                                                    }}
+                                                >
+                                                    <option value="all">
+                                                        Semua Deadline
+                                                    </option>
+                                                    <option value="soon">≤ 5 Hari</option>
+                                                    <option value="overdue">
+                                                        Lewat Deadline
+                                                    </option>
+                                                </select>
+                                            </div>
+                                        )}
+                                    <div className="flex items-center gap-1 text-muted-foreground">
+                                        <span className="text-[11px]">Tampilkan:</span>
                                         <select
-                                            className="h-10 rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm"
-                                            value={modalDeadlineFilter}
+                                            className="h-8 rounded-lg border border-sidebar-border/70 bg-background px-2.5 text-xs font-medium text-foreground cursor-pointer focus:border-emerald-500 focus:outline-none"
+                                            value={
+                                                modalPageSize === Infinity
+                                                    ? 'all'
+                                                    : String(modalPageSize)
+                                            }
                                             onChange={(event) => {
-                                                setModalDeadlineFilter(
-                                                    event.target.value,
+                                                const value = event.target.value;
+                                                setModalPageSize(
+                                                    value === 'all'
+                                                        ? Infinity
+                                                        : Number(value),
                                                 );
                                                 setModalPage(1);
                                             }}
                                         >
-                                            <option value="all">
-                                                Semua Deadline
-                                            </option>
-                                            <option value="soon">≤ 5 Hari</option>
-                                            <option value="overdue">
-                                                Lewat Deadline
-                                            </option>
+                                            <option value="5">5 baris</option>
+                                            <option value="10">10 baris</option>
+                                            <option value="25">25 baris</option>
+                                            <option value="50">50 baris</option>
+                                            <option value="100">100 baris</option>
+                                            <option value="all">Semua</option>
                                         </select>
-                                    )}
-                                <label className="text-sm text-muted-foreground">
-                                    Tampilkan
-                                    <select
-                                        className="ml-2 h-10 rounded-lg border border-sidebar-border/70 bg-background px-3 text-sm"
-                                        value={
-                                            modalPageSize === Infinity
-                                                ? 'all'
-                                                : String(modalPageSize)
-                                        }
-                                        onChange={(event) => {
-                                            const value = event.target.value;
-                                            setModalPageSize(
-                                                value === 'all'
-                                                    ? Infinity
-                                                    : Number(value),
-                                            );
-                                            setModalPage(1);
-                                        }}
-                                    >
-                                        <option value="5">5</option>
-                                        <option value="10">10</option>
-                                        <option value="25">25</option>
-                                        <option value="50">50</option>
-                                        <option value="100">100</option>
-                                        <option value="all">Semua</option>
-                                    </select>
-                                </label>
+                                    </div>
+                                </div>
                             </div>
-                        </div>
 
-                        <div className="max-h-[78vh] overflow-x-auto rounded-xl border border-sidebar-border/70">
-                            <table className="w-full table-auto text-sm">
-                                <thead className="bg-muted/40 text-muted-foreground">
-                                    <tr>
-                                        <th className="w-12 px-2 py-2 text-left">
-                                            No
-                                        </th>
-                                        <th className="w-44 px-2 py-2 text-left">
-                                            No Doc
-                                        </th>
-                                        <th className="w-40 px-2 py-2 text-left">
-                                            No PO In
-                                        </th>
-                                        <th className="w-32 px-2 py-2 text-left">
-                                            {activeModal === 'realized' &&
-                                                activeModalTab === 'do'
-                                                ? 'Tgl DO Terakhir'
-                                                : activeModal === 'realized' &&
-                                                    activeModalTab === 'pr'
-                                                    ? 'Tgl PR Terakhir'
-                                                    : 'Date Input'}
-                                        </th>
-                                        <th className="px-2 py-2 text-left">
-                                            Customer
-                                        </th>
-                                        <th className="w-36 px-2 py-2 text-right">
-                                            Grand Total
-                                        </th>
-                                        <th className="w-24 px-2 py-2 text-left">
-                                            Action
-                                        </th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <PlainTableStateRows
-                                        error={modalError}
-                                        onRetry={fetchModalData}
-                                        columns={7}
-                                        loading={modalLoading}
-                                        isEmpty={
-                                            !modalLoading &&
-                                            modalDisplayedItems.length === 0
-                                        }
-                                        emptyTitle="Tidak ada data."
-                                        skeletonRows={
-                                            modalPageSize === Infinity
-                                                ? 5
-                                                : modalPageSize
-                                        }
-                                    />
-
-                                    {modalDisplayedItems.map((item, index) => (
-                                        <tr
-                                            key={`${item.no_do || item.no_poin}-${index}`}
-                                            className={cn(
-                                                'border-t',
-                                                getRowUrgency(item) ===
-                                                    'overdue'
-                                                    ? 'border-red-500/40 bg-red-500/10'
-                                                    : getRowUrgency(item) ===
-                                                        'soon'
-                                                        ? 'border-yellow-500/40 bg-yellow-500/10'
-                                                        : 'border-sidebar-border/70',
-                                            )}
-                                        >
-                                            <td className="px-2 py-2 whitespace-nowrap">
-                                                {modalPageSize === Infinity
-                                                    ? index + 1
-                                                    : (modalPage - 1) *
-                                                    modalPageSize +
-                                                    index +
-                                                    1}
-                                            </td>
-                                            <td className="px-2 py-2 font-semibold whitespace-nowrap">
+                            {/* Table with Crisp Horizontal Lines */}
+                            <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
+                                <table className="w-full text-xs border-collapse">
+                                    <thead className="bg-muted/50 text-[11px] font-bold text-muted-foreground uppercase tracking-wider border-b border-sidebar-border/70">
+                                        <tr>
+                                            <th className="w-10 px-2 py-2.5 text-center whitespace-nowrap">
+                                                No
+                                            </th>
+                                            <th className="w-px px-2 py-2.5 text-left whitespace-nowrap">
+                                                No Doc
+                                            </th>
+                                            <th className="w-px px-2 py-2.5 text-left whitespace-nowrap">
+                                                Ref PO
+                                            </th>
+                                            <th className="w-px px-2 py-2.5 text-left whitespace-nowrap">
                                                 {activeModal === 'realized' &&
                                                     activeModalTab === 'do'
-                                                    ? item.no_do
-                                                    : activeModal ===
-                                                            'realized' &&
+                                                    ? 'Tgl DO Terakhir'
+                                                    : activeModal === 'realized' &&
                                                         activeModalTab === 'pr'
-                                                      ? item.no_pr ||
-                                                        item.kode_poin
-                                                        : item.kode_poin}
-                                            </td>
-                                            <td className="px-2 py-2 font-semibold whitespace-nowrap">
-                                                {item.no_poin}
-                                            </td>
-                                            <td className="px-2 py-2 whitespace-nowrap">
-                                                {formatDateDisplay(
-                                                    activeModal ===
-                                                        'realized' &&
-                                                        activeModalTab === 'do'
-                                                        ? item.last_do_date
-                                                        : activeModal ===
-                                                            'realized' &&
-                                                            activeModalTab ===
-                                                            'pr'
-                                                            ? item.last_pr_date
-                                                            : item.created_at ||
-                                                            item.date_poin,
-                                                )}
-                                            </td>
-                                            <td className="px-2 py-2">
-                                                {item.customer_name}
-                                                {getRowUrgency(item) && (
-                                                    <span
-                                                        className={cn(
-                                                            'ml-2 inline-block rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold',
-                                                            getRowUrgency(
-                                                                item,
-                                                            ) === 'overdue'
-                                                                ? 'border-red-600/40 bg-red-600/15 text-red-700'
-                                                                : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800',
-                                                        )}
-                                                    >
-                                                        Segera dikirim
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="px-2 py-2 text-right whitespace-nowrap">
-                                                {formatRupiah(item.grand_total)}
-                                            </td>
-                                            <td className="px-2 py-2">
-                                                {activeModal ===
-                                                    'outstanding' ||
-                                                    activeModal === 'sisa' ? (
-                                                    <div className="flex items-center gap-2">
-                                                        {((activeModal ===
-                                                            'outstanding' &&
-                                                            activeModalTab ===
-                                                            'pr') ||
-                                                            !Number(
-                                                                item.has_do ??
-                                                                0,
-                                                            ) ||
-                                                            activeModal ===
-                                                            'sisa') && (
-                                                                <MenuAction
-                                                                    action="update"
-                                                                    type="button"
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    onClick={() => {
-                                                                        if (
-                                                                            !canUpdate
-                                                                        ) {
-                                                                            toastError(
-                                                                                'Akses edit tidak diizinkan untuk menu ini.',
-                                                                            );
-                                                                            return;
-                                                                        }
-
-                                                                        setActiveModal(
-                                                                            null,
-                                                                        );
-                                                                        router.visit(
-                                                                            `/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/edit`,
-                                                                        );
-                                                                    }}
-                                                                    title="Edit"
-                                                                >
-                                                                    <Pencil className="size-4" />
-                                                                </MenuAction>
-                                                            )}
-                                                        {activeModal ===
-                                                            'outstanding' && (
-                                                                <MenuAction
-                                                                    action="delete"
-                                                                    type="button"
-                                                                    variant="outline"
-                                                                    size="sm"
-                                                                    title="Hapus"
-                                                                    onClick={() => {
-                                                                        if (
-                                                                            !canDelete
-                                                                        ) {
-                                                                            toastError(
-                                                                                'Akses delete tidak diizinkan untuk menu ini.',
-                                                                            );
-                                                                            return;
-                                                                        }
-
-                                                                        setConfirmDeleteKode(
-                                                                            item.kode_poin,
-                                                                        );
-                                                                        setIsConfirmDeleteOpen(
-                                                                            true,
-                                                                        );
-                                                                    }}
-                                                                >
-                                                                    <Trash2 className="size-4" />
-                                                                </MenuAction>
-                                                            )}
-                                                    </div>
-                                                ) : (
-                                                    <div className="flex items-center gap-2">
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            onClick={() => {
-                                                                setActiveModal(
-                                                                    null,
-                                                                );
-                                                                openDetailModal(
-                                                                    item.kode_poin,
-                                                                );
-                                                            }}
-                                                            title="Lihat"
-                                                        >
-                                                            <Eye className="size-4" />
-                                                        </Button>
-                                                        <a
-                                                            href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="inline-flex h-8 items-center justify-center rounded-md border border-input bg-background px-2 text-sm shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
-                                                            title="Print"
-                                                        >
-                                                            <Printer className="size-4" />
-                                                        </a>
-                                                    </div>
-                                                )}
-                                            </td>
+                                                        ? 'Tgl PR Terakhir'
+                                                        : 'Tgl Input'}
+                                            </th>
+                                            <th className="px-2 py-2.5 text-left">
+                                                Customer
+                                            </th>
+                                            <th className="w-32 px-2 py-2.5 text-right whitespace-nowrap">
+                                                Grand Total
+                                            </th>
+                                            <th className="w-24 px-2 py-2.5 text-center whitespace-nowrap">
+                                                Aksi
+                                            </th>
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
+                                    </thead>
+                                    <tbody className="divide-y divide-sidebar-border/70">
+                                        <PlainTableStateRows
+                                            error={modalError}
+                                            onRetry={fetchModalData}
+                                            columns={7}
+                                            loading={modalLoading}
+                                            isEmpty={
+                                                !modalLoading &&
+                                                modalDisplayedItems.length === 0
+                                            }
+                                            emptyTitle="Tidak ada data."
+                                            skeletonRows={
+                                                modalPageSize === Infinity
+                                                    ? 5
+                                                    : modalPageSize
+                                            }
+                                        />
 
-                        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-sm">
-                            <p className="text-muted-foreground">
-                                {modalLoading
-                                    ? 'Memuat...'
-                                    : modalError
-                                      ? 'Jumlah data belum tersedia'
-                                      : `Total ${modalTotalItems} data`}
-                            </p>
+                                        {modalDisplayedItems.map((item, index) => {
+                                            const urgency = getRowUrgency(item);
+                                            return (
+                                                <tr
+                                                    key={`${item.no_do || item.no_poin}-${index}`}
+                                                    className={cn(
+                                                        'border-b border-sidebar-border/70 transition-colors hover:bg-muted/40',
+                                                        urgency === 'overdue'
+                                                            ? 'bg-red-500/10 border-l-4 border-l-red-500'
+                                                            : urgency === 'soon'
+                                                                ? 'bg-yellow-500/10 border-l-4 border-l-yellow-500'
+                                                                : '',
+                                                    )}
+                                                >
+                                                    <td className="w-10 px-2 py-2.5 text-center text-muted-foreground whitespace-nowrap">
+                                                        {modalPageSize === Infinity
+                                                            ? index + 1
+                                                            : (modalPage - 1) *
+                                                            modalPageSize +
+                                                            index +
+                                                            1}
+                                                    </td>
+                                                    <td className="w-px px-2 py-2.5 font-semibold text-foreground whitespace-nowrap">
+                                                        {activeModal === 'realized' &&
+                                                            activeModalTab === 'do'
+                                                            ? item.no_do
+                                                            : activeModal ===
+                                                                    'realized' &&
+                                                                activeModalTab === 'pr'
+                                                              ? item.no_pr ||
+                                                                item.kode_poin
+                                                                : item.kode_poin}
+                                                    </td>
+                                                    <td className="w-px px-2 py-2.5 font-medium text-foreground whitespace-nowrap">
+                                                        {item.no_poin}
+                                                    </td>
+                                                    <td className="w-px px-2 py-2.5 text-muted-foreground whitespace-nowrap">
+                                                        {formatDateDisplay(
+                                                            activeModal ===
+                                                                'realized' &&
+                                                                activeModalTab === 'do'
+                                                                ? item.last_do_date
+                                                                : activeModal ===
+                                                                    'realized' &&
+                                                                    activeModalTab ===
+                                                                    'pr'
+                                                                    ? item.last_pr_date
+                                                                    : item.created_at ||
+                                                                    item.date_poin,
+                                                        )}
+                                                    </td>
+                                                    <td className="px-2 py-2.5 font-medium text-foreground">
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            <span>{item.customer_name}</span>
+                                                            {urgency && (
+                                                                <span
+                                                                    className={cn(
+                                                                        'rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold shrink-0',
+                                                                        urgency === 'overdue'
+                                                                            ? 'border-red-600/40 bg-red-600/15 text-red-700 dark:text-red-400'
+                                                                            : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800 dark:text-yellow-400',
+                                                                    )}
+                                                                >
+                                                                    Segera dikirim
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                    <td className="w-32 px-2 py-2.5 text-right font-bold text-foreground tabular-nums whitespace-nowrap">
+                                                        Rp {formatRupiah(item.grand_total)}
+                                                    </td>
+                                                    <td className="w-24 px-2 py-2.5 whitespace-nowrap text-center">
+                                                        <div className="flex items-center justify-center gap-1">
+                                                            {activeModal === 'outstanding' || activeModal === 'sisa' ? (
+                                                                <>
+                                                                    {((activeModal === 'outstanding' && activeModalTab === 'pr') ||
+                                                                        !Number(item.has_do ?? 0) ||
+                                                                        activeModal === 'sisa') && (
+                                                                        <MenuAction
+                                                                            action="update"
+                                                                            type="button"
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            className="h-7 w-7 p-0 rounded-md border-sidebar-border/70 hover:bg-indigo-500/15 hover:text-indigo-600 cursor-pointer"
+                                                                            onClick={() => {
+                                                                                if (!canUpdate) {
+                                                                                    toastError('Akses edit tidak diizinkan untuk menu ini.');
+                                                                                    return;
+                                                                                }
+                                                                                setActiveModal(null);
+                                                                                router.visit(`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/edit`);
+                                                                            }}
+                                                                            title="Edit PO In"
+                                                                        >
+                                                                            <Pencil className="size-3.5" />
+                                                                        </MenuAction>
+                                                                    )}
+                                                                    {activeModal === 'outstanding' && (
+                                                                        <MenuAction
+                                                                            action="delete"
+                                                                            type="button"
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            className="h-7 w-7 p-0 rounded-md border-sidebar-border/70 hover:bg-rose-500/15 hover:text-rose-600 cursor-pointer"
+                                                                            title="Hapus PO In"
+                                                                            onClick={() => {
+                                                                                if (!canDelete) {
+                                                                                    toastError('Akses delete tidak diizinkan untuk menu ini.');
+                                                                                    return;
+                                                                                }
+                                                                                setConfirmDeleteKode(item.kode_poin);
+                                                                                setIsConfirmDeleteOpen(true);
+                                                                            }}
+                                                                        >
+                                                                            <Trash2 className="size-3.5" />
+                                                                        </MenuAction>
+                                                                    )}
+                                                                </>
+                                                            ) : null}
+                                                            <Button
+                                                                type="button"
+                                                                variant="outline"
+                                                                size="sm"
+                                                                className="h-7 w-7 p-0 rounded-md border-sidebar-border/70 hover:bg-emerald-500/15 hover:text-emerald-600 cursor-pointer"
+                                                                onClick={() => {
+                                                                    setActiveModal(null);
+                                                                    openDetailModal(item.kode_poin);
+                                                                }}
+                                                                title="Lihat Detail"
+                                                            >
+                                                                <Eye className="size-3.5 text-muted-foreground" />
+                                                            </Button>
+                                                            <a
+                                                                href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
+                                                                target="_blank"
+                                                                rel="noopener noreferrer"
+                                                                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sidebar-border/70 bg-background text-muted-foreground shadow-xs transition-colors hover:bg-teal-500/15 hover:text-teal-600 cursor-pointer"
+                                                                title="Print Dokumen"
+                                                            >
+                                                                <Printer className="size-3.5" />
+                                                            </a>
+                                                        </div>
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Pagination Footer */}
                             {modalPageSize !== Infinity && (
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={
-                                            modalLoading ||
-                                            Boolean(modalError) ||
-                                            modalPage === 1
-                                        }
-                                        onClick={() =>
-                                            setModalPage((prev) =>
-                                                Math.max(1, prev - 1),
-                                            )
-                                        }
-                                    >
-                                        Sebelumnya
-                                    </Button>
-                                    <span className="text-muted-foreground">
-                                        Halaman {modalPage} / {modalTotalPages}
-                                    </span>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={
-                                            modalLoading ||
-                                            Boolean(modalError) ||
-                                            modalPage >= modalTotalPages
-                                        }
-                                        onClick={() =>
-                                            setModalPage((prev) =>
-                                                Math.min(
-                                                    modalTotalPages,
-                                                    prev + 1,
-                                                ),
-                                            )
-                                        }
-                                    >
-                                        Berikutnya
-                                    </Button>
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-muted-foreground border-t border-sidebar-border/40 pt-3">
+                                    <p>
+                                        Menampilkan{' '}
+                                        <span className="font-semibold text-foreground">
+                                            {modalTotalItems === 0
+                                                ? 0
+                                                : (modalPage - 1) *
+                                                      (modalPageSize === Infinity
+                                                          ? modalTotalItems
+                                                          : modalPageSize) +
+                                                  1}
+                                        </span>{' '}
+                                        -{' '}
+                                        <span className="font-semibold text-foreground">
+                                            {modalPageSize === Infinity
+                                                ? modalTotalItems
+                                                : Math.min(
+                                                      modalPage * modalPageSize,
+                                                      modalTotalItems,
+                                                  )}
+                                        </span>{' '}
+                                        dari{' '}
+                                        <span className="font-semibold text-foreground">
+                                            {modalTotalItems}
+                                        </span>{' '}
+                                        data
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8 px-2.5 text-xs font-semibold rounded-lg"
+                                            disabled={modalPage <= 1}
+                                            onClick={() =>
+                                                setModalPage((prev) =>
+                                                    Math.max(1, prev - 1),
+                                                )
+                                            }
+                                        >
+                                            Sebelumnya
+                                        </Button>
+                                        <span className="rounded-md bg-muted px-2 py-1 text-[11px] font-semibold text-foreground">
+                                            {modalPage} / {modalTotalPages}
+                                        </span>
+                                        <Button
+                                            type="button"
+                                            variant="outline"
+                                            size="sm"
+                                            className="h-8 px-2.5 text-xs font-semibold rounded-lg"
+                                            disabled={
+                                                modalPage >= modalTotalPages
+                                            }
+                                            onClick={() =>
+                                                setModalPage((prev) =>
+                                                    Math.min(
+                                                        modalTotalPages,
+                                                        prev + 1,
+                                                    ),
+                                                )
+                                            }
+                                        >
+                                            Berikutnya
+                                        </Button>
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -3868,21 +3906,31 @@ export default function PurchaseOrderInIndex({
                         }
                     }}
                 >
-                    <DialogContent className="max-w-md">
-                        <DialogHeader>
-                            <DialogTitle>Hapus PO In?</DialogTitle>
-                            <DialogDescription className="sr-only">
-                                Konfirmasi penghapusan data Purchase Order In.
-                            </DialogDescription>
+                    <DialogContent className="max-w-md rounded-2xl border border-sidebar-border/70 bg-card p-5 shadow-xl">
+                        <DialogHeader className="border-b border-sidebar-border/60 pb-3">
+                            <div className="flex items-center gap-2.5">
+                                <div className="flex size-9 items-center justify-center rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
+                                    <Trash2 className="size-4" />
+                                </div>
+                                <div>
+                                    <DialogTitle className="text-base font-bold text-foreground">
+                                        Hapus Purchase Order In?
+                                    </DialogTitle>
+                                    <DialogDescription className="text-xs text-muted-foreground mt-0.5">
+                                        Dokumen: <span className="font-semibold text-foreground">{confirmDeleteKode}</span>
+                                    </DialogDescription>
+                                </div>
+                            </div>
                         </DialogHeader>
-                        <p className="text-sm text-muted-foreground">
-                            Data header dan detail material akan dihapus
-                            permanen.
+                        <p className="text-xs text-muted-foreground py-2">
+                            Data header dan seluruh detail material PO In ini akan dihapus secara permanen dari sistem. Tindakan ini tidak dapat dibatalkan.
                         </p>
-                        <div className="mt-2 flex justify-end gap-2">
+                        <div className="flex items-center justify-end gap-2 pt-2 border-t border-sidebar-border/60">
                             <Button
                                 type="button"
                                 variant="outline"
+                                size="sm"
+                                className="h-9 rounded-lg text-xs font-semibold"
                                 onClick={() => {
                                     setIsConfirmDeleteOpen(false);
                                     setConfirmDeleteKode('');
@@ -3894,11 +3942,14 @@ export default function PurchaseOrderInIndex({
                             <MenuAction
                                 action="delete"
                                 type="button"
-                                variant="destructive"
+                                size="sm"
+                                className="h-9 px-4 gap-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold shadow-xs cursor-pointer"
+                                style={{ backgroundColor: '#e11d48', color: '#ffffff' }}
                                 onClick={handleDeletePoIn}
                                 disabled={isDeleting}
                             >
-                                {isDeleting ? 'Menghapus...' : 'Ya, hapus'}
+                                <Trash2 className="size-3.5" />
+                                <span>{isDeleting ? 'Menghapus...' : 'Ya, Hapus'}</span>
                             </MenuAction>
                         </div>
                     </DialogContent>

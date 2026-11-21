@@ -1132,7 +1132,7 @@ export default function PurchaseRequirementEdit({
         <>
             <Head title="Edit PR" />
             <form
-                className="w-full min-w-0 space-y-5 px-0 py-4 text-foreground"
+                className="w-full min-w-0 space-y-5 p-4 sm:p-6 text-foreground"
                 style={{ fontFamily: "'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif" }}
                 onSubmit={handleSubmit}
             >

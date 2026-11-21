@@ -1133,7 +1133,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
         <>
             <Head title="Tambah PO In" />
             <div
-                className="flex h-full min-w-0 flex-1 flex-col gap-5 px-0 py-4"
+                className="flex h-full min-w-0 flex-1 flex-col gap-5 p-4 sm:p-6"
                 style={{
                     fontFamily:
                         "'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, sans-serif",

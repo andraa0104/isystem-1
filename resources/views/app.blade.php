@@ -33,6 +33,50 @@
             }
 
             /* Cross-OS & Legacy Browser (Windows 7/8, Chrome <= 109) Compatibility Fallbacks */
+            /* Tabler / Ant Design Enterprise Layout & Border Solid Fallbacks */
+            :root {
+                --sidebar-border: #e2e8f0;
+                --border: #e2e8f0;
+            }
+            .dark {
+                --sidebar-border: #27272a;
+                --border: #27272a;
+            }
+
+            /* Solid borders across all content borders & sidebar */
+            [class*="border-sidebar-border"],
+            .border-sidebar-border,
+            .border-border,
+            [class~="border-border"] {
+                border-color: #e2e8f0 !important;
+            }
+            .dark [class*="border-sidebar-border"],
+            .dark .border-sidebar-border,
+            .dark .border-border,
+            .dark [class~="border-border"] {
+                border-color: #27272a !important;
+            }
+
+            /* Header border */
+            header[class*="border-b"],
+            [data-slot="sidebar-inset"] > header {
+                border-bottom: 1px solid #e2e8f0 !important;
+            }
+            .dark header[class*="border-b"],
+            .dark [data-slot="sidebar-inset"] > header {
+                border-bottom: 1px solid #27272a !important;
+            }
+
+            /* Main Layout Content Area - Enterprise Canvas Background */
+            [data-slot="sidebar-inset"] {
+                min-height: 100vh !important;
+                background-color: #f8fafc;
+            }
+            .dark [data-slot="sidebar-inset"] {
+                background-color: #09090b;
+            }
+
+            /* Solid Color Fallbacks for Older Browsers without OKLCH support (Chrome <= 110, Windows 7) */
             .bg-emerald-600,
             [class~="bg-emerald-600"] {
                 background-color: #059669 !important;

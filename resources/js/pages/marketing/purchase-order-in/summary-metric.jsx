@@ -83,9 +83,9 @@ export const SummaryMetric = ({
                     )}
                     {(soonCount !== undefined ||
                         overdueCount !== undefined) && (
-                        <div className="mt-2 space-y-1 border-t border-sidebar-border/50 pt-2 text-[14px]">
+                        <div className="mt-2 space-y-1 border-t border-sidebar-border/50 pt-2 text-xs">
                             {soonCount !== undefined && (
-                                <div className="flex justify-between text-amber-600 dark:text-amber-500">
+                                <div className="flex justify-between text-amber-600 dark:text-amber-500 font-medium">
                                     <span>≤ 5 Hari:</span>
                                     <span className="font-bold">
                                         {loading ? '-' : soonCount}
@@ -93,7 +93,7 @@ export const SummaryMetric = ({
                                 </div>
                             )}
                             {overdueCount !== undefined && (
-                                <div className="flex justify-between text-rose-600 dark:text-rose-500">
+                                <div className="flex justify-between text-rose-600 dark:text-rose-500 font-medium">
                                     <span>Lewat:</span>
                                     <span className="font-bold">
                                         {loading ? '-' : overdueCount}
@@ -108,7 +108,7 @@ export const SummaryMetric = ({
     );
 
     return (
-        <div className="min-w-0 rounded-lg border border-sidebar-border/70 transition hover:border-primary/50 hover:bg-muted/40">
+        <div className="min-w-0 rounded-lg border border-sidebar-border/70 bg-background/50 transition hover:border-emerald-500/50 hover:bg-muted/40">
             {grandTotalHint ? (
                 <Tooltip>
                     <TooltipTrigger asChild>{metricButton}</TooltipTrigger>

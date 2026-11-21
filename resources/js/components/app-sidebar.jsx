@@ -269,9 +269,10 @@ export function AppSidebar() {
 
     const tenantLabel =
         tenant?.label || tenant?.database?.toString().replace(/^db\s*/i, '').toUpperCase() || '';
+    const lastOnline = auth?.user?.last_online || '-';
 
     return (
-        <Sidebar collapsible="icon" variant="inset">
+        <Sidebar collapsible="icon" variant="sidebar">
             {/* ─── Header: Brand Logo ────────────────── */}
             <SidebarHeader
                 className={`relative z-10 border-b border-sidebar-border/40 transition-all duration-200 ${
@@ -298,15 +299,20 @@ export function AppSidebar() {
                     <motion.div
                         initial={{ opacity: 0, y: -4 }}
                         animate={{ opacity: 1, y: 0 }}
-                        className="mt-1 flex items-center justify-between rounded-lg bg-sidebar-accent/40 px-2.5 py-1 text-[10px] text-muted-foreground border border-sidebar-border/40"
+                        className="mt-1 flex flex-col gap-1 rounded-lg bg-sidebar-accent/40 px-2.5 py-1.5 text-[10px] text-muted-foreground border border-sidebar-border/40"
                     >
-                        <span className="font-semibold tracking-wider text-foreground/80 truncate">
-                            {tenantLabel}
-                        </span>
-                        <span className="flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
-                            <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                            Active
-                        </span>
+                        <div className="flex items-center justify-between">
+                            <span className="font-semibold tracking-wider text-foreground/80 truncate">
+                                {tenantLabel}
+                            </span>
+                            <span className="flex items-center gap-1 font-medium text-emerald-600 dark:text-emerald-400">
+                                <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                Active
+                            </span>
+                        </div>
+                        <div className="text-[9.5px] text-muted-foreground/80 font-normal">
+                            Last: {lastOnline}
+                        </div>
                     </motion.div>
                 )}
 

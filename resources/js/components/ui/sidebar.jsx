@@ -193,20 +193,25 @@ function Sidebar({
             <div
                 style={isIconCollapsed ? { width: iconWidthPanel } : undefined}
                 className={cn(
-                    "fixed inset-y-0 z-20 flex h-screen h-svh w-(--sidebar-width) transition-[left,right,width] duration-300 ease-out",
+                    "fixed inset-y-0 z-20 flex h-screen min-h-screen h-svh w-(--sidebar-width) transition-[left,right,width] duration-300 ease-out",
                     side === "left"
                         ? "left-0 group-data-[collapsible=offcanvas]:left-[calc(var(--sidebar-width)*-1)]"
                         : "right-0 group-data-[collapsible=offcanvas]:right-[calc(var(--sidebar-width)*-1)]",
                     variant === "floating" || variant === "inset"
                         ? "p-2.5 group-data-[collapsible=icon]:w-[calc(var(--sidebar-width-icon)+1rem+2px)]"
-                        : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l border-sidebar-border/70",
+                        : "group-data-[collapsible=icon]:w-(--sidebar-width-icon) group-data-[side=left]:border-r group-data-[side=right]:border-l border-sidebar-border/70 bg-sidebar",
                     className
                 )}
                 {...props}
             >
                 <div
                     data-sidebar="sidebar"
-                    className="relative bg-sidebar bg-sidebar/95 dark:bg-sidebar/90 backdrop-blur-2xl flex h-full w-full flex-col overflow-hidden rounded-2xl border border-sidebar-border border-sidebar-border/75 shadow-xl shadow-black/[0.04] dark:shadow-black/40 ring-1 ring-white/10 dark:ring-white/5"
+                    className={cn(
+                        "relative bg-sidebar flex h-full w-full flex-col overflow-hidden",
+                        variant === "floating" || variant === "inset"
+                            ? "rounded-2xl border border-sidebar-border border-sidebar-border/75 shadow-xl shadow-black/[0.04] dark:shadow-black/40 ring-1 ring-white/10 dark:ring-white/5 bg-sidebar/95 dark:bg-sidebar/90 backdrop-blur-2xl"
+                            : "rounded-none border-0 shadow-none"
+                    )}
                 >
                     {/* Top ambient aurora glow accent */}
                     <div
@@ -280,8 +285,8 @@ function SidebarInset({ className, ...props }) {
         <main
             data-slot="sidebar-inset"
             className={cn(
-                "bg-background relative flex max-w-full min-h-svh flex-1 flex-col transition-all duration-300",
-                "peer-data-[variant=inset]:min-h-[calc(100svh-1rem)] md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-2xl md:peer-data-[variant=inset]:border md:peer-data-[variant=inset]:border-sidebar-border/60 md:peer-data-[variant=inset]:shadow-xs md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-0",
+                "bg-background relative flex max-w-full min-h-screen min-h-svh flex-1 flex-col transition-all duration-300",
+                "peer-data-[variant=inset]:min-h-[calc(100vh-1rem)] peer-data-[variant=inset]:min-h-[calc(100svh-1rem)] md:peer-data-[variant=inset]:m-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-2xl md:peer-data-[variant=inset]:border md:peer-data-[variant=inset]:border-sidebar-border/60 md:peer-data-[variant=inset]:shadow-xs md:peer-data-[variant=inset]:peer-data-[state=collapsed]:ml-0",
                 className
             )}
             {...props}
