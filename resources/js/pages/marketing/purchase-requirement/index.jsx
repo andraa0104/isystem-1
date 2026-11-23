@@ -2793,7 +2793,7 @@ export default function PurchaseRequirementIndex({
                                             <th className="w-28 px-2.5 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                                 Jenis PR
                                             </th>
-                                            <th className="w-20 px-2.5 py-2.5 text-center whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                            <th className="w-32 px-2.5 py-2.5 text-center whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                                 Aksi
                                             </th>
                                         </tr>
@@ -2830,7 +2830,7 @@ export default function PurchaseRequirementIndex({
                                                         {item.jenis_pr ?? '-'}
                                                     </span>
                                                 </td>
-                                                <td className="w-20 px-2.5 py-2.5 whitespace-nowrap text-center border-b border-slate-300 dark:border-slate-700">
+                                                <td className="w-32 px-2.5 py-2.5 whitespace-nowrap text-center border-b border-slate-300 dark:border-slate-700">
                                                     <div className="flex items-center justify-center gap-1">
                                                         <Button
                                                             type="button"
@@ -2845,6 +2845,16 @@ export default function PurchaseRequirementIndex({
                                                         >
                                                             <Eye className="size-3.5 text-muted-foreground" />
                                                         </Button>
+                                                        <MenuAction
+                                                            action="update"
+                                                            as={Link}
+                                                            href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/edit`}
+                                                            onClick={() => setIsOutstandingModalOpen(false)}
+                                                            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sidebar-border/70 bg-background text-muted-foreground shadow-xs transition-colors hover:bg-amber-500/15 hover:text-amber-600 dark:hover:text-amber-400 cursor-pointer"
+                                                            title="Edit PR"
+                                                        >
+                                                            <Pencil className="size-3.5" />
+                                                        </MenuAction>
                                                         <a
                                                             href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/print`}
                                                             target="_blank"
@@ -2854,6 +2864,19 @@ export default function PurchaseRequirementIndex({
                                                         >
                                                             <Printer className="size-3.5" />
                                                         </a>
+                                                        {item._canDelete && (
+                                                            <MenuAction
+                                                                action="delete"
+                                                                as="button"
+                                                                type="button"
+                                                                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sidebar-border/70 bg-background text-muted-foreground shadow-xs transition-colors hover:bg-rose-500/15 hover:text-rose-600 dark:hover:text-rose-400 disabled:opacity-50 cursor-pointer"
+                                                                title="Hapus PR"
+                                                                disabled={isDeleting}
+                                                                onClick={() => handleDelete(item.no_pr)}
+                                                            >
+                                                                <Trash2 className="size-3.5" />
+                                                            </MenuAction>
+                                                        )}
                                                     </div>
                                                 </td>
                                             </tr>
@@ -2991,7 +3014,7 @@ export default function PurchaseRequirementIndex({
                                             <th className="w-28 px-2.5 py-2.5 text-left whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                                 Jenis PR
                                             </th>
-                                            <th className="w-20 px-2.5 py-2.5 text-center whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                            <th className="w-28 px-2.5 py-2.5 text-center whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
                                                 Aksi
                                             </th>
                                         </tr>
@@ -3028,7 +3051,7 @@ export default function PurchaseRequirementIndex({
                                                         {item.jenis_pr ?? '-'}
                                                     </span>
                                                 </td>
-                                                <td className="w-20 px-2.5 py-2.5 whitespace-nowrap text-center border-b border-slate-300 dark:border-slate-700">
+                                                <td className="w-28 px-2.5 py-2.5 whitespace-nowrap text-center border-b border-slate-300 dark:border-slate-700">
                                                     <div className="flex items-center justify-center gap-1">
                                                         <Button
                                                             type="button"
@@ -3043,6 +3066,16 @@ export default function PurchaseRequirementIndex({
                                                         >
                                                             <Eye className="size-3.5 text-muted-foreground" />
                                                         </Button>
+                                                        <MenuAction
+                                                            action="update"
+                                                            as={Link}
+                                                            href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/edit`}
+                                                            onClick={() => setIsSisaPoModalOpen(false)}
+                                                            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sidebar-border/70 bg-background text-muted-foreground shadow-xs transition-colors hover:bg-amber-500/15 hover:text-amber-600 dark:hover:text-amber-400 cursor-pointer"
+                                                            title="Edit PR"
+                                                        >
+                                                            <Pencil className="size-3.5" />
+                                                        </MenuAction>
                                                         <a
                                                             href={`/marketing/purchase-requirement/${encodeURIComponent(item.no_pr)}/print`}
                                                             target="_blank"
