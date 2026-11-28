@@ -3,13 +3,6 @@ import { ActionIconButton } from '@/components/action-icon-button';
 import { PlainTableStateRows } from '@/components/data-states/TableStateRows';
 import { Button } from '@/components/ui/button';
 import {
-    Card,
-    CardContent,
-    CardDescription,
-    CardHeader,
-    CardTitle,
-} from '@/components/ui/card';
-import {
     Dialog,
     DialogContent,
     DialogDescription,
@@ -29,8 +22,37 @@ import { Skeleton } from '@/components/ui/skeleton';
 import AppLayout from '@/layouts/app-layout';
 import { useMasterDataRows } from '@/hooks/use-master-data-rows';
 import { confirmDelete } from '@/lib/confirm-delete';
+import { cn } from '@/lib/utils';
 import { Head, router, useForm } from '@inertiajs/react';
-import { ChevronDown, Eye, Pencil, Plus, Trash2 } from 'lucide-react';
+import {
+    AlertCircle,
+    ArrowUpDown,
+    Boxes,
+    ChevronDown,
+    ChevronLeft,
+    ChevronRight,
+    ClipboardList,
+    Clock,
+    Download,
+    Eye,
+    FileSpreadsheet,
+    Layers,
+    Package,
+    PackageCheck,
+    PackageSearch,
+    Pencil,
+    Plus,
+    RefreshCw,
+    Search,
+    SlidersHorizontal,
+    Trash2,
+    TrendingDown,
+    TrendingUp,
+    Truck,
+    Warehouse,
+    X,
+} from 'lucide-react';
+import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 const breadcrumbs = [
@@ -146,6 +168,176 @@ const materialMovementRows = (material) =>
 
 const MetricValue = ({ loading, children, className = 'h-5 w-16' }) =>
     loading ? <Skeleton className={className} /> : children;
+
+/* ─── Ambient Atmospheric Drifting Mesh Ornaments (Dashboard UI Language) ─── */
+function MaterialOrnaments() {
+    return (
+        <div
+            className="pointer-events-none absolute inset-0 overflow-hidden"
+            aria-hidden="true"
+        >
+            <div className="absolute -top-32 -left-20 size-[520px] rounded-full bg-emerald-500/[0.08] dark:bg-emerald-500/[0.14] blur-[130px]" />
+            <div className="absolute top-1/4 -right-24 size-[460px] rounded-full bg-cyan-500/[0.07] dark:bg-cyan-500/[0.12] blur-[130px]" />
+            <div className="absolute bottom-16 left-1/3 size-[400px] rounded-full bg-indigo-500/[0.05] dark:bg-indigo-500/[0.09] blur-[110px]" />
+
+            <motion.div
+                className="absolute top-8 right-10 hidden xl:block opacity-35 dark:opacity-50"
+                animate={{
+                    y: [0, -16, 10, -6, 0],
+                    rotate: [0, 60, 120, 180, 240, 300, 360],
+                }}
+                transition={{ duration: 28, repeat: Infinity, ease: 'linear' }}
+            >
+                <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
+                    <polygon
+                        points="22,3 39,13 39,31 22,41 5,31 5,13"
+                        stroke="#10b981"
+                        strokeWidth="1.2"
+                        strokeDasharray="4 3"
+                    />
+                    <circle cx="22" cy="22" r="3.5" fill="#06b6d4" />
+                </svg>
+            </motion.div>
+        </div>
+    );
+}
+
+/* ─── Sparkline Micro-Wave for Material KPI Cards ─────────────────────────── */
+function CategorySparkWave({ color = 'emerald' }) {
+    const colorMap = {
+        emerald: { stroke: '#10b981', dotY: 5, path: 'M 2,24 C 18,28 28,12 44,16 C 60,20 70,7 88,5' },
+        amber: { stroke: '#f59e0b', dotY: 9, path: 'M 2,22 C 18,14 30,26 52,12 C 68,4 78,18 88,9' },
+        rose: { stroke: '#f43f5e', dotY: 22, path: 'M 2,8 C 20,10 34,19 52,17 C 68,15 78,24 88,22' },
+        sky: { stroke: '#0ea5e9', dotY: 7, path: 'M 2,20 C 16,8 28,22 46,14 C 62,6 74,16 88,7' },
+        indigo: { stroke: '#6366f1', dotY: 6, path: 'M 2,14 C 18,24 34,9 52,18 C 68,25 78,8 88,6' },
+        teal: { stroke: '#14b8a6', dotY: 7, path: 'M 2,22 C 20,24 34,11 50,15 C 66,19 76,8 88,7' },
+    };
+    const c = colorMap[color] || colorMap.emerald;
+    const areaD = `${c.path} L 88,32 L 2,32 Z`;
+
+    return (
+        <svg
+            className="w-20 h-7 overflow-visible shrink-0 opacity-75 group-hover:opacity-100 transition-opacity"
+            viewBox="0 0 90 32"
+            fill="none"
+        >
+            <defs>
+                <linearGradient id={`mat-spark-${color}`} x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor={c.stroke} stopOpacity="0.3" />
+                    <stop offset="100%" stopColor={c.stroke} stopOpacity="0" />
+                </linearGradient>
+            </defs>
+            <path d={areaD} fill={`url(#mat-spark-${color})`} />
+            <motion.path
+                d={c.path}
+                stroke={c.stroke}
+                strokeWidth="2"
+                strokeLinecap="round"
+                fill="none"
+                initial={{ pathLength: 0 }}
+                animate={{ pathLength: 1 }}
+                transition={{ duration: 0.75, ease: 'easeOut' }}
+            />
+            <circle cx="88" cy={c.dotY} r="2.5" fill={c.stroke} />
+        </svg>
+    );
+}
+
+/* ─── Shared Modal Chrome Components (Dashboard Aesthetic) ─────────────────── */
+function ModalToolbar({
+    pageSize,
+    onPageSizeChange,
+    searchValue,
+    onSearchChange,
+    searchPlaceholder = 'Cari...',
+    pageSizeOptions = [5, 10, 25, 50],
+    includeAll = true,
+}) {
+    return (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sidebar-border/60 bg-muted/25 p-3 text-sm">
+            <div className="flex items-center gap-2 text-muted-foreground">
+                <SlidersHorizontal className="size-3.5 text-emerald-500 shrink-0" />
+                <span className="text-xs font-semibold">Tampilkan</span>
+                <select
+                    className="rounded-xl border border-sidebar-border/70 bg-background/80 px-2.5 py-1.5 text-xs font-bold text-foreground transition-colors hover:border-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 cursor-pointer"
+                    value={pageSize === Infinity ? 'all' : pageSize}
+                    onChange={(event) => {
+                        const value = event.target.value;
+                        onPageSizeChange(value === 'all' ? Infinity : Number(value));
+                    }}
+                >
+                    {pageSizeOptions.map((opt) => (
+                        <option key={opt} value={opt}>
+                            {opt}
+                        </option>
+                    ))}
+                    {includeAll && <option value="all">Semua</option>}
+                </select>
+            </div>
+
+            <div className="relative flex items-center w-full sm:w-auto">
+                <Search className="pointer-events-none absolute left-3 size-3.5 text-muted-foreground" />
+                <input
+                    type="search"
+                    className="w-full sm:w-72 rounded-xl border border-sidebar-border/70 bg-background/80 py-1.5 pl-9 pr-8 text-xs font-medium text-foreground placeholder:text-muted-foreground transition-all hover:border-emerald-500/40 focus:border-emerald-500/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
+                    placeholder={searchPlaceholder}
+                    value={searchValue}
+                    onChange={(event) => onSearchChange(event.target.value)}
+                />
+                {searchValue && (
+                    <button
+                        type="button"
+                        onClick={() => onSearchChange('')}
+                        aria-label="Hapus pencarian"
+                        className="absolute right-2.5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                    >
+                        <X className="size-3.5" />
+                    </button>
+                )}
+            </div>
+        </div>
+    );
+}
+
+function ModalPagination({
+    currentPage,
+    totalPages,
+    onPrev,
+    onNext,
+    nextLabel = 'Berikutnya',
+    summaryText = null,
+}) {
+    return (
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1 text-xs text-muted-foreground">
+            <span className="font-medium">
+            </span>
+            <div className="flex items-center gap-1.5">
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1 rounded-xl border-sidebar-border/70 bg-background/70 px-2.5 text-xs font-bold transition-all hover:border-emerald-500/40"
+                    disabled={currentPage === 1}
+                    onClick={onPrev}
+                >
+                    <ChevronLeft className="size-3.5" />
+                    Sebelumnya
+                </Button>
+                <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1 rounded-xl border-sidebar-border/70 bg-background/70 px-2.5 text-xs font-bold transition-all hover:border-emerald-500/40"
+                    disabled={currentPage === totalPages}
+                    onClick={onNext}
+                >
+                    {nextLabel}
+                    <ChevronRight className="size-3.5" />
+                </Button>
+            </div>
+        </div>
+    );
+}
 
 export default function MaterialIndex() {
     // --- States Utama ---
@@ -451,7 +643,7 @@ export default function MaterialIndex() {
                     return response.json();
                 })
                 .then((result) => setter(toNumber(result?.value)))
-                .catch(() => {})
+                .catch(() => { })
                 .finally(() => loadingSetter(false));
         };
 
@@ -665,10 +857,10 @@ export default function MaterialIndex() {
                 !term
                     ? true
                     : [item.no_do, item.ref_po, item.nm_cs].some((value) =>
-                          String(value ?? '')
-                              .toLowerCase()
-                              .includes(term),
-                      ),
+                        String(value ?? '')
+                            .toLowerCase()
+                            .includes(term),
+                    ),
             )
             .sort((a, b) => {
                 const dateCompare = String(b.date ?? '').localeCompare(
@@ -677,8 +869,8 @@ export default function MaterialIndex() {
                 return dateCompare !== 0
                     ? dateCompare
                     : String(b.no_do ?? '').localeCompare(
-                          String(a.no_do ?? ''),
-                      );
+                        String(a.no_do ?? ''),
+                    );
             });
     }, [outstandingList, outstandingSearchTerm]);
 
@@ -688,9 +880,9 @@ export default function MaterialIndex() {
             outstandingPageSize === Infinity
                 ? 1
                 : Math.max(
-                      1,
-                      Math.ceil(outstandingTotalItems / outstandingPageSize),
-                  ),
+                    1,
+                    Math.ceil(outstandingTotalItems / outstandingPageSize),
+                ),
         [outstandingPageSize, outstandingTotalItems],
     );
     const displayedOutstandingDeliveryOrders = useMemo(() => {
@@ -800,8 +992,8 @@ export default function MaterialIndex() {
         doCostOutstandingPageSize === Infinity
             ? 1
             : Math.ceil(
-                  filteredDoCostOutstanding.length / doCostOutstandingPageSize,
-              ),
+                filteredDoCostOutstanding.length / doCostOutstandingPageSize,
+            ),
     );
     const displayedDoCostOutstanding = useMemo(() => {
         if (doCostOutstandingPageSize === Infinity)
@@ -936,28 +1128,28 @@ export default function MaterialIndex() {
             selectedMovement?.rows ??
             (selectedWarehouse
                 ? movementMaterials.flatMap((material) =>
-                      materialMovementRows(material)
-                          .filter(
-                              (row) =>
-                                  row.gudang.toLowerCase() ===
-                                  selectedWarehouse.value,
-                          )
-                          .filter((row) => {
-                              const kategori = String(row.kategori ?? '')
-                                  .trim()
-                                  .toLowerCase();
-                              return kategori !== '' && kategori !== '0';
-                          }),
-                  )
+                    materialMovementRows(material)
+                        .filter(
+                            (row) =>
+                                row.gudang.toLowerCase() ===
+                                selectedWarehouse.value,
+                        )
+                        .filter((row) => {
+                            const kategori = String(row.kategori ?? '')
+                                .trim()
+                                .toLowerCase();
+                            return kategori !== '' && kategori !== '0';
+                        }),
+                )
                 : []);
         const filteredRows = term
             ? rows.filter((row) =>
-                  [row.kd_material, row.material, row.kategori].some((value) =>
-                      String(value ?? '')
-                          .toLowerCase()
-                          .includes(term),
-                  ),
-              )
+                [row.kd_material, row.material, row.kategori].some((value) =>
+                    String(value ?? '')
+                        .toLowerCase()
+                        .includes(term),
+                ),
+            )
             : rows;
 
         return [...filteredRows].sort((a, b) =>
@@ -1093,7 +1285,7 @@ export default function MaterialIndex() {
                             },
                         })),
                     )
-                    .catch(() => {})
+                    .catch(() => { })
                     .finally(() =>
                         setInventorySummaryLoading((current) => ({
                             ...current,
@@ -1259,600 +1451,952 @@ export default function MaterialIndex() {
         );
     };
 
+    const moduleHubItems = [
+        {
+            key: 'category',
+            title: 'Kategori Pergerakan',
+            subtitle: 'Fast, Slow & Dead Stok',
+            icon: TrendingUp,
+            accent: 'emerald',
+            activeBorder: 'border-emerald-500/50 shadow-emerald-500/15',
+            iconWrap:
+                'bg-gradient-to-br from-emerald-500/20 to-teal-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/25',
+            topHairline: 'before:via-emerald-500/50',
+            badgeClass:
+                'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/25',
+        },
+        {
+            key: 'do',
+            title: 'Delivery Order (DO)',
+            subtitle: 'DO, DO Add & DO Cost',
+            icon: Truck,
+            accent: 'amber',
+            activeBorder: 'border-amber-500/50 shadow-amber-500/15',
+            iconWrap:
+                'bg-gradient-to-br from-amber-500/20 to-orange-500/10 text-amber-600 dark:text-amber-400 border-amber-500/25',
+            topHairline: 'before:via-amber-500/50',
+            badgeClass:
+                'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/25',
+        },
+        {
+            key: 'inventory',
+            title: 'MIS, MIB & MIBS',
+            subtitle: 'Ringkasan Dokumen Stok',
+            icon: Layers,
+            accent: 'sky',
+            activeBorder: 'border-sky-500/50 shadow-sky-500/15',
+            iconWrap:
+                'bg-gradient-to-br from-sky-500/20 to-cyan-500/10 text-sky-600 dark:text-sky-400 border-sky-500/25',
+            topHairline: 'before:via-sky-500/50',
+            badgeClass:
+                'bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/25',
+        },
+        {
+            key: 'warehouse',
+            title: 'Distribusi Gudang',
+            subtitle: 'Gudang 1 s/d Gudang 4',
+            icon: Warehouse,
+            accent: 'indigo',
+            activeBorder: 'border-indigo-500/50 shadow-indigo-500/15',
+            iconWrap:
+                'bg-gradient-to-br from-indigo-500/20 to-purple-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/25',
+            topHairline: 'before:via-indigo-500/50',
+            badgeClass:
+                'bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border-indigo-500/25',
+        },
+    ];
+
+    const stockFilterPills = [
+        { value: 'all', label: 'Semua' },
+        { value: 'top', label: 'Terbanyak' },
+        { value: 'low', label: 'Sedikit (>0)' },
+        { value: 'empty', label: 'Kosong' },
+    ];
+
     return (
         <>
             <Head title="Data Material" />
-            {tableError && (
-                <div role="alert" className="mx-6 mt-4 flex items-center justify-between gap-3 rounded-md border border-destructive/30 p-3 text-sm text-destructive">
-                    {tableError}
-                    <Button type="button" variant="outline" onClick={refreshRows}>Coba lagi</Button>
-                </div>
-            )}
-            <div className="flex flex-col gap-6 p-6">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div>
-                        <h1 className="text-2xl font-semibold text-foreground">
-                            Data Material
-                        </h1>
-                        <p className="text-sm text-muted-foreground">
-                            Kelola daftar material produksi.
-                        </p>
+
+            {/* ── Main Container with Dashboard Dot Grid & Atmospheric Ornaments ── */}
+            <div className="relative min-w-0 flex-1 space-y-6 p-4 sm:p-6 lg:p-8 overflow-hidden bg-[radial-gradient(circle_at_1px_1px,rgba(0,0,0,0.04)_1px,transparent_0)] dark:bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.05)_1px,transparent_0)] [background-size:24px_24px]">
+                <MaterialOrnaments />
+
+                {/* ── Error Banner ─────────────────────────────────────────── */}
+                <AnimatePresence>
+                    {tableError && (
+                        <motion.div
+                            role="alert"
+                            initial={{ opacity: 0, y: -10, scale: 0.98 }}
+                            animate={{ opacity: 1, y: 0, scale: 1 }}
+                            exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                            transition={{ duration: 0.25 }}
+                            className="relative z-10 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-600 dark:text-rose-400 backdrop-blur-xl shadow-lg shadow-rose-500/5"
+                        >
+                            <div className="flex items-center gap-2.5 font-semibold">
+                                <AlertCircle className="size-4.5 shrink-0" />
+                                <span>{tableError}</span>
+                            </div>
+                            <Button
+                                type="button"
+                                size="sm"
+                                variant="secondary"
+                                onClick={refreshRows}
+                                className="rounded-xl text-xs font-bold"
+                            >
+                                Coba lagi
+                            </Button>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* ── 1. Executive Material Command Hero Header ─────────────── */}
+                <motion.div
+                    initial={{ opacity: 0, y: -16 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+                    className="relative z-10 flex flex-col gap-5 xl:flex-row xl:items-center xl:justify-between rounded-3xl border border-sidebar-border/70 bg-gradient-to-r from-card/95 via-card/85 to-card/70 p-5 sm:p-6 backdrop-blur-2xl shadow-xl shadow-black/[0.03] dark:shadow-black/35 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-emerald-500/35 before:to-transparent overflow-hidden"
+                >
+                    <div className="flex items-start sm:items-center gap-4">
+                        <motion.div
+                            whileHover={{ rotate: 6, scale: 1.06 }}
+                            transition={{ type: 'spring', stiffness: 400, damping: 20 }}
+                            className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/20 via-teal-500/15 to-cyan-500/10 ring-1 ring-emerald-500/30 shadow-md shadow-emerald-500/10"
+                        >
+                            <Boxes className="size-7 text-emerald-500 dark:text-emerald-400" />
+                        </motion.div>
+
+                        <div className="space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
+                                    <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                    Master Inventory
+                                </span>
+                                <span className="text-muted-foreground/40">•</span>
+                                <span className="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground tabular-nums">
+                                    <Package className="size-3.5 text-teal-500" />
+                                    {formatNumber(totalItems)} Material Terdaftar
+                                </span>
+                            </div>
+
+                            <h1 className="text-xl sm:text-2xl font-black tracking-tight text-foreground">
+                                Manajemen{' '}
+                                <span className="bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 bg-clip-text text-transparent">
+                                    Data Material
+                                </span>
+                            </h1>
+                            <p className="text-xs text-muted-foreground">
+                                Pantau pergerakan stok gudang, kategori pergerakan, DO outstanding, dan kartu stok secara terpusat.
+                            </p>
+                        </div>
                     </div>
-                    <div className="flex flex-wrap items-center gap-2">
-                        <Button
+
+                    {/* Action Controls */}
+                    <div className="flex flex-wrap items-center gap-2.5 shrink-0">
+                        <motion.button
                             type="button"
-                            variant="outline"
+                            onClick={refreshLoadedCardMetrics}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.97 }}
+                            className="inline-flex items-center gap-2 rounded-2xl border border-sidebar-border/70 bg-muted/40 px-3.5 py-2.5 text-xs font-bold text-foreground shadow-xs hover:border-emerald-500/40 hover:bg-muted/60 transition-all cursor-pointer"
+                            title="Segarkan data tabel & ringkasan aktif"
+                        >
+                            <RefreshCw
+                                className={cn(
+                                    'size-3.5 text-emerald-500',
+                                    tableLoading && 'animate-spin',
+                                )}
+                            />
+                            <span>Segarkan</span>
+                        </motion.button>
+
+                        <motion.button
+                            type="button"
                             onClick={() => setIsExportModalOpen(true)}
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.97 }}
+                            className="inline-flex items-center gap-2 rounded-2xl border border-sidebar-border/70 bg-background/80 px-4 py-2.5 text-xs font-bold text-foreground shadow-xs hover:border-sky-500/40 hover:bg-sky-500/10 hover:text-sky-600 dark:hover:text-sky-400 transition-all cursor-pointer"
                         >
-                            Export Data
-                        </Button>
-                        <MenuAction action="create" onClick={() => setIsModalOpen(true)}>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Tambah Data
-                        </MenuAction>
+                            <Download className="size-3.5 text-sky-500" />
+                            <span>Export Data</span>
+                        </motion.button>
+
+                        <motion.div
+                            whileHover={{ scale: 1.02 }}
+                            whileTap={{ scale: 0.97 }}
+                        >
+                            <MenuAction
+                                action="create"
+                                onClick={() => setIsModalOpen(true)}
+                                className="rounded-2xl bg-gradient-to-r from-emerald-500 via-teal-600 to-cyan-600 px-4 py-2.5 text-xs font-bold text-white shadow-lg shadow-emerald-500/25 hover:brightness-110 active:brightness-95 border-0 transition-all cursor-pointer"
+                            >
+                                <Plus className="mr-1.5 size-4" />
+                                Tambah Material
+                            </MenuAction>
+                        </motion.div>
                     </div>
-                </div>
+                </motion.div>
 
-                <button
-                    type="button"
-                    className="flex w-full items-center gap-3 rounded-xl border bg-gradient-to-r from-slate-900/80 via-slate-800/70 to-slate-900/60 px-4 py-3 text-left shadow-sm"
-                    onClick={() => handleCardTabChange('category')}
-                >
-                    <span
-                        className={`flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white transition-transform ${activeCardTab === 'category' ? 'rotate-180' : ''}`}
-                    >
-                        <ChevronDown className="h-4 w-4" />
-                    </span>
-                    <span className="font-semibold text-white">Kategori</span>
-                </button>
-
-                {activeCardTab === 'category' && (
-                    <div className="grid gap-4 md:grid-cols-3">
-                        {movementCategories.map((category) => {
-                            const item = movementMetrics[category.key];
-                            const loading = movementMetricLoading[category.key];
-
+                {/* ── 2. Interactive Analytics Command Hub (4 Collapsible Modules) ─ */}
+                <div className="relative z-10 space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
+                        {moduleHubItems.map((mod, idx) => {
+                            const Icon = mod.icon;
+                            const isActive = activeCardTab === mod.key;
                             return (
-                                <Card
-                                    key={category.key}
-                                    role="button"
-                                    tabIndex={0}
-                                    className="cursor-pointer transition-colors hover:bg-muted/40"
-                                    onClick={() => {
-                                        setMovementModal(category.key);
-                                        setMovementSearchTerm('');
-                                        setMovementPageSize(5);
-                                        setMovementCurrentPage(1);
-                                    }}
-                                    onKeyDown={(event) => {
-                                        if (
-                                            event.key === 'Enter' ||
-                                            event.key === ' '
-                                        ) {
-                                            event.preventDefault();
-                                            setMovementModal(category.key);
-                                            setMovementSearchTerm('');
-                                            setMovementPageSize(5);
-                                            setMovementCurrentPage(1);
-                                        }
-                                    }}
+                                <motion.button
+                                    key={mod.key}
+                                    type="button"
+                                    initial={{ opacity: 0, y: 14 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.35, delay: 0.04 * idx }}
+                                    whileHover={{ y: -3, transition: { duration: 0.18 } }}
+                                    whileTap={{ scale: 0.98 }}
+                                    onClick={() => handleCardTabChange(mod.key)}
+                                    className={cn(
+                                        'group relative flex items-center justify-between gap-3 overflow-hidden rounded-3xl border bg-card/85 dark:bg-card/55 p-4 text-left backdrop-blur-2xl shadow-lg shadow-black/[0.02] dark:shadow-black/25 transition-all cursor-pointer before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:to-transparent',
+                                        mod.topHairline,
+                                        isActive
+                                            ? `${mod.activeBorder} ring-1 ring-inset ring-white/10 bg-card`
+                                            : 'border-sidebar-border/70 hover:border-sidebar-border',
+                                    )}
                                 >
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-sm font-medium text-muted-foreground">
-                                            {category.title}
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <div className="text-xs text-muted-foreground">
-                                                Jumlah stok
-                                            </div>
-                                            <div className="text-xl font-semibold tabular-nums">
-                                                {loading?.stock ? (
-                                                    <Skeleton className="h-7 w-20" />
-                                                ) : (
-                                                    formatNumber(item?.stock)
-                                                )}
-                                            </div>
+                                    <div className="flex items-center gap-3 min-w-0">
+                                        <div
+                                            className={cn(
+                                                'flex size-11 shrink-0 items-center justify-center rounded-2xl border shadow-xs transition-transform duration-200 group-hover:scale-105',
+                                                mod.iconWrap,
+                                            )}
+                                        >
+                                            <Icon className="size-5" />
                                         </div>
-                                        <div>
-                                            <div className="text-xs text-muted-foreground">
-                                                Jumlah item
+                                        <div className="min-w-0">
+                                            <div className="flex items-center gap-2">
+                                                <span className="truncate text-sm font-bold text-foreground">
+                                                    {mod.title}
+                                                </span>
                                             </div>
-                                            <div className="text-xl font-semibold tabular-nums">
-                                                {loading?.items ? (
-                                                    <Skeleton className="h-7 w-16" />
-                                                ) : (
-                                                    formatNumber(item?.items)
-                                                )}
-                                            </div>
+                                            <p className="truncate text-[11px] text-muted-foreground mt-0.5">
+                                                {mod.subtitle}
+                                            </p>
                                         </div>
-                                        <div className="col-span-2 border-t pt-3">
-                                            <div className="text-xs text-muted-foreground">
-                                                Total harga
+                                    </div>
+
+                                    <div className="flex items-center gap-2 shrink-0">
+                                        {isActive && (
+                                            <motion.span
+                                                initial={{ opacity: 0, scale: 0.8 }}
+                                                animate={{ opacity: 1, scale: 1 }}
+                                                className={cn(
+                                                    'hidden sm:inline-flex items-center rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider',
+                                                    mod.badgeClass,
+                                                )}
+                                            >
+                                                Aktif
+                                            </motion.span>
+                                        )}
+                                        <motion.span
+                                            animate={{ rotate: isActive ? 180 : 0 }}
+                                            transition={{ type: 'spring', stiffness: 320, damping: 24 }}
+                                            className={cn(
+                                                'flex size-8 items-center justify-center rounded-xl border border-sidebar-border/60 bg-muted/40 text-muted-foreground transition-colors group-hover:text-foreground',
+                                                isActive && 'bg-foreground text-background border-foreground',
+                                            )}
+                                        >
+                                            <ChevronDown className="size-4" />
+                                        </motion.span>
+                                    </div>
+                                </motion.button>
+                            );
+                        })}
+                    </div>
+
+                    {/* ── Expandable Analytics Drawer with AnimatePresence ── */}
+                    <AnimatePresence mode="wait">
+                        {activeCardTab === 'category' && (
+                            <motion.div
+                                key="drawer-category"
+                                initial={{ opacity: 0, y: -12, scale: 0.99 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: -10, scale: 0.99 }}
+                                transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                                className="grid gap-4 md:grid-cols-3"
+                            >
+                                {movementCategories.map((category, idx) => {
+                                    const item = movementMetrics[category.key];
+                                    const loading = movementMetricLoading[category.key];
+                                    const theme =
+                                        category.key === 'fast'
+                                            ? {
+                                                color: 'emerald',
+                                                icon: TrendingUp,
+                                                border: 'hover:border-emerald-500/45 hover:shadow-emerald-500/10 before:via-emerald-500/40',
+                                                badge: 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20',
+                                                valueText: 'text-emerald-600 dark:text-emerald-400',
+                                            }
+                                            : category.key === 'slow'
+                                                ? {
+                                                    color: 'amber',
+                                                    icon: Clock,
+                                                    border: 'hover:border-amber-500/45 hover:shadow-amber-500/10 before:via-amber-500/40',
+                                                    badge: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20',
+                                                    valueText: 'text-amber-600 dark:text-amber-400',
+                                                }
+                                                : {
+                                                    color: 'rose',
+                                                    icon: TrendingDown,
+                                                    border: 'hover:border-rose-500/45 hover:shadow-rose-500/10 before:via-rose-500/40',
+                                                    badge: 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20',
+                                                    valueText: 'text-rose-600 dark:text-rose-400',
+                                                };
+                                    const CatIcon = theme.icon;
+
+                                    return (
+                                        <motion.div
+                                            key={category.key}
+                                            role="button"
+                                            tabIndex={0}
+                                            initial={{ opacity: 0, y: 16 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ duration: 0.32, delay: idx * 0.06 }}
+                                            whileHover={{ y: -4, transition: { duration: 0.18 } }}
+                                            whileTap={{ scale: 0.985 }}
+                                            onClick={() => {
+                                                setMovementModal(category.key);
+                                                setMovementSearchTerm('');
+                                                setMovementPageSize(5);
+                                                setMovementCurrentPage(1);
+                                            }}
+                                            onKeyDown={(event) => {
+                                                if (
+                                                    event.key === 'Enter' ||
+                                                    event.key === ' '
+                                                ) {
+                                                    event.preventDefault();
+                                                    setMovementModal(category.key);
+                                                    setMovementSearchTerm('');
+                                                    setMovementPageSize(5);
+                                                    setMovementCurrentPage(1);
+                                                }
+                                            }}
+                                            className={cn(
+                                                'group relative cursor-pointer overflow-hidden rounded-3xl border border-sidebar-border/70 bg-gradient-to-br from-card/95 via-card/75 to-background/60 p-5 backdrop-blur-2xl shadow-lg shadow-black/[0.02] dark:shadow-black/25 transition-all before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:to-transparent',
+                                                theme.border,
+                                            )}
+                                        >
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span
+                                                    className={cn(
+                                                        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider',
+                                                        theme.badge,
+                                                    )}
+                                                >
+                                                    <CatIcon className="size-3.5" />
+                                                    {category.title}
+                                                </span>
+                                                <CategorySparkWave color={theme.color} />
                                             </div>
-                                            <div className="font-semibold tabular-nums">
-                                                {loading?.total ? (
-                                                    <Skeleton className="h-6 w-24" />
-                                                ) : (
-                                                    <>
-                                                        Rp{' '}
-                                                        {formatNumber(
-                                                            item?.total,
+
+                                            <div className="mt-4 grid grid-cols-2 gap-3">
+                                                <div className="rounded-2xl border border-sidebar-border/50 bg-muted/25 p-3">
+                                                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                        Jumlah Stok
+                                                    </div>
+                                                    <div className="mt-1 text-xl font-black tracking-tight text-foreground tabular-nums">
+                                                        {loading?.stock ? (
+                                                            <Skeleton className="h-7 w-20" />
+                                                        ) : (
+                                                            formatNumber(item?.stock)
                                                         )}
-                                                    </>
-                                                )}
+                                                    </div>
+                                                </div>
+                                                <div className="rounded-2xl border border-sidebar-border/50 bg-muted/25 p-3">
+                                                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                        Jumlah Item
+                                                    </div>
+                                                    <div className="mt-1 text-xl font-black tracking-tight text-foreground tabular-nums">
+                                                        {loading?.items ? (
+                                                            <Skeleton className="h-7 w-16" />
+                                                        ) : (
+                                                            formatNumber(item?.items)
+                                                        )}
+                                                    </div>
+                                                </div>
                                             </div>
-                                        </div>
-                                    </CardContent>
-                                </Card>
-                            );
-                        })}
-                    </div>
-                )}
 
-                <button
-                    type="button"
-                    className="flex w-full items-center gap-3 rounded-xl border bg-gradient-to-r from-slate-900/80 via-slate-800/70 to-slate-900/60 px-4 py-3 text-left shadow-sm"
-                    onClick={() => handleCardTabChange('do')}
-                >
-                    <span
-                        className={`flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white transition-transform ${activeCardTab === 'do' ? 'rotate-180' : ''}`}
-                    >
-                        <ChevronDown className="h-4 w-4" />
-                    </span>
-                    <span className="font-semibold text-white">DO</span>
-                </button>
+                                            <div className="mt-3 flex items-center justify-between gap-2 border-t border-sidebar-border/40 pt-3">
+                                                <div>
+                                                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                        Total Valuasi Harga
+                                                    </div>
+                                                    <div className={cn('mt-0.5 text-sm font-black tabular-nums', theme.valueText)}>
+                                                        {loading?.total ? (
+                                                            <Skeleton className="h-5 w-28" />
+                                                        ) : (
+                                                            `Rp ${formatNumber(item?.total)}`
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <span className="inline-flex items-center gap-1 rounded-xl bg-muted/50 px-2.5 py-1 text-[11px] font-bold text-muted-foreground group-hover:text-foreground transition-colors">
+                                                    Detail
+                                                    <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                                                </span>
+                                            </div>
+                                        </motion.div>
+                                    );
+                                })}
+                            </motion.div>
+                        )}
 
-                {activeCardTab === 'do' && (
-                    <div className="grid gap-4 md:grid-cols-3">
-                        <button
-                            type="button"
-                            className="h-full w-full text-left"
-                            onClick={() => {
-                                setIsOutstandingModalOpen(true);
-                                loadOutstanding();
-                            }}
-                        >
-                            <Card className="h-full transition hover:border-primary/60 hover:shadow-md">
-                                <CardHeader className="pb-2">
-                                    <CardDescription>
-                                        DO Outstanding
-                                    </CardDescription>
-                                    <CardTitle>DO Outstanding</CardTitle>
-                                </CardHeader>
-                                <CardContent className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <p className="text-xs text-muted-foreground">
-                                            Jumlah item
-                                        </p>
-                                        <div className="text-xl font-semibold">
-                                            {outstandingCountLoading ? (
-                                                <Skeleton className="h-7 w-16" />
-                                            ) : (
-                                                formatNumber(outstandingCount)
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-muted-foreground">
-                                            Jumlah qty
-                                        </p>
-                                        <div className="text-xl font-semibold">
-                                            {outstandingQtyLoading ? (
-                                                <Skeleton className="h-7 w-20" />
-                                            ) : (
-                                                formatNumber(outstandingQty)
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="col-span-2 border-t pt-3">
-                                        <p className="text-xs text-muted-foreground">
-                                            Grand total outstanding
-                                        </p>
-                                        <div className="mt-1 text-sm font-semibold">
-                                            {outstandingTotalLoading ? (
-                                                <Skeleton className="h-5 w-24" />
-                                            ) : (
-                                                `Rp ${formatNumber(outstandingTotal)}`
-                                            )}
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </button>
-
-                        <button
-                            type="button"
-                            className="h-full w-full text-left"
-                            onClick={() => {
-                                setIsDotOutstandingModalOpen(true);
-                                loadDotOutstanding();
-                            }}
-                        >
-                            <Card className="h-full transition hover:border-primary/60 hover:shadow-md">
-                                <CardHeader className="pb-2">
-                                    <CardDescription>DO Add</CardDescription>
-                                    <CardTitle>DO Add</CardTitle>
-                                </CardHeader>
-                                <CardContent className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <p className="text-xs text-muted-foreground">
-                                            Jumlah item
-                                        </p>
-                                        <div className="text-xl font-semibold">
-                                            {dotOutstandingCountLoading ? (
-                                                <Skeleton className="h-7 w-16" />
-                                            ) : (
-                                                formatNumber(
-                                                    dotOutstandingCount,
-                                                )
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-muted-foreground">
-                                            Jumlah qty
-                                        </p>
-                                        <div className="text-xl font-semibold">
-                                            {dotOutstandingQtyLoading ? (
-                                                <Skeleton className="h-7 w-20" />
-                                            ) : (
-                                                formatNumber(dotOutstandingQty)
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="col-span-2 border-t pt-3">
-                                        <p className="text-xs text-muted-foreground">
-                                            DOT Belum Dibebankan
-                                        </p>
-                                        <div className="mt-1 text-sm font-semibold">
-                                            {dotOutstandingTotalLoading ? (
-                                                <Skeleton className="h-5 w-24" />
-                                            ) : (
-                                                `Rp ${formatNumber(dotOutstandingTotal)}`
-                                            )}
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </button>
-
-                        <button
-                            type="button"
-                            className="h-full w-full text-left"
-                            onClick={() => {
-                                setIsDoCostOutstandingModalOpen(true);
-                                loadDoCostOutstanding();
-                            }}
-                        >
-                            <Card className="h-full transition hover:border-primary/60 hover:shadow-md">
-                                <CardHeader className="pb-2">
-                                    <CardDescription>DO Cost</CardDescription>
-                                    <CardTitle>DO Cost</CardTitle>
-                                </CardHeader>
-                                <CardContent className="grid grid-cols-2 gap-3">
-                                    <div>
-                                        <p className="text-xs text-muted-foreground">
-                                            Jumlah item
-                                        </p>
-                                        <div className="text-xl font-semibold">
-                                            {doCostOutstandingCountLoading ? (
-                                                <Skeleton className="h-7 w-16" />
-                                            ) : (
-                                                formatNumber(
-                                                    doCostOutstandingCount,
-                                                )
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div>
-                                        <p className="text-xs text-muted-foreground">
-                                            Jumlah qty
-                                        </p>
-                                        <div className="text-xl font-semibold">
-                                            {doCostOutstandingQtyLoading ? (
-                                                <Skeleton className="h-7 w-20" />
-                                            ) : (
-                                                formatNumber(
-                                                    doCostOutstandingQty,
-                                                )
-                                            )}
-                                        </div>
-                                    </div>
-                                    <div className="col-span-2 border-t pt-3">
-                                        <p className="text-xs text-muted-foreground">
-                                            DO Biaya Belum Dibebankan
-                                        </p>
-                                        <div className="mt-1 text-sm font-semibold">
-                                            {doCostOutstandingTotalLoading ? (
-                                                <Skeleton className="h-5 w-24" />
-                                            ) : (
-                                                `Rp ${formatNumber(doCostOutstandingTotal)}`
-                                            )}
-                                        </div>
-                                    </div>
-                                </CardContent>
-                            </Card>
-                        </button>
-                    </div>
-                )}
-
-                <button
-                    type="button"
-                    className="flex w-full items-center gap-3 rounded-xl border bg-gradient-to-r from-slate-900/80 via-slate-800/70 to-slate-900/60 px-4 py-3 text-left shadow-sm"
-                    onClick={() => handleCardTabChange('inventory')}
-                >
-                    <span
-                        className={`flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white transition-transform ${activeCardTab === 'inventory' ? 'rotate-180' : ''}`}
-                    >
-                        <ChevronDown className="h-4 w-4" />
-                    </span>
-                    <span className="font-semibold text-white">
-                        MIS, MIB, MIBS
-                    </span>
-                </button>
-
-                {activeCardTab === 'inventory' && (
-                    <div className="grid gap-4 md:grid-cols-3">
-                        {inventoryCardTypes.map((card) => {
-                            const summary = inventorySummaries[card.key];
-                            const loading = inventorySummaryLoading[card.key];
-                            return (
-                                <Card
-                                    key={card.key}
-                                    role="button"
-                                    tabIndex={0}
-                                    className="cursor-pointer transition hover:border-primary/60 hover:shadow-md"
+                        {activeCardTab === 'do' && (
+                            <motion.div
+                                key="drawer-do"
+                                initial={{ opacity: 0, y: -12, scale: 0.99 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: -10, scale: 0.99 }}
+                                transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                                className="grid gap-4 md:grid-cols-3"
+                            >
+                                {/* Card 1: DO Outstanding */}
+                                <motion.button
+                                    type="button"
+                                    initial={{ opacity: 0, y: 16 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.32, delay: 0 }}
+                                    whileHover={{ y: -4, transition: { duration: 0.18 } }}
+                                    whileTap={{ scale: 0.985 }}
                                     onClick={() => {
-                                        setInventoryRowsSearch('');
-                                        setInventoryRowsPageSize(5);
-                                        setInventoryRowsCurrentPage(1);
-                                        setInventoryModalType(card.key);
+                                        setIsOutstandingModalOpen(true);
+                                        loadOutstanding();
                                     }}
-                                    onKeyDown={(event) => {
-                                        if (
-                                            event.key === 'Enter' ||
-                                            event.key === ' '
-                                        ) {
-                                            event.preventDefault();
-                                            setInventoryModalType(card.key);
-                                        }
-                                    }}
+                                    className="group relative h-full w-full cursor-pointer overflow-hidden rounded-3xl border border-sidebar-border/70 bg-gradient-to-br from-card/95 via-card/75 to-background/60 p-5 text-left backdrop-blur-2xl shadow-lg shadow-black/[0.02] dark:shadow-black/25 hover:border-amber-500/45 hover:shadow-amber-500/10 transition-all before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-amber-500/40 before:to-transparent"
                                 >
-                                    <CardHeader className="pb-2">
-                                        <CardTitle>{card.title}</CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="grid grid-cols-2 gap-3">
-                                        <div>
-                                            <div className="text-xs text-muted-foreground">
-                                                Jumlah item
-                                            </div>
-                                            <div className="text-xl font-semibold">
-                                                {loading?.items ? (
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-500/20 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                                            <Truck className="size-3.5" />
+                                            DO Outstanding
+                                        </span>
+                                        <CategorySparkWave color="amber" />
+                                    </div>
+                                    <div className="mt-4 grid grid-cols-2 gap-3">
+                                        <div className="rounded-2xl border border-sidebar-border/50 bg-muted/25 p-3">
+                                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                Jumlah Item
+                                            </p>
+                                            <div className="mt-1 text-xl font-black text-foreground tabular-nums">
+                                                {outstandingCountLoading ? (
                                                     <Skeleton className="h-7 w-16" />
                                                 ) : (
-                                                    formatNumber(summary?.items)
+                                                    formatNumber(outstandingCount)
                                                 )}
                                             </div>
                                         </div>
-                                        <div>
-                                            <div className="text-xs text-muted-foreground">
-                                                Jumlah qty
-                                            </div>
-                                            <div className="text-xl font-semibold">
-                                                {loading?.qty ? (
+                                        <div className="rounded-2xl border border-sidebar-border/50 bg-muted/25 p-3">
+                                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                Jumlah Qty
+                                            </p>
+                                            <div className="mt-1 text-xl font-black text-foreground tabular-nums">
+                                                {outstandingQtyLoading ? (
                                                     <Skeleton className="h-7 w-20" />
                                                 ) : (
-                                                    formatNumber(summary?.qty)
+                                                    formatNumber(outstandingQty)
                                                 )}
                                             </div>
                                         </div>
-                                        <div className="col-span-2 border-t pt-3">
-                                            <div className="text-xs text-muted-foreground">
-                                                Total harga
-                                            </div>
-                                            <div className="font-semibold">
-                                                {loading?.total ? (
-                                                    <Skeleton className="h-6 w-28" />
+                                    </div>
+                                    <div className="mt-3 flex items-center justify-between gap-2 border-t border-sidebar-border/40 pt-3">
+                                        <div>
+                                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                Grand Total Outstanding
+                                            </p>
+                                            <div className="mt-0.5 text-sm font-black text-amber-600 dark:text-amber-400 tabular-nums">
+                                                {outstandingTotalLoading ? (
+                                                    <Skeleton className="h-5 w-24" />
                                                 ) : (
-                                                    `Rp ${formatNumber(summary?.total)}`
+                                                    `Rp ${formatNumber(outstandingTotal)}`
                                                 )}
                                             </div>
                                         </div>
-                                    </CardContent>
-                                </Card>
-                            );
-                        })}
-                    </div>
-                )}
+                                        <span className="inline-flex items-center gap-1 rounded-xl bg-muted/50 px-2.5 py-1 text-[11px] font-bold text-muted-foreground group-hover:text-foreground transition-colors">
+                                            Buka
+                                            <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                                        </span>
+                                    </div>
+                                </motion.button>
 
-                <button
-                    type="button"
-                    className="flex w-full items-center gap-3 rounded-xl border bg-gradient-to-r from-slate-900/80 via-slate-800/70 to-slate-900/60 px-4 py-3 text-left shadow-sm"
-                    onClick={() => handleCardTabChange('warehouse')}
-                >
-                    <span
-                        className={`flex h-8 w-8 items-center justify-center rounded-full bg-white/10 text-white transition-transform ${activeCardTab === 'warehouse' ? 'rotate-180' : ''}`}
-                    >
-                        <ChevronDown className="h-4 w-4" />
-                    </span>
-                    <span className="font-semibold text-white">Gudang</span>
-                </button>
-
-                {activeCardTab === 'warehouse' && (
-                    <div className="grid gap-4 xl:grid-cols-4">
-                        {warehouseOptions.map((warehouse) => {
-                            const summary = warehouseSummaries[warehouse.value];
-
-                            return (
-                                <Card
-                                    key={warehouse.value}
-                                    role="button"
-                                    tabIndex={0}
-                                    className="cursor-pointer transition-colors hover:bg-muted/40"
+                                {/* Card 2: DO Add */}
+                                <motion.button
+                                    type="button"
+                                    initial={{ opacity: 0, y: 16 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.32, delay: 0.06 }}
+                                    whileHover={{ y: -4, transition: { duration: 0.18 } }}
+                                    whileTap={{ scale: 0.985 }}
                                     onClick={() => {
-                                        setWarehouseModal(warehouse.value);
-                                        setMovementSearchTerm('');
-                                        setMovementPageSize(5);
-                                        setMovementCurrentPage(1);
+                                        setIsDotOutstandingModalOpen(true);
+                                        loadDotOutstanding();
                                     }}
-                                    onKeyDown={(event) => {
-                                        if (
-                                            event.key === 'Enter' ||
-                                            event.key === ' '
-                                        ) {
-                                            event.preventDefault();
-                                            setWarehouseModal(warehouse.value);
-                                            setMovementSearchTerm('');
-                                            setMovementPageSize(5);
-                                            setMovementCurrentPage(1);
-                                        }
-                                    }}
+                                    className="group relative h-full w-full cursor-pointer overflow-hidden rounded-3xl border border-sidebar-border/70 bg-gradient-to-br from-card/95 via-card/75 to-background/60 p-5 text-left backdrop-blur-2xl shadow-lg shadow-black/[0.02] dark:shadow-black/25 hover:border-sky-500/45 hover:shadow-sky-500/10 transition-all before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-sky-500/40 before:to-transparent"
                                 >
-                                    <CardHeader className="pb-2">
-                                        <CardTitle className="text-sm font-medium text-muted-foreground">
-                                            {warehouse.label}
-                                        </CardTitle>
-                                    </CardHeader>
-                                    <CardContent className="space-y-4">
-                                        <div className="rounded-md border border-sidebar-border/70 bg-muted/30 p-3">
-                                            <div className="mb-2 text-sm font-semibold">
-                                                Total Gudang
-                                            </div>
-                                            <div className="grid gap-2 text-xs text-muted-foreground">
-                                                <div className="flex items-center justify-between gap-3">
-                                                    <span>Total stok</span>
-                                                    <span className="font-semibold text-foreground tabular-nums">
-                                                        <MetricValue
-                                                            loading={
-                                                                summary?.loading
-                                                            }
-                                                        >
-                                                            {formatNumber(
-                                                                summary?.total
-                                                                    ?.stock,
-                                                            )}
-                                                        </MetricValue>
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center justify-between gap-3">
-                                                    <span>Total item</span>
-                                                    <span className="font-semibold text-foreground tabular-nums">
-                                                        <MetricValue
-                                                            loading={
-                                                                summary?.loading
-                                                            }
-                                                        >
-                                                            {formatNumber(
-                                                                summary?.total
-                                                                    ?.items,
-                                                            )}
-                                                        </MetricValue>
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center justify-between gap-3">
-                                                    <span>Total harga</span>
-                                                    <span className="font-semibold text-foreground tabular-nums">
-                                                        <MetricValue
-                                                            loading={
-                                                                summary?.loading
-                                                            }
-                                                            className="h-5 w-20"
-                                                        >
-                                                            Rp{' '}
-                                                            {formatNumber(
-                                                                summary?.total
-                                                                    ?.total,
-                                                            )}
-                                                        </MetricValue>
-                                                    </span>
-                                                </div>
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-500/20 bg-sky-500/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-sky-600 dark:text-sky-400">
+                                            <ClipboardList className="size-3.5" />
+                                            DO Add
+                                        </span>
+                                        <CategorySparkWave color="sky" />
+                                    </div>
+                                    <div className="mt-4 grid grid-cols-2 gap-3">
+                                        <div className="rounded-2xl border border-sidebar-border/50 bg-muted/25 p-3">
+                                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                Jumlah Item
+                                            </p>
+                                            <div className="mt-1 text-xl font-black text-foreground tabular-nums">
+                                                {dotOutstandingCountLoading ? (
+                                                    <Skeleton className="h-7 w-16" />
+                                                ) : (
+                                                    formatNumber(dotOutstandingCount)
+                                                )}
                                             </div>
                                         </div>
-
-                                        {summary?.loading ? (
-                                            <div className="space-y-3">
-                                                <Skeleton className="h-28 w-full" />
-                                                <Skeleton className="h-28 w-full" />
+                                        <div className="rounded-2xl border border-sidebar-border/50 bg-muted/25 p-3">
+                                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                Jumlah Qty
+                                            </p>
+                                            <div className="mt-1 text-xl font-black text-foreground tabular-nums">
+                                                {dotOutstandingQtyLoading ? (
+                                                    <Skeleton className="h-7 w-20" />
+                                                ) : (
+                                                    formatNumber(dotOutstandingQty)
+                                                )}
                                             </div>
-                                        ) : summary?.categories?.length > 0 ? (
-                                            summary.categories.map(
-                                                (category) => (
-                                                    <div
-                                                        key={`${warehouse.value}-${category.key}`}
-                                                        className="rounded-md border border-sidebar-border/70 p-3"
-                                                    >
-                                                        <div className="mb-2 text-sm font-semibold">
-                                                            {category.label}
+                                        </div>
+                                    </div>
+                                    <div className="mt-3 flex items-center justify-between gap-2 border-t border-sidebar-border/40 pt-3">
+                                        <div>
+                                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                DOT Belum Dibebankan
+                                            </p>
+                                            <div className="mt-0.5 text-sm font-black text-sky-600 dark:text-sky-400 tabular-nums">
+                                                {dotOutstandingTotalLoading ? (
+                                                    <Skeleton className="h-5 w-24" />
+                                                ) : (
+                                                    `Rp ${formatNumber(dotOutstandingTotal)}`
+                                                )}
+                                            </div>
+                                        </div>
+                                        <span className="inline-flex items-center gap-1 rounded-xl bg-muted/50 px-2.5 py-1 text-[11px] font-bold text-muted-foreground group-hover:text-foreground transition-colors">
+                                            Buka
+                                            <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                                        </span>
+                                    </div>
+                                </motion.button>
+
+                                {/* Card 3: DO Cost */}
+                                <motion.button
+                                    type="button"
+                                    initial={{ opacity: 0, y: 16 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    transition={{ duration: 0.32, delay: 0.12 }}
+                                    whileHover={{ y: -4, transition: { duration: 0.18 } }}
+                                    whileTap={{ scale: 0.985 }}
+                                    onClick={() => {
+                                        setIsDoCostOutstandingModalOpen(true);
+                                        loadDoCostOutstanding();
+                                    }}
+                                    className="group relative h-full w-full cursor-pointer overflow-hidden rounded-3xl border border-sidebar-border/70 bg-gradient-to-br from-card/95 via-card/75 to-background/60 p-5 text-left backdrop-blur-2xl shadow-lg shadow-black/[0.02] dark:shadow-black/25 hover:border-indigo-500/45 hover:shadow-indigo-500/10 transition-all before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-indigo-500/40 before:to-transparent"
+                                >
+                                    <div className="flex items-center justify-between gap-2">
+                                        <span className="inline-flex items-center gap-1.5 rounded-full border border-indigo-500/20 bg-indigo-500/10 px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                                            <FileSpreadsheet className="size-3.5" />
+                                            DO Cost
+                                        </span>
+                                        <CategorySparkWave color="indigo" />
+                                    </div>
+                                    <div className="mt-4 grid grid-cols-2 gap-3">
+                                        <div className="rounded-2xl border border-sidebar-border/50 bg-muted/25 p-3">
+                                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                Jumlah Item
+                                            </p>
+                                            <div className="mt-1 text-xl font-black text-foreground tabular-nums">
+                                                {doCostOutstandingCountLoading ? (
+                                                    <Skeleton className="h-7 w-16" />
+                                                ) : (
+                                                    formatNumber(doCostOutstandingCount)
+                                                )}
+                                            </div>
+                                        </div>
+                                        <div className="rounded-2xl border border-sidebar-border/50 bg-muted/25 p-3">
+                                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                Jumlah Qty
+                                            </p>
+                                            <div className="mt-1 text-xl font-black text-foreground tabular-nums">
+                                                {doCostOutstandingQtyLoading ? (
+                                                    <Skeleton className="h-7 w-20" />
+                                                ) : (
+                                                    formatNumber(doCostOutstandingQty)
+                                                )}
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="mt-3 flex items-center justify-between gap-2 border-t border-sidebar-border/40 pt-3">
+                                        <div>
+                                            <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                DO Biaya Belum Dibebankan
+                                            </p>
+                                            <div className="mt-0.5 text-sm font-black text-indigo-600 dark:text-indigo-400 tabular-nums">
+                                                {doCostOutstandingTotalLoading ? (
+                                                    <Skeleton className="h-5 w-24" />
+                                                ) : (
+                                                    `Rp ${formatNumber(doCostOutstandingTotal)}`
+                                                )}
+                                            </div>
+                                        </div>
+                                        <span className="inline-flex items-center gap-1 rounded-xl bg-muted/50 px-2.5 py-1 text-[11px] font-bold text-muted-foreground group-hover:text-foreground transition-colors">
+                                            Buka
+                                            <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                                        </span>
+                                    </div>
+                                </motion.button>
+                            </motion.div>
+                        )}
+
+                        {activeCardTab === 'inventory' && (
+                            <motion.div
+                                key="drawer-inventory"
+                                initial={{ opacity: 0, y: -12, scale: 0.99 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: -10, scale: 0.99 }}
+                                transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                                className="grid gap-4 md:grid-cols-3"
+                            >
+                                {inventoryCardTypes.map((card, idx) => {
+                                    const summary = inventorySummaries[card.key];
+                                    const loading = inventorySummaryLoading[card.key];
+                                    const theme =
+                                        card.key === 'mis'
+                                            ? {
+                                                color: 'sky',
+                                                border: 'hover:border-sky-500/45 hover:shadow-sky-500/10 before:via-sky-500/40',
+                                                badge: 'bg-sky-500/10 text-sky-600 dark:text-sky-400 border-sky-500/20',
+                                                value: 'text-sky-600 dark:text-sky-400',
+                                            }
+                                            : card.key === 'mib'
+                                                ? {
+                                                    color: 'teal',
+                                                    border: 'hover:border-teal-500/45 hover:shadow-teal-500/10 before:via-teal-500/40',
+                                                    badge: 'bg-teal-500/10 text-teal-600 dark:text-teal-400 border-teal-500/20',
+                                                    value: 'text-teal-600 dark:text-teal-400',
+                                                }
+                                                : {
+                                                    color: 'indigo',
+                                                    border: 'hover:border-indigo-500/45 hover:shadow-indigo-500/10 before:via-indigo-500/40',
+                                                    badge: 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20',
+                                                    value: 'text-indigo-600 dark:text-indigo-400',
+                                                };
+
+                                    return (
+                                        <motion.div
+                                            key={card.key}
+                                            role="button"
+                                            tabIndex={0}
+                                            initial={{ opacity: 0, y: 16 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ duration: 0.32, delay: idx * 0.06 }}
+                                            whileHover={{ y: -4, transition: { duration: 0.18 } }}
+                                            whileTap={{ scale: 0.985 }}
+                                            onClick={() => {
+                                                setInventoryRowsSearch('');
+                                                setInventoryRowsPageSize(5);
+                                                setInventoryRowsCurrentPage(1);
+                                                setInventoryModalType(card.key);
+                                            }}
+                                            onKeyDown={(event) => {
+                                                if (
+                                                    event.key === 'Enter' ||
+                                                    event.key === ' '
+                                                ) {
+                                                    event.preventDefault();
+                                                    setInventoryModalType(card.key);
+                                                }
+                                            }}
+                                            className={cn(
+                                                'group relative cursor-pointer overflow-hidden rounded-3xl border border-sidebar-border/70 bg-gradient-to-br from-card/95 via-card/75 to-background/60 p-5 backdrop-blur-2xl shadow-lg shadow-black/[0.02] dark:shadow-black/25 transition-all before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:to-transparent',
+                                                theme.border,
+                                            )}
+                                        >
+                                            <div className="flex items-center justify-between gap-2">
+                                                <span
+                                                    className={cn(
+                                                        'inline-flex items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-[11px] font-bold uppercase tracking-wider',
+                                                        theme.badge,
+                                                    )}
+                                                >
+                                                    <Layers className="size-3.5" />
+                                                    {card.title}
+                                                </span>
+                                                <CategorySparkWave color={theme.color} />
+                                            </div>
+
+                                            <div className="mt-4 grid grid-cols-2 gap-3">
+                                                <div className="rounded-2xl border border-sidebar-border/50 bg-muted/25 p-3">
+                                                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                        Jumlah Item
+                                                    </div>
+                                                    <div className="mt-1 text-xl font-black text-foreground tabular-nums">
+                                                        {loading?.items ? (
+                                                            <Skeleton className="h-7 w-16" />
+                                                        ) : (
+                                                            formatNumber(summary?.items)
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <div className="rounded-2xl border border-sidebar-border/50 bg-muted/25 p-3">
+                                                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                        Jumlah Qty
+                                                    </div>
+                                                    <div className="mt-1 text-xl font-black text-foreground tabular-nums">
+                                                        {loading?.qty ? (
+                                                            <Skeleton className="h-7 w-20" />
+                                                        ) : (
+                                                            formatNumber(summary?.qty)
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="mt-3 flex items-center justify-between gap-2 border-t border-sidebar-border/40 pt-3">
+                                                <div>
+                                                    <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                                                        Total Harga
+                                                    </div>
+                                                    <div className={cn('mt-0.5 text-sm font-black tabular-nums', theme.value)}>
+                                                        {loading?.total ? (
+                                                            <Skeleton className="h-5 w-28" />
+                                                        ) : (
+                                                            `Rp ${formatNumber(summary?.total)}`
+                                                        )}
+                                                    </div>
+                                                </div>
+                                                <span className="inline-flex items-center gap-1 rounded-xl bg-muted/50 px-2.5 py-1 text-[11px] font-bold text-muted-foreground group-hover:text-foreground transition-colors">
+                                                    Rincian
+                                                    <ChevronRight className="size-3.5 transition-transform group-hover:translate-x-0.5" />
+                                                </span>
+                                            </div>
+                                        </motion.div>
+                                    );
+                                })}
+                            </motion.div>
+                        )}
+
+                        {activeCardTab === 'warehouse' && (
+                            <motion.div
+                                key="drawer-warehouse"
+                                initial={{ opacity: 0, y: -12, scale: 0.99 }}
+                                animate={{ opacity: 1, y: 0, scale: 1 }}
+                                exit={{ opacity: 0, y: -10, scale: 0.99 }}
+                                transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                                className="grid gap-4 md:grid-cols-2 xl:grid-cols-4"
+                            >
+                                {warehouseOptions.map((warehouse, idx) => {
+                                    const summary = warehouseSummaries[warehouse.value];
+
+                                    return (
+                                        <motion.div
+                                            key={warehouse.value}
+                                            role="button"
+                                            tabIndex={0}
+                                            initial={{ opacity: 0, y: 16 }}
+                                            animate={{ opacity: 1, y: 0 }}
+                                            transition={{ duration: 0.32, delay: idx * 0.05 }}
+                                            whileHover={{ y: -4, transition: { duration: 0.18 } }}
+                                            whileTap={{ scale: 0.985 }}
+                                            onClick={() => {
+                                                setWarehouseModal(warehouse.value);
+                                                setMovementSearchTerm('');
+                                                setMovementPageSize(5);
+                                                setMovementCurrentPage(1);
+                                            }}
+                                            onKeyDown={(event) => {
+                                                if (
+                                                    event.key === 'Enter' ||
+                                                    event.key === ' '
+                                                ) {
+                                                    event.preventDefault();
+                                                    setWarehouseModal(warehouse.value);
+                                                    setMovementSearchTerm('');
+                                                    setMovementPageSize(5);
+                                                    setMovementCurrentPage(1);
+                                                }
+                                            }}
+                                            className="group relative cursor-pointer overflow-hidden rounded-3xl border border-sidebar-border/70 bg-gradient-to-br from-card/95 via-card/75 to-background/60 p-5 backdrop-blur-2xl shadow-lg shadow-black/[0.02] dark:shadow-black/25 hover:border-indigo-500/45 hover:shadow-indigo-500/10 transition-all before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-indigo-500/40 before:to-transparent"
+                                        >
+                                            <div className="flex items-center justify-between gap-2 pb-3 border-b border-sidebar-border/40">
+                                                <div className="flex items-center gap-2">
+                                                    <div className="flex size-8 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20">
+                                                        <Warehouse className="size-4" />
+                                                    </div>
+                                                    <span className="text-sm font-bold text-foreground">
+                                                        {warehouse.label}
+                                                    </span>
+                                                </div>
+                                                <ChevronRight className="size-4 text-muted-foreground transition-transform group-hover:translate-x-0.5 group-hover:text-indigo-500" />
+                                            </div>
+
+                                            <div className="mt-3 space-y-3">
+                                                <div className="rounded-2xl border border-indigo-500/20 bg-indigo-500/[0.06] p-3">
+                                                    <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
+                                                        Total Gudang
+                                                    </div>
+                                                    <div className="grid gap-1.5 text-xs text-muted-foreground">
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <span>Total stok</span>
+                                                            <span className="font-black text-foreground tabular-nums">
+                                                                <MetricValue loading={summary?.loading}>
+                                                                    {formatNumber(summary?.total?.stock)}
+                                                                </MetricValue>
+                                                            </span>
                                                         </div>
-                                                        <div className="grid gap-2 text-xs text-muted-foreground">
-                                                            <div className="flex items-center justify-between gap-3">
-                                                                <span>
-                                                                    Jumlah stok
-                                                                </span>
-                                                                <span className="font-semibold text-foreground tabular-nums">
-                                                                    {formatNumber(
-                                                                        category.stock,
-                                                                    )}
-                                                                </span>
-                                                            </div>
-                                                            <div className="flex items-center justify-between gap-3">
-                                                                <span>
-                                                                    Jumlah item
-                                                                </span>
-                                                                <span className="font-semibold text-foreground tabular-nums">
-                                                                    {formatNumber(
-                                                                        category.items,
-                                                                    )}
-                                                                </span>
-                                                            </div>
-                                                            <div className="flex items-center justify-between gap-3">
-                                                                <span>
-                                                                    Total harga
-                                                                </span>
-                                                                <span className="font-semibold text-foreground tabular-nums">
-                                                                    Rp{' '}
-                                                                    {formatNumber(
-                                                                        category.total,
-                                                                    )}
-                                                                </span>
-                                                            </div>
+                                                        <div className="flex items-center justify-between gap-3">
+                                                            <span>Total item</span>
+                                                            <span className="font-black text-foreground tabular-nums">
+                                                                <MetricValue loading={summary?.loading}>
+                                                                    {formatNumber(summary?.total?.items)}
+                                                                </MetricValue>
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex items-center justify-between gap-3 border-t border-indigo-500/15 pt-1.5 mt-0.5">
+                                                            <span>Total harga</span>
+                                                            <span className="font-black text-indigo-600 dark:text-indigo-400 tabular-nums">
+                                                                <MetricValue loading={summary?.loading} className="h-5 w-20">
+                                                                    Rp {formatNumber(summary?.total?.total)}
+                                                                </MetricValue>
+                                                            </span>
                                                         </div>
                                                     </div>
-                                                ),
-                                            )
-                                        ) : (
-                                            <div className="rounded-md border border-dashed border-sidebar-border/70 p-3 text-sm text-muted-foreground">
-                                                Belum ada kategori stok di
-                                                gudang ini.
-                                            </div>
-                                        )}
-                                    </CardContent>
-                                </Card>
-                            );
-                        })}
-                    </div>
-                )}
+                                                </div>
 
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Daftar Material</CardTitle>
-                        <CardDescription>
-                            Tampilkan dan cari data material.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                            <div className="flex flex-wrap items-center gap-3">
-                                <label>
+                                                {summary?.loading ? (
+                                                    <div className="space-y-2.5">
+                                                        <Skeleton className="h-24 w-full rounded-2xl" />
+                                                        <Skeleton className="h-24 w-full rounded-2xl" />
+                                                    </div>
+                                                ) : summary?.categories?.length > 0 ? (
+                                                    summary.categories.map((category) => (
+                                                        <div
+                                                            key={`${warehouse.value}-${category.key}`}
+                                                            className="rounded-2xl border border-sidebar-border/60 bg-muted/20 p-3 transition-colors group-hover:bg-muted/35"
+                                                        >
+                                                            <div className="mb-1.5 text-xs font-bold text-foreground">
+                                                                {category.label}
+                                                            </div>
+                                                            <div className="grid gap-1 text-[11px] text-muted-foreground">
+                                                                <div className="flex items-center justify-between gap-3">
+                                                                    <span>Jumlah stok</span>
+                                                                    <span className="font-bold text-foreground tabular-nums">
+                                                                        {formatNumber(category.stock)}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex items-center justify-between gap-3">
+                                                                    <span>Jumlah item</span>
+                                                                    <span className="font-bold text-foreground tabular-nums">
+                                                                        {formatNumber(category.items)}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex items-center justify-between gap-3">
+                                                                    <span>Total harga</span>
+                                                                    <span className="font-bold text-foreground tabular-nums">
+                                                                        Rp {formatNumber(category.total)}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </div>
+                                                    ))
+                                                ) : (
+                                                    <div className="rounded-2xl border border-dashed border-sidebar-border/70 p-3 text-center text-xs text-muted-foreground">
+                                                        Belum ada kategori stok di gudang ini.
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </motion.div>
+                                    );
+                                })}
+                            </motion.div>
+                        )}
+                    </AnimatePresence>
+                </div>
+
+                {/* ── 3. Main Material Data Table Bento Panel ──────────────── */}
+                <motion.div
+                    initial={{ opacity: 0, y: 18 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.45, delay: 0.12, ease: [0.16, 1, 0.3, 1] }}
+                    className="relative z-10 overflow-hidden rounded-3xl border border-sidebar-border/70 bg-card/85 dark:bg-card/55 p-5 sm:p-6 backdrop-blur-2xl shadow-xl shadow-black/[0.03] dark:shadow-black/35 before:pointer-events-none before:absolute before:inset-x-0 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-emerald-500/35 before:to-transparent"
+                >
+                    {/* Top Table Ribbon Header */}
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between border-b border-sidebar-border/40 pb-5">
+                        <div className="flex items-center gap-3">
+                            <div className="flex size-10 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25 shadow-xs">
+                                <PackageSearch className="size-5" />
+                            </div>
+                            <div>
+                                <div className="flex items-center gap-2">
+                                    <h2 className="text-base sm:text-lg font-bold tracking-tight text-foreground">
+                                        Daftar Master Material
+                                    </h2>
+                                </div>
+                                <p className="text-xs text-muted-foreground mt-0.5">
+                                    Cari, filter berdasarkan kondisi stok, urutkan kode, dan kelola rincian material per gudang.
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Animated Stock Filter Pill Switcher (Motion layoutId) */}
+                        <div className="flex flex-wrap items-center gap-1 rounded-2xl bg-muted/40 p-1 border border-sidebar-border/60 self-start lg:self-auto">
+                            {stockFilterPills.map((opt) => {
+                                const active = stockFilter === opt.value;
+                                return (
+                                    <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => {
+                                            setStockFilter(opt.value);
+                                            setCurrentPage(1);
+                                        }}
+                                        className={cn(
+                                            'relative rounded-xl px-3 py-1.5 text-xs font-bold transition-colors cursor-pointer',
+                                            active
+                                                ? 'text-foreground'
+                                                : 'text-muted-foreground hover:text-foreground',
+                                        )}
+                                    >
+                                        {active && (
+                                            <motion.div
+                                                layoutId="material-stock-filter-pill"
+                                                className="absolute inset-0 rounded-xl bg-background shadow-xs border border-sidebar-border/60"
+                                                transition={{
+                                                    type: 'spring',
+                                                    stiffness: 450,
+                                                    damping: 30,
+                                                }}
+                                            />
+                                        )}
+                                        <span className="relative z-10">{opt.label}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                    </div>
+
+                    {/* Filter & Search Bar */}
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-sidebar-border/60 bg-muted/20 p-3 text-sm">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                                <SlidersHorizontal className="size-3.5 text-emerald-500 shrink-0" />
+                                <label className="flex items-center gap-1.5 text-xs font-semibold">
                                     Tampilkan
                                     <select
-                                        className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                        className="rounded-xl border border-sidebar-border/70 bg-background/80 px-2.5 py-1.5 text-xs font-bold text-foreground transition-colors hover:border-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 cursor-pointer"
                                         value={
-                                            pageSize === Infinity
-                                                ? 'all'
-                                                : pageSize
+                                            pageSize === Infinity ? 'all' : pageSize
                                         }
                                         onChange={(event) => {
                                             const value = event.target.value;
@@ -1871,32 +2415,14 @@ export default function MaterialIndex() {
                                         <option value="all">Semua</option>
                                     </select>
                                 </label>
-                                <label>
-                                    Filter stok
-                                    <select
-                                        className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                        value={stockFilter}
-                                        onChange={(event) => {
-                                            setStockFilter(event.target.value);
-                                            setCurrentPage(1);
-                                        }}
-                                    >
-                                        <option value="all">Semua data</option>
-                                        <option value="top">
-                                            Stok terbanyak
-                                        </option>
-                                        <option value="low">
-                                            Stok sedikit (&gt; 0)
-                                        </option>
-                                        <option value="empty">
-                                            Stok kosong
-                                        </option>
-                                    </select>
-                                </label>
-                                <label>
+                            </div>
+
+                            <div className="flex items-center gap-2 text-muted-foreground">
+                                <ArrowUpDown className="size-3.5 text-teal-500 shrink-0" />
+                                <label className="flex items-center gap-1.5 text-xs font-semibold">
                                     Urut kode
                                     <select
-                                        className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
+                                        className="rounded-xl border border-sidebar-border/70 bg-background/80 px-2.5 py-1.5 text-xs font-bold text-foreground transition-colors hover:border-emerald-500/40 focus:outline-none focus:ring-2 focus:ring-emerald-500/25 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
                                         value={codeOrder}
                                         onChange={(event) => {
                                             setCodeOrder(event.target.value);
@@ -1913,228 +2439,223 @@ export default function MaterialIndex() {
                                     </select>
                                 </label>
                             </div>
-                            <label>
-                                Cari Material
-                                <input
-                                    type="search"
-                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
-                                    placeholder="Cari nama material..."
-                                    value={searchTerm}
-                                    onChange={(event) => {
-                                        setSearchTerm(event.target.value);
+                        </div>
+
+                        <div className="relative flex items-center w-full sm:w-auto">
+                            <Search className="pointer-events-none absolute left-3 size-3.5 text-muted-foreground" />
+                            <input
+                                type="search"
+                                className="w-full sm:w-72 md:w-80 rounded-xl border border-sidebar-border/70 bg-background/80 py-1.5 pl-9 pr-8 text-xs font-medium text-foreground placeholder:text-muted-foreground transition-all hover:border-emerald-500/40 focus:border-emerald-500/50 focus:outline-none focus:ring-2 focus:ring-emerald-500/25"
+                                placeholder="Cari nama atau kode material..."
+                                value={searchTerm}
+                                onChange={(event) => {
+                                    setSearchTerm(event.target.value);
+                                    setCurrentPage(1);
+                                }}
+                            />
+                            {searchTerm && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setSearchTerm('');
                                         setCurrentPage(1);
                                     }}
-                                />
-                            </label>
+                                    aria-label="Hapus pencarian"
+                                    className="absolute right-2.5 text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+                                >
+                                    <X className="size-3.5" />
+                                </button>
+                            )}
                         </div>
+                    </div>
 
-                        <div className="overflow-hidden rounded-xl border border-sidebar-border/70">
-                            <div className="max-h-[65vh] overflow-auto overscroll-contain">
-                                <table className="w-full table-auto text-sm">
-                                    <thead className="sticky top-0 z-10 bg-background/95 text-muted-foreground backdrop-blur supports-[backdrop-filter]:bg-background/80">
+                    {/* Data Table */}
+                    <div className="mt-4 overflow-hidden rounded-2xl border border-sidebar-border/70 bg-background/40">
+                        <div className="max-h-[65vh] overflow-auto overscroll-contain">
+                            <table className="w-full table-auto text-sm">
+                                <thead className="sticky top-0 z-10 bg-muted/85 text-muted-foreground backdrop-blur-md">
+                                    <tr className="border-b border-slate-300/80 dark:border-slate-700/80">
+                                        <th className="w-1 px-3 py-3 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap">
+                                            No
+                                        </th>
+                                        <th className="w-1 px-3 py-3 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap">
+                                            Kode Material
+                                        </th>
+                                        <th className="w-full px-3 py-3 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap">
+                                            Nama Material
+                                        </th>
+                                        <th className="w-1 px-3 py-3 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap">
+                                            Satuan
+                                        </th>
+                                        <th className="w-1 px-3 py-3 text-right text-xs font-bold uppercase tracking-wider whitespace-nowrap">
+                                            Total Stok
+                                        </th>
+                                        <th className="w-1 px-3 py-3 text-center text-xs font-bold uppercase tracking-wider whitespace-nowrap">
+                                            Aksi
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {tableLoading ? (
                                         <tr>
-                                            <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
-                                                No
-                                            </th>
-                                            <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
-                                                Kode Material
-                                            </th>
-                                            <th className="w-full px-2 py-2 text-left whitespace-nowrap">
-                                                Nama Material
-                                            </th>
-                                            <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
-                                                Satuan
-                                            </th>
-                                            <th className="w-1 px-2 py-2 text-right whitespace-nowrap">
-                                                Total Stok
-                                            </th>
-                                            <th className="w-1 px-2 py-2 text-center whitespace-nowrap">
-                                                Aksi
-                                            </th>
+                                            <td className="px-4 py-6" colSpan={6}>
+                                                <div className="flex flex-col gap-3">
+                                                    <Skeleton className="h-9 w-full rounded-xl opacity-75" />
+                                                    <Skeleton className="h-9 w-full rounded-xl opacity-60" />
+                                                    <Skeleton className="h-9 w-full rounded-xl opacity-45" />
+                                                    <Skeleton className="h-9 w-4/5 rounded-xl opacity-30" />
+                                                </div>
+                                            </td>
                                         </tr>
-                                    </thead>
-                                    <tbody>
-                                        {tableLoading ? (
-                                            <tr>
-                                                <td
-                                                    className="px-4 py-4"
-                                                    colSpan={6}
+                                    ) : displayedMaterials.length === 0 ? (
+                                        <tr>
+                                            <td
+                                                className="px-4 py-14 text-center"
+                                                colSpan={6}
+                                            >
+                                                <motion.div
+                                                    initial={{ opacity: 0, scale: 0.95 }}
+                                                    animate={{ opacity: 1, scale: 1 }}
+                                                    className="flex flex-col items-center gap-3"
                                                 >
-                                                    <div className="flex flex-col gap-3">
-                                                        <Skeleton className="h-6 w-full opacity-60" />
-                                                        <Skeleton className="h-6 w-full opacity-60" />
-                                                        <Skeleton className="h-6 w-full opacity-60" />
+                                                    <div className="flex size-14 items-center justify-center rounded-2xl bg-muted/60 border border-sidebar-border/60">
+                                                        <PackageSearch className="size-7 text-muted-foreground/60" />
                                                     </div>
-                                                </td>
-                                            </tr>
-                                        ) : displayedMaterials.length === 0 ? (
-                                            <tr>
-                                                <td
-                                                    className="px-4 py-6 text-center text-muted-foreground"
-                                                    colSpan={6}
-                                                >
                                                     <div>
-                                                        Data material belum
-                                                        tersedia.
+                                                        <p className="text-sm font-bold text-foreground">
+                                                            Data material belum tersedia
+                                                        </p>
+                                                        <p className="text-xs text-muted-foreground mt-0.5">
+                                                            Coba ubah kata kunci pencarian atau tambahkan material baru.
+                                                        </p>
                                                     </div>
-                                                    <div className="mt-3">
-                                                        <MenuAction
-                                                            action="create"
-                                                            type="button"
-                                                            size="sm"
-                                                            onClick={() =>
-                                                                setIsModalOpen(
-                                                                    true,
-                                                                )
-                                                            }
-                                                        >
-                                                            Tambah Material
-                                                        </MenuAction>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            displayedMaterials.map(
-                                                (item, index) => (
-                                                    <tr
-                                                        key={`${item.kd_material}-${index}`}
-                                                        className="border-t border-sidebar-border/70"
+                                                    <MenuAction
+                                                        action="create"
+                                                        type="button"
+                                                        size="sm"
+                                                        onClick={() => setIsModalOpen(true)}
+                                                        className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white border-0 shadow-md shadow-emerald-500/20"
                                                     >
-                                                        <td className="w-1 px-2 py-2 whitespace-nowrap">
-                                                            {(pageSize ===
-                                                            Infinity
-                                                                ? index
-                                                                : (currentPage -
-                                                                      1) *
-                                                                      pageSize +
-                                                                  index) + 1}
-                                                        </td>
-                                                        <td className="w-1 px-2 py-2 font-medium whitespace-nowrap">
-                                                            {renderValue(
-                                                                item.kd_material,
+                                                        <Plus className="mr-1.5 size-3.5" />
+                                                        Tambah Material
+                                                    </MenuAction>
+                                                </motion.div>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        displayedMaterials.map((item, index) => {
+                                            const stockQty = toNumber(item.stok);
+                                            const rowNum =
+                                                (pageSize === Infinity
+                                                    ? index
+                                                    : (currentPage - 1) * pageSize + index) +
+                                                1;
+                                            return (
+                                                <motion.tr
+                                                    key={`${item.kd_material}-${index}`}
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    transition={{
+                                                        duration: 0.2,
+                                                        delay: Math.min(index * 0.018, 0.22),
+                                                    }}
+                                                    className="group border-b border-slate-300/70 dark:border-slate-700/70 transition-colors duration-150 hover:bg-emerald-500/[0.06]"
+                                                >
+                                                    <td className="w-1 px-3 py-2.5 text-xs font-semibold text-muted-foreground whitespace-nowrap tabular-nums">
+                                                        {rowNum}
+                                                    </td>
+                                                    <td className="w-1 px-3 py-2.5 whitespace-nowrap">
+                                                        <span className="inline-flex items-center rounded-lg border border-emerald-500/20 bg-emerald-500/10 px-2 py-0.5 font-sans tabular-nums tracking-wide text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                                                            {renderValue(item.kd_material)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="w-full min-w-0 px-3 py-2.5 font-semibold text-foreground">
+                                                        <div
+                                                            className="truncate"
+                                                            title={item.material}
+                                                        >
+                                                            {renderValue(item.material)}
+                                                        </div>
+                                                    </td>
+                                                    <td className="w-1 px-3 py-2.5 whitespace-nowrap">
+                                                        <span className="inline-flex items-center rounded-lg border border-sidebar-border/60 bg-muted/40 px-2 py-0.5 text-xs font-medium text-muted-foreground">
+                                                            {renderValue(item.unit)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="w-1 px-3 py-2.5 text-right whitespace-nowrap tabular-nums">
+                                                        <span
+                                                            className={cn(
+                                                                'inline-flex items-center rounded-lg px-2 py-0.5 text-xs font-black tabular-nums',
+                                                                stockQty === 0
+                                                                    ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
+                                                                    : 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20',
                                                             )}
-                                                        </td>
-                                                        <td className="w-full min-w-0 px-2 py-2">
-                                                            <div
-                                                                className="truncate"
-                                                                title={
-                                                                    item.material
+                                                        >
+                                                            {formatNumber(item.stok)}
+                                                        </span>
+                                                    </td>
+                                                    <td className="w-1 px-3 py-2.5 whitespace-nowrap">
+                                                        <div className="flex items-center justify-center gap-1.5">
+                                                            <ActionIconButton
+                                                                label="Lihat detail stok"
+                                                                onClick={() =>
+                                                                    setViewingMaterial(item)
                                                                 }
+                                                                className="h-7 w-7 p-0 rounded-lg text-sky-600 hover:bg-sky-500/15 hover:text-sky-700 dark:text-sky-400 dark:hover:text-sky-300 transition-colors"
                                                             >
-                                                                {renderValue(
-                                                                    item.material,
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                        <td className="w-1 px-2 py-2 whitespace-nowrap">
-                                                            {renderValue(
-                                                                item.unit,
-                                                            )}
-                                                        </td>
-                                                        <td className="w-1 px-2 py-2 text-right whitespace-nowrap tabular-nums">
-                                                            {formatNumber(
-                                                                item.stok,
-                                                            )}
-                                                        </td>
-                                                        <td className="w-1 px-2 py-2 whitespace-nowrap">
-                                                            <div className="flex items-center justify-center gap-2">
-                                                                <ActionIconButton
-                                                                    label="Lihat detail stok"
-                                                                    onClick={() =>
-                                                                        setViewingMaterial(
-                                                                            item,
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    <Eye className="h-4 w-4" />
-                                                                </ActionIconButton>
+                                                                <Eye className="size-3.5" />
+                                                            </ActionIconButton>
+                                                            <MenuAction
+                                                                action="update"
+                                                                as={ActionIconButton}
+                                                                label="Edit"
+                                                                onClick={() => handleEdit(item)}
+                                                                className="h-7 w-7 p-0 rounded-lg text-amber-600 hover:bg-amber-500/15 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 transition-colors"
+                                                            >
+                                                                <Pencil className="size-3.5" />
+                                                            </MenuAction>
+                                                            {toNumber(item.stok) === 0 && (
                                                                 <MenuAction
-                                                                    action="update"
+                                                                    action="delete"
                                                                     as={ActionIconButton}
-                                                                    label="Edit"
+                                                                    label="Hapus"
                                                                     onClick={() =>
-                                                                        handleEdit(
-                                                                            item,
-                                                                        )
+                                                                        handleDelete(item)
                                                                     }
+                                                                    className="h-7 w-7 p-0 rounded-lg text-rose-500 hover:bg-rose-500/15 hover:text-rose-600 dark:text-rose-400 transition-colors"
                                                                 >
-                                                                    <Pencil className="h-4 w-4" />
+                                                                    <Trash2 className="size-3.5" />
                                                                 </MenuAction>
-                                                                {toNumber(
-                                                                    item.stok,
-                                                                ) === 0 && (
-                                                                    <MenuAction
-                                                                        action="delete"
-                                                                        as={ActionIconButton}
-                                                                        label="Hapus"
-                                                                        onClick={() =>
-                                                                            handleDelete(
-                                                                                item,
-                                                                            )
-                                                                        }
-                                                                    >
-                                                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                                                    </MenuAction>
-                                                                )}
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ),
-                                            )
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        {pageSize !== Infinity && totalItems > 0 && (
-                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                <span>
-                                    Menampilkan{' '}
-                                    {Math.min(
-                                        (currentPage - 1) * pageSize + 1,
-                                        totalItems,
+                                                            )}
+                                                        </div>
+                                                    </td>
+                                                </motion.tr>
+                                            );
+                                        })
                                     )}
-                                    -
-                                    {Math.min(
-                                        currentPage * pageSize,
-                                        totalItems,
-                                    )}{' '}
-                                    dari {totalItems} data
-                                </span>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setCurrentPage((page) =>
-                                                Math.max(1, page - 1),
-                                            )
-                                        }
-                                        disabled={currentPage === 1}
-                                    >
-                                        Sebelumnya
-                                    </Button>
-                                    <span>
-                                        Halaman {currentPage} dari {totalPages}
-                                    </span>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setCurrentPage((page) =>
-                                                Math.min(totalPages, page + 1),
-                                            )
-                                        }
-                                        disabled={currentPage === totalPages}
-                                    >
-                                        Berikutnya
-                                    </Button>
-                                </div>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* Pagination Footer */}
+                    {pageSize !== Infinity && totalItems > 0 && (
+                        <div className="mt-4">
+                            <ModalPagination
+                                currentPage={currentPage}
+                                totalPages={totalPages}
+                                onPrev={() =>
+                                    setCurrentPage((page) => Math.max(1, page - 1))
+                                }
+                                onNext={() =>
+                                    setCurrentPage((page) =>
+                                        Math.min(totalPages, page + 1),
+                                    )
+                                }
+                            />
+                        </div>
+                    )}
+                </motion.div>
             </div>
 
             <Dialog
@@ -2148,226 +2669,189 @@ export default function MaterialIndex() {
                     }
                 }}
             >
-                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col overflow-y-auto !rounded-none">
-                    <DialogHeader>
-                        <DialogTitle>
-                            Data {inventoryModalType?.toUpperCase()}
-                        </DialogTitle>
-                        <DialogDescription>
-                            Data material read-only tanpa kolom aksi.
-                        </DialogDescription>
+                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col overflow-y-auto !rounded-none bg-background/95 backdrop-blur-2xl p-5 sm:p-6 gap-5">
+                    <DialogHeader className="border-b border-sidebar-border/50 pb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="flex size-10 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/25">
+                                <Layers className="size-5" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-lg font-black tracking-tight">
+                                    Data {inventoryModalType?.toUpperCase()}
+                                </DialogTitle>
+                                <DialogDescription className="text-xs">
+                                    Data material read-only tanpa kolom aksi.
+                                </DialogDescription>
+                            </div>
+                        </div>
                     </DialogHeader>
-                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                        <label>
-                            Tampilkan
-                            <select
-                                className="ml-2 rounded-md border bg-background px-2 py-1"
-                                value={
-                                    inventoryRowsPageSize === Infinity
-                                        ? 'all'
-                                        : inventoryRowsPageSize
-                                }
-                                onChange={(event) =>
-                                    setInventoryRowsPageSize(
-                                        event.target.value === 'all'
-                                            ? Infinity
-                                            : Number(event.target.value),
-                                    )
-                                }
-                            >
-                                <option value={5}>5</option>
-                                <option value={10}>10</option>
-                                <option value={25}>25</option>
-                                <option value={50}>50</option>
-                                <option value="all">Semua</option>
-                            </select>
-                        </label>
-                        <label>
-                            Cari
-                            <input
-                                type="search"
-                                className="ml-2 w-64 rounded-md border bg-background px-3 py-1 md:w-80"
-                                placeholder="Cari nomor dokumen, ref PO, atau material..."
-                                value={inventoryRowsSearch}
-                                onChange={(event) =>
-                                    setInventoryRowsSearch(event.target.value)
-                                }
-                            />
-                        </label>
-                    </div>
-                    <div className="overflow-x-auto rounded-xl border">
-                        <table className="w-full text-sm">
-                            <thead className="bg-muted/50 text-muted-foreground">
-                                <tr>
-                                    {(inventoryModalType === 'mibs'
-                                        ? [
-                                              'No MIB',
-                                              'Material',
-                                              'Qty',
-                                              'Price',
-                                              'Total Price',
-                                              'MIBS',
-                                          ]
-                                        : [
-                                              'No MI',
-                                              'Date',
-                                              'Ref PO',
-                                              'Material',
-                                              'Qty',
-                                              'Price',
-                                              'Total Price',
-                                              inventoryModalType?.toUpperCase(),
-                                          ]
-                                    ).map((heading) => (
-                                        <th
-                                            key={heading}
-                                            className={
-                                                [
-                                                    'Qty',
-                                                    'Price',
-                                                    'Total Price',
-                                                    'MIS',
-                                                    'MIB',
-                                                    'MIBS',
-                                                ].includes(heading)
-                                                    ? 'px-4 py-3 text-right'
-                                                    : 'px-4 py-3 text-left'
-                                            }
-                                        >
-                                            {heading}
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <PlainTableStateRows
-                                    loading={inventoryRowsLoading}
-                                    columns={
-                                        inventoryModalType === 'mibs' ? 6 : 8
-                                    }
-                                    rows={5}
-                                    isEmpty={
-                                        !inventoryRowsLoading &&
-                                        inventoryRows.length === 0
-                                    }
-                                    emptyMessage={
-                                        inventoryRowsError || 'Tidak ada data.'
-                                    }
-                                />
-                                {!inventoryRowsLoading &&
-                                    inventoryRows.map((row, index) =>
-                                        inventoryModalType === 'mibs' ? (
-                                            <tr
-                                                key={`${row.no_doc}-${index}`}
-                                                className="border-t"
+
+                    <ModalToolbar
+                        pageSize={inventoryRowsPageSize}
+                        onPageSizeChange={(val) => setInventoryRowsPageSize(val)}
+                        searchValue={inventoryRowsSearch}
+                        onSearchChange={(val) => setInventoryRowsSearch(val)}
+                        searchPlaceholder="Cari nomor dokumen, ref PO, atau material..."
+                    />
+
+                    <div className="overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card/60">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-muted/80 text-muted-foreground">
+                                    <tr className="border-b border-slate-300/80 dark:border-slate-700/80">
+                                        {(inventoryModalType === 'mibs'
+                                            ? [
+                                                'No MIB',
+                                                'Material',
+                                                'Qty',
+                                                'Price',
+                                                'Total Price',
+                                                'MIBS',
+                                            ]
+                                            : [
+                                                'No MI',
+                                                'Date',
+                                                'Ref PO',
+                                                'Material',
+                                                'Qty',
+                                                'Price',
+                                                'Total Price',
+                                                inventoryModalType?.toUpperCase(),
+                                            ]
+                                        ).map((heading) => (
+                                            <th
+                                                key={heading}
+                                                className={
+                                                    [
+                                                        'Qty',
+                                                        'Price',
+                                                        'Total Price',
+                                                        'MIS',
+                                                        'MIB',
+                                                        'MIBS',
+                                                    ].includes(heading)
+                                                        ? 'px-4 py-3 text-right text-xs font-bold uppercase tracking-wider'
+                                                        : 'px-4 py-3 text-left text-xs font-bold uppercase tracking-wider'
+                                                }
                                             >
-                                                <td className="px-4 py-3 font-medium">
-                                                    {renderValue(row.no_doc)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(row.material)}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {formatNumber(row.qty)}{' '}
-                                                    {row.unit}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {formatNumber(row.price)}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {formatNumber(
-                                                        row.total_price,
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {formatNumber(
-                                                        row.balance_qty,
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            <tr
-                                                key={`${row.no_doc}-${index}`}
-                                                className="border-t"
-                                            >
-                                                <td className="px-4 py-3 font-medium">
-                                                    {renderValue(row.no_doc)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(row.doc_tgl)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(row.ref_po)}
-                                                </td>
-                                                <td className="px-4 py-3">
-                                                    {renderValue(row.material)}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {formatNumber(row.qty)}{' '}
-                                                    {row.unit}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {formatNumber(row.price)}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {formatNumber(
-                                                        row.total_price,
-                                                    )}
-                                                </td>
-                                                <td className="px-4 py-3 text-right">
-                                                    {formatNumber(
-                                                        row.balance_qty,
-                                                    )}
-                                                </td>
-                                            </tr>
-                                        ),
-                                    )}
-                            </tbody>
-                        </table>
+                                                {heading}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <PlainTableStateRows
+                                        loading={inventoryRowsLoading}
+                                        columns={
+                                            inventoryModalType === 'mibs' ? 6 : 8
+                                        }
+                                        rows={5}
+                                        isEmpty={
+                                            !inventoryRowsLoading &&
+                                            inventoryRows.length === 0
+                                        }
+                                        emptyMessage={
+                                            inventoryRowsError || 'Tidak ada data.'
+                                        }
+                                    />
+                                    {!inventoryRowsLoading &&
+                                        inventoryRows.map((row, index) =>
+                                            inventoryModalType === 'mibs' ? (
+                                                <motion.tr
+                                                    key={`${row.no_doc}-${index}`}
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    transition={{ duration: 0.16, delay: Math.min(index * 0.015, 0.2) }}
+                                                    className="border-b border-slate-300/70 dark:border-slate-700/70 transition-colors hover:bg-sky-500/[0.05]"
+                                                >
+                                                    <td className="px-4 py-3 font-sans tabular-nums tracking-wide text-xs font-bold text-sky-600 dark:text-sky-400">
+                                                        {renderValue(row.no_doc)}
+                                                    </td>
+                                                    <td className="px-4 py-3 font-medium">
+                                                        {renderValue(row.material)}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right tabular-nums">
+                                                        {formatNumber(row.qty)}{' '}
+                                                        {row.unit}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right tabular-nums">
+                                                        {formatNumber(row.price)}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right font-semibold tabular-nums">
+                                                        {formatNumber(
+                                                            row.total_price,
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right font-bold tabular-nums">
+                                                        {formatNumber(
+                                                            row.balance_qty,
+                                                        )}
+                                                    </td>
+                                                </motion.tr>
+                                            ) : (
+                                                <motion.tr
+                                                    key={`${row.no_doc}-${index}`}
+                                                    initial={{ opacity: 0 }}
+                                                    animate={{ opacity: 1 }}
+                                                    transition={{ duration: 0.16, delay: Math.min(index * 0.015, 0.2) }}
+                                                    className="border-b border-slate-300/70 dark:border-slate-700/70 transition-colors hover:bg-sky-500/[0.05]"
+                                                >
+                                                    <td className="px-4 py-3 font-sans tabular-nums tracking-wide text-xs font-bold text-sky-600 dark:text-sky-400">
+                                                        {renderValue(row.no_doc)}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-muted-foreground">
+                                                        {renderValue(row.doc_tgl)}
+                                                    </td>
+                                                    <td className="px-4 py-3">
+                                                        {renderValue(row.ref_po)}
+                                                    </td>
+                                                    <td className="px-4 py-3 font-medium">
+                                                        {renderValue(row.material)}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right tabular-nums">
+                                                        {formatNumber(row.qty)}{' '}
+                                                        {row.unit}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right tabular-nums">
+                                                        {formatNumber(row.price)}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right font-semibold tabular-nums">
+                                                        {formatNumber(
+                                                            row.total_price,
+                                                        )}
+                                                    </td>
+                                                    <td className="px-4 py-3 text-right font-bold tabular-nums">
+                                                        {formatNumber(
+                                                            row.balance_qty,
+                                                        )}
+                                                    </td>
+                                                </motion.tr>
+                                            ),
+                                        )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
+
                     {inventoryRowsPageSize !== Infinity &&
                         inventoryRowsTotal > 0 && (
-                            <div className="flex items-center justify-between text-sm text-muted-foreground">
-                                <span>
-                                    Halaman {inventoryRowsCurrentPage} dari{' '}
-                                    {inventoryRowsTotalPages}
-                                </span>
-                                <div className="flex gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={
-                                            inventoryRowsCurrentPage === 1
-                                        }
-                                        onClick={() =>
-                                            setInventoryRowsCurrentPage(
-                                                (page) => Math.max(1, page - 1),
-                                            )
-                                        }
-                                    >
-                                        Sebelumnya
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={
-                                            inventoryRowsCurrentPage ===
-                                            inventoryRowsTotalPages
-                                        }
-                                        onClick={() =>
-                                            setInventoryRowsCurrentPage(
-                                                (page) =>
-                                                    Math.min(
-                                                        inventoryRowsTotalPages,
-                                                        page + 1,
-                                                    ),
-                                            )
-                                        }
-                                    >
-                                        Berikutnya
-                                    </Button>
-                                </div>
-                            </div>
+                            <ModalPagination
+                                currentPage={inventoryRowsCurrentPage}
+                                totalPages={inventoryRowsTotalPages}
+                                onPrev={() =>
+                                    setInventoryRowsCurrentPage((page) =>
+                                        Math.max(1, page - 1),
+                                    )
+                                }
+                                onNext={() =>
+                                    setInventoryRowsCurrentPage((page) =>
+                                        Math.min(
+                                            inventoryRowsTotalPages,
+                                            page + 1,
+                                        ),
+                                    )
+                                }
+                            />
                         )}
                 </DialogContent>
             </Dialog>
@@ -2376,16 +2860,27 @@ export default function MaterialIndex() {
                 open={isExportModalOpen}
                 onOpenChange={setIsExportModalOpen}
             >
-                <DialogContent className="sm:max-w-lg">
-                    <DialogHeader>
-                        <DialogTitle>Pilih Filter Export</DialogTitle>
-                        <DialogDescription>
-                            Tentukan data material yang akan diekspor.
-                        </DialogDescription>
+                <DialogContent className="sm:max-w-lg rounded-3xl border border-sidebar-border/70 bg-card/95 backdrop-blur-2xl shadow-2xl">
+                    <DialogHeader className="border-b border-sidebar-border/40 pb-3">
+                        <div className="flex items-center gap-3">
+                            <div className="flex size-10 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/25">
+                                <Download className="size-5" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-base font-black">
+                                    Pilih Filter Export
+                                </DialogTitle>
+                                <DialogDescription className="text-xs">
+                                    Tentukan data material yang akan diekspor.
+                                </DialogDescription>
+                            </div>
+                        </div>
                     </DialogHeader>
-                    <div className="space-y-4">
+                    <div className="space-y-4 pt-1">
                         <div className="space-y-2">
-                            <Label htmlFor="export-warehouse">Gudang</Label>
+                            <Label htmlFor="export-warehouse" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                Gudang
+                            </Label>
                             <Select
                                 value={exportFilters.warehouse}
                                 onValueChange={(value) =>
@@ -2395,7 +2890,7 @@ export default function MaterialIndex() {
                                     }))
                                 }
                             >
-                                <SelectTrigger id="export-warehouse">
+                                <SelectTrigger id="export-warehouse" className="rounded-xl">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -2410,7 +2905,9 @@ export default function MaterialIndex() {
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="export-category">Kategori</Label>
+                            <Label htmlFor="export-category" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                Kategori
+                            </Label>
                             <Select
                                 value={exportFilters.category}
                                 onValueChange={(value) =>
@@ -2420,7 +2917,7 @@ export default function MaterialIndex() {
                                     }))
                                 }
                             >
-                                <SelectTrigger id="export-category">
+                                <SelectTrigger id="export-category" className="rounded-xl">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -2440,7 +2937,9 @@ export default function MaterialIndex() {
                             </Select>
                         </div>
                         <div className="space-y-2">
-                            <Label htmlFor="export-stock">Stok</Label>
+                            <Label htmlFor="export-stock" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                Stok
+                            </Label>
                             <Select
                                 value={exportFilters.stock}
                                 onValueChange={(value) =>
@@ -2450,7 +2949,7 @@ export default function MaterialIndex() {
                                     }))
                                 }
                             >
-                                <SelectTrigger id="export-stock">
+                                <SelectTrigger id="export-stock" className="rounded-xl">
                                     <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
@@ -2469,15 +2968,21 @@ export default function MaterialIndex() {
                                 </SelectContent>
                             </Select>
                         </div>
-                        <div className="flex justify-end gap-2 pt-2">
+                        <div className="flex justify-end gap-2 pt-3 border-t border-sidebar-border/40">
                             <Button
                                 type="button"
                                 variant="outline"
+                                className="rounded-xl"
                                 onClick={() => setIsExportModalOpen(false)}
                             >
                                 Batal
                             </Button>
-                            <Button type="button" onClick={handleExport}>
+                            <Button
+                                type="button"
+                                onClick={handleExport}
+                                className="rounded-xl bg-gradient-to-r from-sky-500 to-cyan-600 text-white shadow-md shadow-sky-500/20 hover:brightness-110"
+                            >
+                                <Download className="mr-1.5 size-4" />
                                 Export
                             </Button>
                         </div>
@@ -2497,15 +3002,24 @@ export default function MaterialIndex() {
                     }
                 }}
             >
-                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col overflow-y-auto !rounded-none">
-                    <DialogHeader>
-                        <DialogTitle>Detail Delivery Order Cost</DialogTitle>
-                        <DialogDescription className="sr-only">
-                            Detail Delivery Order Cost terpilih.
-                        </DialogDescription>
+                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col overflow-y-auto !rounded-none bg-background/95 backdrop-blur-2xl p-5 sm:p-6 gap-5">
+                    <DialogHeader className="border-b border-sidebar-border/50 pb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="flex size-10 items-center justify-center rounded-2xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/25">
+                                <FileSpreadsheet className="size-5" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-lg font-black tracking-tight">
+                                    Detail Delivery Order Cost
+                                </DialogTitle>
+                                <DialogDescription className="sr-only">
+                                    Detail Delivery Order Cost terpilih.
+                                </DialogDescription>
+                            </div>
+                        </div>
                     </DialogHeader>
                     <div className="space-y-4">
-                        <div className="grid gap-3 rounded-lg border p-4 text-sm md:grid-cols-3">
+                        <div className="grid gap-3 rounded-2xl border border-sidebar-border/70 bg-muted/25 p-4 text-sm md:grid-cols-3">
                             {[
                                 [
                                     'Nomor DO Biaya',
@@ -2520,187 +3034,136 @@ export default function MaterialIndex() {
                                 ['Departemen', doCostDetailHeader?.kd_cs],
                                 ['Nama', doCostDetailHeader?.nm_cs],
                             ].map(([label, value]) => (
-                                <div key={label}>
-                                    <div className="text-muted-foreground">
+                                <div key={label} className="rounded-xl bg-background/60 p-3 border border-sidebar-border/40">
+                                    <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                                         {label}
                                     </div>
-                                    <div className="font-semibold">
+                                    <div className="mt-0.5 font-bold text-foreground">
                                         {renderValue(value)}
                                     </div>
                                 </div>
                             ))}
                         </div>
-                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                            <label>
-                                Tampilkan
-                                <select
-                                    className="ml-2 rounded-md border bg-background px-2 py-1"
-                                    value={
-                                        doCostDetailPageSize === Infinity
-                                            ? 'all'
-                                            : doCostDetailPageSize
-                                    }
-                                    onChange={(event) =>
-                                        setDoCostDetailPageSize(
-                                            event.target.value === 'all'
-                                                ? Infinity
-                                                : Number(event.target.value),
+
+                        <ModalToolbar
+                            pageSize={doCostDetailPageSize}
+                            onPageSizeChange={(val) => setDoCostDetailPageSize(val)}
+                            searchValue={doCostDetailSearch}
+                            onSearchChange={(val) => setDoCostDetailSearch(val)}
+                            searchPlaceholder="Cari material..."
+                        />
+
+                        <div className="overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card/60">
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead className="bg-muted/80 text-muted-foreground">
+                                        <tr className="border-b border-slate-300/80 dark:border-slate-700/80">
+                                            {[
+                                                'No',
+                                                'Material',
+                                                'Qty',
+                                                'Satuan',
+                                                'Harga',
+                                                'Total',
+                                                'Remark',
+                                            ].map((heading) => (
+                                                <th
+                                                    key={heading}
+                                                    className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider"
+                                                >
+                                                    {heading}
+                                                </th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <PlainTableStateRows
+                                            loading={doCostDetailLoading}
+                                            columns={7}
+                                            rows={5}
+                                            isEmpty={
+                                                !doCostDetailLoading &&
+                                                displayedDoCostDetails.length === 0
+                                            }
+                                            emptyMessage={
+                                                doCostDetailError ||
+                                                'Tidak ada data.'
+                                            }
+                                        />
+                                        {!doCostDetailLoading &&
+                                            displayedDoCostDetails.map(
+                                                (item, index) => (
+                                                    <tr
+                                                        key={`${item.no_alokasi}-${index}`}
+                                                        className="border-b border-slate-300/70 dark:border-slate-700/70 transition-colors hover:bg-indigo-500/[0.05]"
+                                                    >
+                                                        <td className="px-4 py-3 text-muted-foreground tabular-nums">
+                                                            {doCostDetailPageSize ===
+                                                                Infinity
+                                                                ? index + 1
+                                                                : (doCostDetailCurrentPage -
+                                                                    1) *
+                                                                doCostDetailPageSize +
+                                                                index +
+                                                                1}
+                                                        </td>
+                                                        <td className="px-4 py-3 font-medium">
+                                                            {renderValue(item.mat)}
+                                                        </td>
+                                                        <td className="px-4 py-3 tabular-nums">
+                                                            {formatNumber(item.qty)}
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            {renderValue(item.unit)}
+                                                        </td>
+                                                        <td className="px-4 py-3 tabular-nums">
+                                                            {formatNumber(
+                                                                item.harga,
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3 font-semibold tabular-nums">
+                                                            {formatNumber(
+                                                                item.total,
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-muted-foreground">
+                                                            {renderValue(
+                                                                item.remark,
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ),
+                                            )}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        {doCostDetailPageSize !== Infinity &&
+                            filteredDoCostDetails.length > 0 && (
+                                <ModalPagination
+                                    currentPage={doCostDetailCurrentPage}
+                                    totalPages={doCostDetailTotalPages}
+                                    nextLabel="Selanjutnya"
+                                    onPrev={() =>
+                                        setDoCostDetailCurrentPage((page) =>
+                                            Math.max(1, page - 1),
                                         )
                                     }
-                                >
-                                    <option value={5}>5</option>
-                                    <option value={10}>10</option>
-                                    <option value={25}>25</option>
-                                    <option value={50}>50</option>
-                                    <option value="all">Semua</option>
-                                </select>
-                            </label>
-                            <label>
-                                Cari
-                                <input
-                                    type="search"
-                                    className="ml-2 w-64 rounded-md border bg-background px-3 py-1 md:w-80"
-                                    placeholder="Cari material..."
-                                    value={doCostDetailSearch}
-                                    onChange={(event) =>
-                                        setDoCostDetailSearch(
-                                            event.target.value,
+                                    onNext={() =>
+                                        setDoCostDetailCurrentPage((page) =>
+                                            Math.min(
+                                                doCostDetailTotalPages,
+                                                page + 1,
+                                            ),
                                         )
                                     }
                                 />
-                            </label>
-                        </div>
-                        <div className="overflow-x-auto rounded-lg border">
-                            <table className="w-full text-sm">
-                                <thead className="bg-muted/50 text-muted-foreground">
-                                    <tr>
-                                        {[
-                                            'No',
-                                            'Material',
-                                            'Qty',
-                                            'Satuan',
-                                            'Harga',
-                                            'Total',
-                                            'Remark',
-                                        ].map((heading) => (
-                                            <th
-                                                key={heading}
-                                                className="px-4 py-3 text-left"
-                                            >
-                                                {heading}
-                                            </th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    <PlainTableStateRows
-                                        loading={doCostDetailLoading}
-                                        columns={7}
-                                        rows={5}
-                                        isEmpty={
-                                            !doCostDetailLoading &&
-                                            displayedDoCostDetails.length === 0
-                                        }
-                                        emptyMessage={
-                                            doCostDetailError ||
-                                            'Tidak ada data.'
-                                        }
-                                    />
-                                    {!doCostDetailLoading &&
-                                        displayedDoCostDetails.map(
-                                            (item, index) => (
-                                                <tr
-                                                    key={`${item.no_alokasi}-${index}`}
-                                                    className="border-t"
-                                                >
-                                                    <td className="px-4 py-3">
-                                                        {doCostDetailPageSize ===
-                                                        Infinity
-                                                            ? index + 1
-                                                            : (doCostDetailCurrentPage -
-                                                                  1) *
-                                                                  doCostDetailPageSize +
-                                                              index +
-                                                              1}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {renderValue(item.mat)}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {formatNumber(item.qty)}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {renderValue(item.unit)}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {formatNumber(
-                                                            item.harga,
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {formatNumber(
-                                                            item.total,
-                                                        )}
-                                                    </td>
-                                                    <td className="px-4 py-3">
-                                                        {renderValue(
-                                                            item.remark,
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ),
-                                        )}
-                                </tbody>
-                            </table>
-                        </div>
-                        {doCostDetailPageSize !== Infinity &&
-                            filteredDoCostDetails.length > 0 && (
-                                <div className="flex items-center justify-between text-sm text-muted-foreground">
-                                    <span>
-                                        Halaman {doCostDetailCurrentPage} dari{' '}
-                                        {doCostDetailTotalPages}
-                                    </span>
-                                    <div className="flex gap-2">
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            disabled={
-                                                doCostDetailCurrentPage === 1
-                                            }
-                                            onClick={() =>
-                                                setDoCostDetailCurrentPage(
-                                                    (page) =>
-                                                        Math.max(1, page - 1),
-                                                )
-                                            }
-                                        >
-                                            Sebelumnya
-                                        </Button>
-                                        <Button
-                                            variant="outline"
-                                            size="sm"
-                                            disabled={
-                                                doCostDetailCurrentPage ===
-                                                doCostDetailTotalPages
-                                            }
-                                            onClick={() =>
-                                                setDoCostDetailCurrentPage(
-                                                    (page) =>
-                                                        Math.min(
-                                                            doCostDetailTotalPages,
-                                                            page + 1,
-                                                        ),
-                                                )
-                                            }
-                                        >
-                                            Selanjutnya
-                                        </Button>
-                                    </div>
-                                </div>
                             )}
-                        <div className="text-right text-sm font-semibold">
-                            Grand Total: Rp{' '}
-                            {formatNumber(doCostDetailGrandTotal)}
+                        <div className="flex justify-end">
+                            <div className="rounded-2xl border border-indigo-500/25 bg-indigo-500/10 px-4 py-2 text-sm font-black text-indigo-600 dark:text-indigo-400 tabular-nums">
+                                Grand Total: Rp {formatNumber(doCostDetailGrandTotal)}
+                            </div>
                         </div>
                     </div>
                 </DialogContent>
@@ -2713,170 +3176,128 @@ export default function MaterialIndex() {
                     if (open) loadDoCostOutstanding();
                 }}
             >
-                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col overflow-y-auto !rounded-none">
-                    <DialogHeader>
-                        <DialogTitle>DO Cost Belum Dibebankan</DialogTitle>
-                        <DialogDescription className="sr-only">
-                            Daftar DO Cost yang belum dibebankan.
-                        </DialogDescription>
+                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col overflow-y-auto !rounded-none bg-background/95 backdrop-blur-2xl p-5 sm:p-6 gap-5">
+                    <DialogHeader className="border-b border-sidebar-border/50 pb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="flex size-10 items-center justify-center rounded-2xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/25">
+                                <FileSpreadsheet className="size-5" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-lg font-black tracking-tight">
+                                    DO Cost Belum Dibebankan
+                                </DialogTitle>
+                                <DialogDescription className="sr-only">
+                                    Daftar DO Cost yang belum dibebankan.
+                                </DialogDescription>
+                            </div>
+                        </div>
                     </DialogHeader>
-                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                        <label>
-                            Tampilkan
-                            <select
-                                className="ml-2 rounded-md border bg-background px-2 py-1"
-                                value={
-                                    doCostOutstandingPageSize === Infinity
-                                        ? 'all'
-                                        : doCostOutstandingPageSize
-                                }
-                                onChange={(event) =>
-                                    setDoCostOutstandingPageSize(
-                                        event.target.value === 'all'
-                                            ? Infinity
-                                            : Number(event.target.value),
+
+                    <ModalToolbar
+                        pageSize={doCostOutstandingPageSize}
+                        onPageSizeChange={(val) => setDoCostOutstandingPageSize(val)}
+                        searchValue={doCostOutstandingSearch}
+                        onSearchChange={(val) => setDoCostOutstandingSearch(val)}
+                        searchPlaceholder="Cari no alokasi, permintaan..."
+                    />
+
+                    <div className="overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card/60">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-muted/80 text-muted-foreground">
+                                    <tr className="border-b border-slate-300/80 dark:border-slate-700/80">
+                                        {[
+                                            'No DOBi',
+                                            'Date',
+                                            'Permintaan',
+                                            'Departemen',
+                                            'Action',
+                                        ].map((heading) => (
+                                            <th
+                                                key={heading}
+                                                className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider"
+                                            >
+                                                {heading}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <PlainTableStateRows
+                                        loading={doCostOutstandingLoading}
+                                        columns={5}
+                                        rows={5}
+                                        isEmpty={
+                                            !doCostOutstandingLoading &&
+                                            displayedDoCostOutstanding.length === 0
+                                        }
+                                        emptyMessage={
+                                            doCostOutstandingError ||
+                                            'Tidak ada data.'
+                                        }
+                                    />
+                                    {!doCostOutstandingLoading &&
+                                        displayedDoCostOutstanding.map((item) => (
+                                            <tr
+                                                key={`cost-${item.no_alokasi}`}
+                                                className="border-b border-slate-300/70 dark:border-slate-700/70 transition-colors hover:bg-indigo-500/[0.05]"
+                                            >
+                                                <td className="px-4 py-3 font-sans tabular-nums tracking-wide text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                                                    {renderValue(item.no_alokasi)}
+                                                </td>
+                                                <td className="px-4 py-3 text-muted-foreground">
+                                                    {renderValue(item.date)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {renderValue(
+                                                        item.ref_permintaan,
+                                                    )}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {renderValue(item.kd_cs)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <button
+                                                        type="button"
+                                                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-sky-600 hover:bg-sky-500/15 hover:text-sky-700 dark:text-sky-400 transition-colors cursor-pointer"
+                                                        title="Lihat detail DO Cost"
+                                                        aria-label="Lihat detail DO Cost"
+                                                        onClick={() =>
+                                                            handleOpenDoCostDetail(
+                                                                item,
+                                                            )
+                                                        }
+                                                    >
+                                                        <Eye className="size-4" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {doCostOutstandingPageSize !== Infinity &&
+                        filteredDoCostOutstanding.length > 0 && (
+                            <ModalPagination
+                                currentPage={doCostOutstandingCurrentPage}
+                                totalPages={doCostOutstandingTotalPages}
+                                nextLabel="Selanjutnya"
+                                onPrev={() =>
+                                    setDoCostOutstandingCurrentPage((page) =>
+                                        Math.max(1, page - 1),
                                     )
                                 }
-                            >
-                                <option value={5}>5</option>
-                                <option value={10}>10</option>
-                                <option value={25}>25</option>
-                                <option value={50}>50</option>
-                                <option value="all">Semua</option>
-                            </select>
-                        </label>
-                        <label>
-                            Cari
-                            <input
-                                type="search"
-                                className="ml-2 w-64 rounded-md border bg-background px-3 py-1 md:w-80"
-                                placeholder="Cari no alokasi, permintaan..."
-                                value={doCostOutstandingSearch}
-                                onChange={(event) =>
-                                    setDoCostOutstandingSearch(
-                                        event.target.value,
+                                onNext={() =>
+                                    setDoCostOutstandingCurrentPage((page) =>
+                                        Math.min(
+                                            doCostOutstandingTotalPages,
+                                            page + 1,
+                                        ),
                                     )
                                 }
                             />
-                        </label>
-                    </div>
-                    <div className="overflow-x-auto rounded-lg border">
-                        <table className="w-full text-sm">
-                            <thead className="bg-muted/50 text-muted-foreground">
-                                <tr>
-                                    {[
-                                        'No DOBi',
-                                        'Date',
-                                        'Permintaan',
-                                        'Departemen',
-                                        'Action',
-                                    ].map((heading) => (
-                                        <th
-                                            key={heading}
-                                            className="px-4 py-3 text-left"
-                                        >
-                                            {heading}
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <PlainTableStateRows
-                                    loading={doCostOutstandingLoading}
-                                    columns={5}
-                                    rows={5}
-                                    isEmpty={
-                                        !doCostOutstandingLoading &&
-                                        displayedDoCostOutstanding.length === 0
-                                    }
-                                    emptyMessage={
-                                        doCostOutstandingError ||
-                                        'Tidak ada data.'
-                                    }
-                                />
-                                {!doCostOutstandingLoading &&
-                                    displayedDoCostOutstanding.map((item) => (
-                                        <tr
-                                            key={`cost-${item.no_alokasi}`}
-                                            className="border-t"
-                                        >
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.no_alokasi)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.date)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(
-                                                    item.ref_permintaan,
-                                                )}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.kd_cs)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <button
-                                                    type="button"
-                                                    className="text-muted-foreground transition hover:text-foreground"
-                                                    title="Lihat detail DO Cost"
-                                                    aria-label="Lihat detail DO Cost"
-                                                    onClick={() =>
-                                                        handleOpenDoCostDetail(
-                                                            item,
-                                                        )
-                                                    }
-                                                >
-                                                    <Eye className="size-4" />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                            </tbody>
-                        </table>
-                    </div>
-                    {doCostOutstandingPageSize !== Infinity &&
-                        filteredDoCostOutstanding.length > 0 && (
-                            <div className="flex items-center justify-between text-sm text-muted-foreground">
-                                <span>
-                                    Halaman {doCostOutstandingCurrentPage} dari{' '}
-                                    {doCostOutstandingTotalPages}
-                                </span>
-                                <div className="flex gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={
-                                            doCostOutstandingCurrentPage === 1
-                                        }
-                                        onClick={() =>
-                                            setDoCostOutstandingCurrentPage(
-                                                (page) => Math.max(1, page - 1),
-                                            )
-                                        }
-                                    >
-                                        Sebelumnya
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={
-                                            doCostOutstandingCurrentPage ===
-                                            doCostOutstandingTotalPages
-                                        }
-                                        onClick={() =>
-                                            setDoCostOutstandingCurrentPage(
-                                                (page) =>
-                                                    Math.min(
-                                                        doCostOutstandingTotalPages,
-                                                        page + 1,
-                                                    ),
-                                            )
-                                        }
-                                    >
-                                        Selanjutnya
-                                    </Button>
-                                </div>
-                            </div>
                         )}
                 </DialogContent>
             </Dialog>
@@ -2894,16 +3315,25 @@ export default function MaterialIndex() {
                     }
                 }}
             >
-                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col overflow-y-auto !rounded-none">
-                    <DialogHeader>
-                        <DialogTitle>Detail Delivery Order Bantu</DialogTitle>
-                        <DialogDescription className="sr-only">
-                            Detail Delivery Order Bantu terpilih.
-                        </DialogDescription>
+                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col overflow-y-auto !rounded-none bg-background/95 backdrop-blur-2xl p-5 sm:p-6 gap-5">
+                    <DialogHeader className="border-b border-sidebar-border/50 pb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="flex size-10 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/25">
+                                <ClipboardList className="size-5" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-lg font-black tracking-tight">
+                                    Detail Delivery Order Bantu
+                                </DialogTitle>
+                                <DialogDescription className="sr-only">
+                                    Detail Delivery Order Bantu terpilih.
+                                </DialogDescription>
+                            </div>
+                        </div>
                     </DialogHeader>
                     {selectedDot && (
                         <div className="space-y-4">
-                            <div className="grid gap-3 rounded-lg border p-4 text-sm md:grid-cols-3">
+                            <div className="grid gap-3 rounded-2xl border border-sidebar-border/70 bg-muted/25 p-4 text-sm md:grid-cols-3">
                                 {[
                                     ['Nomor DOB', dotDetailHeader?.no_dob],
                                     ['Date', dotDetailHeader?.date],
@@ -2911,192 +3341,136 @@ export default function MaterialIndex() {
                                     ['Nama Customer', dotDetailHeader?.nm_cs],
                                     ['Ref DO', dotDetailHeader?.ref_do],
                                 ].map(([label, value]) => (
-                                    <div key={label}>
-                                        <div className="text-muted-foreground">
+                                    <div key={label} className="rounded-xl bg-background/60 p-3 border border-sidebar-border/40">
+                                        <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                                             {label}
                                         </div>
-                                        <div className="font-semibold">
+                                        <div className="mt-0.5 font-bold text-foreground">
                                             {renderValue(value)}
                                         </div>
                                     </div>
                                 ))}
                             </div>
-                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                <label>
-                                    Tampilkan
-                                    <select
-                                        className="ml-2 rounded-md border bg-background px-2 py-1"
-                                        value={
-                                            dotDetailPageSize === Infinity
-                                                ? 'all'
-                                                : dotDetailPageSize
-                                        }
-                                        onChange={(event) =>
-                                            setDotDetailPageSize(
-                                                event.target.value === 'all'
-                                                    ? Infinity
-                                                    : Number(
-                                                          event.target.value,
-                                                      ),
+
+                            <ModalToolbar
+                                pageSize={dotDetailPageSize}
+                                onPageSizeChange={(val) => setDotDetailPageSize(val)}
+                                searchValue={dotDetailSearch}
+                                onSearchChange={(val) => setDotDetailSearch(val)}
+                                searchPlaceholder="Cari nama material..."
+                            />
+
+                            <div className="overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card/60">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-muted/80 text-muted-foreground">
+                                            <tr className="border-b border-slate-300/80 dark:border-slate-700/80">
+                                                {[
+                                                    'No',
+                                                    'Nama Material',
+                                                    'Satuan',
+                                                    'Harga',
+                                                    'Total',
+                                                    'Remark',
+                                                ].map((heading) => (
+                                                    <th
+                                                        key={heading}
+                                                        className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider"
+                                                    >
+                                                        {heading}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <PlainTableStateRows
+                                                loading={dotDetailLoading}
+                                                columns={6}
+                                                rows={5}
+                                                isEmpty={
+                                                    !dotDetailLoading &&
+                                                    displayedDotDetails.length === 0
+                                                }
+                                                emptyMessage={
+                                                    dotDetailError ||
+                                                    'Tidak ada data material.'
+                                                }
+                                            />
+                                            {!dotDetailLoading &&
+                                                displayedDotDetails.map(
+                                                    (item, index) => (
+                                                        <tr
+                                                            key={`${item.no_dob}-${index}`}
+                                                            className="border-b border-slate-300/70 dark:border-slate-700/70 transition-colors hover:bg-sky-500/[0.05]"
+                                                        >
+                                                            <td className="px-4 py-3 text-muted-foreground tabular-nums">
+                                                                {dotDetailPageSize ===
+                                                                    Infinity
+                                                                    ? index + 1
+                                                                    : (dotDetailCurrentPage -
+                                                                        1) *
+                                                                    dotDetailPageSize +
+                                                                    index +
+                                                                    1}
+                                                            </td>
+                                                            <td className="px-4 py-3 font-medium">
+                                                                {renderValue(
+                                                                    item.mat,
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3 tabular-nums">
+                                                                {renderValue(
+                                                                    item.qty,
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3 tabular-nums">
+                                                                {formatNumber(
+                                                                    item.harga,
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3 font-semibold tabular-nums">
+                                                                {formatNumber(
+                                                                    item.total,
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-muted-foreground">
+                                                                {renderValue(
+                                                                    item.remark,
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ),
+                                                )}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+
+                            {dotDetailPageSize !== Infinity &&
+                                filteredDotDetails.length > 0 && (
+                                    <ModalPagination
+                                        currentPage={dotDetailCurrentPage}
+                                        totalPages={dotDetailTotalPages}
+                                        nextLabel="Selanjutnya"
+                                        onPrev={() =>
+                                            setDotDetailCurrentPage((page) =>
+                                                Math.max(1, page - 1),
                                             )
                                         }
-                                    >
-                                        <option value={5}>5</option>
-                                        <option value={10}>10</option>
-                                        <option value={25}>25</option>
-                                        <option value={50}>50</option>
-                                        <option value="all">Semua</option>
-                                    </select>
-                                </label>
-                                <label>
-                                    Cari
-                                    <input
-                                        type="search"
-                                        className="ml-2 w-64 rounded-md border bg-background px-3 py-1"
-                                        placeholder="Cari nama material..."
-                                        value={dotDetailSearch}
-                                        onChange={(event) =>
-                                            setDotDetailSearch(
-                                                event.target.value,
+                                        onNext={() =>
+                                            setDotDetailCurrentPage((page) =>
+                                                Math.min(
+                                                    dotDetailTotalPages,
+                                                    page + 1,
+                                                ),
                                             )
                                         }
                                     />
-                                </label>
-                            </div>
-                            <div className="overflow-x-auto rounded-lg border">
-                                <table className="w-full text-sm">
-                                    <thead className="bg-muted/50 text-muted-foreground">
-                                        <tr>
-                                            {[
-                                                'No',
-                                                'Nama Material',
-                                                'Satuan',
-                                                'Harga',
-                                                'Total',
-                                                'Remark',
-                                            ].map((heading) => (
-                                                <th
-                                                    key={heading}
-                                                    className="px-4 py-3 text-left"
-                                                >
-                                                    {heading}
-                                                </th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <PlainTableStateRows
-                                            loading={dotDetailLoading}
-                                            columns={6}
-                                            rows={5}
-                                            isEmpty={
-                                                !dotDetailLoading &&
-                                                displayedDotDetails.length === 0
-                                            }
-                                            emptyMessage={
-                                                dotDetailError ||
-                                                'Tidak ada data material.'
-                                            }
-                                        />
-                                        {!dotDetailLoading &&
-                                            displayedDotDetails.map(
-                                                (item, index) => (
-                                                    <tr
-                                                        key={`${item.no_dob}-${index}`}
-                                                        className="border-t"
-                                                    >
-                                                        <td className="px-4 py-3">
-                                                            {dotDetailPageSize ===
-                                                            Infinity
-                                                                ? index + 1
-                                                                : (dotDetailCurrentPage -
-                                                                      1) *
-                                                                      dotDetailPageSize +
-                                                                  index +
-                                                                  1}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {renderValue(
-                                                                item.mat,
-                                                            )}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {renderValue(
-                                                                item.qty,
-                                                            )}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {formatNumber(
-                                                                item.harga,
-                                                            )}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {formatNumber(
-                                                                item.total,
-                                                            )}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {renderValue(
-                                                                item.remark,
-                                                            )}
-                                                        </td>
-                                                    </tr>
-                                                ),
-                                            )}
-                                    </tbody>
-                                </table>
-                            </div>
-                            {dotDetailPageSize !== Infinity &&
-                                filteredDotDetails.length > 0 && (
-                                    <div className="flex items-center justify-between text-sm text-muted-foreground">
-                                        <span>
-                                            Halaman {dotDetailCurrentPage} dari{' '}
-                                            {dotDetailTotalPages}
-                                        </span>
-                                        <div className="flex gap-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                disabled={
-                                                    dotDetailCurrentPage === 1
-                                                }
-                                                onClick={() =>
-                                                    setDotDetailCurrentPage(
-                                                        (page) =>
-                                                            Math.max(
-                                                                1,
-                                                                page - 1,
-                                                            ),
-                                                    )
-                                                }
-                                            >
-                                                Sebelumnya
-                                            </Button>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                disabled={
-                                                    dotDetailCurrentPage ===
-                                                    dotDetailTotalPages
-                                                }
-                                                onClick={() =>
-                                                    setDotDetailCurrentPage(
-                                                        (page) =>
-                                                            Math.min(
-                                                                dotDetailTotalPages,
-                                                                page + 1,
-                                                            ),
-                                                    )
-                                                }
-                                            >
-                                                Selanjutnya
-                                            </Button>
-                                        </div>
-                                    </div>
                                 )}
-                            <div className="text-right text-sm font-semibold">
-                                Grand Total: Rp{' '}
-                                {formatNumber(dotDetailGrandTotal)}
+                            <div className="flex justify-end">
+                                <div className="rounded-2xl border border-sky-500/25 bg-sky-500/10 px-4 py-2 text-sm font-black text-sky-600 dark:text-sky-400 tabular-nums">
+                                    Grand Total: Rp {formatNumber(dotDetailGrandTotal)}
+                                </div>
                             </div>
                         </div>
                     )}
@@ -3110,161 +3484,121 @@ export default function MaterialIndex() {
                     if (open) loadDotOutstanding();
                 }}
             >
-                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col overflow-y-auto !rounded-none">
-                    <DialogHeader>
-                        <DialogTitle>DOT Belum Dibebankan</DialogTitle>
-                        <DialogDescription className="sr-only">
-                            Daftar DOT yang belum dibebankan.
-                        </DialogDescription>
+                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col overflow-y-auto !rounded-none bg-background/95 backdrop-blur-2xl p-5 sm:p-6 gap-5">
+                    <DialogHeader className="border-b border-sidebar-border/50 pb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="flex size-10 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/25">
+                                <ClipboardList className="size-5" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-lg font-black tracking-tight">
+                                    DOT Belum Dibebankan
+                                </DialogTitle>
+                                <DialogDescription className="sr-only">
+                                    Daftar DOT yang belum dibebankan.
+                                </DialogDescription>
+                            </div>
+                        </div>
                     </DialogHeader>
-                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                        <label>
-                            Tampilkan
-                            <select
-                                className="ml-2 rounded-md border bg-background px-2 py-1"
-                                value={
-                                    dotOutstandingPageSize === Infinity
-                                        ? 'all'
-                                        : dotOutstandingPageSize
-                                }
-                                onChange={(event) =>
-                                    setDotOutstandingPageSize(
-                                        event.target.value === 'all'
-                                            ? Infinity
-                                            : Number(event.target.value),
-                                    )
-                                }
-                            >
-                                <option value={5}>5</option>
-                                <option value={10}>10</option>
-                                <option value={25}>25</option>
-                                <option value={50}>50</option>
-                                <option value="all">Semua</option>
-                            </select>
-                        </label>
-                        <label>
-                            Cari
-                            <input
-                                type="search"
-                                className="ml-2 w-64 rounded-md border bg-background px-3 py-1 md:w-80"
-                                placeholder="Cari no DOT, ref DO, customer..."
-                                value={dotOutstandingSearch}
-                                onChange={(event) =>
-                                    setDotOutstandingSearch(event.target.value)
-                                }
-                            />
-                        </label>
+
+                    <ModalToolbar
+                        pageSize={dotOutstandingPageSize}
+                        onPageSizeChange={(val) => setDotOutstandingPageSize(val)}
+                        searchValue={dotOutstandingSearch}
+                        onSearchChange={(val) => setDotOutstandingSearch(val)}
+                        searchPlaceholder="Cari no DOT, ref DO, customer..."
+                    />
+
+                    <div className="overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card/60">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-muted/80 text-muted-foreground">
+                                    <tr className="border-b border-slate-300/80 dark:border-slate-700/80">
+                                        {[
+                                            'No DOT',
+                                            'Ref DO',
+                                            'Customer',
+                                            'Action',
+                                        ].map((heading) => (
+                                            <th
+                                                key={heading}
+                                                className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider"
+                                            >
+                                                {heading}
+                                            </th>
+                                        ))}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <PlainTableStateRows
+                                        loading={dotOutstandingLoading}
+                                        columns={4}
+                                        rows={5}
+                                        isEmpty={
+                                            !dotOutstandingLoading &&
+                                            displayedDotOutstanding.length === 0
+                                        }
+                                        emptyMessage={
+                                            dotOutstandingError || 'Tidak ada data.'
+                                        }
+                                    />
+                                    {!dotOutstandingLoading &&
+                                        displayedDotOutstanding.map((item) => (
+                                            <tr
+                                                key={`dot-${item.no_dob}`}
+                                                className="border-b border-slate-300/70 dark:border-slate-700/70 transition-colors hover:bg-sky-500/[0.05]"
+                                            >
+                                                <td className="px-4 py-3 font-sans tabular-nums tracking-wide text-xs font-bold text-sky-600 dark:text-sky-400">
+                                                    {renderValue(item.no_dob)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {renderValue(item.ref_do)}
+                                                </td>
+                                                <td className="px-4 py-3 font-medium">
+                                                    {renderValue(item.nm_cs)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <button
+                                                        type="button"
+                                                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-sky-600 hover:bg-sky-500/15 hover:text-sky-700 dark:text-sky-400 transition-colors cursor-pointer"
+                                                        title="Lihat detail DOT"
+                                                        aria-label="Lihat detail DOT"
+                                                        onClick={() =>
+                                                            handleOpenDotDetail(
+                                                                item,
+                                                            )
+                                                        }
+                                                    >
+                                                        <Eye className="size-4" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                    <div className="overflow-x-auto rounded-lg border">
-                        <table className="w-full text-sm">
-                            <thead className="bg-muted/50 text-muted-foreground">
-                                <tr>
-                                    {[
-                                        'No DOT',
-                                        'Ref DO',
-                                        'Customer',
-                                        'Action',
-                                    ].map((heading) => (
-                                        <th
-                                            key={heading}
-                                            className="px-4 py-3 text-left"
-                                        >
-                                            {heading}
-                                        </th>
-                                    ))}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <PlainTableStateRows
-                                    loading={dotOutstandingLoading}
-                                    columns={4}
-                                    rows={5}
-                                    isEmpty={
-                                        !dotOutstandingLoading &&
-                                        displayedDotOutstanding.length === 0
-                                    }
-                                    emptyMessage={
-                                        dotOutstandingError || 'Tidak ada data.'
-                                    }
-                                />
-                                {!dotOutstandingLoading &&
-                                    displayedDotOutstanding.map((item) => (
-                                        <tr
-                                            key={`dot-${item.no_dob}`}
-                                            className="border-t"
-                                        >
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.no_dob)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.ref_do)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.nm_cs)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <button
-                                                    type="button"
-                                                    className="text-muted-foreground transition hover:text-foreground"
-                                                    title="Lihat detail DOT"
-                                                    aria-label="Lihat detail DOT"
-                                                    onClick={() =>
-                                                        handleOpenDotDetail(
-                                                            item,
-                                                        )
-                                                    }
-                                                >
-                                                    <Eye className="size-4" />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                            </tbody>
-                        </table>
-                    </div>
+
                     {dotOutstandingPageSize !== Infinity &&
                         filteredDotOutstanding.length > 0 && (
-                            <div className="flex items-center justify-between text-sm text-muted-foreground">
-                                <span>
-                                    Halaman {dotOutstandingCurrentPage} dari{' '}
-                                    {dotOutstandingTotalPages}
-                                </span>
-                                <div className="flex gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={
-                                            dotOutstandingCurrentPage === 1
-                                        }
-                                        onClick={() =>
-                                            setDotOutstandingCurrentPage(
-                                                (page) => Math.max(1, page - 1),
-                                            )
-                                        }
-                                    >
-                                        Sebelumnya
-                                    </Button>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        disabled={
-                                            dotOutstandingCurrentPage ===
-                                            dotOutstandingTotalPages
-                                        }
-                                        onClick={() =>
-                                            setDotOutstandingCurrentPage(
-                                                (page) =>
-                                                    Math.min(
-                                                        dotOutstandingTotalPages,
-                                                        page + 1,
-                                                    ),
-                                            )
-                                        }
-                                    >
-                                        Selanjutnya
-                                    </Button>
-                                </div>
-                            </div>
+                            <ModalPagination
+                                currentPage={dotOutstandingCurrentPage}
+                                totalPages={dotOutstandingTotalPages}
+                                nextLabel="Selanjutnya"
+                                onPrev={() =>
+                                    setDotOutstandingCurrentPage((page) =>
+                                        Math.max(1, page - 1),
+                                    )
+                                }
+                                onNext={() =>
+                                    setDotOutstandingCurrentPage((page) =>
+                                        Math.min(
+                                            dotOutstandingTotalPages,
+                                            page + 1,
+                                        ),
+                                    )
+                                }
+                            />
                         )}
                 </DialogContent>
             </Dialog>
@@ -3284,223 +3618,178 @@ export default function MaterialIndex() {
                     }
                 }}
             >
-                <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl">
-                    <DialogHeader>
-                        <DialogTitle>Detail Delivery Order</DialogTitle>
-                        <DialogDescription>
-                            Ringkasan data dan item Delivery Order terpilih.
-                        </DialogDescription>
+                <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-4xl rounded-3xl border border-sidebar-border/70 bg-card/95 backdrop-blur-2xl shadow-2xl p-5 sm:p-6">
+                    <DialogHeader className="border-b border-sidebar-border/40 pb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="flex size-10 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25">
+                                <Truck className="size-5" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-lg font-black tracking-tight">
+                                    Detail Delivery Order
+                                </DialogTitle>
+                                <DialogDescription className="text-xs">
+                                    Ringkasan data dan item Delivery Order terpilih.
+                                </DialogDescription>
+                            </div>
+                        </div>
                     </DialogHeader>
                     {selectedDo && (
                         <div className="space-y-5">
-                            <div className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-2">
+                            <div className="grid gap-3 rounded-2xl border border-sidebar-border/70 bg-muted/25 p-4 text-sm sm:grid-cols-2">
                                 {[
                                     ['Nomor DO', selectedDo.no_do],
                                     ['Date', selectedDo.date],
                                     ['Ref. PO', selectedDo.ref_po],
                                     ['Nama Customer', selectedDo.nm_cs],
                                 ].map(([label, value]) => (
-                                    <div key={label} className="space-y-1">
-                                        <div>{label}</div>
-                                        <div className="font-semibold text-foreground">
+                                    <div key={label} className="rounded-xl bg-background/60 p-3 border border-sidebar-border/40">
+                                        <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                                            {label}
+                                        </div>
+                                        <div className="mt-0.5 font-bold text-foreground">
                                             {renderValue(value)}
                                         </div>
                                     </div>
                                 ))}
-                                <div className="space-y-1 sm:col-span-2">
-                                    <div>Alamat</div>
-                                    <div className="font-semibold text-foreground">
+                                <div className="rounded-xl bg-background/60 p-3 border border-sidebar-border/40 sm:col-span-2">
+                                    <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+                                        Alamat
+                                    </div>
+                                    <div className="mt-0.5 font-bold text-foreground">
                                         {renderValue(selectedDoAddress)}
                                     </div>
                                 </div>
                             </div>
-                            <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                                <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm text-muted-foreground">
-                                    <label>
-                                        Tampilkan
-                                        <select
-                                            className="ml-2 h-8 rounded-md border border-input bg-background px-2 text-xs"
-                                            value={
-                                                detailDoPageSize === Infinity
-                                                    ? 'all'
-                                                    : detailDoPageSize
-                                            }
-                                            onChange={(event) => {
-                                                setDetailDoPageSize(
-                                                    event.target.value === 'all'
-                                                        ? Infinity
-                                                        : Number(
-                                                              event.target
-                                                                  .value,
-                                                          ),
-                                                );
-                                                setDetailDoCurrentPage(1);
-                                            }}
-                                        >
-                                            <option value={5}>5</option>
-                                            <option value={10}>10</option>
-                                            <option value={25}>25</option>
-                                            <option value={50}>50</option>
-                                            <option value="all">Semua</option>
-                                        </select>
-                                    </label>
-                                    <label>
-                                        Cari
-                                        <input
-                                            type="search"
-                                            className="ml-2 h-8 w-44 rounded-md border border-input bg-background px-3 text-xs"
-                                            placeholder="Cari material..."
-                                            value={detailDoSearch}
-                                            onChange={(event) =>
-                                                setDetailDoSearch(
-                                                    event.target.value,
-                                                )
-                                            }
-                                        />
-                                    </label>
-                                </div>
-                                <table className="w-full text-sm">
-                                    <thead className="bg-muted/50 text-muted-foreground">
-                                        <tr>
-                                            {[
-                                                'No',
-                                                'Material',
-                                                'Qty',
-                                                'Harga',
-                                                'Total',
-                                                'Remark',
-                                            ].map((heading) => (
-                                                <th
-                                                    key={heading}
-                                                    className="px-4 py-3 text-left"
-                                                >
-                                                    {heading}
-                                                </th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <PlainTableStateRows
-                                            loading={detailDoLoading}
-                                            columns={6}
-                                            rows={5}
-                                            isEmpty={
-                                                !detailDoLoading &&
-                                                displayedDoDetails.length === 0
-                                            }
-                                            emptyMessage={
-                                                detailDoError ||
-                                                'Tidak ada detail DO.'
-                                            }
-                                        />
-                                        {!detailDoLoading &&
-                                            displayedDoDetails.map(
-                                                (detail, index) => (
-                                                    <tr
-                                                        key={`${detail.no_do}-${index}`}
-                                                        className="border-t border-sidebar-border/70"
+
+                            <ModalToolbar
+                                pageSize={detailDoPageSize}
+                                onPageSizeChange={(val) => {
+                                    setDetailDoPageSize(val);
+                                    setDetailDoCurrentPage(1);
+                                }}
+                                searchValue={detailDoSearch}
+                                onSearchChange={(val) => setDetailDoSearch(val)}
+                                searchPlaceholder="Cari material..."
+                            />
+
+                            <div className="overflow-hidden rounded-2xl border border-sidebar-border/70 bg-background/50">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead className="bg-muted/80 text-muted-foreground">
+                                            <tr className="border-b border-slate-300/80 dark:border-slate-700/80">
+                                                {[
+                                                    'No',
+                                                    'Material',
+                                                    'Qty',
+                                                    'Harga',
+                                                    'Total',
+                                                    'Remark',
+                                                ].map((heading) => (
+                                                    <th
+                                                        key={heading}
+                                                        className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider"
                                                     >
-                                                        <td className="px-4 py-3">
-                                                            {detailDoPageSize ===
-                                                            Infinity
-                                                                ? index + 1
-                                                                : (detailDoCurrentPage -
-                                                                      1) *
-                                                                      detailDoPageSize +
-                                                                  index +
-                                                                  1}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {renderValue(
-                                                                detail.mat,
-                                                            )}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {renderValue(
-                                                                [
-                                                                    detail.qty,
-                                                                    detail.unit,
-                                                                ]
-                                                                    .filter(
-                                                                        Boolean,
-                                                                    )
-                                                                    .join(' '),
-                                                            )}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {formatNumber(
-                                                                detail.harga,
-                                                            )}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {formatNumber(
-                                                                detail.total,
-                                                            )}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {renderValue(
-                                                                detail.remark,
-                                                            )}
-                                                        </td>
-                                                    </tr>
-                                                ),
-                                            )}
-                                    </tbody>
-                                </table>
+                                                        {heading}
+                                                    </th>
+                                                ))}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <PlainTableStateRows
+                                                loading={detailDoLoading}
+                                                columns={6}
+                                                rows={5}
+                                                isEmpty={
+                                                    !detailDoLoading &&
+                                                    displayedDoDetails.length === 0
+                                                }
+                                                emptyMessage={
+                                                    detailDoError ||
+                                                    'Tidak ada detail DO.'
+                                                }
+                                            />
+                                            {!detailDoLoading &&
+                                                displayedDoDetails.map(
+                                                    (detail, index) => (
+                                                        <tr
+                                                            key={`${detail.no_do}-${index}`}
+                                                            className="border-b border-slate-300/70 dark:border-slate-700/70 transition-colors hover:bg-amber-500/[0.05]"
+                                                        >
+                                                            <td className="px-4 py-3 text-muted-foreground tabular-nums">
+                                                                {detailDoPageSize ===
+                                                                    Infinity
+                                                                    ? index + 1
+                                                                    : (detailDoCurrentPage -
+                                                                        1) *
+                                                                    detailDoPageSize +
+                                                                    index +
+                                                                    1}
+                                                            </td>
+                                                            <td className="px-4 py-3 font-medium">
+                                                                {renderValue(
+                                                                    detail.mat,
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3 tabular-nums">
+                                                                {renderValue(
+                                                                    [
+                                                                        detail.qty,
+                                                                        detail.unit,
+                                                                    ]
+                                                                        .filter(
+                                                                            Boolean,
+                                                                        )
+                                                                        .join(' '),
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3 tabular-nums">
+                                                                {formatNumber(
+                                                                    detail.harga,
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3 font-semibold tabular-nums">
+                                                                {formatNumber(
+                                                                    detail.total,
+                                                                )}
+                                                            </td>
+                                                            <td className="px-4 py-3 text-muted-foreground">
+                                                                {renderValue(
+                                                                    detail.remark,
+                                                                )}
+                                                            </td>
+                                                        </tr>
+                                                    ),
+                                                )}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
+
                             {detailDoPageSize !== Infinity &&
                                 detailDoTotalItems > 0 && (
-                                    <div className="flex items-center justify-between gap-3 text-sm text-muted-foreground">
-                                        <span>
-                                            Halaman {detailDoCurrentPage} dari{' '}
-                                            {detailDoTotalPages}
-                                        </span>
-                                        <div className="flex gap-2">
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                disabled={
-                                                    detailDoCurrentPage === 1
-                                                }
-                                                onClick={() =>
-                                                    setDetailDoCurrentPage(
-                                                        (page) =>
-                                                            Math.max(
-                                                                1,
-                                                                page - 1,
-                                                            ),
-                                                    )
-                                                }
-                                            >
-                                                Sebelumnya
-                                            </Button>
-                                            <Button
-                                                variant="outline"
-                                                size="sm"
-                                                disabled={
-                                                    detailDoCurrentPage ===
-                                                    detailDoTotalPages
-                                                }
-                                                onClick={() =>
-                                                    setDetailDoCurrentPage(
-                                                        (page) =>
-                                                            Math.min(
-                                                                detailDoTotalPages,
-                                                                page + 1,
-                                                            ),
-                                                    )
-                                                }
-                                            >
-                                                Berikutnya
-                                            </Button>
-                                        </div>
-                                    </div>
+                                    <ModalPagination
+                                        currentPage={detailDoCurrentPage}
+                                        totalPages={detailDoTotalPages}
+                                        onPrev={() =>
+                                            setDetailDoCurrentPage((page) =>
+                                                Math.max(1, page - 1),
+                                            )
+                                        }
+                                        onNext={() =>
+                                            setDetailDoCurrentPage((page) =>
+                                                Math.min(
+                                                    detailDoTotalPages,
+                                                    page + 1,
+                                                ),
+                                            )
+                                        }
+                                    />
                                 )}
-                            <div className="text-right text-sm text-muted-foreground">
-                                Grand Total:{' '}
-                                <span className="font-semibold text-foreground">
-                                    Rp {formatNumber(selectedDoGrandTotal)}
-                                </span>
+                            <div className="flex justify-end">
+                                <div className="rounded-2xl border border-amber-500/25 bg-amber-500/10 px-4 py-2 text-sm font-black text-amber-600 dark:text-amber-400 tabular-nums">
+                                    Grand Total: Rp {formatNumber(selectedDoGrandTotal)}
+                                </div>
                             </div>
                         </div>
                     )}
@@ -3520,183 +3809,127 @@ export default function MaterialIndex() {
                     }
                 }}
             >
-                <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
-                    <DialogHeader>
-                        <DialogTitle>DO Outstanding</DialogTitle>
-                        <DialogDescription>
-                            Pilih Delivery Order yang masih outstanding.
-                        </DialogDescription>
+                <DialogContent className="!top-0 !left-0 flex !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 flex-col overflow-y-auto !rounded-none bg-background/95 backdrop-blur-2xl p-5 sm:p-6 gap-5">
+                    <DialogHeader className="border-b border-sidebar-border/50 pb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="flex size-10 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25">
+                                <Truck className="size-5" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-lg font-black tracking-tight">
+                                    DO Outstanding
+                                </DialogTitle>
+                                <DialogDescription className="text-xs">
+                                    Pilih Delivery Order yang masih outstanding.
+                                </DialogDescription>
+                            </div>
+                        </div>
                     </DialogHeader>
 
-                    <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                        <label>
-                            Tampilkan
-                            <select
-                                className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                value={
-                                    outstandingPageSize === Infinity
-                                        ? 'all'
-                                        : outstandingPageSize
-                                }
-                                onChange={(event) => {
-                                    setOutstandingPageSize(
-                                        event.target.value === 'all'
-                                            ? Infinity
-                                            : Number(event.target.value),
-                                    );
-                                }}
-                            >
-                                <option value={5}>5</option>
-                                <option value={10}>10</option>
-                                <option value={25}>25</option>
-                                <option value={50}>50</option>
-                                <option value="all">Semua</option>
-                            </select>
-                        </label>
-                        <label>
-                            Cari
-                            <input
-                                type="search"
-                                className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
-                                placeholder="Cari nomor DO, ref PO, customer..."
-                                value={outstandingSearchTerm}
-                                onChange={(event) =>
-                                    setOutstandingSearchTerm(event.target.value)
-                                }
-                            />
-                        </label>
-                    </div>
+                    <ModalToolbar
+                        pageSize={outstandingPageSize}
+                        onPageSizeChange={(val) => setOutstandingPageSize(val)}
+                        searchValue={outstandingSearchTerm}
+                        onSearchChange={(val) => setOutstandingSearchTerm(val)}
+                        searchPlaceholder="Cari nomor DO, ref PO, customer..."
+                    />
 
-                    <div className="overflow-x-auto rounded-xl border border-sidebar-border/70">
-                        <table className="w-full text-sm">
-                            <thead className="bg-muted/50 text-muted-foreground">
-                                <tr>
-                                    <th className="px-4 py-3 text-left">
-                                        No DO
-                                    </th>
-                                    <th className="px-4 py-3 text-left">
-                                        Date
-                                    </th>
-                                    <th className="px-4 py-3 text-left">
-                                        Ref PO
-                                    </th>
-                                    <th className="px-4 py-3 text-left">
-                                        Customer
-                                    </th>
-                                    <th className="px-4 py-3 text-left">
-                                        Action
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <PlainTableStateRows
-                                    loading={outstandingLoading}
-                                    columns={5}
-                                    rows={5}
-                                    isEmpty={
-                                        !outstandingLoading &&
-                                        displayedOutstandingDeliveryOrders.length ===
+                    <div className="overflow-hidden rounded-2xl border border-sidebar-border/70 bg-card/60">
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm">
+                                <thead className="bg-muted/80 text-muted-foreground">
+                                    <tr className="border-b border-slate-300/80 dark:border-slate-700/80">
+                                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
+                                            No DO
+                                        </th>
+                                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
+                                            Date
+                                        </th>
+                                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
+                                            Ref PO
+                                        </th>
+                                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
+                                            Customer
+                                        </th>
+                                        <th className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider">
+                                            Action
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <PlainTableStateRows
+                                        loading={outstandingLoading}
+                                        columns={5}
+                                        rows={5}
+                                        isEmpty={
+                                            !outstandingLoading &&
+                                            displayedOutstandingDeliveryOrders.length ===
                                             0
-                                    }
-                                    emptyMessage={
-                                        outstandingError ||
-                                        'Tidak ada DO outstanding.'
-                                    }
-                                />
-                                {displayedOutstandingDeliveryOrders.map(
-                                    (item) => (
-                                        <tr
-                                            key={`outstanding-${item.no_do}`}
-                                            className="border-t border-sidebar-border/70"
-                                        >
-                                            <td className="px-4 py-3">
-                                                {item.no_do}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {item.date}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {item.ref_po}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                {renderValue(item.nm_cs)}
-                                            </td>
-                                            <td className="px-4 py-3">
-                                                <button
-                                                    type="button"
-                                                    className="text-muted-foreground transition hover:text-foreground"
-                                                    aria-label="Lihat detail DO"
-                                                    title="Lihat detail DO"
-                                                    onClick={() =>
-                                                        handleOpenDetailDo(item)
-                                                    }
-                                                >
-                                                    <Eye className="size-4" />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ),
-                                )}
-                            </tbody>
-                        </table>
+                                        }
+                                        emptyMessage={
+                                            outstandingError ||
+                                            'Tidak ada DO outstanding.'
+                                        }
+                                    />
+                                    {displayedOutstandingDeliveryOrders.map(
+                                        (item) => (
+                                            <tr
+                                                key={`outstanding-${item.no_do}`}
+                                                className="border-b border-slate-300/70 dark:border-slate-700/70 transition-colors hover:bg-amber-500/[0.05]"
+                                            >
+                                                <td className="px-4 py-3 font-sans tabular-nums tracking-wide text-xs font-bold text-amber-600 dark:text-amber-400">
+                                                    {item.no_do}
+                                                </td>
+                                                <td className="px-4 py-3 text-muted-foreground">
+                                                    {item.date}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    {item.ref_po}
+                                                </td>
+                                                <td className="px-4 py-3 font-medium">
+                                                    {renderValue(item.nm_cs)}
+                                                </td>
+                                                <td className="px-4 py-3">
+                                                    <button
+                                                        type="button"
+                                                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-sky-600 hover:bg-sky-500/15 hover:text-sky-700 dark:text-sky-400 transition-colors cursor-pointer"
+                                                        aria-label="Lihat detail DO"
+                                                        title="Lihat detail DO"
+                                                        onClick={() =>
+                                                            handleOpenDetailDo(item)
+                                                        }
+                                                    >
+                                                        <Eye className="size-4" />
+                                                    </button>
+                                                </td>
+                                            </tr>
+                                        ),
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
 
                     {outstandingPageSize !== Infinity &&
                         outstandingTotalItems > 0 && (
-                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                <span>
-                                    Menampilkan{' '}
-                                    {Math.min(
-                                        (outstandingCurrentPage - 1) *
-                                            outstandingPageSize +
-                                            1,
-                                        outstandingTotalItems,
-                                    )}
-                                    -
-                                    {Math.min(
-                                        outstandingCurrentPage *
-                                            outstandingPageSize,
-                                        outstandingTotalItems,
-                                    )}{' '}
-                                    dari {outstandingTotalItems} data
-                                </span>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setOutstandingCurrentPage((page) =>
-                                                Math.max(1, page - 1),
-                                            )
-                                        }
-                                        disabled={outstandingCurrentPage === 1}
-                                    >
-                                        Sebelumnya
-                                    </Button>
-                                    <span>
-                                        Halaman {outstandingCurrentPage} dari{' '}
-                                        {outstandingTotalPages}
-                                    </span>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setOutstandingCurrentPage((page) =>
-                                                Math.min(
-                                                    outstandingTotalPages,
-                                                    page + 1,
-                                                ),
-                                            )
-                                        }
-                                        disabled={
-                                            outstandingCurrentPage ===
-                                            outstandingTotalPages
-                                        }
-                                    >
-                                        Berikutnya
-                                    </Button>
-                                </div>
-                            </div>
+                            <ModalPagination
+                                currentPage={outstandingCurrentPage}
+                                totalPages={outstandingTotalPages}
+                                summaryText={`Menampilkan ${Math.min((outstandingCurrentPage - 1) * outstandingPageSize + 1, outstandingTotalItems)}-${Math.min(outstandingCurrentPage * outstandingPageSize, outstandingTotalItems)} dari ${outstandingTotalItems} data`}
+                                onPrev={() =>
+                                    setOutstandingCurrentPage((page) =>
+                                        Math.max(1, page - 1),
+                                    )
+                                }
+                                onNext={() =>
+                                    setOutstandingCurrentPage((page) =>
+                                        Math.min(
+                                            outstandingTotalPages,
+                                            page + 1,
+                                        ),
+                                    )
+                                }
+                            />
                         )}
                 </DialogContent>
             </Dialog>
@@ -3709,98 +3942,111 @@ export default function MaterialIndex() {
                     }
                 }}
             >
-                <DialogContent className="max-w-3xl">
-                    <DialogHeader>
-                        <DialogTitle>Detail Stok Material</DialogTitle>
-                        <DialogDescription className="sr-only">
-                            Detail stok material per gudang.
-                        </DialogDescription>
+                <DialogContent className="max-w-3xl rounded-3xl border border-sidebar-border/70 bg-card/95 backdrop-blur-2xl shadow-2xl p-5 sm:p-6">
+                    <DialogHeader className="border-b border-sidebar-border/40 pb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="flex size-10 items-center justify-center rounded-2xl bg-sky-500/15 text-sky-600 dark:text-sky-400 border border-sky-500/25">
+                                <PackageCheck className="size-5" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-lg font-black tracking-tight">
+                                    Detail Stok Material
+                                </DialogTitle>
+                                <DialogDescription className="sr-only">
+                                    Detail stok material per gudang.
+                                </DialogDescription>
+                            </div>
+                        </div>
                     </DialogHeader>
 
                     {viewingMaterial && (
                         <div className="space-y-4 text-sm">
-                            <div className="grid gap-3 rounded-md border bg-muted/30 p-4 md:grid-cols-3">
-                                <div>
-                                    <div className="text-muted-foreground">
+                            <div className="grid gap-3 rounded-2xl border border-sidebar-border/70 bg-gradient-to-br from-emerald-500/[0.06] via-muted/25 to-sky-500/[0.06] p-4 md:grid-cols-3">
+                                <div className="rounded-xl bg-background/70 p-3 border border-sidebar-border/40">
+                                    <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                                         Kode Material
                                     </div>
-                                    <div className="font-semibold">
+                                    <div className="mt-1 font-sans tabular-nums tracking-wide text-sm font-black text-emerald-600 dark:text-emerald-400">
                                         {renderValue(
                                             viewingMaterial.kd_material,
                                         )}
                                     </div>
                                 </div>
-                                <div>
-                                    <div className="text-muted-foreground">
+                                <div className="rounded-xl bg-background/70 p-3 border border-sidebar-border/40">
+                                    <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                                         Nama Material
                                     </div>
-                                    <div className="font-semibold">
+                                    <div className="mt-1 font-bold text-foreground">
                                         {renderValue(viewingMaterial.material)}
                                     </div>
                                 </div>
-                                <div>
-                                    <div className="text-muted-foreground">
+                                <div className="rounded-xl bg-background/70 p-3 border border-sidebar-border/40">
+                                    <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                                         Satuan
                                     </div>
-                                    <div className="font-semibold">
+                                    <div className="mt-1 font-bold text-foreground">
                                         {renderValue(viewingMaterial.unit)}
                                     </div>
                                 </div>
                             </div>
 
-                            <div className="overflow-x-auto rounded-md border">
-                                <table className="w-full table-auto text-sm">
-                                    <thead className="bg-muted/50 text-muted-foreground">
-                                        <tr>
-                                            <th className="w-1 px-2 py-2 text-left whitespace-nowrap">
-                                                Gudang
-                                            </th>
-                                            <th className="w-1 px-2 py-2 text-right whitespace-nowrap">
-                                                Stok
-                                            </th>
-                                            <th className="w-1 px-2 py-2 text-right whitespace-nowrap">
-                                                Harga
-                                            </th>
-                                            <th className="w-full px-2 py-2 text-left whitespace-nowrap">
-                                                Kategori
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {stockRows(viewingMaterial).map(
-                                            (row) => (
-                                                <tr
-                                                    key={row.label}
-                                                    className="border-t border-sidebar-border/70"
-                                                >
-                                                    <td className="w-1 px-2 py-2 font-medium whitespace-nowrap">
-                                                        {row.label}
-                                                    </td>
-                                                    <td className="w-1 px-2 py-2 text-right whitespace-nowrap tabular-nums">
-                                                        {formatNumber(row.stok)}
-                                                    </td>
-                                                    <td className="w-1 px-2 py-2 text-right whitespace-nowrap tabular-nums">
-                                                        {formatNumber(
-                                                            row.harga,
-                                                        )}
-                                                    </td>
-                                                    <td className="w-full min-w-0 px-2 py-2">
-                                                        <div
-                                                            className="truncate"
-                                                            title={renderValue(
-                                                                row.kategori,
+                            <div className="overflow-hidden rounded-2xl border border-sidebar-border/70 bg-background/50">
+                                <div className="overflow-x-auto">
+                                    <table className="w-full table-auto text-sm">
+                                        <thead className="bg-muted/80 text-muted-foreground">
+                                            <tr className="border-b border-slate-300/80 dark:border-slate-700/80">
+                                                <th className="w-1 px-3 py-3 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap">
+                                                    Gudang
+                                                </th>
+                                                <th className="w-1 px-3 py-3 text-right text-xs font-bold uppercase tracking-wider whitespace-nowrap">
+                                                    Stok
+                                                </th>
+                                                <th className="w-1 px-3 py-3 text-right text-xs font-bold uppercase tracking-wider whitespace-nowrap">
+                                                    Harga
+                                                </th>
+                                                <th className="w-full px-3 py-3 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap">
+                                                    Kategori
+                                                </th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {stockRows(viewingMaterial).map(
+                                                (row) => (
+                                                    <tr
+                                                        key={row.label}
+                                                        className="border-b border-slate-300/70 dark:border-slate-700/70 transition-colors hover:bg-emerald-500/[0.05]"
+                                                    >
+                                                        <td className="w-1 px-3 py-2.5 whitespace-nowrap">
+                                                            <span className="inline-flex items-center rounded-lg border border-indigo-500/20 bg-indigo-500/10 px-2 py-0.5 text-xs font-bold text-indigo-600 dark:text-indigo-400">
+                                                                {row.label}
+                                                            </span>
+                                                        </td>
+                                                        <td className="w-1 px-3 py-2.5 text-right font-bold whitespace-nowrap tabular-nums">
+                                                            {formatNumber(row.stok)}
+                                                        </td>
+                                                        <td className="w-1 px-3 py-2.5 text-right whitespace-nowrap tabular-nums">
+                                                            {formatNumber(
+                                                                row.harga,
                                                             )}
-                                                        >
-                                                            {renderValue(
-                                                                row.kategori,
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            ),
-                                        )}
-                                    </tbody>
-                                </table>
+                                                        </td>
+                                                        <td className="w-full min-w-0 px-3 py-2.5">
+                                                            <div
+                                                                className="truncate text-muted-foreground"
+                                                                title={renderValue(
+                                                                    row.kategori,
+                                                                )}
+                                                            >
+                                                                {renderValue(
+                                                                    row.kategori,
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                ),
+                                            )}
+                                        </tbody>
+                                    </table>
+                                </div>
                             </div>
                         </div>
                     )}
@@ -3818,106 +4064,92 @@ export default function MaterialIndex() {
                     }
                 }}
             >
-                <DialogContent className="w-[calc(100vw-2rem)] max-w-none p-4 sm:max-w-[calc(100vw-2rem)] lg:w-[calc(100vw-4rem)] lg:max-w-[1800px]">
-                    <DialogHeader>
-                        <DialogTitle>
-                            {selectedMovement?.title ?? 'Kategori Material'}
-                        </DialogTitle>
-                        <DialogDescription className="sr-only">
-                            Daftar material berdasarkan kategori stok.
-                        </DialogDescription>
+                <DialogContent className="w-[calc(100vw-2rem)] max-w-none p-5 sm:p-6 sm:max-w-[calc(100vw-2rem)] lg:w-[calc(100vw-4rem)] lg:max-w-[1800px] rounded-3xl border border-sidebar-border/70 bg-card/95 backdrop-blur-2xl shadow-2xl">
+                    <DialogHeader className="border-b border-sidebar-border/40 pb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="flex size-10 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
+                                <TrendingUp className="size-5" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-lg font-black tracking-tight">
+                                    {selectedMovement?.title ?? 'Kategori Material'}
+                                </DialogTitle>
+                                <DialogDescription className="sr-only">
+                                    Daftar material berdasarkan kategori stok.
+                                </DialogDescription>
+                            </div>
+                        </div>
                     </DialogHeader>
 
                     <div className="space-y-4">
-                        <div className="grid gap-3 rounded-md border bg-muted/30 p-4 md:grid-cols-3">
-                            <div>
-                                <div className="text-sm text-muted-foreground">
+                        <div className="grid gap-3 rounded-2xl border border-sidebar-border/70 bg-muted/25 p-4 md:grid-cols-3">
+                            <div className="rounded-xl bg-background/70 p-3 border border-sidebar-border/40">
+                                <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                                     Jumlah stok
                                 </div>
-                                <div className="text-xl font-semibold tabular-nums">
+                                <div className="mt-1 text-xl font-black text-foreground tabular-nums">
                                     {formatNumber(selectedMovement?.stock)}
                                 </div>
                             </div>
-                            <div>
-                                <div className="text-sm text-muted-foreground">
+                            <div className="rounded-xl bg-background/70 p-3 border border-sidebar-border/40">
+                                <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                                     Jumlah item
                                 </div>
-                                <div className="text-xl font-semibold tabular-nums">
+                                <div className="mt-1 text-xl font-black text-foreground tabular-nums">
                                     {formatNumber(selectedMovement?.count)}
                                 </div>
                             </div>
-                            <div>
-                                <div className="text-sm text-muted-foreground">
+                            <div className="rounded-xl bg-background/70 p-3 border border-emerald-500/25">
+                                <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                                     Total harga
                                 </div>
-                                <div className="text-xl font-semibold tabular-nums">
+                                <div className="mt-1 text-xl font-black text-emerald-600 dark:text-emerald-400 tabular-nums">
                                     Rp {formatNumber(selectedMovement?.total)}
                                 </div>
                             </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                            <label>
-                                Tampilkan
-                                <select
-                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                    value={movementPageSize}
-                                    onChange={(event) => {
-                                        setMovementPageSize(
-                                            Number(event.target.value),
-                                        );
-                                        setMovementCurrentPage(1);
-                                    }}
-                                >
-                                    <option value={5}>5</option>
-                                    <option value={10}>10</option>
-                                    <option value={25}>25</option>
-                                    <option value={50}>50</option>
-                                    <option value={100}>100</option>
-                                </select>
-                            </label>
-                            <label>
-                                Cari
-                                <input
-                                    type="search"
-                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
-                                    placeholder="Cari kode atau material..."
-                                    value={movementSearchTerm}
-                                    onChange={(event) => {
-                                        setMovementSearchTerm(
-                                            event.target.value,
-                                        );
-                                        setMovementCurrentPage(1);
-                                    }}
-                                />
-                            </label>
-                        </div>
+                        <ModalToolbar
+                            pageSize={movementPageSize}
+                            onPageSizeChange={(val) => {
+                                setMovementPageSize(val);
+                                setMovementCurrentPage(1);
+                            }}
+                            searchValue={movementSearchTerm}
+                            onSearchChange={(val) => {
+                                setMovementSearchTerm(val);
+                                setMovementCurrentPage(1);
+                            }}
+                            searchPlaceholder="Cari kode atau material..."
+                            pageSizeOptions={[5, 10, 25, 50, 100]}
+                            includeAll={false}
+                        />
 
-                        <div className="overflow-hidden rounded-md border">
+                        <div className="overflow-hidden rounded-2xl border border-sidebar-border/70 bg-background/50">
                             <div className="max-h-[64vh] overflow-auto overscroll-contain">
                                 <table className="w-full min-w-[1100px] table-fixed text-sm">
-                                    <thead className="sticky top-0 z-10 bg-background/95 text-muted-foreground backdrop-blur supports-[backdrop-filter]:bg-background/80">
-                                        <tr>
-                                            <th className="w-14 px-3 py-2 text-left whitespace-nowrap">
+                                    <thead className="sticky top-0 z-10 bg-muted/85 text-muted-foreground backdrop-blur-md">
+                                        <tr className="border-b border-slate-300/80 dark:border-slate-700/80">
+                                            <th className="w-14 px-3 py-3 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap">
                                                 No
                                             </th>
-                                            <th className="w-36 px-3 py-2 text-left whitespace-nowrap">
+                                            <th className="w-36 px-3 py-3 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap">
                                                 Kode Material
                                             </th>
-                                            <th className="min-w-0 px-3 py-2 text-left">
+                                            <th className="min-w-0 px-3 py-3 text-left text-xs font-bold uppercase tracking-wider">
                                                 Nama Material
                                             </th>
                                             {movementWarehouses.flatMap(
                                                 (gudang) => [
                                                     <th
                                                         key={`${gudang}-stok`}
-                                                        className="w-24 px-3 py-2 text-right whitespace-nowrap"
+                                                        className="w-24 px-3 py-3 text-right text-xs font-bold uppercase tracking-wider whitespace-nowrap"
                                                     >
                                                         Stok {gudang}
                                                     </th>,
                                                     <th
                                                         key={`${gudang}-harga`}
-                                                        className="w-32 px-3 py-2 text-right whitespace-nowrap"
+                                                        className="w-32 px-3 py-3 text-right text-xs font-bold uppercase tracking-wider whitespace-nowrap"
                                                     >
                                                         Harga {gudang}
                                                     </th>,
@@ -3929,11 +4161,11 @@ export default function MaterialIndex() {
                                         {displayedMovementRows.length === 0 ? (
                                             <tr>
                                                 <td
-                                                    className="px-4 py-6 text-center text-muted-foreground"
+                                                    className="px-4 py-8 text-center text-muted-foreground"
                                                     colSpan={
                                                         3 +
                                                         movementWarehouses.length *
-                                                            2
+                                                        2
                                                     }
                                                 >
                                                     {movementRowsLoading ? 'Memuat data material...' : movementRowsError || 'Data material tidak tersedia.'}
@@ -3944,21 +4176,21 @@ export default function MaterialIndex() {
                                                 (row, index) => (
                                                     <tr
                                                         key={`${row.kd_material}-${index}`}
-                                                        className="border-t border-sidebar-border/70"
+                                                        className="border-b border-slate-300/70 dark:border-slate-700/70 transition-colors hover:bg-emerald-500/[0.05]"
                                                     >
-                                                        <td className="w-14 px-3 py-2 whitespace-nowrap">
+                                                        <td className="w-14 px-3 py-2.5 text-muted-foreground whitespace-nowrap tabular-nums">
                                                             {(movementCurrentPage -
                                                                 1) *
                                                                 movementPageSize +
                                                                 index +
                                                                 1}
                                                         </td>
-                                                        <td className="w-36 px-3 py-2 font-medium whitespace-nowrap">
+                                                        <td className="w-36 px-3 py-2.5 font-sans tabular-nums tracking-wide text-xs font-bold text-emerald-600 dark:text-emerald-400 whitespace-nowrap">
                                                             {renderValue(
                                                                 row.kd_material,
                                                             )}
                                                         </td>
-                                                        <td className="min-w-0 px-3 py-2">
+                                                        <td className="min-w-0 px-3 py-2.5 font-medium">
                                                             <div
                                                                 className="truncate"
                                                                 title={
@@ -3974,37 +4206,37 @@ export default function MaterialIndex() {
                                                             (gudang) => [
                                                                 <td
                                                                     key={`${gudang}-stok`}
-                                                                    className="w-24 px-3 py-2 text-right whitespace-nowrap tabular-nums"
+                                                                    className="w-24 px-3 py-2.5 text-right whitespace-nowrap tabular-nums"
                                                                 >
                                                                     {row
                                                                         .stocks?.[
                                                                         gudang
                                                                     ] ===
-                                                                    undefined
+                                                                        undefined
                                                                         ? '-'
                                                                         : formatNumber(
-                                                                              row
-                                                                                  .stocks[
-                                                                                  gudang
-                                                                              ],
-                                                                          )}
+                                                                            row
+                                                                                .stocks[
+                                                                            gudang
+                                                                            ],
+                                                                        )}
                                                                 </td>,
                                                                 <td
                                                                     key={`${gudang}-harga`}
-                                                                    className="w-32 px-3 py-2 text-right whitespace-nowrap tabular-nums"
+                                                                    className="w-32 px-3 py-2.5 text-right whitespace-nowrap tabular-nums"
                                                                 >
                                                                     {row
                                                                         .prices?.[
                                                                         gudang
                                                                     ] ===
-                                                                    undefined
+                                                                        undefined
                                                                         ? '-'
                                                                         : `Rp ${formatNumber(
-                                                                              row
-                                                                                  .prices[
-                                                                                  gudang
-                                                                              ],
-                                                                          )}`}
+                                                                            row
+                                                                                .prices[
+                                                                            gudang
+                                                                            ],
+                                                                        )}`}
                                                                 </td>,
                                                             ],
                                                         )}
@@ -4018,59 +4250,24 @@ export default function MaterialIndex() {
                         </div>
 
                         {movementTotalItems > 0 && (
-                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                <span>
-                                    Menampilkan{' '}
-                                    {Math.min(
-                                        (movementCurrentPage - 1) *
-                                            movementPageSize +
-                                            1,
-                                        movementTotalItems,
-                                    )}
-                                    -
-                                    {Math.min(
-                                        movementCurrentPage * movementPageSize,
-                                        movementTotalItems,
-                                    )}{' '}
-                                    dari {movementTotalItems} data
-                                </span>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setMovementCurrentPage((page) =>
-                                                Math.max(1, page - 1),
-                                            )
-                                        }
-                                        disabled={movementCurrentPage === 1}
-                                    >
-                                        Sebelumnya
-                                    </Button>
-                                    <span>
-                                        Halaman {movementCurrentPage} dari{' '}
-                                        {movementTotalPages}
-                                    </span>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setMovementCurrentPage((page) =>
-                                                Math.min(
-                                                    movementTotalPages,
-                                                    page + 1,
-                                                ),
-                                            )
-                                        }
-                                        disabled={
-                                            movementCurrentPage ===
-                                            movementTotalPages
-                                        }
-                                    >
-                                        Berikutnya
-                                    </Button>
-                                </div>
-                            </div>
+                            <ModalPagination
+                                currentPage={movementCurrentPage}
+                                totalPages={movementTotalPages}
+                                summaryText={`Menampilkan ${Math.min((movementCurrentPage - 1) * movementPageSize + 1, movementTotalItems)}-${Math.min(movementCurrentPage * movementPageSize, movementTotalItems)} dari ${movementTotalItems} data`}
+                                onPrev={() =>
+                                    setMovementCurrentPage((page) =>
+                                        Math.max(1, page - 1),
+                                    )
+                                }
+                                onNext={() =>
+                                    setMovementCurrentPage((page) =>
+                                        Math.min(
+                                            movementTotalPages,
+                                            page + 1,
+                                        ),
+                                    )
+                                }
+                            />
                         )}
                     </div>
                 </DialogContent>
@@ -4087,43 +4284,50 @@ export default function MaterialIndex() {
                     }
                 }}
             >
-                <DialogContent className="w-[calc(100vw-2rem)] max-w-none p-4 sm:max-w-[calc(100vw-2rem)] lg:w-[calc(100vw-4rem)] lg:max-w-[1800px]">
-                    <DialogHeader>
-                        <DialogTitle>
-                            {selectedWarehouse?.label ?? 'Detail Gudang'}
-                        </DialogTitle>
-                        <DialogDescription className="sr-only">
-                            Daftar material berdasarkan gudang.
-                        </DialogDescription>
+                <DialogContent className="w-[calc(100vw-2rem)] max-w-none p-5 sm:p-6 sm:max-w-[calc(100vw-2rem)] lg:w-[calc(100vw-4rem)] lg:max-w-[1800px] rounded-3xl border border-sidebar-border/70 bg-card/95 backdrop-blur-2xl shadow-2xl">
+                    <DialogHeader className="border-b border-sidebar-border/40 pb-4">
+                        <div className="flex items-center gap-3">
+                            <div className="flex size-10 items-center justify-center rounded-2xl bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 border border-indigo-500/25">
+                                <Warehouse className="size-5" />
+                            </div>
+                            <div>
+                                <DialogTitle className="text-lg font-black tracking-tight">
+                                    {selectedWarehouse?.label ?? 'Detail Gudang'}
+                                </DialogTitle>
+                                <DialogDescription className="sr-only">
+                                    Daftar material berdasarkan gudang.
+                                </DialogDescription>
+                            </div>
+                        </div>
                     </DialogHeader>
 
                     <div className="space-y-4">
-                        <div className="grid gap-3 rounded-md border bg-muted/30 p-4 md:grid-cols-3">
-                            <div>
-                                <div className="text-sm text-muted-foreground">
+                        <div className="grid gap-3 rounded-2xl border border-sidebar-border/70 bg-muted/25 p-4 md:grid-cols-3">
+                            <div className="rounded-xl bg-background/70 p-3 border border-sidebar-border/40">
+                                <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                                     Total stok
                                 </div>
-                                <div className="text-xl font-semibold tabular-nums">
+                                <div className="mt-1 text-xl font-black text-foreground tabular-nums">
                                     {formatNumber(
                                         selectedWarehouseSummary?.total?.stock,
                                     )}
                                 </div>
                             </div>
-                            <div>
-                                <div className="text-sm text-muted-foreground">
+                            <div className="rounded-xl bg-background/70 p-3 border border-sidebar-border/40">
+                                <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                                     Total item
                                 </div>
-                                <div className="text-xl font-semibold tabular-nums">
+                                <div className="mt-1 text-xl font-black text-foreground tabular-nums">
                                     {formatNumber(
                                         selectedWarehouseSummary?.total?.items,
                                     )}
                                 </div>
                             </div>
-                            <div>
-                                <div className="text-sm text-muted-foreground">
+                            <div className="rounded-xl bg-background/70 p-3 border border-indigo-500/25">
+                                <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
                                     Total harga
                                 </div>
-                                <div className="text-xl font-semibold tabular-nums">
+                                <div className="mt-1 text-xl font-black text-indigo-600 dark:text-indigo-400 tabular-nums">
                                     Rp{' '}
                                     {formatNumber(
                                         selectedWarehouseSummary?.total?.total,
@@ -4132,67 +4336,46 @@ export default function MaterialIndex() {
                             </div>
                         </div>
 
-                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                            <label>
-                                Tampilkan
-                                <select
-                                    className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                    value={movementPageSize}
-                                    onChange={(event) => {
-                                        setMovementPageSize(
-                                            Number(event.target.value),
-                                        );
-                                        setMovementCurrentPage(1);
-                                    }}
-                                >
-                                    <option value={5}>5</option>
-                                    <option value={10}>10</option>
-                                    <option value={25}>25</option>
-                                    <option value={50}>50</option>
-                                    <option value={100}>100</option>
-                                </select>
-                            </label>
-                            <label>
-                                Cari
-                                <input
-                                    type="search"
-                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
-                                    placeholder="Cari kode, material, kategori..."
-                                    value={movementSearchTerm}
-                                    onChange={(event) => {
-                                        setMovementSearchTerm(
-                                            event.target.value,
-                                        );
-                                        setMovementCurrentPage(1);
-                                    }}
-                                />
-                            </label>
-                        </div>
+                        <ModalToolbar
+                            pageSize={movementPageSize}
+                            onPageSizeChange={(val) => {
+                                setMovementPageSize(val);
+                                setMovementCurrentPage(1);
+                            }}
+                            searchValue={movementSearchTerm}
+                            onSearchChange={(val) => {
+                                setMovementSearchTerm(val);
+                                setMovementCurrentPage(1);
+                            }}
+                            searchPlaceholder="Cari kode, material, kategori..."
+                            pageSizeOptions={[5, 10, 25, 50, 100]}
+                            includeAll={false}
+                        />
 
-                        <div className="overflow-hidden rounded-md border">
+                        <div className="overflow-hidden rounded-2xl border border-sidebar-border/70 bg-background/50">
                             <div className="max-h-[64vh] overflow-auto overscroll-contain">
                                 <table className="w-full min-w-[980px] table-fixed text-sm">
-                                    <thead className="sticky top-0 z-10 bg-background/95 text-muted-foreground backdrop-blur supports-[backdrop-filter]:bg-background/80">
-                                        <tr>
-                                            <th className="w-14 px-3 py-2 text-left whitespace-nowrap">
+                                    <thead className="sticky top-0 z-10 bg-muted/85 text-muted-foreground backdrop-blur-md">
+                                        <tr className="border-b border-slate-300/80 dark:border-slate-700/80">
+                                            <th className="w-14 px-3 py-3 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap">
                                                 No
                                             </th>
-                                            <th className="w-36 px-3 py-2 text-left whitespace-nowrap">
+                                            <th className="w-36 px-3 py-3 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap">
                                                 Kode Material
                                             </th>
-                                            <th className="min-w-0 px-3 py-2 text-left">
+                                            <th className="min-w-0 px-3 py-3 text-left text-xs font-bold uppercase tracking-wider">
                                                 Nama Material
                                             </th>
-                                            <th className="w-44 px-3 py-2 text-left whitespace-nowrap">
+                                            <th className="w-44 px-3 py-3 text-left text-xs font-bold uppercase tracking-wider whitespace-nowrap">
                                                 Kategori
                                             </th>
-                                            <th className="w-24 px-3 py-2 text-right whitespace-nowrap">
+                                            <th className="w-24 px-3 py-3 text-right text-xs font-bold uppercase tracking-wider whitespace-nowrap">
                                                 Stok
                                             </th>
-                                            <th className="w-32 px-3 py-2 text-right whitespace-nowrap">
+                                            <th className="w-32 px-3 py-3 text-right text-xs font-bold uppercase tracking-wider whitespace-nowrap">
                                                 Harga
                                             </th>
-                                            <th className="w-36 px-3 py-2 text-right whitespace-nowrap">
+                                            <th className="w-36 px-3 py-3 text-right text-xs font-bold uppercase tracking-wider whitespace-nowrap">
                                                 Total Harga
                                             </th>
                                         </tr>
@@ -4201,7 +4384,7 @@ export default function MaterialIndex() {
                                         {displayedMovementRows.length === 0 ? (
                                             <tr>
                                                 <td
-                                                    className="px-4 py-6 text-center text-muted-foreground"
+                                                    className="px-4 py-8 text-center text-muted-foreground"
                                                     colSpan={7}
                                                 >
                                                     {movementRowsLoading ? 'Memuat data material...' : movementRowsError || 'Data material tidak tersedia.'}
@@ -4212,21 +4395,21 @@ export default function MaterialIndex() {
                                                 (row, index) => (
                                                     <tr
                                                         key={`${row.kd_material}-${row.gudang}-${index}`}
-                                                        className="border-t border-sidebar-border/70"
+                                                        className="border-b border-slate-300/70 dark:border-slate-700/70 transition-colors hover:bg-indigo-500/[0.05]"
                                                     >
-                                                        <td className="w-14 px-3 py-2 whitespace-nowrap">
+                                                        <td className="w-14 px-3 py-2.5 text-muted-foreground whitespace-nowrap tabular-nums">
                                                             {(movementCurrentPage -
                                                                 1) *
                                                                 movementPageSize +
                                                                 index +
                                                                 1}
                                                         </td>
-                                                        <td className="w-36 px-3 py-2 font-medium whitespace-nowrap">
+                                                        <td className="w-36 px-3 py-2.5 font-sans tabular-nums tracking-wide text-xs font-bold text-indigo-600 dark:text-indigo-400 whitespace-nowrap">
                                                             {renderValue(
                                                                 row.kd_material,
                                                             )}
                                                         </td>
-                                                        <td className="min-w-0 px-3 py-2">
+                                                        <td className="min-w-0 px-3 py-2.5 font-medium">
                                                             <div
                                                                 className="truncate"
                                                                 title={
@@ -4238,9 +4421,9 @@ export default function MaterialIndex() {
                                                                 )}
                                                             </div>
                                                         </td>
-                                                        <td className="w-44 px-3 py-2 whitespace-nowrap">
+                                                        <td className="w-44 px-3 py-2.5 whitespace-nowrap">
                                                             <div
-                                                                className="truncate"
+                                                                className="truncate text-muted-foreground"
                                                                 title={renderValue(
                                                                     row.kategori,
                                                                 )}
@@ -4250,18 +4433,18 @@ export default function MaterialIndex() {
                                                                 )}
                                                             </div>
                                                         </td>
-                                                        <td className="w-24 px-3 py-2 text-right whitespace-nowrap tabular-nums">
+                                                        <td className="w-24 px-3 py-2.5 text-right font-bold whitespace-nowrap tabular-nums">
                                                             {formatNumber(
                                                                 row.stok,
                                                             )}
                                                         </td>
-                                                        <td className="w-32 px-3 py-2 text-right whitespace-nowrap tabular-nums">
+                                                        <td className="w-32 px-3 py-2.5 text-right whitespace-nowrap tabular-nums">
                                                             Rp{' '}
                                                             {formatNumber(
                                                                 row.harga,
                                                             )}
                                                         </td>
-                                                        <td className="w-36 px-3 py-2 text-right whitespace-nowrap tabular-nums">
+                                                        <td className="w-36 px-3 py-2.5 text-right font-semibold whitespace-nowrap tabular-nums">
                                                             Rp{' '}
                                                             {formatNumber(
                                                                 row.total,
@@ -4277,59 +4460,24 @@ export default function MaterialIndex() {
                         </div>
 
                         {movementTotalItems > 0 && (
-                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                <span>
-                                    Menampilkan{' '}
-                                    {Math.min(
-                                        (movementCurrentPage - 1) *
-                                            movementPageSize +
-                                            1,
-                                        movementTotalItems,
-                                    )}
-                                    -
-                                    {Math.min(
-                                        movementCurrentPage * movementPageSize,
-                                        movementTotalItems,
-                                    )}{' '}
-                                    dari {movementTotalItems} data
-                                </span>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setMovementCurrentPage((page) =>
-                                                Math.max(1, page - 1),
-                                            )
-                                        }
-                                        disabled={movementCurrentPage === 1}
-                                    >
-                                        Sebelumnya
-                                    </Button>
-                                    <span>
-                                        Halaman {movementCurrentPage} dari{' '}
-                                        {movementTotalPages}
-                                    </span>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setMovementCurrentPage((page) =>
-                                                Math.min(
-                                                    movementTotalPages,
-                                                    page + 1,
-                                                ),
-                                            )
-                                        }
-                                        disabled={
-                                            movementCurrentPage ===
-                                            movementTotalPages
-                                        }
-                                    >
-                                        Berikutnya
-                                    </Button>
-                                </div>
-                            </div>
+                            <ModalPagination
+                                currentPage={movementCurrentPage}
+                                totalPages={movementTotalPages}
+                                summaryText={`Menampilkan ${Math.min((movementCurrentPage - 1) * movementPageSize + 1, movementTotalItems)}-${Math.min(movementCurrentPage * movementPageSize, movementTotalItems)} dari ${movementTotalItems} data`}
+                                onPrev={() =>
+                                    setMovementCurrentPage((page) =>
+                                        Math.max(1, page - 1),
+                                    )
+                                }
+                                onNext={() =>
+                                    setMovementCurrentPage((page) =>
+                                        Math.min(
+                                            movementTotalPages,
+                                            page + 1,
+                                        ),
+                                    )
+                                }
+                            />
                         )}
                     </div>
                 </DialogContent>
@@ -4345,18 +4493,30 @@ export default function MaterialIndex() {
                         }
                     }}
                 >
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Tambah Material</DialogTitle>
-                            <DialogDescription className="sr-only">
-                                Form untuk menambah material baru
-                            </DialogDescription>
+                    <DialogContent className="rounded-3xl border border-sidebar-border/70 bg-card/95 backdrop-blur-2xl shadow-2xl">
+                        <DialogHeader className="border-b border-sidebar-border/40 pb-3">
+                            <div className="flex items-center gap-3">
+                                <div className="flex size-10 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/25">
+                                    <Plus className="size-5" />
+                                </div>
+                                <div>
+                                    <DialogTitle className="text-base font-black">
+                                        Tambah Material
+                                    </DialogTitle>
+                                    <DialogDescription className="sr-only">
+                                        Form untuk menambah material baru
+                                    </DialogDescription>
+                                </div>
+                            </div>
                         </DialogHeader>
-                        <form className="space-y-4" onSubmit={handleSubmit}>
+                        <form className="space-y-4 pt-1" onSubmit={handleSubmit}>
                             <div className="space-y-2">
-                                <Label htmlFor="material">Nama Material</Label>
+                                <Label htmlFor="material" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                    Nama Material
+                                </Label>
                                 <Input
                                     id="material"
+                                    className="rounded-xl"
                                     value={data.material}
                                     onChange={(event) =>
                                         setData('material', event.target.value)
@@ -4370,9 +4530,12 @@ export default function MaterialIndex() {
                                 )}
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="unit">Satuan</Label>
+                                <Label htmlFor="unit" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                    Satuan
+                                </Label>
                                 <Input
                                     id="unit"
+                                    className="rounded-xl"
                                     value={data.unit}
                                     onChange={(event) =>
                                         setData('unit', event.target.value)
@@ -4386,7 +4549,9 @@ export default function MaterialIndex() {
                                 )}
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="gudang">Gudang</Label>
+                                <Label htmlFor="gudang" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                    Gudang
+                                </Label>
                                 <Select
                                     value={data.gudang || 'none'}
                                     onValueChange={(value) =>
@@ -4396,7 +4561,7 @@ export default function MaterialIndex() {
                                         )
                                     }
                                 >
-                                    <SelectTrigger id="gudang">
+                                    <SelectTrigger id="gudang" className="rounded-xl">
                                         <SelectValue placeholder="Pilih gudang" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -4420,7 +4585,9 @@ export default function MaterialIndex() {
                                 )}
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="kategori">Kategori</Label>
+                                <Label htmlFor="kategori" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                    Kategori
+                                </Label>
                                 <Select
                                     value={data.kategori || 'none'}
                                     onValueChange={(value) =>
@@ -4430,7 +4597,7 @@ export default function MaterialIndex() {
                                         )
                                     }
                                 >
-                                    <SelectTrigger id="kategori">
+                                    <SelectTrigger id="kategori" className="rounded-xl">
                                         <SelectValue placeholder="Pilih kategori" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -4454,11 +4621,14 @@ export default function MaterialIndex() {
                                 )}
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="stok">Stok</Label>
+                                <Label htmlFor="stok" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                    Stok
+                                </Label>
                                 <Input
                                     id="stok"
                                     type="number"
                                     min="0"
+                                    className="rounded-xl"
                                     value={data.stok}
                                     onChange={(event) =>
                                         setData('stok', event.target.value)
@@ -4470,15 +4640,21 @@ export default function MaterialIndex() {
                                     </p>
                                 )}
                             </div>
-                            <div className="flex justify-end gap-2">
+                            <div className="flex justify-end gap-2 pt-3 border-t border-sidebar-border/40">
                                 <Button
                                     type="button"
                                     variant="outline"
+                                    className="rounded-xl"
                                     onClick={() => setIsModalOpen(false)}
                                 >
                                     Batal
                                 </Button>
-                                <MenuAction action="create" type="submit" disabled={processing}>
+                                <MenuAction
+                                    action="create"
+                                    type="submit"
+                                    disabled={processing}
+                                    className="rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 text-white border-0 shadow-md shadow-emerald-500/20"
+                                >
                                     {processing
                                         ? 'Menyimpan...'
                                         : 'Simpan Data'}
@@ -4500,20 +4676,30 @@ export default function MaterialIndex() {
                         }
                     }}
                 >
-                    <DialogContent>
-                        <DialogHeader>
-                            <DialogTitle>Edit Material</DialogTitle>
-                            <DialogDescription className="sr-only">
-                                Form untuk mengubah data material
-                            </DialogDescription>
+                    <DialogContent className="rounded-3xl border border-sidebar-border/70 bg-card/95 backdrop-blur-2xl shadow-2xl">
+                        <DialogHeader className="border-b border-sidebar-border/40 pb-3">
+                            <div className="flex items-center gap-3">
+                                <div className="flex size-10 items-center justify-center rounded-2xl bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-500/25">
+                                    <Pencil className="size-5" />
+                                </div>
+                                <div>
+                                    <DialogTitle className="text-base font-black">
+                                        Edit Material
+                                    </DialogTitle>
+                                    <DialogDescription className="sr-only">
+                                        Form untuk mengubah data material
+                                    </DialogDescription>
+                                </div>
+                            </div>
                         </DialogHeader>
-                        <form className="space-y-4" onSubmit={handleUpdate}>
+                        <form className="space-y-4 pt-1" onSubmit={handleUpdate}>
                             <div className="space-y-2">
-                                <Label htmlFor="edit-material">
+                                <Label htmlFor="edit-material" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
                                     Nama Material
                                 </Label>
                                 <Input
                                     id="edit-material"
+                                    className="rounded-xl"
                                     value={editData.material}
                                     onChange={(event) =>
                                         setEditData(
@@ -4530,9 +4716,12 @@ export default function MaterialIndex() {
                                 )}
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="edit-unit">Satuan</Label>
+                                <Label htmlFor="edit-unit" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                    Satuan
+                                </Label>
                                 <Input
                                     id="edit-unit"
+                                    className="rounded-xl"
                                     value={editData.unit}
                                     onChange={(event) =>
                                         setEditData('unit', event.target.value)
@@ -4546,11 +4735,14 @@ export default function MaterialIndex() {
                                 )}
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="edit-stok">Stok</Label>
+                                <Label htmlFor="edit-stok" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                    Stok
+                                </Label>
                                 <Input
                                     id="edit-stok"
                                     type="number"
                                     min="0"
+                                    className="rounded-xl"
                                     value={editData.stok}
                                     disabled
                                 />
@@ -4561,7 +4753,9 @@ export default function MaterialIndex() {
                                 )}
                             </div>
                             <div className="space-y-2">
-                                <Label htmlFor="edit-remark">Kategori</Label>
+                                <Label htmlFor="edit-remark" className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+                                    Kategori
+                                </Label>
                                 <Select
                                     value={editData.remark || 'none'}
                                     onValueChange={(value) =>
@@ -4571,7 +4765,7 @@ export default function MaterialIndex() {
                                         )
                                     }
                                 >
-                                    <SelectTrigger id="edit-remark">
+                                    <SelectTrigger id="edit-remark" className="rounded-xl">
                                         <SelectValue placeholder="Pilih kategori" />
                                     </SelectTrigger>
                                     <SelectContent>
@@ -4594,15 +4788,21 @@ export default function MaterialIndex() {
                                     </p>
                                 )}
                             </div>
-                            <div className="flex justify-end gap-2">
+                            <div className="flex justify-end gap-2 pt-3 border-t border-sidebar-border/40">
                                 <Button
                                     type="button"
                                     variant="outline"
+                                    className="rounded-xl"
                                     onClick={() => setIsEditModalOpen(false)}
                                 >
                                     Batal
                                 </Button>
-                                <MenuAction action="update" type="submit" disabled={editProcessing}>
+                                <MenuAction
+                                    action="update"
+                                    type="submit"
+                                    disabled={editProcessing}
+                                    className="rounded-xl bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 shadow-md shadow-amber-500/20"
+                                >
                                     {editProcessing
                                         ? 'Menyimpan...'
                                         : 'Simpan Perubahan'}

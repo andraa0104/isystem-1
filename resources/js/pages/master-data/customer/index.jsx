@@ -25,7 +25,22 @@ import { normalizeApiError, readApiError } from '@/lib/api-error';
 import { confirmDelete } from '@/lib/confirm-delete';
 import { formatDateId } from '@/lib/formatters';
 import { Head, router, useForm, usePage } from '@inertiajs/react';
-import { Download, Eye, Pencil, Plus, Printer, Trash2 } from 'lucide-react';
+import {
+    ArrowDown,
+    ArrowUpDown,
+    Building2,
+    Download,
+    Eye,
+    MapPin,
+    Pencil,
+    Plus,
+    Printer,
+    Search,
+    Sparkles,
+    Trash2,
+    Users,
+} from 'lucide-react';
+import { motion } from 'motion/react';
 import { useEffect, useMemo, useState } from 'react';
 import Swal from 'sweetalert2';
 
@@ -313,11 +328,11 @@ export default function CustomerIndex() {
                     'Gagal memeriksa relasi transaksi customer.',
                 html: normalized.detail
                     ? `<pre style="text-align:left;white-space:pre-wrap;max-height:240px;overflow:auto;margin:0;">${String(
-                          normalized.detail,
-                      )
-                          .replace(/&/g, '&amp;')
-                          .replace(/</g, '&lt;')
-                          .replace(/>/g, '&gt;')}</pre>`
+                        normalized.detail,
+                    )
+                        .replace(/&/g, '&amp;')
+                        .replace(/</g, '&lt;')
+                        .replace(/>/g, '&gt;')}</pre>`
                     : undefined,
             });
             return;
@@ -401,7 +416,7 @@ export default function CustomerIndex() {
                         icon: 'success',
                         title:
                             typeof page !== 'undefined' &&
-                            page?.props?.flash?.success
+                                page?.props?.flash?.success
                                 ? page.props.flash.success
                                 : 'Berhasil disimpan.',
                     });
@@ -461,7 +476,7 @@ export default function CustomerIndex() {
                         icon: 'success',
                         title:
                             typeof page !== 'undefined' &&
-                            page?.props?.flash?.success
+                                page?.props?.flash?.success
                                 ? page.props.flash.success
                                 : 'Berhasil disimpan.',
                     });
@@ -488,299 +503,152 @@ export default function CustomerIndex() {
     return (
         <>
             <Head title="Data Customer" />
-            {tableError && (
-                <div role="alert" className="mx-6 mt-4 flex items-center justify-between gap-3 rounded-md border border-destructive/30 p-3 text-sm text-destructive">
-                    {tableError}
-                    <Button type="button" variant="outline" onClick={refreshRows}>Coba lagi</Button>
-                </div>
-            )}
-            <div className="flex flex-col gap-6 p-6">
-                <div className="flex flex-wrap items-center justify-between gap-4">
-                    <div>
-                        <h1 className="text-2xl font-semibold text-foreground">
-                            Data Customer
-                        </h1>
-                        <p className="text-sm text-muted-foreground">
-                            Kelola daftar customer.
-                        </p>
+            <div className="relative isolate min-h-full overflow-hidden bg-gradient-to-br from-background via-background to-emerald-500/[0.04]">
+                <div className="relative bg-gradient-to-br from-background via-background to-emerald-500/[0.04]">
+                    <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden" aria-hidden="true">
+                        <div className="absolute -left-32 -top-36 size-[420px] rounded-full bg-emerald-500/[0.08] blur-[110px] dark:bg-emerald-500/[0.12]" />
+                        <div className="absolute -right-28 top-1/3 size-[360px] rounded-full bg-cyan-500/[0.07] blur-[110px] dark:bg-cyan-500/[0.1]" />
                     </div>
-                    <div className="flex gap-2">
-                        <Button
-                            variant="secondary"
-                            onClick={() =>
-                                window.open(
-                                    '/master-data/customer/export',
-                                    '_blank',
-                                )
-                            }
-                        >
-                            <Download className="mr-2 h-4 w-4" />
-                            Export Data
-                        </Button>
-                        <MenuAction action="create" onClick={() => setIsCreateModalOpen(true)}>
-                            <Plus className="mr-2 h-4 w-4" />
-                            Tambah Data
-                        </MenuAction>
-                    </div>
-                </div>
-
-                <Card>
-                    <CardHeader>
-                        <CardTitle>Daftar Customer</CardTitle>
-                        <CardDescription>
-                            Cari dan kelola data customer.
-                        </CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-4">
-                        <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                            <div className="flex flex-wrap items-center gap-3">
-                                <label>
-                                    Tampilkan
-                                    <select
-                                        className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                        value={
-                                            pageSize === Infinity
-                                                ? 'all'
-                                                : pageSize
-                                        }
-                                        onChange={(event) => {
-                                            const value = event.target.value;
-                                            setPageSize(
-                                                value === 'all'
-                                                    ? Infinity
-                                                    : Number(value),
-                                            );
-                                            setCurrentPage(1);
-                                        }}
-                                    >
-                                        <option value={5}>5</option>
-                                        <option value={10}>10</option>
-                                        <option value={25}>25</option>
-                                        <option value={50}>50</option>
-                                        <option value="all">Semua</option>
-                                    </select>
-                                </label>
-                                <label>
-                                    Urut kode
-                                    <select
-                                        className="ml-2 rounded-md border border-sidebar-border/70 bg-background px-2 py-1 text-sm"
-                                        value={codeOrder}
-                                        onChange={(event) => {
-                                            setCodeOrder(event.target.value);
-                                            setCurrentPage(1);
-                                        }}
-                                    >
-                                        <option value="asc">Kode CS A-Z</option>
-                                        <option value="desc">
-                                            Kode CS Z-A
-                                        </option>
-                                    </select>
-                                </label>
-                            </div>
-                            <label>
-                                Cari Customer
-                                <input
-                                    type="search"
-                                    className="ml-2 w-64 rounded-md border border-sidebar-border/70 bg-background px-3 py-1 text-sm md:w-80"
-                                    placeholder="Cari nama customer..."
-                                    value={searchTerm}
-                                    onChange={(event) => {
-                                        setSearchTerm(event.target.value);
-                                        setCurrentPage(1);
-                                    }}
-                                />
-                            </label>
-                        </div>
-
-                        <div className="overflow-hidden rounded-xl border border-sidebar-border/70">
-                            <div className="max-h-[65vh] overflow-auto overscroll-contain">
-                                <table className="w-full text-sm">
-                                    <thead className="sticky top-0 z-10 bg-background/95 text-muted-foreground backdrop-blur supports-[backdrop-filter]:bg-background/80">
-                                        <tr>
-                                            <th className="px-4 py-3 text-left">
-                                                No
-                                            </th>
-                                            <th className="sticky left-0 z-[2] w-[160px] bg-background/95 px-4 py-3 text-left">
-                                                Kode CS
-                                            </th>
-                                            <th className="sticky left-[160px] z-[2] min-w-[240px] bg-background/95 px-4 py-3 text-left">
-                                                Nama CS
-                                            </th>
-                                            <th className="px-4 py-3 text-left">
-                                                Alamat
-                                            </th>
-                                            <th className="sticky right-0 z-[2] bg-background/95 px-4 py-3 text-center">
-                                                Aksi
-                                            </th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {tableLoading ? (
-                                            <tr>
-                                                <td
-                                                    className="px-4 py-4"
-                                                    colSpan={5}
-                                                >
-                                                    <div className="flex flex-col gap-3">
-                                                        <Skeleton className="h-6 w-full opacity-60" />
-                                                        <Skeleton className="h-6 w-full opacity-60" />
-                                                        <Skeleton className="h-6 w-full opacity-60" />
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ) : displayedCustomers.length === 0 ? (
-                                            <tr>
-                                                <td
-                                                    className="px-4 py-6 text-center text-muted-foreground"
-                                                    colSpan={5}
-                                                >
-                                                    <div>
-                                                        Data customer belum
-                                                        tersedia atau tidak
-                                                        ditemukan.
-                                                    </div>
-                                                    <div className="mt-3">
-                                                        <MenuAction
-                                                            action="create"
-                                                            type="button"
-                                                            size="sm"
-                                                            onClick={() =>
-                                                                setIsCreateModalOpen(
-                                                                    true,
-                                                                )
-                                                            }
-                                                        >
-                                                            Tambah Customer
-                                                        </MenuAction>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        ) : (
-                                            displayedCustomers.map(
-                                                (item, index) => (
-                                                    <tr
-                                                        key={`${item.kd_cs}-${index}`}
-                                                        className="border-t border-sidebar-border/70"
-                                                    >
-                                                        <td className="px-4 py-3">
-                                                            {(pageSize ===
-                                                            Infinity
-                                                                ? index
-                                                                : (currentPage -
-                                                                      1) *
-                                                                      pageSize +
-                                                                  index) + 1}
-                                                        </td>
-                                                        <td className="sticky left-0 z-[1] w-[160px] bg-background/95 px-4 py-3 font-medium">
-                                                            {renderValue(
-                                                                item.kd_cs,
-                                                            )}
-                                                        </td>
-                                                        <td className="sticky left-[160px] z-[1] bg-background/95 px-4 py-3">
-                                                            {renderValue(
-                                                                item.nm_cs,
-                                                            )}
-                                                        </td>
-                                                        <td className="px-4 py-3">
-                                                            {renderValue(
-                                                                item.alamat_cs,
-                                                            )}
-                                                        </td>
-                                                        <td className="sticky right-0 z-[1] bg-background/95 px-4 py-3">
-                                                            <div className="flex items-center justify-center gap-2">
-                                                                <ActionIconButton
-                                                                    label="Detail"
-                                                                    onClick={() =>
-                                                                        handleView(
-                                                                            item,
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    <Eye className="h-4 w-4" />
-                                                                </ActionIconButton>
-                                                                <MenuAction
-                                                                    action="update"
-                                                                    as={ActionIconButton}
-                                                                    label="Edit"
-                                                                    onClick={() =>
-                                                                        handleEdit(
-                                                                            item,
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    <Pencil className="h-4 w-4" />
-                                                                </MenuAction>
-                                                                <MenuAction
-                                                                    action="delete"
-                                                                    as={ActionIconButton}
-                                                                    label="Hapus"
-                                                                    onClick={() =>
-                                                                        handleDelete(
-                                                                            item,
-                                                                        )
-                                                                    }
-                                                                >
-                                                                    <Trash2 className="h-4 w-4 text-destructive" />
-                                                                </MenuAction>
-                                                            </div>
-                                                        </td>
-                                                    </tr>
-                                                ),
-                                            )
-                                        )}
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        {pageSize !== Infinity && totalItems > 0 && (
-                            <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
-                                <span>
-                                    Menampilkan{' '}
-                                    {Math.min(
-                                        (currentPage - 1) * pageSize + 1,
-                                        totalItems,
-                                    )}
-                                    -
-                                    {Math.min(
-                                        currentPage * pageSize,
-                                        totalItems,
-                                    )}{' '}
-                                    dari {totalItems} data
-                                </span>
-                                <div className="flex items-center gap-2">
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setCurrentPage((page) =>
-                                                Math.max(1, page - 1),
-                                            )
-                                        }
-                                        disabled={currentPage === 1}
-                                    >
-                                        Sebelumnya
-                                    </Button>
-                                    <span>
-                                        Halaman {currentPage} dari {totalPages}
-                                    </span>
-                                    <Button
-                                        variant="outline"
-                                        size="sm"
-                                        onClick={() =>
-                                            setCurrentPage((page) =>
-                                                Math.min(totalPages, page + 1),
-                                            )
-                                        }
-                                        disabled={currentPage === totalPages}
-                                    >
-                                        Berikutnya
-                                    </Button>
+                    <main className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 p-4 sm:p-6 lg:p-8">
+                        <div className="mx-auto flex w-full max-w-[1600px] flex-col gap-6 p-4 sm:p-6 lg:p-8">
+                            <motion.section
+                                initial={{ opacity: 0, y: 16 }}
+                                animate={{ opacity: 1, y: 0 }}
+                                transition={{ duration: 0.45, ease: 'easeOut' }}
+                                className="relative overflow-hidden rounded-3xl border border-emerald-500/15 bg-gradient-to-br from-emerald-500/[0.12] via-card/90 to-cyan-500/[0.07] p-6 shadow-xl shadow-emerald-950/[0.04] backdrop-blur sm:p-8"
+                            >
+                                <div className="absolute -right-8 -top-16 size-64 rounded-full border border-emerald-500/10" />
+                                <div className="absolute right-10 top-8 size-36 rounded-full border border-cyan-500/10" />
+                                <div className="relative flex flex-col justify-between gap-6 lg:flex-row lg:items-end">
+                                    <div className="max-w-2xl">
+                                        <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-emerald-500/20 bg-background/60 px-3 py-1.5 text-xs font-semibold tracking-wide text-emerald-700 shadow-sm dark:text-emerald-300">
+                                            <Sparkles className="size-3.5" /> MASTER DATA
+                                        </div>
+                                        <h1 className="text-3xl font-bold tracking-tight text-foreground sm:text-4xl">Data Customer</h1>
+                                        <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground sm:text-base">
+                                            Kelola informasi customer, kontak, dan riwayat transaksi dalam satu tempat.
+                                        </p>
+                                    </div>
+                                    <div className="flex flex-wrap gap-2">
+                                        <Button variant="outline" className="h-11 border-border/70 bg-background/70 shadow-sm transition-all hover:-translate-y-0.5 hover:border-emerald-500/40 hover:bg-background" onClick={() => window.open('/master-data/customer/export', '_blank')}>
+                                            <Download className="mr-2 size-4" /> Export Data
+                                        </Button>
+                                        <MenuAction action="create" className="h-11 shadow-lg shadow-emerald-900/10 transition-all hover:-translate-y-0.5" onClick={() => setIsCreateModalOpen(true)}>
+                                            <Plus className="mr-2 size-4" /> Tambah Customer
+                                        </MenuAction>
+                                    </div>
                                 </div>
-                            </div>
-                        )}
-                    </CardContent>
-                </Card>
+                            </motion.section>
+
+                            {tableError && (
+                                <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} role="alert" className="flex items-center justify-between gap-3 rounded-2xl border border-destructive/30 bg-destructive/[0.06] p-4 text-sm text-destructive">
+                                    <span>{tableError}</span>
+                                    <Button type="button" variant="outline" size="sm" onClick={refreshRows}>Coba lagi</Button>
+                                </motion.div>
+                            )}
+
+                            <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.45, delay: 0.08 }}>
+                                <Card className="overflow-hidden rounded-3xl border-border/60 bg-card/90 shadow-xl shadow-slate-950/[0.04] backdrop-blur">
+                                    <CardHeader className="border-b border-border/60 bg-muted/20 px-5 py-5 sm:px-7">
+                                        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                                            <div className="flex items-center gap-3">
+                                                <div className="flex size-11 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 ring-1 ring-emerald-500/15 dark:text-emerald-400">
+                                                    <Users className="size-5" />
+                                                </div>
+                                                <div>
+                                                    <CardTitle className="text-lg">Direktori Customer</CardTitle>
+                                                    <CardDescription className="mt-1">Cari, tinjau, dan kelola data customer.</CardDescription>
+                                                </div>
+                                            </div>
+                                            <div className="flex items-center gap-2 rounded-xl border border-border/60 bg-background/70 px-3 py-2 text-sm text-muted-foreground shadow-sm">
+                                                <Building2 className="size-4 text-emerald-600 dark:text-emerald-400" />
+                                                <span><strong className="font-semibold text-foreground">{totalItems}</strong> customer terdaftar</span>
+                                            </div>
+                                        </div>
+                                    </CardHeader>
+                                    <CardContent className="space-y-5 p-5 sm:p-7">
+                                        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+                                            <div className="flex flex-wrap items-end gap-3">
+                                                <label className="space-y-1.5 text-xs font-medium text-muted-foreground">
+                                                    <span>Tampilkan</span>
+                                                    <select className="block h-10 min-w-24 rounded-xl border border-input bg-background px-3 text-sm text-foreground shadow-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15" value={pageSize === Infinity ? 'all' : pageSize} onChange={(event) => { const value = event.target.value; setPageSize(value === 'all' ? Infinity : Number(value)); setCurrentPage(1); }}>
+                                                        <option value={5}>5 baris</option><option value={10}>10 baris</option><option value={25}>25 baris</option><option value={50}>50 baris</option><option value="all">Semua</option>
+                                                    </select>
+                                                </label>
+                                                <label className="space-y-1.5 text-xs font-medium text-muted-foreground">
+                                                    <span>Urutkan kode</span>
+                                                    <span className="relative block">
+                                                        <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                                                        <select className="h-10 min-w-40 appearance-none rounded-xl border border-input bg-background py-2 pl-9 pr-3 text-sm text-foreground shadow-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15" value={codeOrder} onChange={(event) => { setCodeOrder(event.target.value); setCurrentPage(1); }}>
+                                                            <option value="asc">Kode CS A–Z</option><option value="desc">Kode CS Z–A</option>
+                                                        </select>
+                                                    </span>
+                                                </label>
+                                            </div>
+                                            <label className="w-full space-y-1.5 text-xs font-medium text-muted-foreground xl:max-w-sm">
+                                                <span>Cari customer</span>
+                                                <span className="relative block">
+                                                    <Search className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                                                    <input type="search" className="h-11 w-full rounded-xl border border-input bg-background pl-10 pr-4 text-sm text-foreground shadow-sm outline-none transition placeholder:text-muted-foreground/70 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/15" placeholder="Nama, kode, atau alamat customer..." value={searchTerm} onChange={(event) => { setSearchTerm(event.target.value); setCurrentPage(1); }} />
+                                                </span>
+                                            </label>
+                                        </div>
+
+                                        <div className="overflow-hidden rounded-2xl border border-border/70 bg-background/60 shadow-sm">
+                                            <div className="overflow-x-auto">
+                                                <table className="w-full min-w-[760px] text-left text-sm">
+                                                    <thead className="sticky top-0 z-10 bg-muted/90 text-xs uppercase tracking-wider text-muted-foreground backdrop-blur-xl">
+                                                        <tr>
+                                                            <th className="w-16 px-5 py-4 font-semibold">No</th>
+                                                            <th className="w-44 px-5 py-4 font-semibold">Kode CS</th>
+                                                            <th className="min-w-56 px-5 py-4 font-semibold">Nama Customer</th>
+                                                            <th className="px-5 py-4 font-semibold">Alamat</th>
+                                                            <th className="w-36 px-5 py-4 text-center font-semibold">Aksi</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody className="divide-y divide-border/60">
+                                                        {tableLoading ? (
+                                                            <tr><td className="px-5 py-5" colSpan={5}><div className="space-y-3"><Skeleton className="h-10 w-full rounded-xl" /><Skeleton className="h-10 w-full rounded-xl" /><Skeleton className="h-10 w-full rounded-xl" /></div></td></tr>
+                                                        ) : displayedCustomers.length === 0 ? (
+                                                            <tr><td className="px-5 py-16 text-center" colSpan={5}>
+                                                                <div className="mx-auto flex size-14 items-center justify-center rounded-2xl bg-muted text-muted-foreground"><Users className="size-6" /></div>
+                                                                <p className="mt-4 font-semibold text-foreground">Customer belum ditemukan</p>
+                                                                <p className="mt-1 text-sm text-muted-foreground">Ubah kata kunci pencarian atau tambahkan data customer baru.</p>
+                                                                <MenuAction action="create" type="button" size="sm" className="mt-4" onClick={() => setIsCreateModalOpen(true)}><Plus className="mr-2 size-4" /> Tambah Customer</MenuAction>
+                                                            </td></tr>
+                                                        ) : displayedCustomers.map((item, index) => (
+                                                            <motion.tr key={`${item.kd_cs}-${index}`} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.22, delay: Math.min(index * 0.035, 0.25) }} className="group transition-colors hover:bg-emerald-500/[0.035]">
+                                                                <td className="px-5 py-4 text-xs font-medium tabular-nums text-muted-foreground">{(pageSize === Infinity ? index : (currentPage - 1) * pageSize + index) + 1}</td>
+                                                                <td className="px-5 py-4"><span className="inline-flex rounded-lg border border-emerald-500/15 bg-emerald-500/[0.07] px-2.5 py-1 font-mono text-xs font-semibold text-emerald-700 dark:text-emerald-300">{renderValue(item.kd_cs)}</span></td>
+                                                                <td className="px-5 py-4"><div className="font-semibold text-foreground transition-colors group-hover:text-emerald-700 dark:group-hover:text-emerald-300">{renderValue(item.nm_cs)}</div></td>
+                                                                <td className="max-w-[420px] px-5 py-4"><div className="flex items-start gap-2 text-muted-foreground"><MapPin className="mt-0.5 size-4 shrink-0 text-muted-foreground/60" /><span className="line-clamp-2">{renderValue(item.alamat_cs)}</span></div></td>
+                                                                <td className="px-5 py-4"><div className="flex items-center justify-center gap-1.5 rounded-xl border border-border/60 bg-background/80 p-1 shadow-sm transition-all group-hover:border-emerald-500/20 group-hover:shadow-md">
+                                                                    <ActionIconButton label="Detail" onClick={() => handleView(item)}><Eye className="size-4" /></ActionIconButton>
+                                                                    <MenuAction action="update" as={ActionIconButton} label="Edit" onClick={() => handleEdit(item)}><Pencil className="size-4" /></MenuAction>
+                                                                    <MenuAction action="delete" as={ActionIconButton} label="Hapus" onClick={() => handleDelete(item)}><Trash2 className="size-4 text-destructive" /></MenuAction>
+                                                                </div></td>
+                                                            </motion.tr>
+                                                        ))}
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+
+                                        {pageSize !== Infinity && totalItems > 0 && (
+                                            <div className="flex flex-col gap-3 border-t border-border/60 pt-4 text-sm text-muted-foreground sm:flex-row sm:items-center sm:justify-between">
+                                                <span>Menampilkan <strong className="font-semibold text-foreground">{Math.min((currentPage - 1) * pageSize + 1, totalItems)}–{Math.min(currentPage * pageSize, totalItems)}</strong> dari <strong className="font-semibold text-foreground">{totalItems}</strong> data</span>
+                                                <div className="flex items-center justify-between gap-3 sm:justify-end">
+                                                    <Button variant="outline" size="sm" className="rounded-xl" onClick={() => setCurrentPage((page) => Math.max(1, page - 1))} disabled={currentPage === 1}><ArrowDown className="mr-2 size-3.5 rotate-90" /> Sebelumnya</Button>
+                                                    <Button variant="outline" size="sm" className="rounded-xl" onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))} disabled={currentPage === totalPages}>Berikutnya <ArrowDown className="ml-2 size-3.5 -rotate-90" /></Button>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </CardContent>
+                                </Card>
+                            </motion.div>
+                        </div>
+                    </main>
+                </div>
             </div>
 
             {isCreateModalOpen && (
@@ -793,15 +661,15 @@ export default function CustomerIndex() {
                         }
                     }}
                 >
-                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
+                    <DialogContent className="!w-[calc(100%-2rem)] !max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl border-border/70 bg-background/95 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
                         <DialogHeader>
-                            <DialogTitle>Tambah Customer</DialogTitle>
+                            <DialogTitle className="text-2xl font-bold tracking-tight">Tambah Customer</DialogTitle>
                             <DialogDescription className="sr-only">
                                 Form untuk menambahkan customer baru
                             </DialogDescription>
                         </DialogHeader>
                         <form
-                            className="space-y-4"
+                            className="space-y-6"
                             onSubmit={handleCreateSubmit}
                         >
                             <div className="grid gap-4 md:grid-cols-2">
@@ -1040,9 +908,9 @@ export default function CustomerIndex() {
                         }
                     }}
                 >
-                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
+                    <DialogContent className="!w-[calc(100%-2rem)] !max-w-4xl max-h-[90vh] overflow-y-auto rounded-3xl border-border/70 bg-background/95 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
                         <DialogHeader>
-                            <DialogTitle>Detail Customer</DialogTitle>
+                            <DialogTitle className="text-2xl font-bold tracking-tight">Detail Customer</DialogTitle>
                             <DialogDescription className="sr-only">
                                 Detail informasi dan riwayat DO customer
                             </DialogDescription>
@@ -1306,16 +1174,16 @@ export default function CustomerIndex() {
                                                 <tbody>
                                                     {displayedDoHistory.length ===
                                                         0 && (
-                                                        <tr>
-                                                            <td
-                                                                className="px-4 py-6 text-center text-muted-foreground"
-                                                                colSpan={4}
-                                                            >
-                                                                Data DO belum
-                                                                tersedia.
-                                                            </td>
-                                                        </tr>
-                                                    )}
+                                                            <tr>
+                                                                <td
+                                                                    className="px-4 py-6 text-center text-muted-foreground"
+                                                                    colSpan={4}
+                                                                >
+                                                                    Data DO belum
+                                                                    tersedia.
+                                                                </td>
+                                                            </tr>
+                                                        )}
                                                     {displayedDoHistory.map(
                                                         (item) => (
                                                             <tr
@@ -1364,21 +1232,6 @@ export default function CustomerIndex() {
                                             doTotalItems > 0 && (
                                                 <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-muted-foreground">
                                                     <span>
-                                                        Menampilkan{' '}
-                                                        {Math.min(
-                                                            (doCurrentPage -
-                                                                1) *
-                                                                doPageSize +
-                                                                1,
-                                                            doTotalItems,
-                                                        )}
-                                                        -
-                                                        {Math.min(
-                                                            doCurrentPage *
-                                                                doPageSize,
-                                                            doTotalItems,
-                                                        )}{' '}
-                                                        dari {doTotalItems} data
                                                     </span>
                                                     <div className="flex items-center gap-2">
                                                         <Button
@@ -1390,7 +1243,7 @@ export default function CustomerIndex() {
                                                                         Math.max(
                                                                             1,
                                                                             page -
-                                                                                1,
+                                                                            1,
                                                                         ),
                                                                 )
                                                             }
@@ -1415,7 +1268,7 @@ export default function CustomerIndex() {
                                                                         Math.min(
                                                                             doTotalPages,
                                                                             page +
-                                                                                1,
+                                                                            1,
                                                                         ),
                                                                 )
                                                             }
@@ -1449,9 +1302,9 @@ export default function CustomerIndex() {
                         }
                     }}
                 >
-                    <DialogContent className="!top-0 !left-0 !h-screen !w-screen !max-w-none !translate-x-0 !translate-y-0 overflow-y-auto !rounded-none">
+                    <DialogContent className="!w-[calc(100%-2rem)] !max-w-3xl max-h-[90vh] overflow-y-auto rounded-3xl border-border/70 bg-background/95 p-6 shadow-2xl backdrop-blur-xl sm:p-8">
                         <DialogHeader>
-                            <DialogTitle>Edit Customer</DialogTitle>
+                            <DialogTitle className="text-2xl font-bold tracking-tight">Edit Customer</DialogTitle>
                             <DialogDescription className="sr-only">
                                 Form untuk mengubah data customer
                             </DialogDescription>
@@ -1469,7 +1322,7 @@ export default function CustomerIndex() {
                         )}
                         {!editLoading && !editError && (
                             <form
-                                className="space-y-4"
+                                className="space-y-6"
                                 onSubmit={(event) => event.preventDefault()}
                             >
                                 <div className="grid gap-4 md:grid-cols-2">

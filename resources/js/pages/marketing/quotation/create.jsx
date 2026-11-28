@@ -343,12 +343,6 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
         });
     }, [customerModalOpen, debouncedCustomerSearch, customerPage, customerPageSize]);
 
-    // Customer Modal: load count ONLY when search changes or modal opens
-    useEffect(() => {
-        if (!customerModalOpen) return;
-        loadCustomerCount(debouncedCustomerSearch);
-    }, [customerModalOpen, debouncedCustomerSearch]);
-
     // Material Modal: load data when page/pageSize/search changes
     useEffect(() => {
         if (!materialModalOpen) return;
@@ -358,12 +352,6 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
             pageSize: materialPageSize,
         });
     }, [materialModalOpen, debouncedMaterialSearch, materialPage, materialPageSize]);
-
-    // Material Modal: load count ONLY when search changes or modal opens
-    useEffect(() => {
-        if (!materialModalOpen) return;
-        loadMaterialCount(debouncedMaterialSearch);
-    }, [materialModalOpen, debouncedMaterialSearch]);
 
     const customerTotalPages = useMemo(() => {
         return Math.max(1, Math.ceil((customerTotalItems || 0) / (customerPageSize || 5)));
@@ -1847,20 +1835,10 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                             </table>
                         </div>
 
-                        {(customerTotalItems !== null || customerCountLoading || displayedCustomers.length > 0) && (
+                        {displayedCustomers.length > 0 && (
                             <div className="p-3.5 border-t border-border flex items-center justify-between text-xs sm:text-sm text-muted-foreground bg-muted/20">
                                 <span>
                                     Halaman {customerPage}
-                                    {customerCountLoading ? (
-                                        <span className="ml-1 text-muted-foreground/70 italic inline-flex items-center gap-1.5">
-                                            <Spinner className="size-3 animate-spin text-primary inline" />
-                                            (Menghitung total pagination...)
-                                        </span>
-                                    ) : customerTotalPages > 0 ? (
-                                        <>
-                                            {' '}dari {customerTotalPages} ({customerTotalItems} total customer)
-                                        </>
-                                    ) : null}
                                 </span>
                                 <div className="flex items-center gap-2">
                                     <Button
@@ -1876,13 +1854,8 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                         variant="outline"
                                         size="sm"
                                         className="h-8 px-3 text-xs sm:text-sm"
-                                        disabled={
-                                            customerLoading ||
-                                            (customerCountLoading
-                                                ? displayedCustomers.length < customerPageSize
-                                                : customerPage >= customerTotalPages || displayedCustomers.length === 0)
-                                        }
-                                        onClick={() => setCustomerPage((p) => Math.min(customerTotalPages, p + 1))}
+                                        disabled={customerLoading || displayedCustomers.length < customerPageSize}
+                                        onClick={() => setCustomerPage((p) => p + 1)}
                                     >
                                         Berikutnya
                                     </Button>
@@ -2010,20 +1983,10 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                             </table>
                         </div>
 
-                        {(materialTotalItems !== null || materialCountLoading || displayedMaterials.length > 0) && (
+                        {displayedMaterials.length > 0 && (
                             <div className="p-3.5 border-t border-border flex items-center justify-between text-xs sm:text-sm text-muted-foreground bg-muted/20">
                                 <span>
                                     Halaman {materialPage}
-                                    {materialCountLoading ? (
-                                        <span className="ml-1 text-muted-foreground/70 italic inline-flex items-center gap-1.5">
-                                            <Spinner className="size-3 animate-spin text-primary inline" />
-                                            (Menghitung total pagination...)
-                                        </span>
-                                    ) : materialTotalPages > 0 ? (
-                                        <>
-                                            {' '}dari {materialTotalPages} ({materialTotalItems} total material)
-                                        </>
-                                    ) : null}
                                 </span>
                                 <div className="flex items-center gap-2">
                                     <Button
@@ -2039,13 +2002,8 @@ export default function QuotationCreate({ customers = [], materials = [] }) {
                                         variant="outline"
                                         size="sm"
                                         className="h-8 px-3 text-xs sm:text-sm"
-                                        disabled={
-                                            materialLoading ||
-                                            (materialCountLoading
-                                                ? displayedMaterials.length < materialPageSize
-                                                : materialPage >= materialTotalPages || displayedMaterials.length === 0)
-                                        }
-                                        onClick={() => setMaterialPage((p) => Math.min(materialTotalPages, p + 1))}
+                                        disabled={materialLoading || displayedMaterials.length < materialPageSize}
+                                        onClick={() => setMaterialPage((p) => p + 1)}
                                     >
                                         Berikutnya
                                     </Button>

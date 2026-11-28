@@ -2327,11 +2327,10 @@ export default function PurchaseRequirementCreate() {
                             </div>
 
                             {/* Pagination */}
-                            {materialPageSize !== Infinity && materialTotal > 0 && (
+                            {materialPageSize !== Infinity && materialList.length > 0 && (
                                 <div className="flex flex-wrap items-center justify-between gap-3 pt-2 text-xs text-muted-foreground">
                                     <span>
-                                        Menampilkan {Math.min((materialCurrentPage - 1) * materialPageSize + 1, materialTotal)} -{' '}
-                                        {Math.min(materialCurrentPage * materialPageSize, materialTotal)} dari {materialTotal} data
+                                        Halaman {materialCurrentPage}
                                     </span>
                                     <div className="flex items-center gap-2">
                                         <Button
@@ -2343,15 +2342,12 @@ export default function PurchaseRequirementCreate() {
                                         >
                                             Sebelumnya
                                         </Button>
-                                        <span className="font-medium text-foreground">
-                                            {materialCurrentPage} / {materialTotalPages}
-                                        </span>
                                         <Button
                                             variant="outline"
                                             size="sm"
                                             className="h-8 rounded-lg text-xs"
-                                            onClick={() => setMaterialCurrentPage((p) => Math.min(materialTotalPages, p + 1))}
-                                            disabled={materialCurrentPage >= materialTotalPages}
+                                            onClick={() => setMaterialCurrentPage((p) => p + 1)}
+                                            disabled={materialList.length < materialPageSize}
                                         >
                                             Berikutnya
                                         </Button>

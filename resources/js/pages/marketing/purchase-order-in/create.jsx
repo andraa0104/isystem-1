@@ -2195,52 +2195,20 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                         <table className="w-full min-w-[760px] table-auto text-sm">
                             <thead className="bg-muted/50 text-muted-foreground">
                                 <tr>
-                                    <th
-                                        className="w-32 px-2 py-2 text-left"
-                                        rowSpan={2}
-                                    >
+                                    <th className="w-32 px-2 py-2 text-left">
                                         Kode Material
                                     </th>
-                                    <th
-                                        className="px-2 py-2 text-left"
-                                        rowSpan={2}
-                                    >
+                                    <th className="px-2 py-2 text-left">
                                         Nama Material
                                     </th>
-                                    <th
-                                        className="px-2 py-2 text-center"
-                                        colSpan={5}
-                                    >
-                                        Stok
+                                    <th className="w-24 px-2 py-2 text-right">
+                                        Total Stok
                                     </th>
-                                    <th
-                                        className="w-20 px-2 py-2 text-left"
-                                        rowSpan={2}
-                                    >
+                                    <th className="w-20 px-2 py-2 text-left">
                                         Satuan
                                     </th>
-                                    <th
-                                        className="w-20 px-2 py-2 text-left"
-                                        rowSpan={2}
-                                    >
+                                    <th className="w-20 px-2 py-2 text-left">
                                         Action
-                                    </th>
-                                </tr>
-                                <tr>
-                                    <th className="w-16 px-2 py-2 text-right">
-                                        G1
-                                    </th>
-                                    <th className="w-16 px-2 py-2 text-right">
-                                        G2
-                                    </th>
-                                    <th className="w-16 px-2 py-2 text-right">
-                                        G3
-                                    </th>
-                                    <th className="w-16 px-2 py-2 text-right">
-                                        G4
-                                    </th>
-                                    <th className="w-20 px-2 py-2 text-right">
-                                        Total
                                     </th>
                                 </tr>
                             </thead>
@@ -2249,7 +2217,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     <tr>
                                         <td
                                             className="px-4 py-6 text-center text-muted-foreground"
-                                            colSpan={9}
+                                            colSpan={5}
                                         >
                                             {materialLoading
                                                 ? 'Memuat data material...'
@@ -2268,18 +2236,6 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                         </td>
                                         <td className="px-2 py-2">
                                             {item.material ?? '-'}
-                                        </td>
-                                        <td className="px-2 py-2 text-right whitespace-nowrap">
-                                            {formatInteger(item.stok_g1)}
-                                        </td>
-                                        <td className="px-2 py-2 text-right whitespace-nowrap">
-                                            {formatInteger(item.stok_g2)}
-                                        </td>
-                                        <td className="px-2 py-2 text-right whitespace-nowrap">
-                                            {formatInteger(item.stok_g3)}
-                                        </td>
-                                        <td className="px-2 py-2 text-right whitespace-nowrap">
-                                            {formatInteger(item.stok_g4)}
                                         </td>
                                         <td className="px-2 py-2 text-right whitespace-nowrap">
                                             {formatInteger(item.stok)}
@@ -2307,21 +2263,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                     {materialPageSize !== Infinity &&
                         materialTotalItems > 0 && (
                             <div className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                                <span>
-                                    Menampilkan{' '}
-                                    {Math.min(
-                                        (materialCurrentPage - 1) *
-                                            materialPageSize +
-                                            1,
-                                        materialTotalItems,
-                                    )}
-                                    -
-                                    {Math.min(
-                                        materialCurrentPage * materialPageSize,
-                                        materialTotalItems,
-                                    )}{' '}
-                                    dari {materialTotalItems} data
-                                </span>
+                                <span />
                                 <div className="grid grid-cols-2 items-center gap-2 sm:flex">
                                     <Button
                                         variant="outline"
@@ -2336,8 +2278,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                         Sebelumnya
                                     </Button>
                                     <span className="col-span-2 text-center text-sm text-muted-foreground sm:col-span-1">
-                                        Halaman {materialCurrentPage} dari{' '}
-                                        {materialTotalPages}
+                                        Halaman {materialCurrentPage}
                                     </span>
                                     <Button
                                         variant="outline"
@@ -2502,21 +2443,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
 
                     {customerPageSize !== Infinity && customerTotal > 0 && (
                         <div className="grid gap-3 text-sm text-muted-foreground sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-                            <span>
-                                Menampilkan{' '}
-                                {Math.min(
-                                    (customerCurrentPage - 1) *
-                                        customerPageSize +
-                                        1,
-                                    customerTotal,
-                                )}
-                                -
-                                {Math.min(
-                                    customerCurrentPage * customerPageSize,
-                                    customerTotal,
-                                )}{' '}
-                                dari {customerTotal} data
-                            </span>
+                            <span />
                             <div className="grid grid-cols-2 items-center gap-2 sm:flex">
                                 <Button
                                     variant="outline"
@@ -2531,8 +2458,7 @@ export default function PurchaseOrderInCreate({ defaults = {} }) {
                                     Sebelumnya
                                 </Button>
                                 <span className="col-span-2 text-center text-sm text-muted-foreground sm:col-span-1">
-                                    Halaman {customerCurrentPage} dari{' '}
-                                    {customerTotalPages}
+                                    Halaman {customerCurrentPage}
                                 </span>
                                 <Button
                                     variant="outline"
