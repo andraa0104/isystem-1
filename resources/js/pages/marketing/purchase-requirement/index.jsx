@@ -69,9 +69,9 @@ const splitMultiValue = (value) =>
     Array.isArray(value)
         ? value
         : String(value ?? '')
-              .split(/\s*(?:,|\/)\s*/)
-              .map((item) => item.trim())
-              .filter(Boolean);
+            .split(/\s*(?:,|\/)\s*/)
+            .map((item) => item.trim())
+            .filter(Boolean);
 
 const getValue = (source, keys) => {
     for (const key of keys) {
@@ -430,13 +430,12 @@ function InsightRecommendationPanel({
                                                     )}
                                                     {item.stock_matched !== false && item.current_stock !== undefined && (
                                                         <span
-                                                            className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${
-                                                                item.current_stock <= 0
-                                                                    ? 'bg-destructive/10 text-destructive'
-                                                                    : (item.days_of_inventory !== undefined && item.days_of_inventory <= 15)
+                                                            className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${item.current_stock <= 0
+                                                                ? 'bg-destructive/10 text-destructive'
+                                                                : (item.days_of_inventory !== undefined && item.days_of_inventory <= 15)
                                                                     ? 'bg-amber-500/10 text-amber-600 dark:text-amber-400'
                                                                     : 'bg-muted text-muted-foreground'
-                                                            }`}
+                                                                }`}
                                                         >
                                                             Stok Gudang: {formatNumber(item.current_stock)} {item.unit}
                                                         </span>
@@ -479,19 +478,18 @@ function InsightRecommendationPanel({
                                                 )}
                                                 {type === 'opex' && item.predicted_date && (
                                                     <p
-                                                        className={`mt-1 text-xs ${
-                                                            item.days_until < 0
-                                                                ? 'font-medium text-destructive'
-                                                                : item.days_until <= 7
+                                                        className={`mt-1 text-xs ${item.days_until < 0
+                                                            ? 'font-medium text-destructive'
+                                                            : item.days_until <= 7
                                                                 ? 'font-medium text-amber-600 dark:text-amber-400'
                                                                 : 'text-muted-foreground'
-                                                        }`}
+                                                            }`}
                                                     >
                                                         {item.days_until < 0
                                                             ? `Terlewat ${Math.abs(item.days_until)} hari dari siklus (${item.predicted_date})`
                                                             : item.days_until === 0
-                                                            ? `Jatuh tempo HARI INI (${item.predicted_date})`
-                                                            : `Prediksi kebutuhan: ${item.predicted_date} (${item.days_until} hari lagi)`}
+                                                                ? `Jatuh tempo HARI INI (${item.predicted_date})`
+                                                                : `Prediksi kebutuhan: ${item.predicted_date} (${item.days_until} hari lagi)`}
                                                     </p>
                                                 )}
                                             </div>
@@ -501,13 +499,12 @@ function InsightRecommendationPanel({
                                                 </span>
                                                 {item.confidence && (
                                                     <span
-                                                        className={`rounded-full px-2 py-1 text-xs font-medium ${
-                                                            item.confidence === 'Tinggi'
-                                                                ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                                                                : item.confidence === 'Sedang'
-                                                                  ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                                                                  : 'bg-muted text-muted-foreground'
-                                                        }`}
+                                                        className={`rounded-full px-2 py-1 text-xs font-medium ${item.confidence === 'Tinggi'
+                                                            ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                                                            : item.confidence === 'Sedang'
+                                                                ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                                                                : 'bg-muted text-muted-foreground'
+                                                            }`}
                                                     >
                                                         Keyakinan {item.confidence}
                                                     </span>
@@ -577,8 +574,8 @@ function InsightRecommendationPanel({
                                                                 ? item.days_until < 0
                                                                     ? `Terlewat ${Math.abs(item.days_until)}h`
                                                                     : item.days_until === 0
-                                                                    ? 'Hari Ini!'
-                                                                    : `${item.predicted_date} (${item.days_until}h)`
+                                                                        ? 'Hari Ini!'
+                                                                        : `${item.predicted_date} (${item.days_until}h)`
                                                                 : '-'}
                                                         </td>
                                                     )}
@@ -600,13 +597,12 @@ function InsightRecommendationPanel({
                                                     <td className="px-3 py-2 text-center">
                                                         {item.confidence ? (
                                                             <span
-                                                                className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
-                                                                    item.confidence === 'Tinggi'
-                                                                        ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
-                                                                        : item.confidence === 'Sedang'
-                                                                          ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
-                                                                          : 'bg-muted text-muted-foreground'
-                                                                }`}
+                                                                className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${item.confidence === 'Tinggi'
+                                                                    ? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400'
+                                                                    : item.confidence === 'Sedang'
+                                                                        ? 'bg-amber-500/10 text-amber-700 dark:text-amber-400'
+                                                                        : 'bg-muted text-muted-foreground'
+                                                                    }`}
                                                             >
                                                                 {item.confidence}
                                                             </span>
@@ -649,7 +645,6 @@ function InsightRecommendationPanel({
                                 >
                                     Sebelumnya
                                 </Button>
-                                <span>Halaman {safePage} dari {totalPages}</span>
                                 <Button
                                     variant="outline"
                                     size="sm"
@@ -1079,9 +1074,9 @@ export default function PurchaseRequirementIndex({
         const list = Array.isArray(values)
             ? values
             : String(values ?? '')
-                  .split(/\s*,\s*/)
-                  .map((item) => item.trim())
-                  .filter(Boolean);
+                .split(/\s*,\s*/)
+                .map((item) => item.trim())
+                .filter(Boolean);
 
         if (list.length === 0) {
             return renderValue(values);
@@ -1700,7 +1695,7 @@ export default function PurchaseRequirementIndex({
                                 ) {
                                     Swal.showValidationMessage(
                                         page.props?.flash?.error ||
-                                            'Server belum mengonfirmasi penghapusan PR.',
+                                        'Server belum mengonfirmasi penghapusan PR.',
                                     );
                                     resolve(false);
                                     return;
@@ -2340,9 +2335,6 @@ export default function PurchaseRequirementIndex({
                                             <ChevronLeft className="size-3.5" />
                                             <span>Sebelumnya</span>
                                         </Button>
-                                        <span className="text-xs font-medium text-foreground px-1">
-                                            {currentPage} / {totalPages}
-                                        </span>
                                         <Button
                                             variant="outline"
                                             size="sm"

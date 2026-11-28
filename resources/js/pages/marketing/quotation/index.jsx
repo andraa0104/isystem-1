@@ -550,20 +550,18 @@ export default function QuotationIndex({
                         <button
                             type="button"
                             onClick={() => handleTabChange('customer')}
-                            className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-colors cursor-pointer select-none ${
-                                activeTab === 'customer'
-                                    ? 'bg-emerald-600 text-white shadow-xs'
-                                    : 'text-muted-foreground hover:text-foreground hover:bg-background/60'
-                            }`}
+                            className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-colors cursor-pointer select-none ${activeTab === 'customer'
+                                ? 'bg-emerald-600 text-white shadow-xs'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-background/60'
+                                }`}
                         >
                             <Building2 className="size-3.5" />
                             <span>Data Quotation Customer</span>
                             <span
-                                className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums tracking-wide ${
-                                    activeTab === 'customer'
-                                        ? 'bg-white/20 text-white'
-                                        : 'bg-background/80 text-muted-foreground'
-                                }`}
+                                className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums tracking-wide ${activeTab === 'customer'
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-background/80 text-muted-foreground'
+                                    }`}
                             >
                                 {totalItems}
                             </span>
@@ -572,20 +570,18 @@ export default function QuotationIndex({
                         <button
                             type="button"
                             onClick={() => handleTabChange('material')}
-                            className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-colors cursor-pointer select-none ${
-                                activeTab === 'material'
-                                    ? 'bg-emerald-600 text-white shadow-xs'
-                                    : 'text-muted-foreground hover:text-foreground hover:bg-background/60'
-                            }`}
+                            className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-bold transition-colors cursor-pointer select-none ${activeTab === 'material'
+                                ? 'bg-emerald-600 text-white shadow-xs'
+                                : 'text-muted-foreground hover:text-foreground hover:bg-background/60'
+                                }`}
                         >
                             <Boxes className="size-3.5" />
                             <span>Data Quotation Material</span>
                             <span
-                                className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums tracking-wide ${
-                                    activeTab === 'material'
-                                        ? 'bg-white/20 text-white'
-                                        : 'bg-background/80 text-muted-foreground'
-                                }`}
+                                className={`rounded-full px-2 py-0.5 text-xs font-semibold tabular-nums tracking-wide ${activeTab === 'material'
+                                    ? 'bg-white/20 text-white'
+                                    : 'bg-background/80 text-muted-foreground'
+                                    }`}
                             >
                                 {materialTotal}
                             </span>
@@ -758,14 +754,7 @@ export default function QuotationIndex({
                             {/* Pagination Footer */}
                             {pageSize !== Infinity && totalItems > 0 && (
                                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-4 border-t border-sidebar-border/60 text-sm text-muted-foreground bg-muted/20">
-                                    <div className="flex items-center gap-1.5 font-medium">
-                                        <span>Menampilkan</span>
-                                        <span className="font-semibold text-foreground tracking-wide tabular-nums">
-                                            {Math.min((currentPage - 1) * pageSize + 1, totalItems)} - {Math.min(currentPage * pageSize, totalItems)}
-                                        </span>
-                                        <span>dari</span>
-                                        <span className="font-semibold text-foreground tracking-wide tabular-nums">{formatNumber(totalItems)}</span>
-                                        <span>data</span>
+                                    <div className="gap-1.5">
                                     </div>
 
                                     <div className="flex items-center gap-1.5">
@@ -780,9 +769,6 @@ export default function QuotationIndex({
                                             <span>Sebelumnya</span>
                                         </Button>
 
-                                        <div className="px-3 py-1 rounded-lg bg-background border border-sidebar-border/70 text-sm font-semibold text-foreground tracking-wide tabular-nums">
-                                            {currentPage} / {totalPages}
-                                        </div>
 
                                         <Button
                                             variant="outline"
@@ -797,9 +783,9 @@ export default function QuotationIndex({
                                     </div>
                                 </div>
                             )}
-                            </div>
                         </div>
-                    ) : (
+                    </div>
+                ) : (
                     /* ─── TAB 2: DATA MATERIAL (SERVER SIDE) ───────────────────── */
                     <div className="flex flex-col gap-4">
                         {/* Filter & Search Bar */}
@@ -1260,19 +1246,17 @@ export default function QuotationIndex({
                     <div className="fixed top-5 right-5 z-[9999] w-full max-w-sm sm:max-w-md animate-in slide-in-from-top-3 fade-in duration-300 pointer-events-auto">
                         <style>{`@keyframes toastProgress { from { width: 100%; } to { width: 0%; } }`}</style>
                         <div
-                            className={`relative overflow-hidden rounded-2xl border bg-card/95 p-4 shadow-2xl backdrop-blur-md ${
-                                toast.type === 'error'
-                                    ? 'border-destructive/30 shadow-destructive/10'
-                                    : 'border-emerald-500/30 shadow-emerald-500/10'
-                            }`}
+                            className={`relative overflow-hidden rounded-2xl border bg-card/95 p-4 shadow-2xl backdrop-blur-md ${toast.type === 'error'
+                                ? 'border-destructive/30 shadow-destructive/10'
+                                : 'border-emerald-500/30 shadow-emerald-500/10'
+                                }`}
                         >
                             <div className="flex items-start gap-3.5 pr-7">
                                 <div
-                                    className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${
-                                        toast.type === 'error'
-                                            ? 'bg-destructive/15 text-destructive'
-                                            : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
-                                    }`}
+                                    className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${toast.type === 'error'
+                                        ? 'bg-destructive/15 text-destructive'
+                                        : 'bg-emerald-500/15 text-emerald-600 dark:text-emerald-400'
+                                        }`}
                                 >
                                     {toast.type === 'error' ? (
                                         <AlertCircle className="size-5 stroke-[2.2]" />
@@ -1282,11 +1266,10 @@ export default function QuotationIndex({
                                 </div>
                                 <div className="flex-1 min-w-0 space-y-1">
                                     <h4
-                                        className={`text-sm font-bold leading-tight ${
-                                            toast.type === 'error'
-                                                ? 'text-destructive'
-                                                : 'text-foreground'
-                                        }`}
+                                        className={`text-sm font-bold leading-tight ${toast.type === 'error'
+                                            ? 'text-destructive'
+                                            : 'text-foreground'
+                                            }`}
                                     >
                                         {toast.title}
                                     </h4>
@@ -1312,9 +1295,8 @@ export default function QuotationIndex({
 
                             <div className="absolute bottom-0 left-0 h-1 w-full bg-muted/40 overflow-hidden">
                                 <div
-                                    className={`h-full ${
-                                        toast.type === 'error' ? 'bg-destructive' : 'bg-emerald-500'
-                                    }`}
+                                    className={`h-full ${toast.type === 'error' ? 'bg-destructive' : 'bg-emerald-500'
+                                        }`}
                                     style={{
                                         animation: `toastProgress ${toast.duration || 4500}ms linear forwards`,
                                     }}
@@ -1330,11 +1312,10 @@ export default function QuotationIndex({
                         <div className="w-full max-w-sm rounded-xl border border-border bg-card p-5 shadow-xl space-y-3 animate-in fade-in zoom-in-95 duration-150">
                             <div className="flex items-start gap-3">
                                 <div
-                                    className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${
-                                        confirmModal.variant === 'danger'
-                                            ? 'bg-destructive/15 text-destructive'
-                                            : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
-                                    }`}
+                                    className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${confirmModal.variant === 'danger'
+                                        ? 'bg-destructive/15 text-destructive'
+                                        : 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                                        }`}
                                 >
                                     <AlertCircle className="size-5" />
                                 </div>
@@ -1367,11 +1348,10 @@ export default function QuotationIndex({
                                     type="button"
                                     variant={confirmModal.variant === 'danger' ? 'destructive' : 'default'}
                                     size="sm"
-                                    className={`h-8 rounded-lg text-xs font-semibold px-3.5 gap-1.5 shadow-xs !text-white ${
-                                        confirmModal.variant === 'danger'
-                                            ? 'bg-destructive hover:bg-destructive/90 !text-white'
-                                            : 'bg-amber-600 hover:bg-amber-700 !text-white'
-                                    }`}
+                                    className={`h-8 rounded-lg text-xs font-semibold px-3.5 gap-1.5 shadow-xs !text-white ${confirmModal.variant === 'danger'
+                                        ? 'bg-destructive hover:bg-destructive/90 !text-white'
+                                        : 'bg-amber-600 hover:bg-amber-700 !text-white'
+                                        }`}
                                     onClick={() => {
                                         if (confirmModal.onConfirm) {
                                             confirmModal.onConfirm();

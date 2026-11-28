@@ -637,8 +637,10 @@ export default function PurchaseOrderInIndex({
 
             const response = await fetch(
                 `/marketing/purchase-order-in/material-data?${queryParams.toString()}`,
-                { cache: 'no-store',
-                    signal, headers: { Accept: 'application/json' } },
+                {
+                    cache: 'no-store',
+                    signal, headers: { Accept: 'application/json' }
+                },
             );
             const data = await readPoInResponse(
                 response,
@@ -952,8 +954,8 @@ export default function PurchaseOrderInIndex({
                     activeModal === 'all_data'
                         ? dataPoInPeriod
                         : activeModal === 'realized'
-                          ? realizedPeriod
-                          : 'all',
+                            ? realizedPeriod
+                            : 'all',
                 deadline_filter: ['outstanding', 'sisa'].includes(activeModal)
                     ? modalDeadlineFilter
                     : 'all',
@@ -1047,7 +1049,7 @@ export default function PurchaseOrderInIndex({
         if (dataPoInPeriod === 'all') return Number(summary.total ?? 0);
         const period =
             { this_week: 'week', this_month: 'month', this_year: 'year' }[
-                dataPoInPeriod
+            dataPoInPeriod
             ] ?? dataPoInPeriod;
         return Number(summary.data_counts?.[period] ?? 0);
     }, [dataPoInPeriod, summary]);
@@ -1059,7 +1061,7 @@ export default function PurchaseOrderInIndex({
             );
         const period =
             { this_week: 'week', this_month: 'month', this_year: 'year' }[
-                dataPoInPeriod
+            dataPoInPeriod
             ] ?? dataPoInPeriod;
         return Number(summary.data_amounts?.[period] ?? 0);
     }, [dataPoInPeriod, summary]);
@@ -1519,8 +1521,8 @@ export default function PurchaseOrderInIndex({
                 </section>
 
                 {/* ─── 2. KPI Summary Metric Cards ───────────────────────────────── */}
-                
-                    <section className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+
+                <section className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {/* Card 1: PO IN Outstanding */}
                     <article className="rounded-xl border border-sidebar-border/70 bg-card p-3.5 sm:p-4 shadow-xs hover:shadow-sm hover:border-amber-500/40 transition-all flex flex-col justify-between">
                         <div>
@@ -1851,18 +1853,18 @@ export default function PurchaseOrderInIndex({
                                 {(activeDataTab === 'material'
                                     ? materialSearch
                                     : search) && (
-                                    <button
-                                        type="button"
-                                        className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground/60 hover:text-foreground cursor-pointer"
-                                        onClick={() =>
-                                            activeDataTab === 'material'
-                                                ? setMaterialSearch('')
-                                                : setSearch('')
-                                        }
-                                    >
-                                        <X className="size-3.5" />
-                                    </button>
-                                )}
+                                        <button
+                                            type="button"
+                                            className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-muted-foreground/60 hover:text-foreground cursor-pointer"
+                                            onClick={() =>
+                                                activeDataTab === 'material'
+                                                    ? setMaterialSearch('')
+                                                    : setSearch('')
+                                            }
+                                        >
+                                            <X className="size-3.5" />
+                                        </button>
+                                    )}
                             </div>
                             <div
                                 className="hidden sm:flex items-center gap-1.5 shrink-0 px-2.5 py-1 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 select-none"
@@ -1926,8 +1928,8 @@ export default function PurchaseOrderInIndex({
                                     onChange={(event) =>
                                         activeDataTab === 'material'
                                             ? setMaterialDateFilter(
-                                                  event.target.value,
-                                              )
+                                                event.target.value,
+                                            )
                                             : setTableDateFilter(event.target.value)
                                     }
                                 >
@@ -1944,47 +1946,47 @@ export default function PurchaseOrderInIndex({
                             {(activeDataTab === 'material'
                                 ? materialDateFilter
                                 : tableDateFilter) === 'range' && (
-                                <div className="flex items-center gap-1 bg-background rounded-md border border-sidebar-border/70 px-1.5 py-0.5">
-                                    <Calendar className="size-3 text-muted-foreground" />
-                                    <input
-                                        type="date"
-                                        className="h-7 rounded border-none bg-transparent px-1 text-xs text-foreground focus:outline-none"
-                                        value={
-                                            activeDataTab === 'material'
-                                                ? materialStartDate
-                                                : tableStartDate
-                                        }
-                                        onChange={(event) =>
-                                            activeDataTab === 'material'
-                                                ? setMaterialStartDate(
-                                                      event.target.value,
-                                                  )
-                                                : setTableStartDate(
-                                                      event.target.value,
-                                                  )
-                                        }
-                                    />
-                                    <span className="text-muted-foreground">-</span>
-                                    <input
-                                        type="date"
-                                        className="h-7 rounded border-none bg-transparent px-1 text-xs text-foreground focus:outline-none"
-                                        value={
-                                            activeDataTab === 'material'
-                                                ? materialEndDate
-                                                : tableEndDate
-                                        }
-                                        onChange={(event) =>
-                                            activeDataTab === 'material'
-                                                ? setMaterialEndDate(
-                                                      event.target.value,
-                                                  )
-                                                : setTableEndDate(
-                                                      event.target.value,
-                                                  )
-                                        }
-                                    />
-                                </div>
-                            )}
+                                    <div className="flex items-center gap-1 bg-background rounded-md border border-sidebar-border/70 px-1.5 py-0.5">
+                                        <Calendar className="size-3 text-muted-foreground" />
+                                        <input
+                                            type="date"
+                                            className="h-7 rounded border-none bg-transparent px-1 text-xs text-foreground focus:outline-none"
+                                            value={
+                                                activeDataTab === 'material'
+                                                    ? materialStartDate
+                                                    : tableStartDate
+                                            }
+                                            onChange={(event) =>
+                                                activeDataTab === 'material'
+                                                    ? setMaterialStartDate(
+                                                        event.target.value,
+                                                    )
+                                                    : setTableStartDate(
+                                                        event.target.value,
+                                                    )
+                                            }
+                                        />
+                                        <span className="text-muted-foreground">-</span>
+                                        <input
+                                            type="date"
+                                            className="h-7 rounded border-none bg-transparent px-1 text-xs text-foreground focus:outline-none"
+                                            value={
+                                                activeDataTab === 'material'
+                                                    ? materialEndDate
+                                                    : tableEndDate
+                                            }
+                                            onChange={(event) =>
+                                                activeDataTab === 'material'
+                                                    ? setMaterialEndDate(
+                                                        event.target.value,
+                                                    )
+                                                    : setTableEndDate(
+                                                        event.target.value,
+                                                    )
+                                            }
+                                        />
+                                    </div>
+                                )}
 
                             {/* Deadline Dropdown (if not realized) */}
                             {!['realized_pr', 'realized_do'].includes(
@@ -1992,53 +1994,53 @@ export default function PurchaseOrderInIndex({
                                     ? materialStatusFilter
                                     : statusFilter,
                             ) && (
-                                <div className="flex items-center gap-1">
-                                    <span className="text-[11px] text-muted-foreground hidden sm:inline">Deadline:</span>
-                                    <select
-                                        className="h-8 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs font-medium text-foreground focus:border-emerald-500 focus:outline-none cursor-pointer"
-                                        value={
-                                            activeDataTab === 'material'
-                                                ? materialDeadlineFilter
-                                                : deadlineFilter
-                                        }
-                                        onChange={(event) =>
-                                            activeDataTab === 'material'
-                                                ? setMaterialDeadlineFilter(
-                                                      event.target.value,
-                                                  )
-                                                : setDeadlineFilter(
-                                                      event.target.value,
-                                                  )
-                                        }
-                                    >
-                                        <option value="all">Semua Deadline</option>
-                                        <option value="soon">
-                                            ≤ 5 Hari
-                                        </option>
-                                        <option value="overdue">
-                                            Lewat Deadline
-                                        </option>
-                                    </select>
-                                </div>
-                            )}
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-[11px] text-muted-foreground hidden sm:inline">Deadline:</span>
+                                        <select
+                                            className="h-8 rounded-md border border-sidebar-border/70 bg-background px-2 text-xs font-medium text-foreground focus:border-emerald-500 focus:outline-none cursor-pointer"
+                                            value={
+                                                activeDataTab === 'material'
+                                                    ? materialDeadlineFilter
+                                                    : deadlineFilter
+                                            }
+                                            onChange={(event) =>
+                                                activeDataTab === 'material'
+                                                    ? setMaterialDeadlineFilter(
+                                                        event.target.value,
+                                                    )
+                                                    : setDeadlineFilter(
+                                                        event.target.value,
+                                                    )
+                                            }
+                                        >
+                                            <option value="all">Semua Deadline</option>
+                                            <option value="soon">
+                                                ≤ 5 Hari
+                                            </option>
+                                            <option value="overdue">
+                                                Lewat Deadline
+                                            </option>
+                                        </select>
+                                    </div>
+                                )}
 
                             {/* Quick Reset Filter Button */}
                             {((activeDataTab === 'customer' && isCustomerFiltered) ||
                                 (activeDataTab === 'material' && isMaterialFiltered)) && (
-                                <button
-                                    type="button"
-                                    onClick={
-                                        activeDataTab === 'customer'
-                                            ? handleResetCustomerFilters
-                                            : handleResetMaterialFilters
-                                    }
-                                    className="inline-flex items-center gap-1 h-8 px-2 text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 rounded-md transition-colors cursor-pointer"
-                                    title="Kembalikan semua filter ke awal"
-                                >
-                                    <RotateCcw className="size-3" />
-                                    <span>Reset</span>
-                                </button>
-                            )}
+                                    <button
+                                        type="button"
+                                        onClick={
+                                            activeDataTab === 'customer'
+                                                ? handleResetCustomerFilters
+                                                : handleResetMaterialFilters
+                                        }
+                                        className="inline-flex items-center gap-1 h-8 px-2 text-[11px] font-semibold text-rose-600 dark:text-rose-400 hover:bg-rose-500/10 rounded-md transition-colors cursor-pointer"
+                                        title="Kembalikan semua filter ke awal"
+                                    >
+                                        <RotateCcw className="size-3" />
+                                        <span>Reset</span>
+                                    </button>
+                                )}
                         </div>
 
                         {/* Page Size Control */}
@@ -2080,24 +2082,24 @@ export default function PurchaseOrderInIndex({
                         {isMobile &&
                             tableLoading &&
                             purchaseOrderIns.length === 0 && (
-                            <>
-                                {Array.from({
-                                    length:
-                                        perPage === 'all'
-                                            ? 5
-                                            : Number(perPage || 5),
-                                }).map((_, index) => (
-                                    <div
-                                        key={`mobile-skeleton-${index}`}
-                                        className="rounded-xl border border-sidebar-border/70 bg-card p-3.5 space-y-2.5"
-                                    >
-                                        <Skeleton className="h-4 w-36" />
-                                        <Skeleton className="h-4 w-full" />
-                                        <Skeleton className="h-4 w-28" />
-                                    </div>
-                                ))}
-                            </>
-                        )}
+                                <>
+                                    {Array.from({
+                                        length:
+                                            perPage === 'all'
+                                                ? 5
+                                                : Number(perPage || 5),
+                                    }).map((_, index) => (
+                                        <div
+                                            key={`mobile-skeleton-${index}`}
+                                            className="rounded-xl border border-sidebar-border/70 bg-card p-3.5 space-y-2.5"
+                                        >
+                                            <Skeleton className="h-4 w-36" />
+                                            <Skeleton className="h-4 w-full" />
+                                            <Skeleton className="h-4 w-28" />
+                                        </div>
+                                    ))}
+                                </>
+                            )}
                         {isMobile && !tableLoading && tableError && (
                             <SummaryLoadError
                                 label="tabel PO IN"
@@ -2111,125 +2113,125 @@ export default function PurchaseOrderInIndex({
                             !tableLoading &&
                             !tableError &&
                             purchaseOrderIns.length === 0 && (
-                            <div className="rounded-xl border border-sidebar-border/70 bg-card px-4 py-8 text-center text-xs text-muted-foreground">
-                                Belum ada data PO In.
-                            </div>
-                        )}
+                                <div className="rounded-xl border border-sidebar-border/70 bg-card px-4 py-8 text-center text-xs text-muted-foreground">
+                                    Belum ada data PO In.
+                                </div>
+                            )}
                         <Profiler
                             id="PO IN customer mobile rows"
                             onRender={reportRenderProfile}
                         >
                             {isMobile &&
                                 purchaseOrderIns.map((item, index) =>
-                            (() => {
-                                const urgency = getRowUrgency(item, serverToday);
-                                const itemIndex =
-                                    pagination.per_page === 'all'
-                                        ? index + 1
-                                        : (Number(pagination.page || 1) - 1) *
-                                              Number(pagination.per_page || 5) +
-                                          index +
-                                          1;
-                                return (
-                                    <div
-                                        key={item.id ?? item.no_poin}
-                                        className={cn(
-                                            'rounded-xl border p-3.5 text-xs shadow-xs transition-all',
-                                            urgency === 'overdue'
-                                                ? 'border-rose-500/40 bg-rose-500/5 border-l-4 border-l-rose-500'
-                                                : urgency === 'soon'
-                                                    ? 'border-amber-500/40 bg-amber-500/5 border-l-4 border-l-amber-500'
-                                                    : 'border-sidebar-border/70 bg-card',
-                                        )}
-                                    >
-                                        <div className="flex items-start justify-between gap-2 border-b border-sidebar-border/40 pb-2 mb-2.5">
-                                            <div className="min-w-0">
-                                                <span className="text-[10px] text-muted-foreground font-semibold">
-                                                    #{itemIndex}
-                                                </span>
-                                                <p className="font-bold text-sm text-foreground break-words">
-                                                    {item.kode_poin}
-                                                </p>
-                                                <p className="text-[11px] text-muted-foreground">
-                                                    Ref PO: <span className="font-medium text-foreground">{item.no_poin || '-'}</span>
-                                                </p>
-                                            </div>
-                                            {urgency && (
-                                                <span
-                                                    className={cn(
-                                                        'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold shrink-0',
-                                                        urgency === 'overdue'
-                                                            ? 'bg-rose-500/15 text-rose-600 border border-rose-500/30'
-                                                            : 'bg-amber-500/15 text-amber-600 border border-amber-500/30',
+                                    (() => {
+                                        const urgency = getRowUrgency(item, serverToday);
+                                        const itemIndex =
+                                            pagination.per_page === 'all'
+                                                ? index + 1
+                                                : (Number(pagination.page || 1) - 1) *
+                                                Number(pagination.per_page || 5) +
+                                                index +
+                                                1;
+                                        return (
+                                            <div
+                                                key={item.id ?? item.no_poin}
+                                                className={cn(
+                                                    'rounded-xl border p-3.5 text-xs shadow-xs transition-all',
+                                                    urgency === 'overdue'
+                                                        ? 'border-rose-500/40 bg-rose-500/5 border-l-4 border-l-rose-500'
+                                                        : urgency === 'soon'
+                                                            ? 'border-amber-500/40 bg-amber-500/5 border-l-4 border-l-amber-500'
+                                                            : 'border-sidebar-border/70 bg-card',
+                                                )}
+                                            >
+                                                <div className="flex items-start justify-between gap-2 border-b border-sidebar-border/40 pb-2 mb-2.5">
+                                                    <div className="min-w-0">
+                                                        <span className="text-[10px] text-muted-foreground font-semibold">
+                                                            #{itemIndex}
+                                                        </span>
+                                                        <p className="font-bold text-sm text-foreground break-words">
+                                                            {item.kode_poin}
+                                                        </p>
+                                                        <p className="text-[11px] text-muted-foreground">
+                                                            Ref PO: <span className="font-medium text-foreground">{item.no_poin || '-'}</span>
+                                                        </p>
+                                                    </div>
+                                                    {urgency && (
+                                                        <span
+                                                            className={cn(
+                                                                'inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold shrink-0',
+                                                                urgency === 'overdue'
+                                                                    ? 'bg-rose-500/15 text-rose-600 border border-rose-500/30'
+                                                                    : 'bg-amber-500/15 text-amber-600 border border-amber-500/30',
+                                                            )}
+                                                        >
+                                                            <span
+                                                                className={cn(
+                                                                    'size-1.5 rounded-full animate-ping',
+                                                                    urgency === 'overdue'
+                                                                        ? 'bg-rose-500'
+                                                                        : 'bg-amber-500',
+                                                                )}
+                                                            />
+                                                            <span>Segera dikirim</span>
+                                                        </span>
                                                     )}
-                                                >
-                                                    <span
-                                                        className={cn(
-                                                            'size-1.5 rounded-full animate-ping',
-                                                            urgency === 'overdue'
-                                                                ? 'bg-rose-500'
-                                                                : 'bg-amber-500',
-                                                        )}
-                                                    />
-                                                    <span>Segera dikirim</span>
-                                                </span>
-                                            )}
-                                        </div>
+                                                </div>
 
-                                        <div className="grid grid-cols-2 gap-2 text-[11px] mb-3">
-                                            <div>
-                                                <span className="text-muted-foreground">Customer:</span>
-                                                <p className="font-semibold text-foreground truncate">
-                                                    {item.customer_name || '-'}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <span className="text-muted-foreground">Delivery:</span>
-                                                <p className="font-medium text-foreground">
-                                                    {formatDateDisplay(item.delivery_date || '-')}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <span className="text-muted-foreground">Tanggal Input:</span>
-                                                <p className="font-medium text-foreground">
-                                                    {formatDateDisplay(item.created_at || item.date_poin)}
-                                                </p>
-                                            </div>
-                                            <div>
-                                                <span className="text-muted-foreground">Grand Total:</span>
-                                                <p className="font-bold text-emerald-600 dark:text-emerald-400">
-                                                    Rp {formatRupiah(item.grand_total)}
-                                                </p>
-                                            </div>
-                                        </div>
+                                                <div className="grid grid-cols-2 gap-2 text-[11px] mb-3">
+                                                    <div>
+                                                        <span className="text-muted-foreground">Customer:</span>
+                                                        <p className="font-semibold text-foreground truncate">
+                                                            {item.customer_name || '-'}
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-muted-foreground">Delivery:</span>
+                                                        <p className="font-medium text-foreground">
+                                                            {formatDateDisplay(item.delivery_date || '-')}
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-muted-foreground">Tanggal Input:</span>
+                                                        <p className="font-medium text-foreground">
+                                                            {formatDateDisplay(item.created_at || item.date_poin)}
+                                                        </p>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-muted-foreground">Grand Total:</span>
+                                                        <p className="font-bold text-emerald-600 dark:text-emerald-400">
+                                                            Rp {formatRupiah(item.grand_total)}
+                                                        </p>
+                                                    </div>
+                                                </div>
 
-                                        <div className="flex items-center justify-end gap-2 border-t border-sidebar-border/40 pt-2.5">
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                className="h-8 gap-1.5 text-xs font-semibold rounded-lg"
-                                                onClick={() =>
-                                                    openDetailModal(item.kode_poin)
-                                                }
-                                            >
-                                                <Eye className="size-3.5" />
-                                                <span>Detail</span>
-                                            </Button>
-                                            <a
-                                                href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-sidebar-border/70 bg-background px-3 text-xs font-semibold shadow-xs hover:bg-muted/60"
-                                            >
-                                                <Printer className="size-3.5" />
-                                                <span>Print</span>
-                                            </a>
-                                        </div>
-                                    </div>
-                                );
-                            })(),
-                        )}
+                                                <div className="flex items-center justify-end gap-2 border-t border-sidebar-border/40 pt-2.5">
+                                                    <Button
+                                                        type="button"
+                                                        variant="outline"
+                                                        size="sm"
+                                                        className="h-8 gap-1.5 text-xs font-semibold rounded-lg"
+                                                        onClick={() =>
+                                                            openDetailModal(item.kode_poin)
+                                                        }
+                                                    >
+                                                        <Eye className="size-3.5" />
+                                                        <span>Detail</span>
+                                                    </Button>
+                                                    <a
+                                                        href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-sidebar-border/70 bg-background px-3 text-xs font-semibold shadow-xs hover:bg-muted/60"
+                                                    >
+                                                        <Printer className="size-3.5" />
+                                                        <span>Print</span>
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        );
+                                    })(),
+                                )}
                         </Profiler>
                     </div>
 
@@ -2297,109 +2299,109 @@ export default function PurchaseOrderInIndex({
                                 >
                                     {!isMobile &&
                                         purchaseOrderIns.map((item, index) =>
-                                    (() => {
-                                        const urgency =
-                                            getRowUrgency(item, serverToday);
-                                        return (
-                                            <tr
-                                                key={
-                                                    item.id ??
-                                                    item.no_poin
-                                                }
-                                                className={cn(
-                                                    'border-b border-slate-300 dark:border-slate-700 transition-colors hover:bg-muted/40',
-                                                    urgency === 'overdue'
-                                                        ? 'bg-red-500/10 border-l-4 border-l-red-500'
-                                                        : urgency === 'soon'
-                                                            ? 'bg-yellow-500/10 border-l-4 border-l-yellow-500'
-                                                            : '',
-                                                )}
-                                            >
-                                                <td className="w-10 px-2 py-2.5 text-center text-muted-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
-                                                    {pagination.per_page ===
-                                                        'all'
-                                                        ? index + 1
-                                                        : (Number(
-                                                            pagination.page ||
-                                                            1,
-                                                        ) -
-                                                            1) *
-                                                        Number(
-                                                            pagination.per_page ||
-                                                            5,
-                                                        ) +
-                                                        index +
-                                                        1}
-                                                </td>
-                                                <td className="w-px px-2 py-2.5 font-semibold text-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
-                                                    <span>{item.kode_poin}</span>
-                                                </td>
-                                                <td className="w-px px-2 py-2.5 font-medium text-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
-                                                    {item.no_poin || '-'}
-                                                </td>
-                                                <td className="w-px px-2 py-2.5 text-muted-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
-                                                    {formatDateDisplay(
-                                                        item.delivery_date ||
-                                                        '-',
-                                                    )}
-                                                </td>
-                                                <td className="w-px px-2 py-2.5 text-muted-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
-                                                    {formatDateDisplay(
-                                                        item.created_at ||
-                                                        item.date_poin,
-                                                    )}
-                                                </td>
-                                                <td className="px-2 py-2.5 font-medium text-foreground border-b border-slate-300 dark:border-slate-700">
-                                                    <div className="flex items-center gap-1.5 flex-wrap">
-                                                        <span>{item.customer_name}</span>
-                                                        {urgency && (
-                                                            <span
-                                                                className={cn(
-                                                                    'rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold shrink-0',
-                                                                    urgency === 'overdue'
-                                                                        ? 'border-red-600/40 bg-red-600/15 text-red-700 dark:text-red-400'
-                                                                        : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800 dark:text-yellow-400',
-                                                                )}
-                                                            >
-                                                                Segera dikirim
-                                                            </span>
+                                            (() => {
+                                                const urgency =
+                                                    getRowUrgency(item, serverToday);
+                                                return (
+                                                    <tr
+                                                        key={
+                                                            item.id ??
+                                                            item.no_poin
+                                                        }
+                                                        className={cn(
+                                                            'border-b border-slate-300 dark:border-slate-700 transition-colors hover:bg-muted/40',
+                                                            urgency === 'overdue'
+                                                                ? 'bg-red-500/10 border-l-4 border-l-red-500'
+                                                                : urgency === 'soon'
+                                                                    ? 'bg-yellow-500/10 border-l-4 border-l-yellow-500'
+                                                                    : '',
                                                         )}
-                                                    </div>
-                                                </td>
-                                                <td className="w-32 px-2 py-2.5 text-right font-bold text-foreground tabular-nums whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
-                                                    Rp {formatRupiah(item.grand_total)}
-                                                </td>
-                                                <td className="w-20 px-2 py-2.5 whitespace-nowrap text-center border-b border-slate-300 dark:border-slate-700">
-                                                    <div className="flex items-center justify-center gap-1">
-                                                        <Button
-                                                            type="button"
-                                                            variant="outline"
-                                                            size="sm"
-                                                            className="h-7 w-7 p-0 rounded-md border-sidebar-border/70 hover:bg-emerald-500/15 hover:text-emerald-600 dark:hover:text-emerald-400 cursor-pointer"
-                                                            onClick={() =>
-                                                                openDetailModal(
-                                                                    item.kode_poin,
-                                                                )
-                                                            }
-                                                            title="Lihat Detail"
-                                                        >
-                                                            <Eye className="size-3.5 text-muted-foreground" />
-                                                        </Button>
-                                                        <a
-                                                            href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
-                                                            target="_blank"
-                                                            rel="noopener noreferrer"
-                                                            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sidebar-border/70 bg-background text-muted-foreground shadow-xs transition-colors hover:bg-teal-500/15 hover:text-teal-600 dark:hover:text-teal-400 cursor-pointer"
-                                                            title="Print Dokumen"
-                                                        >
-                                                            <Printer className="size-3.5" />
-                                                        </a>
-                                                    </div>
-                                                </td>
-                                            </tr>
-                                        );
-                                    })(),
-                                )}
+                                                    >
+                                                        <td className="w-10 px-2 py-2.5 text-center text-muted-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                            {pagination.per_page ===
+                                                                'all'
+                                                                ? index + 1
+                                                                : (Number(
+                                                                    pagination.page ||
+                                                                    1,
+                                                                ) -
+                                                                    1) *
+                                                                Number(
+                                                                    pagination.per_page ||
+                                                                    5,
+                                                                ) +
+                                                                index +
+                                                                1}
+                                                        </td>
+                                                        <td className="w-px px-2 py-2.5 font-semibold text-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                            <span>{item.kode_poin}</span>
+                                                        </td>
+                                                        <td className="w-px px-2 py-2.5 font-medium text-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                            {item.no_poin || '-'}
+                                                        </td>
+                                                        <td className="w-px px-2 py-2.5 text-muted-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                            {formatDateDisplay(
+                                                                item.delivery_date ||
+                                                                '-',
+                                                            )}
+                                                        </td>
+                                                        <td className="w-px px-2 py-2.5 text-muted-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                            {formatDateDisplay(
+                                                                item.created_at ||
+                                                                item.date_poin,
+                                                            )}
+                                                        </td>
+                                                        <td className="px-2 py-2.5 font-medium text-foreground border-b border-slate-300 dark:border-slate-700">
+                                                            <div className="flex items-center gap-1.5 flex-wrap">
+                                                                <span>{item.customer_name}</span>
+                                                                {urgency && (
+                                                                    <span
+                                                                        className={cn(
+                                                                            'rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold shrink-0',
+                                                                            urgency === 'overdue'
+                                                                                ? 'border-red-600/40 bg-red-600/15 text-red-700 dark:text-red-400'
+                                                                                : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800 dark:text-yellow-400',
+                                                                        )}
+                                                                    >
+                                                                        Segera dikirim
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="w-32 px-2 py-2.5 text-right font-bold text-foreground tabular-nums whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                            Rp {formatRupiah(item.grand_total)}
+                                                        </td>
+                                                        <td className="w-20 px-2 py-2.5 whitespace-nowrap text-center border-b border-slate-300 dark:border-slate-700">
+                                                            <div className="flex items-center justify-center gap-1">
+                                                                <Button
+                                                                    type="button"
+                                                                    variant="outline"
+                                                                    size="sm"
+                                                                    className="h-7 w-7 p-0 rounded-md border-sidebar-border/70 hover:bg-emerald-500/15 hover:text-emerald-600 dark:hover:text-emerald-400 cursor-pointer"
+                                                                    onClick={() =>
+                                                                        openDetailModal(
+                                                                            item.kode_poin,
+                                                                        )
+                                                                    }
+                                                                    title="Lihat Detail"
+                                                                >
+                                                                    <Eye className="size-3.5 text-muted-foreground" />
+                                                                </Button>
+                                                                <a
+                                                                    href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
+                                                                    target="_blank"
+                                                                    rel="noopener noreferrer"
+                                                                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sidebar-border/70 bg-background text-muted-foreground shadow-xs transition-colors hover:bg-teal-500/15 hover:text-teal-600 dark:hover:text-teal-400 cursor-pointer"
+                                                                    title="Print Dokumen"
+                                                                >
+                                                                    <Printer className="size-3.5" />
+                                                                </a>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
+                                                );
+                                            })(),
+                                        )}
                                 </Profiler>
                             </tbody>
                         </table>
@@ -2409,18 +2411,18 @@ export default function PurchaseOrderInIndex({
                     {activeDataTab === 'customer' &&
                         paginationError &&
                         !paginationLoading && (
-                        <div className="mt-3">
-                            <SummaryLoadError
-                                label="pagination PO IN"
-                                message={paginationError}
-                                onRetry={() =>
-                                    fetchPoInPagination(
-                                        lastTableParams.current,
-                                    )
-                                }
-                            />
-                        </div>
-                    )}
+                            <div className="mt-3">
+                                <SummaryLoadError
+                                    label="pagination PO IN"
+                                    message={paginationError}
+                                    onRetry={() =>
+                                        fetchPoInPagination(
+                                            lastTableParams.current,
+                                        )
+                                    }
+                                />
+                            </div>
+                        )}
                     {activeDataTab === 'customer' &&
                         !paginationError &&
                         !tableError &&
@@ -2428,34 +2430,8 @@ export default function PurchaseOrderInIndex({
                         (paginationLoading ||
                             Number(pagination.total || 0) > 0) && (
                             <div className="mt-3.5 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between text-xs text-muted-foreground border-t border-sidebar-border/40 pt-3">
-                                {paginationLoading ? (
-                                    <Skeleton className="h-5 w-48" />
-                                ) : (
-                                    <span>
-                                        Menampilkan{' '}
-                                        <span className="font-semibold text-foreground">
-                                            {Math.min(
-                                                (Number(pagination.page || 1) - 1) *
-                                                    Number(pagination.per_page || 5) +
-                                                    1,
-                                                Number(pagination.total || 0),
-                                            )}
-                                        </span>
-                                        -
-                                        <span className="font-semibold text-foreground">
-                                            {Math.min(
-                                                Number(pagination.page || 1) *
-                                                    Number(pagination.per_page || 5),
-                                                Number(pagination.total || 0),
-                                            )}
-                                        </span>{' '}
-                                        dari{' '}
-                                        <span className="font-semibold text-foreground">
-                                            {pagination.total}
-                                        </span>{' '}
-                                        data
-                                    </span>
-                                )}
+                                <span>
+                                </span>
                                 <div className="flex items-center gap-2 self-end sm:self-auto">
                                     <Button
                                         type="button"
@@ -2480,14 +2456,6 @@ export default function PurchaseOrderInIndex({
                                     >
                                         Sebelumnya
                                     </Button>
-                                    {paginationLoading ? (
-                                        <Skeleton className="h-5 w-20" />
-                                    ) : (
-                                        <span className="rounded-md bg-muted px-2 py-1 text-[11px] font-semibold text-foreground">
-                                            {pagination.page || 1} /{' '}
-                                            {pagination.total_pages || 1}
-                                        </span>
-                                    )}
                                     <Button
                                         type="button"
                                         variant="outline"
@@ -2526,8 +2494,8 @@ export default function PurchaseOrderInIndex({
                             {/* Mobile Card View (Material) */}
                             <div className="grid gap-3 md:hidden">
                                 {isMobile &&
-                                materialLoading &&
-                                materialRows.length === 0 ? (
+                                    materialLoading &&
+                                    materialRows.length === 0 ? (
                                     Array.from({
                                         length:
                                             materialPerPage === 'all'
@@ -2568,18 +2536,18 @@ export default function PurchaseOrderInIndex({
                                                     Number(
                                                         item.sisa_qtydo ?? 0,
                                                     ) === 0
-                                            ? null
-                                            : getRowUrgency(item, serverToday);
+                                                        ? null
+                                                        : getRowUrgency(item, serverToday);
                                                 const itemIndex =
                                                     (Number(
                                                         materialPagination.page ||
-                                                            1,
+                                                        1,
                                                     ) -
                                                         1) *
-                                                        Number(
-                                                            materialPagination.per_page ||
-                                                                5,
-                                                        ) +
+                                                    Number(
+                                                        materialPagination.per_page ||
+                                                        5,
+                                                    ) +
                                                     index +
                                                     1;
                                                 return (
@@ -2760,137 +2728,137 @@ export default function PurchaseOrderInIndex({
                                                         const urgency =
                                                             Number(
                                                                 item.sisa_qtydo ??
-                                                                    0,
+                                                                0,
                                                             ) === 0
-                                                ? null
+                                                                ? null
                                                                 : getRowUrgency(
-                                                                      item,
-                                                                  );
-                                            return (
-                                                <tr
-                                                    key={
-                                                        item.id ??
-                                                        `${item.no_poin}-${index}`
-                                                    }
-                                                    className={cn(
-                                                        'border-b border-slate-300 dark:border-slate-700 transition-colors hover:bg-muted/40',
-                                                        urgency ===
-                                                            'overdue'
-                                                            ? 'bg-red-500/10 border-l-4 border-l-red-500'
-                                                            : urgency ===
-                                                                'soon'
-                                                                ? 'bg-yellow-500/10 border-l-4 border-l-yellow-500'
-                                                                : '',
-                                                    )}
-                                                >
-                                                    <td className="w-10 px-2 py-2.5 text-center text-muted-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
-                                                        {materialPagination.per_page ===
-                                                        'all'
-                                                            ? index +
-                                                              1
-                                                            : (Number(
-                                                                  materialPagination.page ||
-                                                                      1,
-                                                              ) -
-                                                                  1) *
-                                                                  Number(
-                                                                      materialPagination.per_page ||
-                                                                          5,
-                                                                  ) +
-                                                              index +
-                                                              1}
-                                                    </td>
-                                                    <td className="w-px px-2 py-2.5 font-semibold text-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
-                                                        <span>{item.no_poin || '-'}</span>
-                                                    </td>
-                                                    <td className="px-2 py-2.5 text-foreground border-b border-slate-300 dark:border-slate-700">
-                                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                                            <span>{item.customer_name || '-'}</span>
-                                                            {urgency && (
-                                                                <span
-                                                                    className={cn(
-                                                                        'rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold shrink-0',
-                                                                        urgency === 'overdue'
-                                                                            ? 'border-red-600/40 bg-red-600/15 text-red-700 dark:text-red-400'
-                                                                            : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800 dark:text-yellow-400',
-                                                                    )}
-                                                                >
-                                                                    Segera dikirim
-                                                                </span>
-                                                            )}
-                                                        </div>
-                                                    </td>
-                                                    <td className="px-2 py-2.5 font-medium text-foreground border-b border-slate-300 dark:border-slate-700">
-                                                        {item.material || '-'}
-                                                    </td>
-                                                    <td className="w-20 px-2 py-2.5 text-right font-bold text-foreground tabular-nums whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
-                                                        {item.qty ?? 0}
-                                                    </td>
-                                                    <td className="w-20 px-2 py-2.5 text-right whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
-                                                        <span
-                                                            className={cn(
-                                                                'font-bold tabular-nums px-2 py-0.5 rounded-md text-xs',
-                                                                Number(
-                                                                    item.sisa_qtypr ??
-                                                                        item.qty ??
-                                                                        0,
-                                                                ) === 0
-                                                                    ? 'bg-muted text-muted-foreground'
-                                                                    : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 font-bold',
-                                                            )}
-                                                        >
-                                                            {item.sisa_qtypr ??
-                                                                item.qty ??
-                                                                0}
-                                                        </span>
-                                                    </td>
-                                                    <td className="w-20 px-2 py-2.5 text-right whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
-                                                        <span
-                                                            className={cn(
-                                                                'font-bold tabular-nums px-2 py-0.5 rounded-md text-xs',
-                                                                Number(
-                                                                    item.sisa_qtydo ??
-                                                                        item.qty ??
-                                                                        0,
-                                                                ) === 0
-                                                                    ? 'bg-muted text-muted-foreground'
-                                                                    : 'bg-rose-500/10 text-rose-700 dark:text-rose-400 font-bold',
-                                                            )}
-                                                        >
-                                                            {item.sisa_qtydo ??
-                                                                item.qty ??
-                                                                0}
-                                                        </span>
-                                                    </td>
-                                                    <td className="w-20 px-2 py-2.5 whitespace-nowrap text-center border-b border-slate-300 dark:border-slate-700">
-                                                        <div className="flex items-center justify-center gap-1">
-                                                            <Button
-                                                                type="button"
-                                                                variant="outline"
-                                                                size="sm"
-                                                                className="h-7 w-7 p-0 rounded-md border-sidebar-border/70 hover:bg-emerald-500/15 hover:text-emerald-600 dark:hover:text-emerald-400 cursor-pointer"
-                                                                onClick={() =>
-                                                                    openDetailModal(
-                                                                        item.kode_poin,
-                                                                    )
+                                                                    item,
+                                                                );
+                                                        return (
+                                                            <tr
+                                                                key={
+                                                                    item.id ??
+                                                                    `${item.no_poin}-${index}`
                                                                 }
-                                                                title="Lihat Detail"
+                                                                className={cn(
+                                                                    'border-b border-slate-300 dark:border-slate-700 transition-colors hover:bg-muted/40',
+                                                                    urgency ===
+                                                                        'overdue'
+                                                                        ? 'bg-red-500/10 border-l-4 border-l-red-500'
+                                                                        : urgency ===
+                                                                            'soon'
+                                                                            ? 'bg-yellow-500/10 border-l-4 border-l-yellow-500'
+                                                                            : '',
+                                                                )}
                                                             >
-                                                                <Eye className="size-3.5 text-muted-foreground" />
-                                                            </Button>
-                                                            <a
-                                                                href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
-                                                                target="_blank"
-                                                                rel="noopener noreferrer"
-                                                                className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sidebar-border/70 bg-background text-muted-foreground shadow-xs transition-colors hover:bg-teal-500/15 hover:text-teal-600 dark:hover:text-teal-400 cursor-pointer"
-                                                                title="Print Dokumen"
-                                                            >
-                                                                <Printer className="size-3.5" />
-                                                            </a>
-                                                        </div>
-                                                    </td>
-                                                </tr>
-                                            );
+                                                                <td className="w-10 px-2 py-2.5 text-center text-muted-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                                    {materialPagination.per_page ===
+                                                                        'all'
+                                                                        ? index +
+                                                                        1
+                                                                        : (Number(
+                                                                            materialPagination.page ||
+                                                                            1,
+                                                                        ) -
+                                                                            1) *
+                                                                        Number(
+                                                                            materialPagination.per_page ||
+                                                                            5,
+                                                                        ) +
+                                                                        index +
+                                                                        1}
+                                                                </td>
+                                                                <td className="w-px px-2 py-2.5 font-semibold text-foreground whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                                    <span>{item.no_poin || '-'}</span>
+                                                                </td>
+                                                                <td className="px-2 py-2.5 text-foreground border-b border-slate-300 dark:border-slate-700">
+                                                                    <div className="flex items-center gap-1.5 flex-wrap">
+                                                                        <span>{item.customer_name || '-'}</span>
+                                                                        {urgency && (
+                                                                            <span
+                                                                                className={cn(
+                                                                                    'rounded-sm border px-1.5 py-0.5 text-[10px] leading-tight font-semibold shrink-0',
+                                                                                    urgency === 'overdue'
+                                                                                        ? 'border-red-600/40 bg-red-600/15 text-red-700 dark:text-red-400'
+                                                                                        : 'border-yellow-600/40 bg-yellow-500/20 text-yellow-800 dark:text-yellow-400',
+                                                                                )}
+                                                                            >
+                                                                                Segera dikirim
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </td>
+                                                                <td className="px-2 py-2.5 font-medium text-foreground border-b border-slate-300 dark:border-slate-700">
+                                                                    {item.material || '-'}
+                                                                </td>
+                                                                <td className="w-20 px-2 py-2.5 text-right font-bold text-foreground tabular-nums whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                                    {item.qty ?? 0}
+                                                                </td>
+                                                                <td className="w-20 px-2 py-2.5 text-right whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                                    <span
+                                                                        className={cn(
+                                                                            'font-bold tabular-nums px-2 py-0.5 rounded-md text-xs',
+                                                                            Number(
+                                                                                item.sisa_qtypr ??
+                                                                                item.qty ??
+                                                                                0,
+                                                                            ) === 0
+                                                                                ? 'bg-muted text-muted-foreground'
+                                                                                : 'bg-amber-500/10 text-amber-700 dark:text-amber-400 font-bold',
+                                                                        )}
+                                                                    >
+                                                                        {item.sisa_qtypr ??
+                                                                            item.qty ??
+                                                                            0}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="w-20 px-2 py-2.5 text-right whitespace-nowrap border-b border-slate-300 dark:border-slate-700">
+                                                                    <span
+                                                                        className={cn(
+                                                                            'font-bold tabular-nums px-2 py-0.5 rounded-md text-xs',
+                                                                            Number(
+                                                                                item.sisa_qtydo ??
+                                                                                item.qty ??
+                                                                                0,
+                                                                            ) === 0
+                                                                                ? 'bg-muted text-muted-foreground'
+                                                                                : 'bg-rose-500/10 text-rose-700 dark:text-rose-400 font-bold',
+                                                                        )}
+                                                                    >
+                                                                        {item.sisa_qtydo ??
+                                                                            item.qty ??
+                                                                            0}
+                                                                    </span>
+                                                                </td>
+                                                                <td className="w-20 px-2 py-2.5 whitespace-nowrap text-center border-b border-slate-300 dark:border-slate-700">
+                                                                    <div className="flex items-center justify-center gap-1">
+                                                                        <Button
+                                                                            type="button"
+                                                                            variant="outline"
+                                                                            size="sm"
+                                                                            className="h-7 w-7 p-0 rounded-md border-sidebar-border/70 hover:bg-emerald-500/15 hover:text-emerald-600 dark:hover:text-emerald-400 cursor-pointer"
+                                                                            onClick={() =>
+                                                                                openDetailModal(
+                                                                                    item.kode_poin,
+                                                                                )
+                                                                            }
+                                                                            title="Lihat Detail"
+                                                                        >
+                                                                            <Eye className="size-3.5 text-muted-foreground" />
+                                                                        </Button>
+                                                                        <a
+                                                                            href={`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/print`}
+                                                                            target="_blank"
+                                                                            rel="noopener noreferrer"
+                                                                            className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-sidebar-border/70 bg-background text-muted-foreground shadow-xs transition-colors hover:bg-teal-500/15 hover:text-teal-600 dark:hover:text-teal-400 cursor-pointer"
+                                                                            title="Print Dokumen"
+                                                                        >
+                                                                            <Printer className="size-3.5" />
+                                                                        </a>
+                                                                    </div>
+                                                                </td>
+                                                            </tr>
+                                                        );
                                                     },
                                                 )}
                                         </Profiler>
@@ -2902,27 +2870,11 @@ export default function PurchaseOrderInIndex({
                             {!materialError &&
                                 (materialLoading ||
                                     Number(materialPagination.total || 0) >
-                                        0) && (
+                                    0) && (
                                     <div className="mt-3.5 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between text-xs text-muted-foreground border-t border-sidebar-border/40 pt-3">
                                         <span>
-                                            {materialLoading ? (
+                                            {materialLoading && (
                                                 <Skeleton className="h-5 w-48" />
-                                            ) : (
-                                                <span>
-                                                    Menampilkan{' '}
-                                                    <span className="font-semibold text-foreground">
-                                                        {materialRange.from}
-                                                    </span>
-                                                    -
-                                                    <span className="font-semibold text-foreground">
-                                                        {materialRange.to}
-                                                    </span>{' '}
-                                                    dari{' '}
-                                                    <span className="font-semibold text-foreground">
-                                                        {materialRange.total}
-                                                    </span>{' '}
-                                                    data
-                                                </span>
                                             )}
                                         </span>
                                         {materialPerPage !== 'all' && (
@@ -2936,7 +2888,7 @@ export default function PurchaseOrderInIndex({
                                                         materialLoading ||
                                                         Number(
                                                             materialPagination.page ||
-                                                                1,
+                                                            1,
                                                         ) <= 1
                                                     }
                                                     onClick={() =>
@@ -2945,7 +2897,7 @@ export default function PurchaseOrderInIndex({
                                                                 1,
                                                                 Number(
                                                                     materialPagination.page ||
-                                                                        1,
+                                                                    1,
                                                                 ) - 1,
                                                             ),
                                                         })
@@ -2969,23 +2921,23 @@ export default function PurchaseOrderInIndex({
                                                         materialLoading ||
                                                         Number(
                                                             materialPagination.page ||
-                                                                1,
+                                                            1,
                                                         ) >=
-                                                            Number(
-                                                                materialPagination.total_pages ||
-                                                                    1,
-                                                              )
+                                                        Number(
+                                                            materialPagination.total_pages ||
+                                                            1,
+                                                        )
                                                     }
                                                     onClick={() =>
                                                         fetchMaterialData({
                                                             page: Math.min(
                                                                 Number(
                                                                     materialPagination.total_pages ||
-                                                                        1,
+                                                                    1,
                                                                 ),
                                                                 Number(
                                                                     materialPagination.page ||
-                                                                        1,
+                                                                    1,
                                                                 ) + 1,
                                                             ),
                                                         })
@@ -3259,11 +3211,11 @@ export default function PurchaseOrderInIndex({
                                                     columns={8}
                                                     skeletonRows={
                                                         detailPageSize ===
-                                                        Infinity
+                                                            Infinity
                                                             ? 5
                                                             : Number(
-                                                                  detailPageSize,
-                                                              )
+                                                                detailPageSize,
+                                                            )
                                                     }
                                                 />
                                                 {!detailTableLoading &&
@@ -3275,7 +3227,7 @@ export default function PurchaseOrderInIndex({
                                                             >
                                                                 <td className="w-10 px-2 py-2.5 text-center text-muted-foreground whitespace-nowrap">
                                                                     {detailPagination.per_page ===
-                                                                    'all'
+                                                                        'all'
                                                                         ? index + 1
                                                                         : (Number(
                                                                             detailPagination.page ||
@@ -3707,9 +3659,9 @@ export default function PurchaseOrderInIndex({
                                                             activeModalTab === 'do'
                                                             ? item.no_do
                                                             : activeModal ===
-                                                                    'realized' &&
+                                                                'realized' &&
                                                                 activeModalTab === 'pr'
-                                                              ? item.no_pr ||
+                                                                ? item.no_pr ||
                                                                 item.kode_poin
                                                                 : item.kode_poin}
                                                     </td>
@@ -3758,25 +3710,25 @@ export default function PurchaseOrderInIndex({
                                                                     {((activeModal === 'outstanding' && activeModalTab === 'pr') ||
                                                                         !Number(item.has_do ?? 0) ||
                                                                         activeModal === 'sisa') && (
-                                                                        <MenuAction
-                                                                            action="update"
-                                                                            type="button"
-                                                                            variant="outline"
-                                                                            size="sm"
-                                                                            className="h-7 w-7 p-0 rounded-md border-sidebar-border/70 hover:bg-indigo-500/15 hover:text-indigo-600 cursor-pointer"
-                                                                            onClick={() => {
-                                                                                if (!canUpdate) {
-                                                                                    toastError('Akses edit tidak diizinkan untuk menu ini.');
-                                                                                    return;
-                                                                                }
-                                                                                setActiveModal(null);
-                                                                                router.visit(`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/edit`);
-                                                                            }}
-                                                                            title="Edit PO In"
-                                                                        >
-                                                                            <Pencil className="size-3.5" />
-                                                                        </MenuAction>
-                                                                    )}
+                                                                            <MenuAction
+                                                                                action="update"
+                                                                                type="button"
+                                                                                variant="outline"
+                                                                                size="sm"
+                                                                                className="h-7 w-7 p-0 rounded-md border-sidebar-border/70 hover:bg-indigo-500/15 hover:text-indigo-600 cursor-pointer"
+                                                                                onClick={() => {
+                                                                                    if (!canUpdate) {
+                                                                                        toastError('Akses edit tidak diizinkan untuk menu ini.');
+                                                                                        return;
+                                                                                    }
+                                                                                    setActiveModal(null);
+                                                                                    router.visit(`/marketing/purchase-order-in/${encodeURIComponent(item.kode_poin)}/edit`);
+                                                                                }}
+                                                                                title="Edit PO In"
+                                                                            >
+                                                                                <Pencil className="size-3.5" />
+                                                                            </MenuAction>
+                                                                        )}
                                                                     {activeModal === 'outstanding' && (
                                                                         <MenuAction
                                                                             action="delete"
@@ -3839,19 +3791,19 @@ export default function PurchaseOrderInIndex({
                                             {modalTotalItems === 0
                                                 ? 0
                                                 : (modalPage - 1) *
-                                                      (modalPageSize === Infinity
-                                                          ? modalTotalItems
-                                                          : modalPageSize) +
-                                                  1}
+                                                (modalPageSize === Infinity
+                                                    ? modalTotalItems
+                                                    : modalPageSize) +
+                                                1}
                                         </span>{' '}
                                         -{' '}
                                         <span className="font-semibold text-foreground">
                                             {modalPageSize === Infinity
                                                 ? modalTotalItems
                                                 : Math.min(
-                                                      modalPage * modalPageSize,
-                                                      modalTotalItems,
-                                                  )}
+                                                    modalPage * modalPageSize,
+                                                    modalTotalItems,
+                                                )}
                                         </span>{' '}
                                         dari{' '}
                                         <span className="font-semibold text-foreground">
@@ -3965,7 +3917,7 @@ export default function PurchaseOrderInIndex({
                     open={isTrackingModalOpen}
                     onOpenChange={setIsTrackingModalOpen}
                     onError={toastError}
-                                />
+                />
             </div>
         </>
     );
