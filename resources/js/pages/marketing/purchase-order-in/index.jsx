@@ -206,7 +206,12 @@ const getDeliveryUrgency = (value) => {
 
 const getRowUrgency = (item) => {
     if (!item?.delivery_date) return null;
-    if (item.sisa_qtydo !== undefined && item.sisa_qtydo !== null && Number(item.sisa_qtydo) === 0) {
+    if (
+        item.sisa_qtydo !== undefined &&
+        item.sisa_qtydo !== null &&
+        item.sisa_qtydo !== '' &&
+        Number(item.sisa_qtydo) === 0
+    ) {
         return null;
     }
     return getDeliveryUrgency(item.delivery_date);
