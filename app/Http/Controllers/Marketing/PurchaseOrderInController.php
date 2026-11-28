@@ -305,6 +305,7 @@ class PurchaseOrderInController
 
         return Inertia::render('marketing/purchase-order-in/index', [
             'realtimeChannel' => PurchaseOrderInChanged::currentChannel(),
+            'serverToday' => now()->toDateString(),
             'purchaseOrderIns' => [],
             'summary' => [
                 'total' => 0,

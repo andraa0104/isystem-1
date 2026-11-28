@@ -180,11 +180,11 @@ const formatDateDisplay = (value) => {
     return `${dd}-${mm}-${yyyy}`;
 };
 
-const getDeliveryUrgency = (value) => {
+const getDeliveryUrgency = (value, serverToday = null) => {
     const deliveryDate = toDate(value);
     if (!deliveryDate) return null;
 
-    const today = new Date();
+    const today = serverToday ? toDate(serverToday) || new Date() : new Date();
     const todayStart = new Date(
         today.getFullYear(),
         today.getMonth(),
@@ -204,7 +204,7 @@ const getDeliveryUrgency = (value) => {
     return null;
 };
 
-const getRowUrgency = (item) => {
+const getRowUrgency = (item, serverToday = null) => {
     if (!item?.delivery_date) return null;
     if (
         item.sisa_qtydo !== undefined &&
@@ -214,7 +214,7 @@ const getRowUrgency = (item) => {
     ) {
         return null;
     }
-    return getDeliveryUrgency(item.delivery_date);
+    return getDeliveryUrgency(item.delivery_date, serverToday);
 };
 
 const toDate = (value) => {
@@ -258,6 +258,7 @@ export default function PurchaseOrderInIndex({
     purchaseOrderIns: initialPurchaseOrderIns = [],
     summary: initialSummary = {},
     filters = {},
+    serverToday = null,
     pagination: initialPagination = {},
     realtimeChannel = null,
 }) {
@@ -2121,7 +2122,7 @@ export default function PurchaseOrderInIndex({
                             {isMobile &&
                                 purchaseOrderIns.map((item, index) =>
                             (() => {
-                                const urgency = getRowUrgency(item);
+                                const urgency = getRowUrgency(item, serverToday);
                                 const itemIndex =
                                     pagination.per_page === 'all'
                                         ? index + 1
@@ -2298,7 +2299,7 @@ export default function PurchaseOrderInIndex({
                                         purchaseOrderIns.map((item, index) =>
                                     (() => {
                                         const urgency =
-                                            getRowUrgency(item);
+                                            getRowUrgency(item, serverToday);
                                         return (
                                             <tr
                                                 key={
@@ -2568,7 +2569,7 @@ export default function PurchaseOrderInIndex({
                                                         item.sisa_qtydo ?? 0,
                                                     ) === 0
                                             ? null
-                                            : getRowUrgency(item);
+                                            : getRowUrgency(item, serverToday);
                                                 const itemIndex =
                                                     (Number(
                                                         materialPagination.page ||
@@ -3680,7 +3681,7 @@ export default function PurchaseOrderInIndex({
                                         />
 
                                         {modalDisplayedItems.map((item, index) => {
-                                            const urgency = getRowUrgency(item);
+                                            const urgency = getRowUrgency(item, serverToday);
                                             return (
                                                 <tr
                                                     key={`${item.no_do || item.no_poin}-${index}`}
