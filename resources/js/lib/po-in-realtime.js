@@ -32,11 +32,11 @@ export const subscribeToPoInChanges = (channelName, onChange, eventName = 'purch
 
     return () => {
         try {
-            echo.leave(channelName);
-        } catch {}
-        try {
             const state = echo.connector?.pusher?.connection?.state;
-            if (state && state !== 'closed' && state !== 'closing') {
+            if (state === 'connected') {
+                echo.leave(channelName);
+            }
+            if (state && state !== 'closed' && state !== 'closing' && state !== 'disconnected') {
                 echo.disconnect();
             }
         } catch {}
