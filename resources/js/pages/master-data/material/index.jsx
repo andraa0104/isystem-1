@@ -42,7 +42,6 @@ import {
     PackageSearch,
     Pencil,
     Plus,
-    RefreshCw,
     Search,
     SlidersHorizontal,
     Trash2,
@@ -179,25 +178,6 @@ function MaterialOrnaments() {
             <div className="absolute -top-32 -left-20 size-[520px] rounded-full bg-emerald-500/[0.08] dark:bg-emerald-500/[0.14] blur-[130px]" />
             <div className="absolute top-1/4 -right-24 size-[460px] rounded-full bg-cyan-500/[0.07] dark:bg-cyan-500/[0.12] blur-[130px]" />
             <div className="absolute bottom-16 left-1/3 size-[400px] rounded-full bg-indigo-500/[0.05] dark:bg-indigo-500/[0.09] blur-[110px]" />
-
-            <motion.div
-                className="absolute top-8 right-10 hidden xl:block opacity-35 dark:opacity-50"
-                animate={{
-                    y: [0, -16, 10, -6, 0],
-                    rotate: [0, 60, 120, 180, 240, 300, 360],
-                }}
-                transition={{ duration: 28, repeat: Infinity, ease: 'linear' }}
-            >
-                <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
-                    <polygon
-                        points="22,3 39,13 39,31 22,41 5,31 5,13"
-                        stroke="#10b981"
-                        strokeWidth="1.2"
-                        strokeDasharray="4 3"
-                    />
-                    <circle cx="22" cy="22" r="3.5" fill="#06b6d4" />
-                </svg>
-            </motion.div>
         </div>
     );
 }
@@ -1592,23 +1572,6 @@ export default function MaterialIndex() {
 
                     {/* Action Controls */}
                     <div className="flex flex-wrap items-center gap-2.5 shrink-0">
-                        <motion.button
-                            type="button"
-                            onClick={refreshLoadedCardMetrics}
-                            whileHover={{ scale: 1.02 }}
-                            whileTap={{ scale: 0.97 }}
-                            className="inline-flex items-center gap-2 rounded-2xl border border-sidebar-border/70 bg-muted/40 px-3.5 py-2.5 text-xs font-bold text-foreground shadow-xs hover:border-emerald-500/40 hover:bg-muted/60 transition-all cursor-pointer"
-                            title="Segarkan data tabel & ringkasan aktif"
-                        >
-                            <RefreshCw
-                                className={cn(
-                                    'size-3.5 text-emerald-500',
-                                    tableLoading && 'animate-spin',
-                                )}
-                            />
-                            <span>Segarkan</span>
-                        </motion.button>
-
                         <motion.button
                             type="button"
                             onClick={() => setIsExportModalOpen(true)}

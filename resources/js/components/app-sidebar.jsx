@@ -32,8 +32,6 @@ import {
     ChevronDown,
     ChevronRight,
     LayoutDashboard,
-    PanelLeftClose,
-    PanelLeftOpen,
     Search,
     Signal,
     Users,

@@ -157,26 +157,6 @@ function DriftingOrnaments() {
             <div className="absolute -top-32 -left-20 size-[540px] rounded-full bg-emerald-500/[0.08] dark:bg-emerald-500/[0.14] blur-[130px]" />
             <div className="absolute top-1/4 -right-24 size-[480px] rounded-full bg-cyan-500/[0.07] dark:bg-cyan-500/[0.12] blur-[130px]" />
             <div className="absolute bottom-20 left-1/3 size-[420px] rounded-full bg-indigo-500/[0.05] dark:bg-indigo-500/[0.09] blur-[110px]" />
-
-            {/* Drifting Cyber Hexagon Node */}
-            <motion.div
-                className="absolute top-8 right-10 hidden xl:block opacity-35 dark:opacity-50"
-                animate={{
-                    y: [0, -18, 12, -8, 0],
-                    rotate: [0, 60, 120, 180, 240, 300, 360],
-                }}
-                transition={{ duration: 28, repeat: Infinity, ease: 'linear' }}
-            >
-                <svg width="44" height="44" viewBox="0 0 44 44" fill="none">
-                    <polygon
-                        points="22,3 39,13 39,31 22,41 5,31 5,13"
-                        stroke="#10b981"
-                        strokeWidth="1.2"
-                        strokeDasharray="4 3"
-                    />
-                    <circle cx="22" cy="22" r="3.5" fill="#06b6d4" />
-                </svg>
-            </motion.div>
         </div>
     );
 }
